@@ -1,6 +1,5 @@
 import numpy as np
 
-
 class LPT3(object) :
     
     def __init__(self, box_length, num_mesh_1d) :
