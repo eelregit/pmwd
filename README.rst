@@ -1,8 +1,9 @@
+.. image:: https://raw.githubusercontent.com/eelregit/pmwd/master/assets/logo.svg?token=ABXY56TX3W73M5KITHFOPB3BHO3HM
+   :alt: logo
 
 
-
-pmwd: particle mesh with derivatives
-====================================
+particle mesh with derivatives
+==============================
 
 ``pmwd`` is a differentiable cosmological particle-mesh forward model.
 The C\ :sub:`2` symmetry of the name symbolizes the reversibility of the
