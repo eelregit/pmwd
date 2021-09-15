@@ -1,10 +1,12 @@
 import numpy as np
+from scipy.interpolate import interp1d
+from scipy.integrate import ode
 
 class LPT3(object) :
     
     def __init__(self, box_length, num_mesh_1d, Omega_m) :
         '''
-            Class for computing 3rd order Lagrangian perturbation theory displacement potentials and displacements
+            Class for computing 3rd order Lagrangian perturbation theory displacement potentials and displacements up to third order.
             
             box_length: length of one side of cube
             num_mesh_1d: number of divisions along one dimension of cube
@@ -19,85 +21,109 @@ class LPT3(object) :
         self.wave_numbers = np.fft.fftfreq(self.num_mesh_1d, d = 1. / self.fundamental_mode / self.num_mesh_1d)
         self.field_shape = [self.num_mesh_1d, self.num_mesh_1d, self.num_mesh_1d]
         self.modes_shape = [self.num_mesh_1d, self.num_mesh_1d, self.num_modes_last_d]
-        
-    def D(self, z) :
-        aa3 = (1. - self.Omega_m) / (1. + z)**3 / self.Omega_m
-        return hyp2f1(1, 1. / 3., 11. / 6., -aa3) / (1. + z)
+        self._initializeGrowthTables()
 
-    def f(self, z):
-        aa3 = (1. - self.Omega_m) / (1. + z)**3 / self.Omega_m
-        return 1 - 6. * aa3 / 11. * hyp2f1(2., 4. / 3., 17. / 6., -aa3) / hyp2f1(1., 1. / 3., 11. / 6., -aa3)
-
+    def _getH(self, a) :
+        '''Returns Hubble rate in units f h / Mpc at scale factor a.'''
+        return 1. / 2.99792458e3 * np.sqrt(self.Omega_m / a ** 3 + (1. - self.Omega_m))
+    
+    def _getBeta(self, a) :
+        '''Returns 1.5 * Omega_m(a) at scale factor a.'''
+        return 1.5 / (1. + (1. / self.Omega_m - 1.) * a ** 3) 
+    
     def _fft(self, field) :
+        '''Returns normalized forward Fourier transform of field so the modes has units [field] * [volume].'''
         return self.bin_volume * np.fft.rfftn(field)
     
     def _ifft(self, field) :
+        '''Returns normalized backward Fourier transform of field (modes) so the position space field has units [field (modes)] / [volume].'''
         return np.fft.irfftn(field) / self.bin_volume
     
     def _getSafeReciprocal3D(self, field) :
+        '''Returns 1 / field where field is in Fourier space except for the zero amplitude modes which remain zero.'''
         field[0,0,0] = 1.
         field = 1. / field
         field[0,0,0] = 0.
         return field
     
     def _getWaveVectorNorms(self) :
+        '''Returns 3D array of wave vector norms.'''
         return (self.wave_numbers ** 2 + self.wave_numbers[:, None] ** 2 + self.wave_numbers[:, None, None] ** 2)[:, :, :self.num_modes_last_d]
         
-    def getGrad3D(self, field, ind) :
-        if ind == 0 :
+    def getGrad3D(self, field, dir) :
+        '''Returns gradient of field (modes) along direction dir (0, 1, or 2).'''
+        if dir == 0 :
             return (field.T * 1j * self.wave_numbers).T
-        elif ind == 1 :
+        elif dir == 1 :
             return (field.T * 1j * self.wave_numbers[:, None]).T
-        elif ind == 2 :
+        elif dir == 2 :
             return field * 1j * (self.wave_numbers[:, None, None])[:, :, :self.num_modes_last_d]
         else :
             raise ValueError('3D Index out of bounds %d' % (ind))
         return
 
     def getInverseLaplacian3D(self, field) :
+        '''Returns inverse Laplacian of field (modes).'''
         return -field * self._getSafeReciprocal3D(self._getWaveVectorNorms())
 
     def getLaplacian3D(self, field) :
+        '''Returns Laplacian of field (modes)'''
         return -field * self._getWaveVectorNorms()
 
-    def getHessian3D(self, field, inds) :
-        if np.shape(inds) != (2,) :
-            raise ValueError('Hessian inds must have shape (2,)')
-        return self.getGrad3D(self.getGrad3D(field, inds[0]), inds[1])
+    def getHessian3D(self, field, dirs) :
+        '''Returns Hessian component of field (modes) along directions dirs = [dir1, dir2].'''
+        if np.shape(dirs) != (2,) :
+            raise ValueError('Hessian inds must have shape (2,).')
+        return self.getGrad3D(self.getGrad3D(field, dirs[0]), dirs[1])
 
-    def getHessian3DIFFT(self, field, inds) :
-        return self._ifft(self.getHessian3D(field, inds))
+    def getHessian3DIFFT(self, field, dirs) :
+        '''Returns backward Fourier transform of Hessian component of field (modes) along directions dirs = [dir1, dir2].'''
+        return self._ifft(self.getHessian3D(field, dirs))
     
-    def convolveHessian3D(self, fields, inds) :
-        if len(fields) != len(inds) :
-            raise ValueError('inds must be a list with the same length as fields')
+    def convolveHessian3D(self, fields, dirs) :
+        '''
+            Returns to convolution of the Hessian components dirs[i] of every field[i] in fields (modes)
+            by multiplying their backward Fourier transforms.
+        '''
+        if len(fields) != len(dirs) :
+            raise ValueError('dirs must be a list with the same length as fields.')
         output = np.ones(self.field_shape)
         for i, phi in enumerate(fields) :
-            output *= self.getHessian3DIFFT(phi, inds[i])
+            output *= self.getHessian3DIFFT(phi, dirs[i])
         return output
         
-    def convolveHessian3DDifference(self, fields, inds) :
-        if len(fields) != len(inds) :
-            raise ValueError('inds must be a list with the same length as fields')
+    def convolveHessian3DDifference(self, fields, dirs) :
+        '''
+            Returns to convolution of the Hessian components dirs[i] of every field[i] in fields (modes)
+            by multiplying their backward Fourier transforms, expect for the final two fields whose difference
+            field[-2] - field[-1] is convolved instead.
+        '''
+        if len(fields) != len(dirs) :
+            raise ValueError('dirs must be a list with the same length as fields')
         output = np.ones(self.field_shape)
         for i, phi in enumerate(fields[:len(fields) - 2]) :
-            output *= self.getHessian3DIFFT(phi, inds[i])
-        output *= self._ifft(self.getHessian3D(fields[-2], inds[-2]) - self.getHessian3D(fields[-1], inds[-1]))
+            output *= self.getHessian3DIFFT(phi, dirs[i])
+        output *= self._ifft(self.getHessian3D(fields[-2], dirs[-2]) - self.getHessian3D(fields[-1], dirs[-1]))
         return output
     
-    def convolveHessian3DSum(self, fields, inds) :
-        if len(fields) != len(inds) :
-            raise ValueError('inds must be a list with the same length as fields')
+    def convolveHessian3DSum(self, fields, dirs) :
+        '''
+            Returns to convolution of the Hessian components dirs[i] of every field[i] in fields (modes)
+            by multiplying their backward Fourier transforms, expect for the final two fields whose sum
+            field[-2] + field[-1] is convolved instead.
+        '''
+        if len(fields) != len(dirs) :
+            raise ValueError('dirs must be a list with the same length as fields.')
         output = np.ones(self.field_shape)
         for i, phi in enumerate(fields[:len(fields) - 2]) :
-            output *= self.getHessian3DIFFT(phi, inds[i])
-        output *= self._ifft(self.getHessian3D(fields[-2], inds[-2]) + self.getHessian3D(fields[-1], inds[-1]))
+            output *= self.getHessian3DIFFT(phi, dirs[i])
+        output *= self._ifft(self.getHessian3D(fields[-2], dirs[-2]) + self.getHessian3D(fields[-1], dirs[-1]))
         return output
     
     def getLinearDelta(self, k, p, sphere_mode = True) :
         '''
             Returns a random Gaussian realization of the linear density contrast in Fourier space,
-            sampled from the power spectrum interpolation table (k, p)
+            sampled from the power spectrum interpolation table (k, p).
 
             k: array of wave numbers for interpolate, in units of box_length ** -1
             p: array of power spectrum values at k, in units of k ** -3
@@ -112,101 +138,194 @@ class LPT3(object) :
             k_grid[k_grid >= nyqiust_mode] = 0.
         noise[k_grid > 0.] *= np.exp(interp1d(np.log(k), np.log(sigma))(np.log(k_grid[k_grid > 0.])))
         return noise
-
-    def get3LPTPotentials(self, delta, z):
+    
+    def _initializeGrowthTables(self, zi = 1.e6, zf = -0.01, num_z = 1024, nstep = 100, rtol = 1.e-3, atol = 1.e-10) :
         '''
-            Returns phi and A, the 3rd order LPT displacement scalar and vector potentials respectively at z 
+            Numerically intergrates the growth equations for LPT growth factors up to 3rd order, initializes the internal interpolation tables
+            for all growth factors and growth rates.
+        '''
+        #
+        # Log scale factors for interpolation tables
+        #
+        self.log_a = np.linspace(-np.log(1. + zi), -np.log(1. + zf), 1024)
+        #
+        # Initial conditions assuming matter domination (radiation is ignored)
+        #
+        D1 = np.exp(self.log_a[0])
+        dD1 = D1
+        D2 = 3. / 7. * D1 ** 2
+        dD2 = 2. * D2
+        D3a = 1. / 6. * D1 ** 3
+        dD3a = 3. * D3a
+        D3b = 1. / 6. * D1 * D2
+        dD3b = 3. * D3b
+        initials = [D1, dD2, D2, dD2, D3a, dD3a, D3b, dD3b]
+        #
+        # ODEs for LPT growth factors up to order 3 assuming flat LCDM
+        #
+        def _get_deqs(t_log_a, t_state) :
+            D1, dD1, D2, dD2, D3a, dD3a, D3b, dD3b = t_state
+            t_a = np.exp(t_log_a)
+            beta = self._getBeta(t_a)
+            alpha = 2. - beta
+            deqs = np.zeros(8)
+            deqs[0] = dD1
+            deqs[1] = alpha * dD1 + beta * D1
+            deqs[2] = dD2
+            deqs[3] = alpha * dD2 + beta * (D2 + D1 ** 2)
+            deqs[4] = dD3a
+            deqs[5] = alpha * dD3a + beta * (D3a + D1 ** 3)
+            deqs[6] = dD3b
+            deqs[7] = alpha * dD3b + beta * (D3b + D1 * D2)
+            return deqs
+        #
+        # Initialize integrator
+        #
+        growth_odes = ode(_get_deqs)
+        growth_odes.set_integrator('lsoda', nsteps = nstep, rtol = rtol, atol = atol)
+        self.growth_factors = [initials[::2]]
+        self.growth_rates = [initials[1::2]]
+        growth_odes.set_initial_value(initials, self.log_a[0])
+        #
+        # Loop through log(a) array to build interpolation tables
+        #
+        for t_log_a in self.log_a[1:] :
+            growth_odes.integrate(t_log_a)
+            if not growth_odes.successful() :
+                if not self.quiet :
+                    warnings.warn("LPT3.initializeGrowthTables failed to integrate at log(a) = %.6e." % (growth_odes.t))
+                break
+            self.growth_factors.append(growth_odes.y[::2])
+            self.growth_rates.append(self._getH(np.exp(t_log_a)) * growth_odes.y[::2])
+        #
+        # Define interal interpolators
+        #
+        self.growth_factors = np.array(self.growth_factors).T
+        self.growth_rates = np.array(self.growth_rates).T
+        self._getD1 = interp1d(self.log_a, self.growth_factors[0])
+        self._getD2 = interp1d(self.log_a, self.growth_factors[1])
+        self._getD3a = interp1d(self.log_a, self.growth_factors[2])
+        self._getD3b = interp1d(self.log_a, self.growth_factors[3])
+        self._getdD1 = interp1d(self.log_a, self.growth_rates[0])
+        self._getdD2 = interp1d(self.log_a, self.growth_rates[1])
+        self._getdD3a = interp1d(self.log_a, self.growth_rates[2])
+        self._getdD3b = interp1d(self.log_a, self.growth_rates[3])         
+        return
+    
+    def getD1(self, z) :
+        '''Returns first order growth factor interpolated at redshift z.'''
+        return self._getD1(-np.log(1. + z))
+
+    def getD2(self, z) :
+        '''Returns second order growth factor interpolated at redshift z.'''
+        return self._getD2(-np.log(1. + z))
+
+    def getD3a(self, z) :
+        '''Returns third order growth factor sourced by D1 ** 3 interpolated at redshift z.'''
+        return self._getD3a(-np.log(1. + z))
+
+    def getD3b(self, z) :
+        '''Returns third order growth factor sourced by D1 * D2 interpolated at redshift z.'''
+        return self._getD3b(-np.log(1. + z))
+
+    def getdD1(self, z) :
+        '''Returns first order growth rate interpolated at redshift z.'''
+        return self._getdD1(-np.log(1. + z))
+
+    def getdD2(self, z) :
+        '''Returns second order growth rate interpolated at redshift z.'''
+        return self._getdD2(-np.log(1. + z))
+
+    def getdD3a(self, z) :
+        '''Returns third order growth rate sourced by D1 ** 3 interpolated at redshift z.'''
+        return self._getdD3a(-np.log(1. + z))
+
+    def getdD3b(self, z) :
+        '''Returns third order growth rate sourced by D1 * D2 interpolated at redshift z.'''
+        return self._getdD3b(-np.log(1. + z)) 
+
+    def getDisplacements(self, delta, z, t_order = 3, z_delta = None):
+        '''
+            Computes phi and A, the 3rd order LPT displacement scalar and vector potentials respectively at z.
             
-            delta: 3D Fourier modes of the 1LPT density contrast field at redshit z
-            z: reshift of delta and of the output potentials
+            Returns dis, vel, the t_order displacement and velocit fields.
+            
+            delta: 3D Fourier modes of the linear density contrast field, if not computed at redshift z then z_delta must be given
+            z: reshift of desired LPT displacements, if z_delta is None this must also be the redshift of the linear field delta
+            t_order: order of Lagrangian perturbations theory (max is 3)
+            z_delta: redshift of delta if different from z
         '''
+        #
         # 1LPT
-        phi_1 = self.getInverseLaplacian3D(delta) / self.D(z)
-        # 2LPT
-        phi_2 = self.convolveHessian3DSum([phi_1, phi_1, phi_1], [[0, 0], [1, 1], [2, 2]])
-        phi_2 += self.convolveHessian3D([phi_1, phi_1], [[1, 1], [2, 2]])
+        #
+        if z_delta is None :
+            phi_1 = self.getInverseLaplacian3D(delta) / self.getD1(z)
+        else :
+            phi_1 = self.getInverseLaplacian3D(delta) / z_delta
+        phi_dis = self.getD1(z) * phi_1
+        phi_vel = self.getdD1(z) * phi_1
+        if t_order > 1 :
+            #
+            # 2LPT
+            #
+            phi_2 = self.convolveHessian3DSum([phi_1, phi_1, phi_1], [[0, 0], [1, 1], [2, 2]])
+            phi_2 += self.convolveHessian3D([phi_1, phi_1], [[1, 1], [2, 2]])
+            for i in range(3) :
+                j = (i + 1) % 3
+                phi_2 -= self.convolveHessian3D([phi_1, phi_1], [[i, j], [i, j]])
+            phi_2 = self.getInverseLaplacian3D(self._fft(phi_2))
+            phi_dis += self.getD2(z) * phi_2
+            phi_vel += self.getdD2(z) * phi_2
+            if t_order > 2 :
+                #
+                # 3LPT Scalar
+                #
+                phi_3 = np.zeros(self.field_shape)
+                for i in range(3) :
+                    j = (i + 1) % 3
+                    k = (i + 2) % 3
+                    phi_3 += self.convolveHessian3DSum([phi_1, phi_2, phi_2], [[i, i], [j, j], [k, k]])
+                    phi_3 -= 2. * self.convolveHessian3D([phi_1, phi_2], [[i, j], [i, j]])
+                phi_dis += self.getD3b(z) * self.getInverseLaplacian3D(self._fft(phi_3))
+                phi_vel += self.getdD3b(z) * self.getInverseLaplacian3D(self._fft(phi_3))
+                phi_3 += self.convolveHessian3D([phi_1, phi_1, phi_1], [[0, 0], [1, 1], [2, 2]])
+                phi_3 += 2. * self.convolveHessian3D([phi_1, phi_1, phi_1], [[0, 1], [1, 2], [2, 0]])
+                for i in range(3) :
+                    j = (i + 1) % 3
+                    k = (i + 2) % 3 
+                    phi_3 -= self.convolveHessian3D([phi_1, phi_1, phi_1], [[i, i], [j, k], [j, k]])
+                phi_3 = self.getInverseLaplacian3D(self._fft(phi_3))
+                phi_dis += self.getD3a(z) * phi_3
+                phi_vel += self.getdD3a(z) * phi_3
+                del(phi_3)
+                #
+                #3 LPT Vector
+                #
+                A = np.zeros([3] + self.field_shape)
+                for i in range(3) :
+                    j = (i + 1) % 3
+                    k = (i + 2) % 3
+                    A[i] += self.convolveHessian3D([phi_2, phi_1], [[i, j], [i, k]])
+                    A[i] -= self.convolveHessian3D([phi_1, phi_2], [[i, j], [i, k]])
+                    A[i] += self.convolveHessian3DDifference([phi_1, phi_2, phi_2], [[j, k], [j, j], [k, k]])
+                    A[i] -= self.convolveHessian3DDifference([phi_2, phi_1, phi_1], [[j, k], [j, j], [k, k]])
+                del(phi_1)
+                del(phi_2)
+                A = np.array([self.getInverseLaplacian3D(self._fft(t_A)) for t_A in A])
+        #
+        # Convert potentials to displacements, Note only the vector potential hasn't been scaled by its growth factor/rate
+        #
+        dis = []
+        vel = []
         for i in range(3) :
-            j = (i + 1) % 3
-            phi_2 -= self.convolveHessian3D([phi_1, phi_1], [[i, j], [i, j]])
-        phi_2 = self.getInverseLaplacian3D(self._fft(phi_2))
-        # 3LPT Scalar
-        phi_3 = self.convolveHessian3D([phi_1, phi_1, phi_1], [[0, 0], [1, 1], [2, 2]])
-        phi_3 += 2. * self.convolveHessian3D([phi_1, phi_1, phi_1], [[0, 1], [1, 2], [2, 0]])
-        for i in range(3) :
-            j = (i + 1) % 3
-            k = (i + 2) % 3
-            phi_3 -= self.getHessian3DIFFT(phi_1, [i, i]) * (self.getHessian3DIFFT(phi_1, [j, k]) ** 2 
-                                                  +  5. / 7. * self._ifft(self.getHessian3D(phi_2, [j, j]) + self.getHessian3D(phi_2, [k, k])))
-            phi_3 += 10. / 7. * self.convolveHessian3D([phi_1, phi_2], [[i, j], [i, j]])
-        phi_3 = self.getInverseLaplacian3D(self._fft(phi_3))
-        #3 LPT Vector
-        A = np.zeros([3] + self.field_shape)
-        for i in range(3) :
-            j = (i + 1) % 3
-            k = (i + 2) % 3
-            A[i] += self.convolveHessian3D([phi_2, phi_1], [[i, j], [i, k]])
-            A[i] -= self.convolveHessian3D([phi_1, phi_2], [[i, j], [i, k]])
-            A[i] += self.convolveHessian3DDifference([phi_1, phi_2, phi_2], [[j, k], [j, j], [k, k]])
-            A[i] -= self.convolveHessian3DDifference([phi_2, phi_1, phi_1], [[j, k], [j, j], [k, k]])
-        A = np.array([self.getInverseLaplacian3D(self._fft(t_A)) for t_A in A])
-        return phi_1, phi_2, phi_3, A
-
-    def getDisplacement(self, phi_1, phi_2 = None, phi_3 = None, A = None) :
-        '''
-            Returns the displacement field in real space
-
-            phi: scalar LPT displacemental potential modes
-            A:   vector LPT displacement potential modes
-        '''
-        D1 = self.D(z)
-        D2 = 3. / 7.* D1 ** 2
-        D3_L = 1. / 3. * D1 ** 3
-        D3_T = 1. / 7. * D1 ** 3
-        f1 = self.f(z)
-        H = 1. / 2.99792458e3 * np.sqrt(self.Omega_m / (1. + z) ** 3 + (1. - self.Omega_m))
-        u1 = H * D1 * f1
-        u2 = 2. * H * D2 * f1
-        u3_L = 3 * H * D3_L * f1
-        u3_T = 3 * H * D3_T * f1
-        psi = []
-        v = []
-        for i in range(3) :
-            t_psi = -self._ifft(self.getGrad3D(phi_1, i))
-            t_v = u1 * t_psi
-            t_psi *= D1
-            if phi_2 is not None :
-                grad = -self._ifft(self.getGrad3D(phi_2, i))
-                t_v += u2 * grad
-                t_psi += D2 * grad
-            if phi_3 is not None :
-                grad = -self._ifft(self.getGrad3D(phi_3, i))
-                t_v += u3_L * grad
-                t_psi += D3_L * grad
-            if A is not None :
+            t_dis = -self._ifft(self.getGrad3D(phi_dis, i))
+            t_vel = -self._ifft(self.getGrad3D(phi_vel, i))
+            if t_order > 2 :
                 j = (i + 1) % 3
                 k = (i + 2) % 3
-                grad = self._ifft(self.getGrad3D(A[k], j) - self.getGrad3D(A[j], k))
-                t_v += u3_T * grad
-                t_psi += D3_T * grad
-            psi.append(t_psi)
-            v.append(t_v)
-        return np.array(psi), np.array(v)
-    
-def getPowerSpectrum(fields) :
-    k_mags = np.sqrt(lpt._getWaveVectorNorms())
-    inds = np.uint32(np.round(k_mags / lpt.fundamental_mode))
-    kk = np.zeros(lpt.half_num_mesh_1d)
-    nn = np.zeros(lpt.half_num_mesh_1d)
-    for i in range(lpt.half_num_mesh_1d) :
-        ii = inds == i
-        kk[i] = np.mean(k_mags[ii])
-        nn[i] = np.sum(ii)
-    pp = np.zeros(lpt.half_num_mesh_1d)
-    if len(fields.shape) == 3 :
-        fields = [fields]
-    for field in fields :
-        for i in range(lpt.half_num_mesh_1d) :
-            ii = inds == i
-            pp[i] += np.mean(np.real(field[ii] * np.conj(field[ii])))
-    pp /= lpt.box_length ** 3
-    return kk, pp, nn
+                curl = self._ifft(self.getGrad3D(A[k], j) - self.getGrad3D(A[j], k))
+                t_dis += self.getD3a(z) * curl
+                t_vel += self.getdD3a(z) * curl
+            dis.append(t_dis)
+            vel.append(t_vel)
+        return np.array(dis), np.array(vel)
