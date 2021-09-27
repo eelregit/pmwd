@@ -1,4 +1,4 @@
-.. image:: https://raw.githubusercontent.com/eelregit/pmwd/master/assets/logo.svg?token=ABXY56TX3W73M5KITHFOPB3BHO3HM
+.. image:: https://raw.githubusercontent.com/eelregit/pmwd/master/assets/logo.svg
    :alt: logo
 
 

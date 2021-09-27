@@ -4,21 +4,21 @@ from functools import partial
 
 import jax.numpy as jnp
 from jax import grad, jit, vjp, custom_vjp
-from jax import lax
+from jax.lax import scan
 from jax.tree_util import register_pytree_node_class
 
 
 @register_pytree_node_class
 @dataclass
 class Particles:
-    """Particle state
+    """Particle state or adjoint particle state
 
     Attributes:
-        pmid: particles' IDs by mesh indices
-        disp: displacements
-        vel: velocities (canonical momenta)
-        acc: accelerations
-        val: custom feature values
+        pmid: particles' IDs by mesh indices, of signed int dtype
+        disp: displacements or adjoint
+        vel: velocities (canonical momenta) or adjoint
+        acc: accelerations or force vjp
+        val: custom feature values or adjoint
     """
     pmid: jnp.ndarray
     disp: jnp.ndarray
@@ -46,15 +46,17 @@ class Particles:
 
     def assert_valid(self):
         for field in fields(self):
-            assert isinstance(getattr(self, field.name), jnp.ndarray), \
-                   f'{field.name} must be jax.numpy.ndarray'
+            data = getattr(self, field.name)
+            if data is not None:
+                assert isinstance(data, jnp.ndarray), (
+                    f'{field.name} must be jax.numpy.ndarray')
 
-        assert jnp.issubdtype(self.pmid.dtype, jnp.signedinteger), \
-               'pmid must be signed integers'
+        assert jnp.issubdtype(self.pmid.dtype, jnp.signedinteger), (
+            'pmid must be signed integers')
 
         assert self.disp.shape == self.pmid.shape, 'disp shape mismatch'
-        assert jnp.issubdtype(self.disp.dtype, jnp.floating), \
-               'disp must be floating point numbers'
+        assert jnp.issubdtype(self.disp.dtype, jnp.floating), (
+            'disp must be floating point numbers')
 
         if self.vel is not None:
             assert self.vel.shape == self.pmid.shape, 'vel shape mismatch'
@@ -137,11 +139,14 @@ class Config:
         return 1. / self.cell_size
 
 
-@partial(custom_vjp, nondiff_argnums=(4,))
-#@partial(jit, static_argnames='chunk_size')
-def scatter(pmid, disp, mesh, val=1., chunk_size=1024**2):
+def scatter(ptcl, mesh, val=1., chunk_size=1024**2):
     """Scatter particle values to mesh in n-D with CIC window
     """
+    return _scatter(ptcl.pmid, ptcl.disp, mesh, val, chunk_size)
+
+
+@partial(custom_vjp, nondiff_argnums=(4,))
+def _scatter(pmid, disp, mesh, val, chunk_size):
     ptcl_num, spatial_ndim = pmid.shape
 
     chunk_size = min(chunk_size, ptcl_num)
@@ -159,31 +164,33 @@ def scatter(pmid, disp, mesh, val=1., chunk_size=1024**2):
         val.reshape(chunk_num, chunk_size, *chan_shape),
     )
 
-    mesh = lax.scan(_scatter, mesh, chunks)[0]
+    mesh = scan(_scatter_chunk, mesh, chunks)[0]
 
     return mesh
 
 
-def _scatter(mesh, chunk):
+def _scatter_chunk(mesh, chunk):
     pmid, disp, val = chunk
 
     ptcl_num, spatial_ndim = pmid.shape
 
     spatial_shape = mesh.shape[:spatial_ndim]
     chan_ndim = mesh.ndim - spatial_ndim
+    chan_axis = tuple(range(-chan_ndim, 0))
 
     pmid = pmid[:, jnp.newaxis]  # insert neighbor axis
     disp = disp[:, jnp.newaxis]  # insert neighbor axis
     val = val[:, jnp.newaxis]  # insert neighbor axis
 
     # CIC
-    tgt = jnp.floor(disp)
     neighbors = (jnp.arange(2 ** spatial_ndim)[:, jnp.newaxis]
                  >> jnp.arange(spatial_ndim)
                 ) & 1
-    tgt = tgt + neighbors  # jax type promotion prefers float
-    frac = (1.0 - jnp.abs(disp - tgt)).prod(axis=-1)
-    frac = frac.reshape(frac.shape + (1,) * chan_ndim)
+    tgt = jnp.floor(disp)
+    tgt = tgt + neighbors.astype(tgt.dtype)
+    frac = 1. - jnp.abs(disp - tgt)
+    frac = frac.prod(axis=-1)
+    frac = jnp.expand_dims(frac, chan_axis)
     tgt = pmid + tgt.astype(pmid.dtype)
 
     # periodic boundaries
@@ -196,8 +203,8 @@ def _scatter(mesh, chunk):
     return mesh, None
 
 
-def _scatter_adjoint(mesh_cot, chunk):
-    """Adjoint of _scatter
+def _scatter_chunk_adj(mesh_cot, chunk):
+    """Adjoint of _scatter_chunk
 
     Gather disp_cot from mesh_cot and val;
     Gather val_cot from mesh_cot.
@@ -215,20 +222,20 @@ def _scatter_adjoint(mesh_cot, chunk):
     val = val[:, jnp.newaxis]  # insert neighbor axis
 
     # CIC
-    tgt = jnp.floor(disp)
     neighbors = (jnp.arange(2 ** spatial_ndim)[:, jnp.newaxis]
                  >> jnp.arange(spatial_ndim)
                 ) & 1
-    tgt = tgt + neighbors  # jax type promotion prefers float
-    frac = 1.0 - jnp.abs(disp - tgt)
+    tgt = jnp.floor(disp)
+    tgt = tgt + neighbors.astype(tgt.dtype)
+    frac = 1. - jnp.abs(disp - tgt)
     sign = jnp.sign(tgt - disp)
     frac_grad = []
     for i in range(spatial_ndim):
-        not_i = tuple(range(0, i)) + tuple(range(i, spatial_ndim))
+        not_i = tuple(range(0, i)) + tuple(range(i + 1, spatial_ndim))
         frac_grad.append(sign[..., i] * frac[..., not_i].prod(axis=-1))
     frac_grad = jnp.stack(frac_grad, axis=-1)
     frac = frac.prod(axis=-1)
-    frac = frac.reshape(frac.shape + (1,) * chan_ndim)
+    frac = jnp.expand_dims(frac, chan_axis)
     tgt = pmid + tgt.astype(pmid.dtype)
 
     # periodic boundaries
@@ -246,12 +253,11 @@ def _scatter_adjoint(mesh_cot, chunk):
     return mesh_cot, (disp_cot, val_cot)
 
 
-def scatter_fwd(pmid, disp, mesh, val=1., chunk_size=1024**2):
-    mesh = scatter(pmid, disp, mesh, val=val, chunk_size=chunk_size)
+def _scatter_fwd(pmid, disp, mesh, val, chunk_size):
+    mesh = _scatter(pmid, disp, mesh, val, chunk_size)
     return mesh, (pmid, disp, val)
 
-
-def scatter_bwd(chunk_size, res, mesh_cot):
+def _scatter_bwd(chunk_size, res, mesh_cot):
     pmid, disp, val = res
 
     ptcl_num, spatial_ndim = pmid.shape
@@ -271,22 +277,24 @@ def scatter_bwd(chunk_size, res, mesh_cot):
         val.reshape(chunk_num, chunk_size, *chan_shape),
     )
 
-    disp_cot, val_cot = lax.scan(_scatter_adjoint, mesh_cot, chunks)[1]
+    disp_cot, val_cot = scan(_scatter_chunk_adj, mesh_cot, chunks)[1]
 
     disp_cot = disp_cot.reshape(ptcl_num, spatial_ndim)
     val_cot = val_cot.reshape(ptcl_num, *chan_shape)
 
     return None, disp_cot, mesh_cot, val_cot
 
+_scatter.defvjp(_scatter_fwd, _scatter_bwd)
 
-scatter.defvjp(scatter_fwd, scatter_bwd)
+
+def gather(ptcl, mesh, val=0., chunk_size=1024**2):
+    """Gather particle values from mesh in n-D with CIC window
+    """
+    return _gather(ptcl.pmid, ptcl.disp, mesh, val, chunk_size)
 
 
 @partial(custom_vjp, nondiff_argnums=(4,))
-#@partial(jit, static_argnames='chunk_size')
-def gather(pmid, disp, mesh, val=0., chunk_size=1024**2):
-    """Gather particle values from mesh in n-D with CIC window
-    """
+def _gather(pmid, disp, mesh, val, chunk_size):
     ptcl_num, spatial_ndim = pmid.shape
 
     chunk_size = min(chunk_size, ptcl_num)
@@ -304,32 +312,34 @@ def gather(pmid, disp, mesh, val=0., chunk_size=1024**2):
         val.reshape(chunk_num, chunk_size, *chan_shape),
     )
 
-    val = lax.scan(_gather, mesh, chunks)[1]
+    val = scan(_gather_chunk, mesh, chunks)[1]
 
     val = val.reshape(ptcl_num, *chan_shape)
 
     return val
 
 
-def _gather(mesh, chunk):
+def _gather_chunk(mesh, chunk):
     pmid, disp, val_in = chunk
 
     ptcl_num, spatial_ndim = pmid.shape
 
     spatial_shape = mesh.shape[:spatial_ndim]
     chan_ndim = mesh.ndim - spatial_ndim
+    chan_axis = tuple(range(-chan_ndim, 0))
 
     pmid = pmid[:, jnp.newaxis]  # insert neighbor axis
     disp = disp[:, jnp.newaxis]  # insert neighbor axis
 
     # CIC
-    tgt = jnp.floor(disp)
     neighbors = (jnp.arange(2 ** spatial_ndim)[:, jnp.newaxis]
                  >> jnp.arange(spatial_ndim)
                 ) & 1
-    tgt = tgt + neighbors  # jax type promotion prefers float
-    frac = (1.0 - jnp.abs(disp - tgt)).prod(axis=-1)
-    frac = frac.reshape(frac.shape + (1,) * chan_ndim)
+    tgt = jnp.floor(disp)
+    tgt = tgt + neighbors.astype(tgt.dtype)
+    frac = 1. - jnp.abs(disp - tgt)
+    frac = frac.prod(axis=-1)
+    frac = jnp.expand_dims(frac, chan_axis)
     tgt = pmid + tgt.astype(pmid.dtype)
 
     # periodic boundaries
@@ -344,12 +354,13 @@ def _gather(mesh, chunk):
     return mesh, val
 
 
-def _gather_adjoint(mesh, chunk):
-    """Adjoint of _gather
+def _gather_chunk_adj(meshes, chunk):
+    """Adjoint of _gather_chunk
 
     Gather disp_cot from val_cot and mesh;
     Scatter val_cot to mesh_cot.
     """
+    mesh, mesh_cot = meshes
     pmid, disp, val_cot = chunk
 
     ptcl_num, spatial_ndim = pmid.shape
@@ -363,20 +374,20 @@ def _gather_adjoint(mesh, chunk):
     val_cot = val_cot[:, jnp.newaxis]  # insert neighbor axis
 
     # CIC
-    tgt = jnp.floor(disp)
     neighbors = (jnp.arange(2 ** spatial_ndim)[:, jnp.newaxis]
                  >> jnp.arange(spatial_ndim)
                 ) & 1
-    tgt = tgt + neighbors  # jax type promotion prefers float
-    frac = 1.0 - jnp.abs(disp - tgt)
+    tgt = jnp.floor(disp)
+    tgt = tgt + neighbors.astype(tgt.dtype)
+    frac = 1. - jnp.abs(disp - tgt)
     sign = jnp.sign(tgt - disp)
     frac_grad = []
     for i in range(spatial_ndim):
-        not_i = tuple(range(0, i)) + tuple(range(i, spatial_ndim))
+        not_i = tuple(range(0, i)) + tuple(range(i + 1, spatial_ndim))
         frac_grad.append(sign[..., i] * frac[..., not_i].prod(axis=-1))
     frac_grad = jnp.stack(frac_grad, axis=-1)
     frac = frac.prod(axis=-1)
-    frac = frac.reshape(frac.shape + (1,) * chan_ndim)
+    frac = jnp.expand_dims(frac, chan_axis)
     tgt = pmid + tgt.astype(pmid.dtype)
 
     # periodic boundaries
@@ -389,18 +400,16 @@ def _gather_adjoint(mesh, chunk):
     disp_cot = (val_cot * val).sum(axis=chan_axis)
     disp_cot = (disp_cot[..., jnp.newaxis] * frac_grad).sum(axis=1)
 
-    mesh_cot = jnp.zeros_like(mesh)
     mesh_cot = mesh_cot.at[tgt].add(val_cot * frac)
 
-    return mesh_cot, disp_cot
+    return (mesh, mesh_cot), disp_cot
 
 
-def gather_fwd(pmid, disp, mesh, val=0., chunk_size=1024**2):
-    val = gather(pmid, disp, mesh, val=val, chunk_size=chunk_size)
+def _gather_fwd(pmid, disp, mesh, val, chunk_size):
+    val = _gather(pmid, disp, mesh, val, chunk_size)
     return val, (pmid, disp, mesh)
 
-
-def gather_bwd(chunk_size, res, val_cot):
+def _gather_bwd(chunk_size, res, val_cot):
     pmid, disp, mesh = res
 
     ptcl_num, spatial_ndim = pmid.shape
@@ -420,35 +429,37 @@ def gather_bwd(chunk_size, res, val_cot):
         val_cot.reshape(chunk_num, chunk_size, *chan_shape),
     )
 
-    mesh_cot, disp_cot = lax.scan(_gather_adjoint, mesh, chunks)
+    mesh_cot = jnp.zeros_like(mesh)
+    meshes = (mesh, mesh_cot)
+
+    meshes, disp_cot = scan(_gather_chunk_adj, meshes, chunks)
+
+    mesh_cot = meshes[1]
 
     disp_cot = disp_cot.reshape(ptcl_num, spatial_ndim)
 
     return None, disp_cot, mesh_cot, val_cot
 
-
-gather.defvjp(gather_fwd, gather_bwd)
+_gather.defvjp(_gather_fwd, _gather_bwd)
 
 
 def rfftnfreq(shape, dtype=float):
     """wavevectors (angular frequencies) for `numpy.fft.rfftn`
 
-    Return:
-        A list of broadcastable wavevectors (similar to `numpy.ogrid`)
+    Returns:
+        A list of broadcastable wavevectors as a "`sparse`" `numpy.meshgrid`
     """
-    ndim = len(shape)
     rad_per_cycle = 2 * jnp.pi
 
     kvec = []
     for axis, n in enumerate(shape[:-1]):
         k = jnp.fft.fftfreq(n).astype(dtype) * rad_per_cycle
-
-        k = k.reshape((-1,) + (1,) * (ndim - axis - 1))
-
         kvec.append(k)
 
     k = jnp.fft.rfftfreq(shape[-1]).astype(dtype) * rad_per_cycle
     kvec.append(k)
+
+    kvec = jnp.meshgrid(*kvec, indexing='ij', sparse=True)
 
     return kvec
 
@@ -457,14 +468,12 @@ def rfftnfreq(shape, dtype=float):
 def laplace(kvec, dens, param):
     """Laplace kernel in Fourier space
     """
-    ndim = len(kvec)
-
-    assert dens.ndim == ndim, 'spatial dimension mismatch'
-    assert all(kvec[axis].shape[axis-ndim] == dens.shape[axis]
-               for axis in range(ndim)), 'spatial shape mismatch'
-    assert jnp.iscomplexobj(dens), 'source not in Fourier space'
+    spatial_ndim = len(kvec)
+    chan_ndim = dens.ndim - spatial_ndim
+    chan_axis = tuple(range(-chan_ndim, 0))
 
     kk = sum(k**2 for k in kvec)
+    kk = jnp.expand_dims(kk, chan_axis)
 
     pot = jnp.where(kk != 0., - dens / kk, 0.)
 
@@ -475,44 +484,52 @@ def laplace_fwd(kvec, dens, param):
     pot = laplace(kvec, dens, param)
     return pot, kvec
 
-
 def laplace_bwd(kvec, pot_cot):
-    """Custom vjp to avoid NaN when using where
+    """Custom vjp to avoid NaN when using where, as well as to save memory
 
-    See also https://jax.readthedocs.io/en/latest/faq.html#gradients-contain-nan-where-using-where
+    .. _JAX FAQ:
+        https://jax.readthedocs.io/en/latest/faq.html#gradients-contain-nan-where-using-where
     """
-    kk = sum(k**2 for k in kvec)
-    dens_cot = - pot_cot * kk
-    return None, dens_cot, None
+    spatial_ndim = len(kvec)
+    chan_ndim = pot_cot.ndim - spatial_ndim
+    chan_axis = tuple(range(-chan_ndim, 0))
 
+    kk = sum(k**2 for k in kvec)
+    kk = jnp.expand_dims(kk, chan_axis)
+
+    dens_cot = - pot_cot * kk
+
+    return None, dens_cot, None
 
 laplace.defvjp(laplace_fwd, laplace_bwd)
 
 
 def negative_gradient(k, pot):
-    assert jnp.iscomplexobj(pot), 'potential not in Fourier space'
-
     nyquist = jnp.pi
-    eps = jnp.finfo(k.dtype).eps
+    eps = nyquist * jnp.finfo(k.dtype).eps
 
-    neg_ik = jnp.where(jnp.abs(jnp.abs(k) - nyquist) > eps, -1j * k, 0j)
+    spatial_ndim = k.ndim
+    chan_ndim = pot.ndim - spatial_ndim
+    chan_axis = tuple(range(-chan_ndim, 0))
+
+    k = jnp.expand_dims(k, chan_axis)
+    neg_ik = jnp.where(jnp.abs(jnp.abs(k) - nyquist) <= eps, 0j, -1j * k)
 
     neg_grad = neg_ik * pot
 
     return neg_grad
 
 
-#@partial(jit, static_argnames='config')
-def gravity(pmid, disp, param, config):
+def gravity(ptcl, param, config):
     """Compute particles' gravitational forces on a mesh with FFT
     """
-    real_dtype = disp.dtype
+    real_dtype = ptcl.disp.dtype
 
     kvec = rfftnfreq(config.mesh_shape, dtype=real_dtype)
 
     dens = jnp.zeros(config.mesh_shape, dtype=real_dtype)
 
-    dens = scatter(pmid, disp, dens, chunk_size=config.chunk_size)
+    dens = scatter(ptcl, dens, chunk_size=config.chunk_size)
 
     dens = jnp.fft.rfftn(dens)
 
@@ -525,7 +542,7 @@ def gravity(pmid, disp, param, config):
 
         neg_grad = jnp.fft.irfftn(neg_grad, s=config.mesh_shape)
 
-        neg_grad = gather(pmid, disp, neg_grad, chunk_size=config.chunk_size)
+        neg_grad = gather(ptcl, neg_grad, chunk_size=config.chunk_size)
 
         acc.append(neg_grad)
 
@@ -536,16 +553,17 @@ def gravity(pmid, disp, param, config):
 
 def force(state, param, config):
     ptcl = state.dm
-    ptcl.acc = gravity(ptcl.pmid, ptcl.disp, param, config)
+    ptcl.acc = gravity(ptcl, param, config)
     return state
 
 
-def force_adjoint(state, state_cot, param, config):
+def force_adj(state, state_cot, param, config):
     ptcl = state.dm
+    ptcl.acc, gravity_vjp = vjp(partial(gravity, config=config), ptcl, param)
+
     ptcl_cot = state_cot.dm
-    _gravity = partial(gravity, config=config)
-    ptcl.acc, acc_vjp = vjp(_gravity, ptcl.pmid, ptcl.disp, param)
-    ptcl_cot.acc = acc_vjp(ptcl_cot.vel)[1]
+    ptcl_cot.acc = gravity_vjp(ptcl_cot.vel)[0].disp
+
     return state, state_cot
 
 
@@ -555,7 +573,7 @@ def kick(state, step, param, config):
     return state
 
 
-def kick_adjoint(state, state_cot, step, param, config):
+def kick_adj(state, state_cot, step, param, config):
     state = kick(state, step, param, config)
 
     ptcl_cot = state_cot.dm
@@ -570,7 +588,7 @@ def drift(state, step, param, config):
     return state
 
 
-def drift_adjoint(state, state_cot, step, param, config):
+def drift_adj(state, state_cot, step, param, config):
     state = drift(state, step, param, config)
 
     ptcl_cot = state_cot.dm
@@ -593,17 +611,17 @@ def leapfrog(state, step, param, config):
     return state
 
 
-def leapfrog_adjoint(state, state_cot, step, param, config):
+def leapfrog_adj(state, state_cot, step, param, config):
     """Leapfrog with adjoint equation
     """
     # FIXME HACK step
-    state, state_cot = kick_adjoint(state, state_cot, 0.5*step, param, config)
+    state, state_cot = kick_adj(state, state_cot, 0.5*step, param, config)
 
-    state, state_cot = drift_adjoint(state, state_cot, step, param, config)
+    state, state_cot = drift_adj(state, state_cot, step, param, config)
 
-    state, state_cot = force_adjoint(state, state_cot, param, config)
+    state, state_cot = force_adj(state, state_cot, param, config)
 
-    state, state_cot = kick_adjoint(state, state_cot, 0.5*step, param, config)
+    state, state_cot = kick_adj(state, state_cot, 0.5*step, param, config)
 
     return state, state_cot
 
@@ -618,90 +636,85 @@ def coevolve(state, param, config):
     return state
 
 
-def observe(state, observable, param, config):
+def observe(state, obsvbl, param, config):
     pass
 
 
 @partial(custom_vjp, nondiff_argnums=(4,))
 @partial(jit, static_argnames='config')
-def integrate(state, observable, steps, param, config):
+def integrate(state, obsvbl, steps, param, config):
     """Time integration
     """
     state = force(state, param, config)  # how to skip this if acc is given?
 
     state = coevolve(state, param, config)  # same as above
 
-    observable = observe(state, observable, param, config) # same as above
+    obsvbl = observe(state, obsvbl, param, config) # same as above
 
     def _integrate(carry, step):
-        state, observable, param = carry
+        state, obsvbl, param = carry
 
         state = leapfrog(state, step, param, config)
 
         state = coevolve(state, param, config)
 
-        observable = observe(state, observable, param, config)
+        obsvbl = observe(state, obsvbl, param, config)
 
-        carry = state, observable, param
+        carry = state, obsvbl, param
 
         return carry, None
 
-    carry = state, observable, param
+    carry = state, obsvbl, param
 
-    state, observable = lax.scan(_integrate, carry, steps)[0][:2]
+    state, obsvbl = scan(_integrate, carry, steps)[0][:2]
 
-    return state, observable
+    return state, obsvbl
 
 
 @partial(jit, static_argnames='config')
-def integrate_adjoint(state, state_cot, observable_cot,
-                      steps, param, config):
+def integrate_adj(state, state_cot, obsvbl_cot, steps, param, config):
     """Time integration with adjoint equation
     """
-    state, state_cot = force_adjoint(state, state_cot, param, config)
+    state, state_cot = force_adj(state, state_cot, param, config)
 
     #state = coevolve(state, param, config)
 
-    #observable = observe(state, observable, param, config)
+    #obsvbl = observe(state, obsvbl, param, config)
 
-    def _integrate_adjoint(carry, step):
-        state, state_cot, observable_cot, param = carry
+    def _integrate_adj(carry, step):
+        state, state_cot, obsvbl_cot, param = carry
 
-        state, state_cot = leapfrog_adjoint(state, state_cot,
-                                            step, param, config)
+        state, state_cot = leapfrog_adj(state, state_cot, step, param, config)
 
         #state = coevolve(state, param, config)
 
-        #observable = observe(state, observable, param, config)
+        #obsvbl = observe(state, obsvbl, param, config)
 
-        carry = state, state_cot, observable_cot, param
+        carry = state, state_cot, obsvbl_cot, param
 
         return carry, None
 
-    carry = state, state_cot, observable_cot, param
+    carry = state, state_cot, obsvbl_cot, param
 
-    state, state_cot, observable_cot = lax.scan(_integrate_adjoint,
-                                                carry, steps)[0][:3]
+    state, state_cot, obsvbl_cot = scan(_integrate_adj, carry, steps)[0][:3]
 
-    return state, state_cot, observable_cot
+    return state, state_cot, obsvbl_cot
 
 
-def integrate_fwd(state, observable, steps, param, config):
-    state, observable = integrate(state, observable, steps, param, config)
-    return (state, observable), (state, steps, param)
-
+def integrate_fwd(state, obsvbl, steps, param, config):
+    state, obsvbl = integrate(state, obsvbl, steps, param, config)
+    return (state, obsvbl), (state, steps, param)
 
 def integrate_bwd(config, res, cotangents):
     state, steps, param = res
-    state_cot, observable_cot = cotangents
+    state_cot, obsvbl_cot = cotangents
 
     rev_steps = - steps  # FIXME HACK
 
-    # need state below? need *_adjoint functions?
-    state, state_cot, observable_cot = integrate_adjoint(
-        state, state_cot, observable_cot, rev_steps, param, config)
+    # need state below? need *_adj functions?
+    state, state_cot, obsvbl_cot = integrate_adj(
+        state, state_cot, obsvbl_cot, rev_steps, param, config)
 
-    return state_cot, observable_cot, None, None  # FIXME HACK no param grad
-
+    return state_cot, obsvbl_cot, None, None  # FIXME HACK no param grad
 
 integrate.defvjp(integrate_fwd, integrate_bwd)
