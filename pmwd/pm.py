@@ -139,6 +139,34 @@ class Config:
         return 1. / self.cell_size
 
 
+def _chunk_split(ptcl_num, chunk_size, *arrays):
+    """Split and reshape particle arrays into chunks and a remainder
+    """
+    chunk_size = min(chunk_size, ptcl_num)
+    remainder_size = ptcl_num % chunk_size
+    chunk_num = ptcl_num // chunk_size
+
+    remainder = None
+    chunks = arrays
+    if remainder_size:
+        remainder = [x[:remainder_size] for x in arrays]
+        chunks = [x[remainder_size:] for x in arrays]
+
+    chunks = [x.reshape(chunk_num, chunk_size, *x.shape[1:]) for x in chunks]
+
+    return remainder, chunks
+
+def _chunk_cat(remainder_array, chunks_array):
+    """Reshape and concatenate a remainder and a chunked particle arrays
+    """
+    array = chunks_array.reshape(-1, *chunks_array.shape[2:])
+
+    if remainder_array is not None:
+        array = jnp.concatenate([remainder_array, array], axis=0)
+
+    return array
+
+
 def scatter(ptcl, mesh, val=1., chunk_size=1024**2):
     """Scatter particle values to mesh in n-D with CIC window
     """
@@ -147,22 +175,17 @@ def scatter(ptcl, mesh, val=1., chunk_size=1024**2):
 
 @partial(custom_vjp, nondiff_argnums=(4,))
 def _scatter(pmid, disp, mesh, val, chunk_size):
-    ptcl_num, spatial_ndim = pmid.shape
-
-    chunk_size = min(chunk_size, ptcl_num)
-    chunk_num = ptcl_num // chunk_size
-    chan_shape = mesh.shape[spatial_ndim:]
+    ptcl_num = pmid.shape[0]
 
     val = jnp.asarray(val)
 
     if val.ndim == 0:
         val = jnp.full(ptcl_num, val)
 
-    chunks = (
-        pmid.reshape(chunk_num, chunk_size, spatial_ndim),
-        disp.reshape(chunk_num, chunk_size, spatial_ndim),
-        val.reshape(chunk_num, chunk_size, *chan_shape),
-    )
+    remainder, chunks = _chunk_split(ptcl_num, chunk_size, pmid, disp, val)
+
+    if remainder is not None:
+        mesh = _scatter_chunk(mesh, remainder)[0]
 
     mesh = scan(_scatter_chunk, mesh, chunks)[0]
 
@@ -260,27 +283,23 @@ def _scatter_fwd(pmid, disp, mesh, val, chunk_size):
 def _scatter_bwd(chunk_size, res, mesh_cot):
     pmid, disp, val = res
 
-    ptcl_num, spatial_ndim = pmid.shape
-
-    chunk_size = min(chunk_size, ptcl_num)
-    chunk_num = ptcl_num // chunk_size
-    chan_shape = mesh_cot.shape[spatial_ndim:]
+    ptcl_num = pmid.shape[0]
 
     val = jnp.asarray(val)
 
     if val.ndim == 0:
         val = jnp.full(ptcl_num, val)
 
-    chunks = (
-        pmid.reshape(chunk_num, chunk_size, spatial_ndim),
-        disp.reshape(chunk_num, chunk_size, spatial_ndim),
-        val.reshape(chunk_num, chunk_size, *chan_shape),
-    )
+    remainder, chunks = _chunk_split(ptcl_num, chunk_size, pmid, disp, val)
+
+    disp_cot_0, val_cot_0 = None, None
+    if remainder is not None:
+        disp_cot_0, val_cot_0 = _scatter_chunk_adj(mesh_cot, remainder)[1]
 
     disp_cot, val_cot = scan(_scatter_chunk_adj, mesh_cot, chunks)[1]
 
-    disp_cot = disp_cot.reshape(ptcl_num, spatial_ndim)
-    val_cot = val_cot.reshape(ptcl_num, *chan_shape)
+    disp_cot = _chunk_cat(disp_cot_0, disp_cot)
+    val_cot = _chunk_cat(val_cot_0, val_cot)
 
     return None, disp_cot, mesh_cot, val_cot
 
@@ -295,26 +314,22 @@ def gather(ptcl, mesh, val=0., chunk_size=1024**2):
 
 @partial(custom_vjp, nondiff_argnums=(4,))
 def _gather(pmid, disp, mesh, val, chunk_size):
-    ptcl_num, spatial_ndim = pmid.shape
-
-    chunk_size = min(chunk_size, ptcl_num)
-    chunk_num = ptcl_num // chunk_size
-    chan_shape = mesh.shape[spatial_ndim:]
+    ptcl_num = pmid.shape[0]
 
     val = jnp.asarray(val)
 
     if val.ndim == 0:
         val = jnp.full(ptcl_num, val)
 
-    chunks = (
-        pmid.reshape(chunk_num, chunk_size, spatial_ndim),
-        disp.reshape(chunk_num, chunk_size, spatial_ndim),
-        val.reshape(chunk_num, chunk_size, *chan_shape),
-    )
+    remainder, chunks = _chunk_split(ptcl_num, chunk_size, pmid, disp, val)
+
+    val_0 = None
+    if remainder is not None:
+        val_0 = _gather_chunk(mesh, remainder)[1]
 
     val = scan(_gather_chunk, mesh, chunks)[1]
 
-    val = val.reshape(ptcl_num, *chan_shape)
+    val = _chunk_cat(val_0, val)
 
     return val
 
@@ -412,31 +427,22 @@ def _gather_fwd(pmid, disp, mesh, val, chunk_size):
 def _gather_bwd(chunk_size, res, val_cot):
     pmid, disp, mesh = res
 
-    ptcl_num, spatial_ndim = pmid.shape
+    ptcl_num = pmid.shape[0]
 
-    chunk_size = min(chunk_size, ptcl_num)
-    chunk_num = ptcl_num // chunk_size
-    chan_shape = mesh.shape[spatial_ndim:]
-
-    val_cot = jnp.asarray(val_cot)
-
-    if val_cot.ndim == 0:
-        val_cot = jnp.full(ptcl_num, val_cot)
-
-    chunks = (
-        pmid.reshape(chunk_num, chunk_size, spatial_ndim),
-        disp.reshape(chunk_num, chunk_size, spatial_ndim),
-        val_cot.reshape(chunk_num, chunk_size, *chan_shape),
-    )
+    remainder, chunks = _chunk_split(ptcl_num, chunk_size, pmid, disp, val_cot)
 
     mesh_cot = jnp.zeros_like(mesh)
     meshes = (mesh, mesh_cot)
+
+    disp_cot_0 = None
+    if remainder is not None:
+        meshes, disp_cot_0 = _gather_chunk_adj(meshes, remainder)
 
     meshes, disp_cot = scan(_gather_chunk_adj, meshes, chunks)
 
     mesh_cot = meshes[1]
 
-    disp_cot = disp_cot.reshape(ptcl_num, spatial_ndim)
+    disp_cot = _chunk_cat(disp_cot_0, disp_cot)
 
     return None, disp_cot, mesh_cot, val_cot
 
