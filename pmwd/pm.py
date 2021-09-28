@@ -488,23 +488,16 @@ def laplace(kvec, dens, param):
 
 def laplace_fwd(kvec, dens, param):
     pot = laplace(kvec, dens, param)
-    return pot, kvec
+    return pot, (kvec, param)
 
-def laplace_bwd(kvec, pot_cot):
+def laplace_bwd(res, pot_cot):
     """Custom vjp to avoid NaN when using where, as well as to save memory
 
     .. _JAX FAQ:
         https://jax.readthedocs.io/en/latest/faq.html#gradients-contain-nan-where-using-where
     """
-    spatial_ndim = len(kvec)
-    chan_ndim = pot_cot.ndim - spatial_ndim
-    chan_axis = tuple(range(-chan_ndim, 0))
-
-    kk = sum(k**2 for k in kvec)
-    kk = jnp.expand_dims(kk, chan_axis)
-
-    dens_cot = - pot_cot * kk
-
+    kvec, param = res
+    dens_cot = laplace(kvec, pot_cot, param)
     return None, dens_cot, None
 
 laplace.defvjp(laplace_fwd, laplace_bwd)
