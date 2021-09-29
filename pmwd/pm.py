@@ -335,7 +335,7 @@ def _gather(pmid, disp, mesh, val, chunk_size):
 
 
 def _gather_chunk(mesh, chunk):
-    pmid, disp, val_in = chunk
+    pmid, disp, val = chunk
 
     ptcl_num, spatial_ndim = pmid.shape
 
@@ -362,9 +362,7 @@ def _gather_chunk(mesh, chunk):
 
     # gather
     tgt = tuple(tgt[..., i] for i in range(spatial_ndim))
-    val = mesh[tgt]
-
-    val = val_in + (val * frac).sum(axis=1)
+    val = val + (mesh[tgt] * frac).sum(axis=1)
 
     return mesh, val
 
@@ -535,7 +533,6 @@ def gravity(ptcl, param, config):
     pot = laplace(kvec, dens, param)
 
     acc = []
-
     for k in kvec:
         neg_grad = negative_gradient(k, pot)
 
@@ -544,7 +541,6 @@ def gravity(ptcl, param, config):
         neg_grad = gather(ptcl, neg_grad, chunk_size=config.chunk_size)
 
         acc.append(neg_grad)
-
     acc = jnp.stack(acc, axis=-1)
 
     return acc
@@ -563,6 +559,21 @@ def force_adj(state, state_cot, param, config):
     ptcl_cot = state_cot.dm
     ptcl_cot.acc = gravity_vjp(ptcl_cot.vel)[0].disp
 
+    return state, state_cot
+
+
+def init_force(state, param, config):
+    ptcl = state.dm
+    if ptcl.acc is None:
+        state = force(state, param, config)
+    return state
+
+
+def init_force_adj(state, state_cot, param, config):
+    ptcl = state.dm
+    ptcl_cot = state_cot.dm
+    if ptcl.acc is None or ptcl_cot.acc is None:
+        state, state_cot = force_adj(state, state_cot, param, config)
     return state, state_cot
 
 
@@ -635,7 +646,18 @@ def coevolve(state, param, config):
     return state
 
 
+def init_coevolve(state, param, config):
+    ptcl = state.dm
+    if ptcl.val is None:
+        state = coevolve(state, param, config)
+    return state
+
+
 def observe(state, obsvbl, param, config):
+    pass
+
+
+def init_observe(state, obsvbl, param, config):
     pass
 
 
@@ -644,11 +666,11 @@ def observe(state, obsvbl, param, config):
 def integrate(state, obsvbl, steps, param, config):
     """Time integration
     """
-    state = force(state, param, config)  # how to skip this if acc is given?
+    state = init_force(state, param, config)
 
-    state = coevolve(state, param, config)  # same as above
+    state = init_coevolve(state, param, config)
 
-    obsvbl = observe(state, obsvbl, param, config) # same as above
+    obsvbl = init_observe(state, obsvbl, param, config)
 
     def _integrate(carry, step):
         state, obsvbl, param = carry
@@ -674,20 +696,20 @@ def integrate(state, obsvbl, steps, param, config):
 def integrate_adj(state, state_cot, obsvbl_cot, steps, param, config):
     """Time integration with adjoint equation
     """
-    state, state_cot = force_adj(state, state_cot, param, config)
+    state, state_cot = init_force_adj(state, state_cot, param, config)
 
-    #state = coevolve(state, param, config)
+    #state = init_coevolve_adj(state, param, config)
 
-    #obsvbl = observe(state, obsvbl, param, config)
+    #obsvbl = init_observe_adj(state, obsvbl, param, config)
 
     def _integrate_adj(carry, step):
         state, state_cot, obsvbl_cot, param = carry
 
         state, state_cot = leapfrog_adj(state, state_cot, step, param, config)
 
-        #state = coevolve(state, param, config)
+        #state = coevolve_adj(state, param, config)
 
-        #obsvbl = observe(state, obsvbl, param, config)
+        #obsvbl = observe_adj(state, obsvbl, param, config)
 
         carry = state, state_cot, obsvbl_cot, param
 
