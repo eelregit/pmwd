@@ -3,7 +3,7 @@ from dataclasses import dataclass, fields
 from typing import Callable, Optional
 
 import jax.numpy as jnp
-from jax import grad, jit, vjp, custom_vjp
+from jax import vjp, custom_vjp
 from jax.lax import scan
 
 from .dataclasses import pytree_dataclass
@@ -632,7 +632,6 @@ def init_observe(state, obsvbl, param, config):
 
 
 @partial(custom_vjp, nondiff_argnums=(4,))
-@partial(jit, static_argnames='config')
 def integrate(state, obsvbl, steps, param, config):
     """Time integration
     """
@@ -662,7 +661,6 @@ def integrate(state, obsvbl, steps, param, config):
     return state, obsvbl
 
 
-@partial(jit, static_argnames='config')
 def integrate_adj(state, state_cot, obsvbl_cot, steps, param, config):
     """Time integration with adjoint equation
     """
