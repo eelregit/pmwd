@@ -1,15 +1,15 @@
+from functools import partial
 from dataclasses import dataclass, fields
 from typing import Callable, Optional
-from functools import partial
 
 import jax.numpy as jnp
 from jax import grad, jit, vjp, custom_vjp
 from jax.lax import scan
-from jax.tree_util import register_pytree_node_class
+
+from .dataclasses import pytree_dataclass
 
 
-@register_pytree_node_class
-@dataclass
+@pytree_dataclass
 class Particles:
     """Particle state or adjoint particle state
 
@@ -25,16 +25,6 @@ class Particles:
     vel: Optional[jnp.ndarray] = None
     acc: Optional[jnp.ndarray] = None
     val: Optional[jnp.ndarray] = None
-
-    def tree_flatten(self):
-        #children = astuple(self)  # dataclasses.astuple was slow
-        children = tuple(getattr(self, field.name) for field in fields(self))
-        aux_data = None
-        return children, aux_data
-
-    @classmethod
-    def tree_unflatten(cls, aux_data, children):
-        return cls(*children)
 
     @property
     def num(self):
@@ -71,8 +61,7 @@ class Particles:
             assert self.val.dtype == self.disp.dtype, 'val dtype mismatch'
 
 
-@register_pytree_node_class
-@dataclass
+@pytree_dataclass
 class State:
     """State of particle species, of integration or observation
 
@@ -84,18 +73,8 @@ class State:
     # TODO: some parameter- and time-dependent factors that, like particle
     # states, are to be propagated forward and backward
 
-    def tree_flatten(self):
-        children = tuple(getattr(self, field.name) for field in fields(self))
-        aux_data = None
-        return children, aux_data
 
-    @classmethod
-    def tree_unflatten(cls, aux_data, children):
-        return cls(*children)
-
-
-@register_pytree_node_class
-@dataclass
+@pytree_dataclass
 class Param:
     """Cosmological parameters
     """
@@ -104,15 +83,6 @@ class Param:
     A_s: float
     n_s: float
     h: float
-
-    def tree_flatten(self):
-        children = tuple(getattr(self, field.name) for field in fields(self))
-        aux_data = None
-        return children, aux_data
-
-    @classmethod
-    def tree_unflatten(cls, aux_data, children):
-        return cls(*children)
 
     @property
     def Omega_k(self):
