@@ -12,11 +12,10 @@ def randn_like(key, x):
 
 
 def check_custom_vjp(fun, primals, args=(), kwargs={}, atol=None, rtol=None):
-    """Compare the custom vjp of the wrapped function
-    to the automatic vjp of the original function
+    """Compare custom and automatic vjp's of a decorated function.
 
     Parameters:
-        fun: function wrapped by `custom_vjp`
+        fun: function decorated with `custom_vjp`
         primals: function inputs whose cotangent vectors are to be compared
         args: positional function inputs to be fixed by `partial`
         kwargs: keyword function inputs to be fixed by `partial`
