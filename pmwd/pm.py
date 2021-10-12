@@ -539,14 +539,6 @@ def init_force(state, param, config):
     return state
 
 
-def init_force_adj(state, state_cot, param, config):
-    ptcl = state.dm
-    ptcl_cot = state_cot.dm
-    if ptcl.acc is None or ptcl_cot.acc is None:
-        state, state_cot = force_adj(state, state_cot, param, config)
-    return state, state_cot
-
-
 def kick(state, step, param, config):
     ptcl = state.dm
     ptcl.vel = ptcl.vel + ptcl.acc * step
@@ -663,21 +655,26 @@ def integrate(state, obsvbl, steps, param, config):
 
 def integrate_adj(state, state_cot, obsvbl_cot, steps, param, config):
     """Time integration with adjoint equation
+
+    Note:
+        There is no `init_force_adj` here as the `init_force` in `integrate` to
+        skip redundant computations, because one may want to recompute force
+        and its vjp after loading snapshots saved in the forward pass.
     """
-    state, state_cot = init_force_adj(state, state_cot, param, config)
+    #state_cot = observe_adj(state, state_cot, obsvbl_cot, param, config)
 
-    #state = init_coevolve_adj(state, param, config)
+    #state, state_cot = coevolve_adj(state, state_cot, param, config)
 
-    #obsvbl = init_observe_adj(state, obsvbl, param, config)
+    state, state_cot = force_adj(state, state_cot, param, config)
 
     def _integrate_adj(carry, step):
         state, state_cot, obsvbl_cot, param = carry
 
+        #state_cot = observe_adj(state, state_cot, obsvbl_cot, param, config)
+
+        #state, state_cot = coevolve_adj(state, state_cot, param, config)
+
         state, state_cot = leapfrog_adj(state, state_cot, step, param, config)
-
-        #state = coevolve_adj(state, param, config)
-
-        #obsvbl = observe_adj(state, obsvbl, param, config)
 
         carry = state, state_cot, obsvbl_cot, param
 
