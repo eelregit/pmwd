@@ -134,7 +134,8 @@ class TestScatterGather(parameterized.TestCase):
         val_expected = jnp.ones(val_shape)
         jtu.check_eq(val, val_expected)
 
-    def test_scatter_custom_vjp(self):
+    @parameterized.named_parameters(('16', 16), ('ptcl_num', None))
+    def test_scatter_custom_vjp(self, chunk_size):
         mesh_shape = (4, 9)
         chan_shape = (2, 1)
         ptcl_grid_shape = mesh_shape
@@ -145,10 +146,11 @@ class TestScatterGather(parameterized.TestCase):
 
         primals = ptcl.disp, mesh, ptcl.val
         args = (ptcl.pmid,)
-        kwargs = {'chunk_size': 16}
+        kwargs = {'chunk_size': chunk_size}
         check_custom_vjp(pm._scatter, primals, args=args, kwargs=kwargs)
 
-    def test_gather_custom_vjp(self):
+    @parameterized.named_parameters(('16', 16), ('ptcl_num', None))
+    def test_gather_custom_vjp(self, chunk_size):
         mesh_shape = (4, 9)
         chan_shape = (2, 1)
         ptcl_grid_shape = mesh_shape
@@ -159,7 +161,7 @@ class TestScatterGather(parameterized.TestCase):
 
         primals = ptcl.disp, mesh, ptcl.val
         args = (ptcl.pmid,)
-        kwargs = {'chunk_size': 16}
+        kwargs = {'chunk_size': chunk_size}
         check_custom_vjp(pm._gather, primals, args=args, kwargs=kwargs)
 
 

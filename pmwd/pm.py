@@ -103,7 +103,7 @@ class Config:
     """
     mesh_shape: tuple
     cell_size: float = 1.
-    chunk_size: int = 1024**2
+    chunk_size: int = 1<<24
     #max_disp_to_box_size_ratio: float  # shortest axis
 
     @property
@@ -114,7 +114,7 @@ class Config:
 def _chunk_split(ptcl_num, chunk_size, *arrays):
     """Split and reshape particle arrays into chunks and a remainder
     """
-    chunk_size = min(chunk_size, ptcl_num)
+    chunk_size = ptcl_num if chunk_size is None else min(chunk_size, ptcl_num)
     remainder_size = ptcl_num % chunk_size
     chunk_num = ptcl_num // chunk_size
 
@@ -139,7 +139,7 @@ def _chunk_cat(remainder_array, chunks_array):
     return array
 
 
-def scatter(ptcl, mesh, val=1., chunk_size=1024**2):
+def scatter(ptcl, mesh, val=1., chunk_size=None):
     """Scatter particle values to mesh in n-D with CIC window
     """
     return _scatter(ptcl.pmid, ptcl.disp, mesh, val, chunk_size)
@@ -278,7 +278,7 @@ def _scatter_bwd(chunk_size, res, mesh_cot):
 _scatter.defvjp(_scatter_fwd, _scatter_bwd)
 
 
-def gather(ptcl, mesh, val=0., chunk_size=1024**2):
+def gather(ptcl, mesh, val=0., chunk_size=None):
     """Gather particle values from mesh in n-D with CIC window
     """
     return _gather(ptcl.pmid, ptcl.disp, mesh, val, chunk_size)
