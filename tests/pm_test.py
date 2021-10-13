@@ -8,10 +8,13 @@ import chex
 import jax.numpy as jnp
 from jax import vjp
 from jax import random
+from jax.tree_util import tree_map
+from jax.config import config
+config.update("jax_enable_x64", True)
 
 
-import pmwd.pm_dev as pm
-from pmwd.pm_dev import *
+import pmwd.pm as pm
+from pmwd.pm import *
 from pmwd.test_util import check_custom_vjp
 
 
@@ -34,25 +37,40 @@ def gen_val(ptcl_grid_shape, chan_shape, val_mean, val_std):
     val = val.reshape(-1, *chan_shape)
     return val
 
-def gen_ptcl(ptcl_grid_shape, disp_std,
+def gen_ptcl(ptcl_grid_shape, disp_std, vel_ratio=None, acc_ratio=None,
              chan_shape=None, val_mean=1., val_std=0.):
     pmid = gen_pmid(ptcl_grid_shape)
     disp = gen_disp(ptcl_grid_shape, disp_std)
+
+    vel = None
+    if vel_ratio is not None:
+        vel = vel_ratio * disp
+
+    acc = None
+    if acc_ratio is not None:
+        acc = acc_ratio * disp
+
     val = None
     if chan_shape is not None:
         val = gen_val(ptcl_grid_shape, chan_shape, val_mean, val_std)
-    ptcl = Particles(pmid, disp, val=val)
+
+    ptcl = Particles(pmid, disp, vel=vel, acc=acc, val=val)
+
     return ptcl
 
 
 class TestParticles(parameterized.TestCase):
     @parameterized.named_parameters(
-            ('small', (16, 32), 3., None, 1., 0.),
-            ('medium', (64, 128, 256), 5., (2, 1), 0., 1.))
-    def test_ptcl(self, ptcl_grid_shape, disp_std,
+            ('1d', (64,),     3., 0.,   None, None,   1., 0.),
+            ('2d', (4, 16),   2., 0.,   None, None,   1., 0.),
+            ('3d', (2, 4, 8), 1., None, 0.,   (2, 1), 0., 1.))
+    def test_ptcl(self, ptcl_grid_shape, disp_std, vel_ratio, acc_ratio,
                   chan_shape, val_mean, val_std):
-        ptcl = gen_ptcl(ptcl_grid_shape, disp_std,
-                        chan_shape, val_mean, val_std)
+        ptcl = gen_ptcl(
+            ptcl_grid_shape,
+            disp_std, vel_ratio=vel_ratio, acc_ratio=acc_ratio,
+            chan_shape=chan_shape, val_mean=val_mean, val_std=val_std,
+        )
         ptcl.assert_valid()
 
 
@@ -92,43 +110,36 @@ class TestScatterGather(parameterized.TestCase):
             ptcl_num, pos, chan_shape, 1., 2, 0.)
 
         mesh = scatter(ptcl, mesh, val=val, chunk_size=3)
-
         spatial_ndim = len(pos)
         mesh_expected = jnp.full(mesh_shape, ptcl_num * 2**-spatial_ndim)
-
         jtu.check_eq(mesh, mesh_expected)
 
     @parameterized.named_parameters(*data_centered_ptcl)
     def test_scatter_offcentered_ptcl(self, ptcl_num, pos, chan_shape):
         ptcl, chan_shape, val, val_shape, mesh, mesh_shape = self.gen_centered_ptcl_mesh(
             ptcl_num, pos, chan_shape, 1., 3, 0.)
-
         ptcl.disp = ptcl.disp + 0.7
 
         mesh = scatter(ptcl, mesh, val=val, chunk_size=3)
-
         sum_expected = jnp.full(chan_shape, ptcl_num).sum()
-
         jtu.check_close(mesh.sum(), sum_expected)
 
     @parameterized.named_parameters(*data_centered_ptcl)
     def test_gather_offcentered_ptcl(self, ptcl_num, pos, chan_shape):
         ptcl, chan_shape, val, val_shape, mesh, mesh_shape = self.gen_centered_ptcl_mesh(
             ptcl_num, pos, chan_shape, 0., 5, 1.)
-
         ptcl.disp = ptcl.disp - 0.8
 
         val = gather(ptcl, mesh, val=val, chunk_size=3)
-
         val_expected = jnp.ones(val_shape)
-
         jtu.check_eq(val, val_expected)
 
     def test_scatter_custom_vjp(self):
         mesh_shape = (4, 9)
         chan_shape = (2, 1)
         ptcl_grid_shape = mesh_shape
-        ptcl = gen_ptcl(ptcl_grid_shape, disp_std=7.,
+        disp_std = 7.
+        ptcl = gen_ptcl(ptcl_grid_shape, disp_std,
                         chan_shape=chan_shape, val_mean=1., val_std=1.)
         mesh = jnp.zeros(mesh_shape + chan_shape)
 
@@ -141,7 +152,8 @@ class TestScatterGather(parameterized.TestCase):
         mesh_shape = (4, 9)
         chan_shape = (2, 1)
         ptcl_grid_shape = mesh_shape
-        ptcl = gen_ptcl(ptcl_grid_shape, disp_std=7.,
+        disp_std = 7.
+        ptcl = gen_ptcl(ptcl_grid_shape, disp_std,
                         chan_shape=chan_shape, val_mean=1., val_std=1.)
         mesh = jnp.ones(mesh_shape + chan_shape)
 
@@ -152,12 +164,12 @@ class TestScatterGather(parameterized.TestCase):
 
 
 class TestGravity(parameterized.TestCase):
-    data_dens_shape = [
+    data_bad_shape = [
         ('y_shape_mismatch', (4, 4)),
         ('chan_axis_first', (1, 4, 3)),
     ]
 
-    @parameterized.named_parameters(*data_dens_shape)
+    @parameterized.named_parameters(*data_bad_shape)
     def test_laplace_raise_shapes(self, dens_shape):
         kvec = rfftnfreq((4, 4))
         dens = jnp.ones(dens_shape)
@@ -169,7 +181,7 @@ class TestGravity(parameterized.TestCase):
         ):
             laplace(kvec, dens, param)
 
-    @parameterized.named_parameters(*data_dens_shape)
+    @parameterized.named_parameters(*data_bad_shape)
     def test_negative_gradient_raise_shapes(self, pot_shape):
         kvec = rfftnfreq((4, 4))
         k = kvec[1]
@@ -181,18 +193,47 @@ class TestGravity(parameterized.TestCase):
         ):
             negative_gradient(k, pot)
 
-    def test_gravity_vjp(self):
-        mesh_shape = (4, 9)
+    @parameterized.named_parameters(('evenodd', (4, 9)), ('oddeven', (7, 8)))
+    def test_gravity_vjp(self, mesh_shape):
         ptcl_grid_shape = mesh_shape
+        disp_std = 7.
+        param = 0.
         pmid = gen_pmid(ptcl_grid_shape)
-        disp = gen_disp(ptcl_grid_shape, disp_std=7.)
+        disp = gen_disp(ptcl_grid_shape, disp_std)
         config = Config(mesh_shape, chunk_size=16)
-        def _gravity(disp):
+
+        def _gravity(disp, param):
             ptcl = Particles(pmid, disp)
-            acc = gravity(ptcl, param=0., config=config)
+            acc = gravity(ptcl, param=param, config=config)
             return acc
         _gravity_vjp = partial(vjp, _gravity)
-        jtu.check_vjp(_gravity, _gravity_vjp, (disp,))
+        eps = jnp.sqrt(jnp.finfo(disp.dtype).eps)
+        jtu.check_vjp(_gravity, _gravity_vjp, (disp, param), eps=eps)
+
+
+class TestIntegrate(parameterized.TestCase):
+    @parameterized.named_parameters(('evenodd', (4, 9)), ('oddeven', (7, 8)))
+    def test_integrate_custom_vjp(self, mesh_shape):
+        ptcl_grid_shape = mesh_shape
+        disp_std = 7.
+        ptcl = gen_ptcl(ptcl_grid_shape, disp_std, vel_ratio=0.1)
+        state = State(ptcl)
+        obsvbl = None
+        steps = jnp.full(9, 0.1)
+        param = 0.
+
+        primals = state, obsvbl, steps, param
+        cot_out_std = tree_map(lambda x: 1., (state, obsvbl))
+        # otherwise acc cot also backprops in the automatic vjp
+        cot_out_std[0].dm.acc = 0.
+        cot_skip = tree_map(lambda x: False, primals)
+        cot_skip = list(cot_skip)
+        cot_skip[2] = True  # otherwise steps gets cot in the automatic vjp
+        cot_skip = tuple(cot_skip)
+        kwargs = {'config': Config(mesh_shape, chunk_size=16)}
+        check_custom_vjp(integrate, primals,
+                         cot_out_std=cot_out_std, cot_skip=cot_skip,
+                         kwargs=kwargs)
 
 
 
@@ -200,3 +241,6 @@ class TestGravity(parameterized.TestCase):
 
 
 # benchmark with block_until_ready
+
+
+# test reversibility
