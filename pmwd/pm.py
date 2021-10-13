@@ -173,9 +173,10 @@ def _scatter_chunk(mesh, chunk):
     chan_ndim = mesh.ndim - spatial_ndim
     chan_axis = tuple(range(-chan_ndim, 0))
 
-    pmid = pmid[:, jnp.newaxis]  # insert neighbor axis
-    disp = disp[:, jnp.newaxis]  # insert neighbor axis
-    val = val[:, jnp.newaxis]  # insert neighbor axis
+    # insert neighbor axis
+    pmid = pmid[:, jnp.newaxis]
+    disp = disp[:, jnp.newaxis]
+    val = val[:, jnp.newaxis]
 
     # CIC
     neighbors = (jnp.arange(2 ** spatial_ndim)[:, jnp.newaxis]
@@ -199,7 +200,8 @@ def _scatter_chunk(mesh, chunk):
 
 
 def _scatter_chunk_adj(mesh_cot, chunk):
-    """Adjoint of _scatter_chunk
+    """Adjoint of `_scatter_chunk`, or equivalently `_scatter_adj_chunk`, i.e.
+    scatter adjoint in chunks
 
     Gather disp_cot from mesh_cot and val;
     Gather val_cot from mesh_cot.
@@ -212,9 +214,10 @@ def _scatter_chunk_adj(mesh_cot, chunk):
     chan_ndim = mesh_cot.ndim - spatial_ndim
     chan_axis = tuple(range(-chan_ndim, 0))
 
-    pmid = pmid[:, jnp.newaxis]  # insert neighbor axis
-    disp = disp[:, jnp.newaxis]  # insert neighbor axis
-    val = val[:, jnp.newaxis]  # insert neighbor axis
+    # insert neighbor axis
+    pmid = pmid[:, jnp.newaxis]
+    disp = disp[:, jnp.newaxis]
+    val = val[:, jnp.newaxis]
 
     # CIC
     neighbors = (jnp.arange(2 ** spatial_ndim)[:, jnp.newaxis]
@@ -315,8 +318,9 @@ def _gather_chunk(mesh, chunk):
     chan_ndim = mesh.ndim - spatial_ndim
     chan_axis = tuple(range(-chan_ndim, 0))
 
-    pmid = pmid[:, jnp.newaxis]  # insert neighbor axis
-    disp = disp[:, jnp.newaxis]  # insert neighbor axis
+    # insert neighbor axis
+    pmid = pmid[:, jnp.newaxis]
+    disp = disp[:, jnp.newaxis]
 
     # CIC
     neighbors = (jnp.arange(2 ** spatial_ndim)[:, jnp.newaxis]
@@ -340,7 +344,8 @@ def _gather_chunk(mesh, chunk):
 
 
 def _gather_chunk_adj(meshes, chunk):
-    """Adjoint of _gather_chunk
+    """Adjoint of `_gather_chunk`, or equivalently `_gather_adj_chunk`, i.e.
+    gather adjoint in chunks
 
     Gather disp_cot from val_cot and mesh;
     Scatter val_cot to mesh_cot.
@@ -354,9 +359,10 @@ def _gather_chunk_adj(meshes, chunk):
     chan_ndim = mesh.ndim - spatial_ndim
     chan_axis = tuple(range(-chan_ndim, 0))
 
-    pmid = pmid[:, jnp.newaxis]  # insert neighbor axis
-    disp = disp[:, jnp.newaxis]  # insert neighbor axis
-    val_cot = val_cot[:, jnp.newaxis]  # insert neighbor axis
+    # insert neighbor axis
+    pmid = pmid[:, jnp.newaxis]
+    disp = disp[:, jnp.newaxis]
+    val_cot = val_cot[:, jnp.newaxis]
 
     # CIC
     neighbors = (jnp.arange(2 ** spatial_ndim)[:, jnp.newaxis]
