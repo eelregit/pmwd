@@ -91,24 +91,35 @@ class Param:
         return 1. - Omega_m - Omega_L
 
 
-@dataclass(frozen=True)
-class Config:
-    """Configurations that affect jit compilations or do not need derivatives
+@pytree_dataclass
+class DynamicConfig:
+    """Configurations that do not need derivatives or affect jit
 
     Attributes:
-        mesh_shape: n-D shape of mesh
         cell_size: mesh cell size
-        chunk_size: chunk size for scatter and gather, must be a divisor of
-            particle numbers
+        time_steps: time integration steps
     """
-    mesh_shape: tuple
     cell_size: float = 1.
-    chunk_size: int = 1<<24
     #max_disp_to_box_size_ratio: float  # shortest axis
+
+    time_steps: Optional[jnp.ndarray] = None
 
     @property
     def inv_cell_size(self):
         return 1. / self.cell_size
+
+
+@dataclass(frozen=True)
+class StaticConfig:
+    """Configurations that affect jit compilations
+
+    Attributes:
+        mesh_shape: n-D shape of mesh
+        chunk_size: chunk size for scatter and gather, must be a divisor of
+            particle numbers
+    """
+    mesh_shape: tuple
+    chunk_size: int = 1<<24
 
 
 def _chunk_split(ptcl_num, chunk_size, *arrays):
@@ -495,16 +506,16 @@ def negative_gradient(k, pot):
     return neg_grad
 
 
-def gravity(ptcl, param, config):
+def gravity(ptcl, param, dconf, sconf):
     """Compute particles' gravitational forces on a mesh with FFT
     """
     real_dtype = ptcl.disp.dtype
 
-    kvec = rfftnfreq(config.mesh_shape, dtype=real_dtype)
+    kvec = rfftnfreq(sconf.mesh_shape, dtype=real_dtype)
 
-    dens = jnp.zeros(config.mesh_shape, dtype=real_dtype)
+    dens = jnp.zeros(sconf.mesh_shape, dtype=real_dtype)
 
-    dens = scatter(ptcl, dens, chunk_size=config.chunk_size)
+    dens = scatter(ptcl, dens, chunk_size=sconf.chunk_size)
 
     dens = jnp.fft.rfftn(dens)
 
@@ -514,9 +525,9 @@ def gravity(ptcl, param, config):
     for k in kvec:
         neg_grad = negative_gradient(k, pot)
 
-        neg_grad = jnp.fft.irfftn(neg_grad, s=config.mesh_shape)
+        neg_grad = jnp.fft.irfftn(neg_grad, s=sconf.mesh_shape)
 
-        neg_grad = gather(ptcl, neg_grad, chunk_size=config.chunk_size)
+        neg_grad = gather(ptcl, neg_grad, chunk_size=sconf.chunk_size)
 
         acc.append(neg_grad)
     acc = jnp.stack(acc, axis=-1)
@@ -524,15 +535,16 @@ def gravity(ptcl, param, config):
     return acc
 
 
-def force(state, param, config):
+def force(state, param, dconf, sconf):
     ptcl = state.dm
-    ptcl.acc = gravity(ptcl, param, config)
+    ptcl.acc = gravity(ptcl, param, dconf, sconf)
     return state
 
 
-def force_adj(state, state_cot, param, config):
+def force_adj(state, state_cot, param, dconf, sconf):
     ptcl = state.dm
-    ptcl.acc, gravity_vjp = vjp(partial(gravity, config=config), ptcl, param)
+    ptcl.acc, gravity_vjp = vjp(partial(gravity, dconf=dconf, sconf=sconf),
+                                ptcl, param)
 
     ptcl_cot = state_cot.dm
     ptcl_cot.acc = gravity_vjp(ptcl_cot.vel)[0].disp
@@ -540,21 +552,21 @@ def force_adj(state, state_cot, param, config):
     return state, state_cot
 
 
-def init_force(state, param, config):
+def init_force(state, param, dconf, sconf):
     ptcl = state.dm
     if ptcl.acc is None:
-        state = force(state, param, config)
+        state = force(state, param, dconf, sconf)
     return state
 
 
-def kick(state, param, step, config):
+def kick(state, param, step, dconf, sconf):
     ptcl = state.dm
     ptcl.vel = ptcl.vel + ptcl.acc * step
     return state
 
 
-def kick_adj(state, state_cot, param, step, config):
-    state = kick(state, param, step, config)
+def kick_adj(state, state_cot, param, step, dconf, sconf):
+    state = kick(state, param, step, dconf, sconf)
 
     ptcl_cot = state_cot.dm
     ptcl_cot.disp = ptcl_cot.disp - ptcl_cot.acc * step
@@ -562,14 +574,14 @@ def kick_adj(state, state_cot, param, step, config):
     return state, state_cot
 
 
-def drift(state, param, step, config):
+def drift(state, param, step, dconf, sconf):
     ptcl = state.dm
     ptcl.disp = ptcl.disp + ptcl.vel * step
     return state
 
 
-def drift_adj(state, state_cot, param, step, config):
-    state = drift(state, param, step, config)
+def drift_adj(state, state_cot, param, step, dconf, sconf):
+    state = drift(state, param, step, dconf, sconf)
 
     ptcl_cot = state_cot.dm
     ptcl_cot.vel = ptcl_cot.vel - ptcl_cot.disp * step
@@ -577,78 +589,78 @@ def drift_adj(state, state_cot, param, step, config):
     return state, state_cot
 
 
-def leapfrog(state, param, step, config):
+def leapfrog(state, param, step, dconf, sconf):
     """Leapfrog time stepping
     """
-    state = kick(state, param, 0.5*step, config)
+    state = kick(state, param, 0.5*step, dconf, sconf)
 
-    state = drift(state, param, step, config)
+    state = drift(state, param, step, dconf, sconf)
 
-    state = force(state, param, config)
+    state = force(state, param, dconf, sconf)
 
-    state = kick(state, param, 0.5*step, config)
+    state = kick(state, param, 0.5*step, dconf, sconf)
 
     return state
 
 
-def leapfrog_adj(state, state_cot, param, step, config):
+def leapfrog_adj(state, state_cot, param, step, dconf, sconf):
     """Leapfrog with adjoint equation
     """
     # FIXME HACK step
-    state, state_cot = kick_adj(state, state_cot, param, 0.5*step, config)
+    state, state_cot = kick_adj(state, state_cot, param, 0.5*step, dconf, sconf)
 
-    state, state_cot = drift_adj(state, state_cot, param, step, config)
+    state, state_cot = drift_adj(state, state_cot, param, step, dconf, sconf)
 
-    state, state_cot = force_adj(state, state_cot, param, config)
+    state, state_cot = force_adj(state, state_cot, param, dconf, sconf)
 
-    state, state_cot = kick_adj(state, state_cot, param, 0.5*step, config)
+    state, state_cot = kick_adj(state, state_cot, param, 0.5*step, dconf, sconf)
 
     return state, state_cot
 
 
-def form(ptcl, param, config):
+def form(ptcl, param, step, dconf, sconf):
     pass
 
 
-def coevolve(state, param, config):
+def coevolve(state, param, step, dconf, sconf):
     ptcl = state.dm
-    ptcl.val = form(ptcl, param, config)
+    ptcl.val = form(ptcl, param, step, dconf, sconf)
     return state
 
 
-def init_coevolve(state, param, config):
+def init_coevolve(state, param, dconf, sconf):
     ptcl = state.dm
     if ptcl.val is None:
-        state = coevolve(state, param, config)
+        state = coevolve(state, param, 0., dconf, sconf)  # FIXME HACK step
     return state
 
 
-def observe(state, obsvbl, param, config):
+def observe(state, obsvbl, param, dconf, sconf):
     pass
 
 
-def init_observe(state, obsvbl, param, config):
+def init_observe(state, obsvbl, param, dconf, sconf):
     pass
 
 
 @partial(custom_vjp, nondiff_argnums=(4,))
-def integrate(state, obsvbl, param, steps, config):
+def integrate(state, obsvbl, param, dconf, sconf):
     """Time integration
     """
-    state = init_force(state, param, config)
+    state = init_force(state, param, dconf, sconf)
 
-    state = init_coevolve(state, param, config)
+    state = init_coevolve(state, param, dconf, sconf)
 
-    obsvbl = init_observe(state, obsvbl, param, config)
+    obsvbl = init_observe(state, obsvbl, param, dconf, sconf)
 
     def _integrate(carry, step):
         state, obsvbl, param = carry
 
-        state = leapfrog(state, param, step, config)
+        state = leapfrog(state, param, step, dconf, sconf)
 
-        state = coevolve(state, param, config)
+        state = coevolve(state, param, step, dconf, sconf)
 
-        obsvbl = observe(state, obsvbl, param, config)
+        obsvbl = observe(state, obsvbl, param, dconf, sconf)
 
         carry = state, obsvbl, param
 
@@ -656,12 +668,12 @@ def integrate(state, obsvbl, param, steps, config):
 
     carry = state, obsvbl, param
 
-    state, obsvbl = scan(_integrate, carry, steps)[0][:2]
+    state, obsvbl = scan(_integrate, carry, dconf.time_steps)[0][:2]
 
     return state, obsvbl
 
 
-def integrate_adj(state, state_cot, obsvbl_cot, param, steps, config):
+def integrate_adj(state, state_cot, obsvbl_cot, param, dconf, sconf):
     """Time integration with adjoint equation
 
     Note:
@@ -669,20 +681,20 @@ def integrate_adj(state, state_cot, obsvbl_cot, param, steps, config):
         skip redundant computations, because one may want to recompute force
         and its vjp after loading snapshots saved in the forward pass.
     """
-    #state_cot = observe_adj(state, state_cot, obsvbl_cot, param, config)
+    #state_cot = observe_adj(state, state_cot, obsvbl_cot, param, dconf, sconf)
 
-    #state, state_cot = coevolve_adj(state, state_cot, param, config)
+    #state, state_cot = coevolve_adj(state, state_cot, param, step, dconf, sconf)
 
-    state, state_cot = force_adj(state, state_cot, param, config)
+    state, state_cot = force_adj(state, state_cot, param, dconf, sconf)
 
     def _integrate_adj(carry, step):
         state, state_cot, obsvbl_cot, param = carry
 
-        #state_cot = observe_adj(state, state_cot, obsvbl_cot, param, config)
+        #state_cot = observe_adj(state, state_cot, obsvbl_cot, param, dconf, sconf)
 
-        #state, state_cot = coevolve_adj(state, state_cot, param, config)
+        #state, state_cot = coevolve_adj(state, state_cot, param, step, dconf, sconf)
 
-        state, state_cot = leapfrog_adj(state, state_cot, param, step, config)
+        state, state_cot = leapfrog_adj(state, state_cot, param, step, dconf, sconf)
 
         carry = state, state_cot, obsvbl_cot, param
 
@@ -690,24 +702,24 @@ def integrate_adj(state, state_cot, obsvbl_cot, param, steps, config):
 
     carry = state, state_cot, obsvbl_cot, param
 
-    rev_steps = - steps  # FIXME HACK
+    rev_steps = - dconf.time_steps  # FIXME HACK
 
     state, state_cot, obsvbl_cot = scan(_integrate_adj, carry, rev_steps)[0][:3]
 
     return state, state_cot, obsvbl_cot
 
 
-def integrate_fwd(state, obsvbl, param, steps, config):
-    state, obsvbl = integrate(state, obsvbl, param, steps, config)
-    return (state, obsvbl), (state, param, steps)
+def integrate_fwd(state, obsvbl, param, dconf, sconf):
+    state, obsvbl = integrate(state, obsvbl, param, dconf, sconf)
+    return (state, obsvbl), (state, param, dconf)
 
-def integrate_bwd(config, res, cotangents):
-    state, param, steps = res
+def integrate_bwd(sconf, res, cotangents):
+    state, param, dconf = res
     state_cot, obsvbl_cot = cotangents
 
     # need state below? need *_adj functions?
     state, state_cot, obsvbl_cot = integrate_adj(
-        state, state_cot, obsvbl_cot, param, steps, config)
+        state, state_cot, obsvbl_cot, param, dconf, sconf)
 
     return state_cot, obsvbl_cot, None, None  # FIXME HACK no param grad
 

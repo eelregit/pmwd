@@ -199,14 +199,15 @@ class TestGravity(parameterized.TestCase):
     def test_gravity_vjp(self, mesh_shape):
         ptcl_grid_shape = mesh_shape
         disp_std = 7.
-        param = 0.
         pmid = gen_pmid(ptcl_grid_shape)
         disp = gen_disp(ptcl_grid_shape, disp_std)
-        config = Config(mesh_shape, chunk_size=16)
+        param = 0.
+        dconf = DynamicConfig()
+        sconf = StaticConfig(mesh_shape, chunk_size=16)
 
         def _gravity(disp, param):
             ptcl = Particles(pmid, disp)
-            acc = gravity(ptcl, param=param, config=config)
+            acc = gravity(ptcl, param, dconf, sconf)
             return acc
         _gravity_vjp = partial(vjp, _gravity)
         eps = jnp.sqrt(jnp.finfo(disp.dtype).eps)
@@ -222,20 +223,17 @@ class TestIntegrate(parameterized.TestCase):
         state = State(ptcl)
         obsvbl = None
         param = 0.
-        steps = jnp.full(9, 0.1)
+        dconf = DynamicConfig(time_steps=jnp.full(9, 0.1))
+        sconf = StaticConfig(mesh_shape, chunk_size=16)
 
-        primals = state, obsvbl, param, steps
+        primals = state, obsvbl, param
         cot_out_std = tree_map(lambda x: 1., (state, obsvbl))
         # otherwise acc cot also backprops in the automatic vjp
         cot_out_std[0].dm.acc = 0.
-        cot_skip = tree_map(lambda x: False, primals)
-        cot_skip = list(cot_skip)
-        cot_skip[3] = True  # otherwise steps gets cot in the automatic vjp
-        cot_skip = tuple(cot_skip)
-        kwargs = {'config': Config(mesh_shape, chunk_size=16)}
+        # fix dconf here otherwise it gets cot in the automatic vjp
+        kwargs = {'dconf': dconf, 'sconf': sconf}
         check_custom_vjp(integrate, primals,
-                         cot_out_std=cot_out_std, cot_skip=cot_skip,
-                         kwargs=kwargs)
+                         cot_out_std=cot_out_std, kwargs=kwargs)
 
 
 
