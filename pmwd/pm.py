@@ -1,10 +1,11 @@
 from functools import partial
 from dataclasses import dataclass, fields
-from typing import Callable, Optional
+from typing import Callable, Optional, Any
 
 import jax.numpy as jnp
 from jax import vjp, custom_vjp
 from jax.lax import scan
+from jax.tree_util import tree_map
 
 from .dataclasses import pytree_dataclass
 
@@ -18,13 +19,13 @@ class Particles:
         disp: displacements or adjoint
         vel: velocities (canonical momenta) or adjoint
         acc: accelerations or force vjp
-        val: custom feature values or adjoint
+        val: custom feature values or adjoint, as a pytree
     """
     pmid: jnp.ndarray
     disp: jnp.ndarray
     vel: Optional[jnp.ndarray] = None
     acc: Optional[jnp.ndarray] = None
-    val: Optional[jnp.ndarray] = None
+    val: Any = None
 
     @property
     def num(self):
@@ -56,9 +57,10 @@ class Particles:
             assert self.acc.shape == self.pmid.shape, 'acc shape mismatch'
             assert self.acc.dtype == self.disp.dtype, 'acc dtype mismatch'
 
-        if self.val is not None:
-            assert self.val.shape[0] == self.pmid.shape[0], 'val num mismatch'
-            assert self.val.dtype == self.disp.dtype, 'val dtype mismatch'
+        def assert_valid_val(v):
+            assert v.shape[0] == self.num, 'val num mismatch'
+            assert v.dtype == self.disp.dtype, 'val dtype mismatch'
+        tree_map(assert_valid_val, self.val)
 
 
 @pytree_dataclass
