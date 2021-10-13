@@ -221,16 +221,16 @@ class TestIntegrate(parameterized.TestCase):
         ptcl = gen_ptcl(ptcl_grid_shape, disp_std, vel_ratio=0.1)
         state = State(ptcl)
         obsvbl = None
-        steps = jnp.full(9, 0.1)
         param = 0.
+        steps = jnp.full(9, 0.1)
 
-        primals = state, obsvbl, steps, param
+        primals = state, obsvbl, param, steps
         cot_out_std = tree_map(lambda x: 1., (state, obsvbl))
         # otherwise acc cot also backprops in the automatic vjp
         cot_out_std[0].dm.acc = 0.
         cot_skip = tree_map(lambda x: False, primals)
         cot_skip = list(cot_skip)
-        cot_skip[2] = True  # otherwise steps gets cot in the automatic vjp
+        cot_skip[3] = True  # otherwise steps gets cot in the automatic vjp
         cot_skip = tuple(cot_skip)
         kwargs = {'config': Config(mesh_shape, chunk_size=16)}
         check_custom_vjp(integrate, primals,

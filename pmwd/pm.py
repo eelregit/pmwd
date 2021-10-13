@@ -547,14 +547,14 @@ def init_force(state, param, config):
     return state
 
 
-def kick(state, step, param, config):
+def kick(state, param, step, config):
     ptcl = state.dm
     ptcl.vel = ptcl.vel + ptcl.acc * step
     return state
 
 
-def kick_adj(state, state_cot, step, param, config):
-    state = kick(state, step, param, config)
+def kick_adj(state, state_cot, param, step, config):
+    state = kick(state, param, step, config)
 
     ptcl_cot = state_cot.dm
     ptcl_cot.disp = ptcl_cot.disp - ptcl_cot.acc * step
@@ -562,14 +562,14 @@ def kick_adj(state, state_cot, step, param, config):
     return state, state_cot
 
 
-def drift(state, step, param, config):
+def drift(state, param, step, config):
     ptcl = state.dm
     ptcl.disp = ptcl.disp + ptcl.vel * step
     return state
 
 
-def drift_adj(state, state_cot, step, param, config):
-    state = drift(state, step, param, config)
+def drift_adj(state, state_cot, param, step, config):
+    state = drift(state, param, step, config)
 
     ptcl_cot = state_cot.dm
     ptcl_cot.vel = ptcl_cot.vel - ptcl_cot.disp * step
@@ -577,31 +577,31 @@ def drift_adj(state, state_cot, step, param, config):
     return state, state_cot
 
 
-def leapfrog(state, step, param, config):
+def leapfrog(state, param, step, config):
     """Leapfrog time stepping
     """
-    state = kick(state, 0.5 * step, param, config)
+    state = kick(state, param, 0.5*step, config)
 
-    state = drift(state, step, param, config)
+    state = drift(state, param, step, config)
 
     state = force(state, param, config)
 
-    state = kick(state, 0.5 * step, param, config)
+    state = kick(state, param, 0.5*step, config)
 
     return state
 
 
-def leapfrog_adj(state, state_cot, step, param, config):
+def leapfrog_adj(state, state_cot, param, step, config):
     """Leapfrog with adjoint equation
     """
     # FIXME HACK step
-    state, state_cot = kick_adj(state, state_cot, 0.5*step, param, config)
+    state, state_cot = kick_adj(state, state_cot, param, 0.5*step, config)
 
-    state, state_cot = drift_adj(state, state_cot, step, param, config)
+    state, state_cot = drift_adj(state, state_cot, param, step, config)
 
     state, state_cot = force_adj(state, state_cot, param, config)
 
-    state, state_cot = kick_adj(state, state_cot, 0.5*step, param, config)
+    state, state_cot = kick_adj(state, state_cot, param, 0.5*step, config)
 
     return state, state_cot
 
@@ -632,7 +632,7 @@ def init_observe(state, obsvbl, param, config):
 
 
 @partial(custom_vjp, nondiff_argnums=(4,))
-def integrate(state, obsvbl, steps, param, config):
+def integrate(state, obsvbl, param, steps, config):
     """Time integration
     """
     state = init_force(state, param, config)
@@ -644,7 +644,7 @@ def integrate(state, obsvbl, steps, param, config):
     def _integrate(carry, step):
         state, obsvbl, param = carry
 
-        state = leapfrog(state, step, param, config)
+        state = leapfrog(state, param, step, config)
 
         state = coevolve(state, param, config)
 
@@ -661,7 +661,7 @@ def integrate(state, obsvbl, steps, param, config):
     return state, obsvbl
 
 
-def integrate_adj(state, state_cot, obsvbl_cot, steps, param, config):
+def integrate_adj(state, state_cot, obsvbl_cot, param, steps, config):
     """Time integration with adjoint equation
 
     Note:
@@ -682,7 +682,7 @@ def integrate_adj(state, state_cot, obsvbl_cot, steps, param, config):
 
         #state, state_cot = coevolve_adj(state, state_cot, param, config)
 
-        state, state_cot = leapfrog_adj(state, state_cot, step, param, config)
+        state, state_cot = leapfrog_adj(state, state_cot, param, step, config)
 
         carry = state, state_cot, obsvbl_cot, param
 
@@ -690,24 +690,24 @@ def integrate_adj(state, state_cot, obsvbl_cot, steps, param, config):
 
     carry = state, state_cot, obsvbl_cot, param
 
-    state, state_cot, obsvbl_cot = scan(_integrate_adj, carry, steps)[0][:3]
+    rev_steps = - steps  # FIXME HACK
+
+    state, state_cot, obsvbl_cot = scan(_integrate_adj, carry, rev_steps)[0][:3]
 
     return state, state_cot, obsvbl_cot
 
 
-def integrate_fwd(state, obsvbl, steps, param, config):
-    state, obsvbl = integrate(state, obsvbl, steps, param, config)
-    return (state, obsvbl), (state, steps, param)
+def integrate_fwd(state, obsvbl, param, steps, config):
+    state, obsvbl = integrate(state, obsvbl, param, steps, config)
+    return (state, obsvbl), (state, param, steps)
 
 def integrate_bwd(config, res, cotangents):
-    state, steps, param = res
+    state, param, steps = res
     state_cot, obsvbl_cot = cotangents
-
-    rev_steps = - steps  # FIXME HACK
 
     # need state below? need *_adj functions?
     state, state_cot, obsvbl_cot = integrate_adj(
-        state, state_cot, obsvbl_cot, rev_steps, param, config)
+        state, state_cot, obsvbl_cot, param, steps, config)
 
     return state_cot, obsvbl_cot, None, None  # FIXME HACK no param grad
 
