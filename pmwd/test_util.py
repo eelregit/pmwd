@@ -23,18 +23,8 @@ def tree_randn_float0_like(tree, mean=None, std=None):
     return tree_map(randn_float0_like, tree, mean, std)
 
 
-def tree_zero_leaves(tree, mask=None):
-    """Replace leaves of a pytree with 0's given a mask
-    """
-    if mask is None:
-        return tree
-    return tree_map(lambda x, skip: 0 if skip else x, tree, mask)
-
-
-def check_custom_vjp(
-        fun, primals,
-        cot_out_mean=None, cot_out_std=None, cot_skip=None,
-        args=(), kwargs={}, atol=None, rtol=None):
+def check_custom_vjp(fun, primals, cot_out_mean=None, cot_out_std=None,
+                     args=(), kwargs={}, atol=None, rtol=None):
     """Compare custom and automatic vjp's of a decorated function.
 
     Parameters:
@@ -42,7 +32,6 @@ def check_custom_vjp(
         primals: function inputs whose cotangent vectors are to be compared
         cot_out_mean: mean of randn output cotangents. Default is a pytree of 0
         cot_out_std: std of randn output cotangents. Default is a pytree of 1
-        cot_skip: ignore some cotangent comparisons. Default is to skip none
         args: positional inputs to be fixed by `partial`
         kwargs: keyword inputs to be fixed by `partial`
         atol: absolute tolerance
@@ -66,6 +55,4 @@ def check_custom_vjp(
 
     cot = vjpfun(cot_out)
     cot_orig = vjpfun_orig(cot_out)
-    cot = tree_zero_leaves(cot, cot_skip)
-    cot_orig = tree_zero_leaves(cot_orig, cot_skip)
     jtu.check_close(cot, cot_orig, atol=atol, rtol=rtol)
