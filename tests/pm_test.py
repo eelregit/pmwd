@@ -5,6 +5,7 @@ from absl.testing import parameterized
 import jax.test_util as jtu
 import chex
 
+import numpy as np
 import jax.numpy as jnp
 from jax import vjp
 from jax import random
@@ -72,6 +73,8 @@ class TestParticles(parameterized.TestCase):
             chan_shape=chan_shape, val_mean=val_mean, val_std=val_std,
         )
         ptcl.assert_valid()
+        assert ptcl.num == np.prod(ptcl_grid_shape)
+        assert ptcl.ndim == len(ptcl_grid_shape)
 
 
 class TestScatterGather(parameterized.TestCase):
@@ -203,7 +206,7 @@ class TestGravity(parameterized.TestCase):
         disp = gen_disp(ptcl_grid_shape, disp_std)
         param = 0.
         dconf = DynamicConfig()
-        sconf = StaticConfig(mesh_shape, chunk_size=16)
+        sconf = StaticConfig(mesh_shape, chunk_size=49)
 
         def _gravity(disp, param):
             ptcl = Particles(pmid, disp)
@@ -224,7 +227,7 @@ class TestIntegrate(parameterized.TestCase):
         obsvbl = None
         param = 0.
         dconf = DynamicConfig(time_steps=jnp.full(9, 0.1))
-        sconf = StaticConfig(mesh_shape, chunk_size=16)
+        sconf = StaticConfig(mesh_shape, chunk_size=None)
 
         primals = state, obsvbl, param
         cot_out_std = tree_map(lambda x: 1., (state, obsvbl))
