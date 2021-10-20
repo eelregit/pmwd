@@ -207,9 +207,26 @@ def test_gravity_vjp(mesh_shape):
     jtu.check_vjp(_gravity, _gravity_vjp, (disp, param), eps=eps)
 
 
+@pytest.mark.parametrize('mesh_shape', [(4, 9), (7, 8)],
+                         ids=['evenodd', 'oddeven'])
 class TestIntegrate:
-    @pytest.mark.parametrize('mesh_shape', [(4, 9), (7, 8)],
-                             ids=['evenodd', 'oddeven'])
+    def test_integrate_reversibility(self, mesh_shape):
+        ptcl_grid_shape = mesh_shape
+        disp_std = 7.
+        ptcl = gen_ptcl(ptcl_grid_shape, disp_std, vel_ratio=0.1)
+        state = State(ptcl)
+        obsvbl = None
+        param = 0.
+        time_steps = jnp.full(9, 0.1)
+        dconf_fwd = DynamicConfig(time_steps=time_steps)
+        dconf_bwd = DynamicConfig(time_steps=-time_steps)
+        sconf = StaticConfig(mesh_shape, chunk_size=None)
+
+        state1 = integrate(state, obsvbl, param, dconf_fwd, sconf)[0]
+        state0 = integrate(state1, obsvbl, param, dconf_bwd, sconf)[0]
+        state0.dm.acc = None  # because state.dm.acc is None
+        jtu.check_eq(state0, state)
+
     def test_integrate_custom_vjp(self, mesh_shape):
         ptcl_grid_shape = mesh_shape
         disp_std = 7.
