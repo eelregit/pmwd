@@ -35,6 +35,14 @@ class Particles:
     def ndim(self):
         return self.pmid.shape[1]
 
+    @property
+    def int_dtype(self):
+        return self.pmid.dtype
+
+    @property
+    def real_dtype(self):
+        return self.disp.dtype
+
     def assert_valid(self):
         for field in fields(self):
             data = getattr(self, field.name)
@@ -120,6 +128,8 @@ class StaticConfig:
     """
     mesh_shape: tuple
     chunk_size: int = 1<<24
+    int_dtype: jnp.dtype = jnp.dtype(jnp.int32)
+    real_dtype: jnp.dtype = jnp.dtype(jnp.float32)
 
 
 def _chunk_split(ptcl_num, chunk_size, *arrays):
@@ -160,7 +170,7 @@ def scatter(ptcl, mesh, val=1., chunk_size=None):
 def _scatter(pmid, disp, mesh, val, chunk_size):
     ptcl_num = pmid.shape[0]
 
-    val = jnp.asarray(val)
+    val = jnp.asarray(val, dtype=disp.dtype)
 
     if val.ndim == 0:
         val = jnp.full(ptcl_num, val)
@@ -271,7 +281,7 @@ def _scatter_bwd(chunk_size, res, mesh_cot):
 
     ptcl_num = pmid.shape[0]
 
-    val = jnp.asarray(val)
+    val = jnp.asarray(val, dtype=disp.dtype)
 
     if val.ndim == 0:
         val = jnp.full(ptcl_num, val)
@@ -302,7 +312,7 @@ def gather(ptcl, mesh, val=0., chunk_size=None):
 def _gather(pmid, disp, mesh, val, chunk_size):
     ptcl_num = pmid.shape[0]
 
-    val = jnp.asarray(val)
+    val = jnp.asarray(val, dtype=disp.dtype)
 
     if val.ndim == 0:
         val = jnp.full(ptcl_num, val)
@@ -509,11 +519,9 @@ def negative_gradient(k, pot):
 def gravity(ptcl, param, dconf, sconf):
     """Compute particles' gravitational forces on a mesh with FFT
     """
-    real_dtype = ptcl.disp.dtype
+    kvec = rfftnfreq(sconf.mesh_shape, dtype=ptcl.real_dtype)
 
-    kvec = rfftnfreq(sconf.mesh_shape, dtype=real_dtype)
-
-    dens = jnp.zeros(sconf.mesh_shape, dtype=real_dtype)
+    dens = jnp.zeros(sconf.mesh_shape, dtype=ptcl.real_dtype)
 
     dens = scatter(ptcl, dens, chunk_size=sconf.chunk_size)
 

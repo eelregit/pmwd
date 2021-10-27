@@ -15,29 +15,33 @@ from pmwd.pm import *
 from pmwd.test_util import check_custom_vjp
 
 
-def gen_pmid(ptcl_grid_shape):
+def gen_pmid(ptcl_grid_shape, dtype='i8'):
     ndim = len(ptcl_grid_shape)
-    pmid = jnp.meshgrid(*[jnp.arange(s) for s in ptcl_grid_shape], indexing='ij')
+    pmid = jnp.meshgrid(*[jnp.arange(s, dtype=dtype) for s in ptcl_grid_shape],
+                        indexing='ij')
     pmid = jnp.stack(pmid, axis=-1).reshape(-1, ndim)
     return pmid
 
-def gen_disp(ptcl_grid_shape, disp_std):
+def gen_disp(ptcl_grid_shape, disp_std, dtype='f8'):
     key = random.PRNGKey(0)
     ndim = len(ptcl_grid_shape)
-    disp = disp_std * random.normal(key, ptcl_grid_shape + (ndim,))
+    disp = disp_std * random.normal(key, ptcl_grid_shape + (ndim,),
+                                    dtype=dtype)
     disp = disp.reshape(-1, ndim)
     return disp
 
-def gen_val(ptcl_grid_shape, chan_shape, val_mean, val_std):
+def gen_val(ptcl_grid_shape, chan_shape, val_mean, val_std, dtype='f8'):
     key = random.PRNGKey(0)
-    val = val_mean + val_std * random.normal(key, ptcl_grid_shape + chan_shape)
+    val = val_mean + val_std * random.normal(key, ptcl_grid_shape + chan_shape,
+                                             dtype=dtype)
     val = val.reshape(-1, *chan_shape)
     return val
 
 def gen_ptcl(ptcl_grid_shape, disp_std, vel_ratio=None, acc_ratio=None,
-             chan_shape=None, val_mean=1., val_std=0.):
-    pmid = gen_pmid(ptcl_grid_shape)
-    disp = gen_disp(ptcl_grid_shape, disp_std)
+             chan_shape=None, val_mean=1., val_std=0.,
+             int_dtype='i8', real_dtype='f8'):
+    pmid = gen_pmid(ptcl_grid_shape, dtype=int_dtype)
+    disp = gen_disp(ptcl_grid_shape, disp_std, dtype=real_dtype)
 
     vel = None
     if vel_ratio is not None:
@@ -49,7 +53,8 @@ def gen_ptcl(ptcl_grid_shape, disp_std, vel_ratio=None, acc_ratio=None,
 
     val = None
     if chan_shape is not None:
-        val = gen_val(ptcl_grid_shape, chan_shape, val_mean, val_std)
+        val = gen_val(ptcl_grid_shape, chan_shape, val_mean, val_std,
+                      dtype=real_dtype)
 
     ptcl = Particles(pmid, disp, vel=vel, acc=acc, val=val)
 
@@ -58,24 +63,27 @@ def gen_ptcl(ptcl_grid_shape, disp_std, vel_ratio=None, acc_ratio=None,
 
 @pytest.mark.parametrize(
     'ptcl_grid_shape, disp_std, vel_ratio, acc_ratio, '
-    'chan_shape, val_mean, val_std',
+    'chan_shape, val_mean, val_std, int_dtype, real_dtype',
     [
-        ((64,),     3., 0.,   None, None,   1., 0.),
-        ((4, 16),   2., None, None, (),     1., 1.),
-        ((2, 4, 8), 1., None, 0.,   (1, 1), 0., 1.),
+        ((64,),     3., 0.,   None, None,   1., 0., 'i4', 'f2'),
+        ((4, 16),   2., None, None, (),     1., 1., 'i2', 'f4'),
+        ((2, 4, 8), 1., None, 0.,   (1, 1), 0., 1., 'i1', 'f8'),
     ],
     ids=['1d', '2d', '3d'],
 )
 def test_ptcl(ptcl_grid_shape, disp_std, vel_ratio, acc_ratio,
-              chan_shape, val_mean, val_std):
+              chan_shape, val_mean, val_std, int_dtype, real_dtype):
     ptcl = gen_ptcl(
         ptcl_grid_shape, disp_std,
         vel_ratio=vel_ratio, acc_ratio=acc_ratio,
         chan_shape=chan_shape, val_mean=val_mean, val_std=val_std,
+        int_dtype=int_dtype, real_dtype=real_dtype,
     )
     ptcl.assert_valid()
     assert ptcl.num == np.prod(ptcl_grid_shape)
     assert ptcl.ndim == len(ptcl_grid_shape)
+    assert ptcl.int_dtype == int_dtype
+    assert ptcl.real_dtype == real_dtype
 
 
 @pytest.mark.parametrize(
