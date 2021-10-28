@@ -7,6 +7,54 @@ from jax import vjp, float0
 from jax import random
 from jax.tree_util import tree_map
 
+from .pm import Particles
+
+
+def gen_pmid(ptcl_grid_shape, dtype='i8'):
+    ndim = len(ptcl_grid_shape)
+    pmid = jnp.meshgrid(*[jnp.arange(s, dtype=dtype) for s in ptcl_grid_shape],
+                        indexing='ij')
+    pmid = jnp.stack(pmid, axis=-1).reshape(-1, ndim)
+    return pmid
+
+def gen_disp(ptcl_grid_shape, disp_std, dtype='f8'):
+    key = random.PRNGKey(0)
+    ndim = len(ptcl_grid_shape)
+    disp = disp_std * random.normal(key, ptcl_grid_shape + (ndim,),
+                                    dtype=dtype)
+    disp = disp.reshape(-1, ndim)
+    return disp
+
+def gen_val(ptcl_grid_shape, chan_shape, val_mean, val_std, dtype='f8'):
+    key = random.PRNGKey(0)
+    val = val_mean + val_std * random.normal(key, ptcl_grid_shape + chan_shape,
+                                             dtype=dtype)
+    val = val.reshape(-1, *chan_shape)
+    return val
+
+def gen_ptcl(ptcl_grid_shape, disp_std, vel_ratio=None, acc_ratio=None,
+             chan_shape=None, val_mean=1., val_std=0.,
+             int_dtype='i8', real_dtype='f8'):
+    pmid = gen_pmid(ptcl_grid_shape, dtype=int_dtype)
+    disp = gen_disp(ptcl_grid_shape, disp_std, dtype=real_dtype)
+
+    vel = None
+    if vel_ratio is not None:
+        vel = vel_ratio * disp
+
+    acc = None
+    if acc_ratio is not None:
+        acc = acc_ratio * disp
+
+    val = None
+    if chan_shape is not None:
+        val = gen_val(ptcl_grid_shape, chan_shape, val_mean, val_std,
+                      dtype=real_dtype)
+
+    ptcl = Particles(pmid, disp, vel=vel, acc=acc, val=val)
+
+    return ptcl
+
 
 def randn_float0_like(x, mean=0., std=1., key=random.PRNGKey(0)):
     if issubclass(x.dtype.type, (jnp.bool_, jnp.integer)):

@@ -4,8 +4,7 @@ from jax.config import config
 config.update("jax_enable_x64", True)
 
 from pmwd.pm import *
-from pmwd.test_util import tree_randn_float0_like
-from tests.pm_test import gen_ptcl
+from pmwd.test_util import gen_ptcl, tree_randn_float0_like
 
 
 @pytest.mark.benchmark(min_rounds=1)
