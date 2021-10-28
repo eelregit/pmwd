@@ -178,6 +178,7 @@ class TestScatterGatherCustomVJP:
         primals = ptcl.disp, mesh, ptcl.val
         args = (ptcl.pmid,)
         kwargs = {'chunk_size': chunk_size}
+        # custom_vjp is defined on _scatter
         check_custom_vjp(pm._scatter, primals, args=args, kwargs=kwargs)
 
     def test_gather_custom_vjp(self, chunk_size):
@@ -192,6 +193,7 @@ class TestScatterGatherCustomVJP:
         primals = ptcl.disp, mesh, ptcl.val
         args = (ptcl.pmid,)
         kwargs = {'chunk_size': chunk_size}
+        # custom_vjp is defined on _gather
         check_custom_vjp(pm._gather, primals, args=args, kwargs=kwargs)
 
 
@@ -253,13 +255,3 @@ class TestIntegrate:
         kwargs = {'dconf': dconf, 'sconf': sconf}
         check_custom_vjp(integrate, primals,
                          cot_out_std=cot_out_std, kwargs=kwargs)
-
-
-
-
-
-
-# benchmark with block_until_ready
-
-
-# test reversibility
