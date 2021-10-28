@@ -3,7 +3,7 @@ from dataclasses import dataclass, fields
 from typing import Callable, Optional, Any
 
 import jax.numpy as jnp
-from jax import vjp, custom_vjp
+from jax import jit, vjp, custom_vjp
 from jax.lax import scan
 from jax.tree_util import tree_map
 
@@ -597,35 +597,6 @@ def drift_adj(state, state_cot, param, step, dconf, sconf):
     return state, state_cot
 
 
-def leapfrog(state, param, step, dconf, sconf):
-    """Leapfrog time stepping
-    """
-    state = kick(state, param, 0.5*step, dconf, sconf)
-
-    state = drift(state, param, step, dconf, sconf)
-
-    state = force(state, param, dconf, sconf)
-
-    state = kick(state, param, 0.5*step, dconf, sconf)
-
-    return state
-
-
-def leapfrog_adj(state, state_cot, param, step, dconf, sconf):
-    """Leapfrog with adjoint equation
-    """
-    # FIXME HACK step
-    state, state_cot = kick_adj(state, state_cot, param, 0.5*step, dconf, sconf)
-
-    state, state_cot = drift_adj(state, state_cot, param, step, dconf, sconf)
-
-    state, state_cot = force_adj(state, state_cot, param, dconf, sconf)
-
-    state, state_cot = kick_adj(state, state_cot, param, 0.5*step, dconf, sconf)
-
-    return state, state_cot
-
-
 def form(ptcl, param, step, dconf, sconf):
     pass
 
@@ -651,43 +622,49 @@ def init_observe(state, obsvbl, param, dconf, sconf):
     pass
 
 
-@partial(custom_vjp, nondiff_argnums=(4,))
-def integrate(state, obsvbl, param, dconf, sconf):
-    """Time integration
-    """
+@partial(jit, static_argnames='sconf')
+def integrate_init(state, obsvbl, param, dconf, sconf):
     state = init_force(state, param, dconf, sconf)
 
     state = init_coevolve(state, param, dconf, sconf)
 
     obsvbl = init_observe(state, obsvbl, param, dconf, sconf)
 
-    def _integrate(carry, step):
-        state, obsvbl, param = carry
+    return state, obsvbl
 
-        state = leapfrog(state, param, step, dconf, sconf)
 
-        state = coevolve(state, param, step, dconf, sconf)
+@partial(jit, static_argnames='sconf')
+def integrate_step(state, obsvbl, param, step, dconf, sconf):
+    # leapfrog
+    state = kick(state, param, 0.5*step, dconf, sconf)
+    state = drift(state, param, step, dconf, sconf)
+    state = force(state, param, dconf, sconf)
+    state = kick(state, param, 0.5*step, dconf, sconf)
 
-        obsvbl = observe(state, obsvbl, param, dconf, sconf)
+    state = coevolve(state, param, step, dconf, sconf)
 
-        carry = state, obsvbl, param
-
-        return carry, None
-
-    carry = state, obsvbl, param
-
-    state, obsvbl = scan(_integrate, carry, dconf.time_steps)[0][:2]
+    obsvbl = observe(state, obsvbl, param, dconf, sconf)
 
     return state, obsvbl
 
 
-def integrate_adj(state, state_cot, obsvbl_cot, param, dconf, sconf):
-    """Time integration with adjoint equation
+@partial(custom_vjp, nondiff_argnums=(4,))
+def integrate(state, obsvbl, param, dconf, sconf):
+    """Time integration
+    """
+    state, obsvbl = integrate_init(state, obsvbl, param, dconf, sconf)
+    for step in dconf.time_steps:
+        state, obsvbl = integrate_step(state, obsvbl, param, step, dconf, sconf)
+    return state, obsvbl
 
+
+@partial(jit, static_argnames='sconf')
+def integrate_adj_init(state, state_cot, obsvbl_cot, param, dconf, sconf):
+    """
     Note:
-        There is no `init_force_adj` here as the `init_force` in `integrate` to
-        skip redundant computations, because one may want to recompute force
-        and its vjp after loading snapshots saved in the forward pass.
+        No need for `init_force_adj` here like the `init_force` in
+        `integrate_init` to skip redundant computations, because one probably
+        want to recompute force vjp after loading checkpoints
     """
     #state_cot = observe_adj(state, state_cot, obsvbl_cot, param, dconf, sconf)
 
@@ -695,26 +672,35 @@ def integrate_adj(state, state_cot, obsvbl_cot, param, dconf, sconf):
 
     state, state_cot = force_adj(state, state_cot, param, dconf, sconf)
 
-    def _integrate_adj(carry, step):
-        state, state_cot, obsvbl_cot, param = carry
+    return state, state_cot
 
-        #state_cot = observe_adj(state, state_cot, obsvbl_cot, param, dconf, sconf)
 
-        #state, state_cot = coevolve_adj(state, state_cot, param, step, dconf, sconf)
+@partial(jit, static_argnames='sconf')
+def integrate_adj_step(state, state_cot, obsvbl_cot, param, step, dconf, sconf):
+    #state_cot = observe_adj(state, state_cot, obsvbl_cot, param, dconf, sconf)
 
-        state, state_cot = leapfrog_adj(state, state_cot, param, step, dconf, sconf)
+    #state, state_cot = coevolve_adj(state, state_cot, param, step, dconf, sconf)
 
-        carry = state, state_cot, obsvbl_cot, param
+    # leapfrog and its adjoint
+    # FIXME HACK step
+    state, state_cot = kick_adj(state, state_cot, param, 0.5*step, dconf, sconf)
+    state, state_cot = drift_adj(state, state_cot, param, step, dconf, sconf)
+    state, state_cot = force_adj(state, state_cot, param, dconf, sconf)
+    state, state_cot = kick_adj(state, state_cot, param, 0.5*step, dconf, sconf)
 
-        return carry, None
+    return state, state_cot
 
-    carry = state, state_cot, obsvbl_cot, param
 
+def integrate_adj(state, state_cot, obsvbl_cot, param, dconf, sconf):
+    """Time integration with adjoint equation
+    """
+    state, state_cot = integrate_adj_init(state, state_cot, obsvbl_cot,
+                                          param, dconf, sconf)
     rev_steps = - dconf.time_steps  # FIXME HACK
-
-    state, state_cot, obsvbl_cot = scan(_integrate_adj, carry, rev_steps)[0][:3]
-
-    return state, state_cot, obsvbl_cot
+    for step in rev_steps:
+        state, state_cot = integrate_adj_step(state, state_cot, obsvbl_cot,
+                                              param, step, dconf, sconf)
+    return state, state_cot
 
 
 def integrate_fwd(state, obsvbl, param, dconf, sconf):
@@ -725,9 +711,8 @@ def integrate_bwd(sconf, res, cotangents):
     state, param, dconf = res
     state_cot, obsvbl_cot = cotangents
 
-    # need state below? need *_adj functions?
-    state, state_cot, obsvbl_cot = integrate_adj(
-        state, state_cot, obsvbl_cot, param, dconf, sconf)
+    state_cot = integrate_adj(state, state_cot, obsvbl_cot,
+                              param, dconf, sconf)[1]
 
     return state_cot, obsvbl_cot, None, None  # FIXME HACK no param grad
 
