@@ -11,7 +11,8 @@ config.update("jax_enable_x64", True)
 
 import pmwd.pm as pm
 from pmwd.pm import *
-from pmwd.test_util import gen_ptcl, gen_pmid, gen_disp, check_custom_vjp
+from pmwd.test_util import (gen_ptcl, gen_pmid, gen_disp, gen_mesh,
+                            check_custom_vjp)
 
 
 @pytest.mark.parametrize(
@@ -141,7 +142,7 @@ class TestScatterGatherCustomVJP:
         disp_std = 7.
         ptcl = gen_ptcl(ptcl_grid_shape, disp_std,
                         chan_shape=chan_shape, val_mean=1., val_std=1.)
-        mesh = jnp.ones(mesh_shape + chan_shape)
+        mesh = gen_mesh(mesh_shape + chan_shape)
 
         primals = ptcl.disp, mesh, ptcl.val
         args = (ptcl.pmid,)

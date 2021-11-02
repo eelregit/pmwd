@@ -17,18 +17,18 @@ def gen_pmid(ptcl_grid_shape, dtype='i8'):
     pmid = jnp.stack(pmid, axis=-1).reshape(-1, ndim)
     return pmid
 
-def gen_disp(ptcl_grid_shape, disp_std, dtype='f8'):
+def gen_disp(ptcl_grid_shape, std, dtype='f8'):
     key = random.PRNGKey(0)
     ndim = len(ptcl_grid_shape)
-    disp = disp_std * random.normal(key, ptcl_grid_shape + (ndim,),
+    disp = std * random.normal(key, ptcl_grid_shape + (ndim,),
                                     dtype=dtype)
     disp = disp.reshape(-1, ndim)
     return disp
 
-def gen_val(ptcl_grid_shape, chan_shape, val_mean, val_std, dtype='f8'):
+def gen_val(ptcl_grid_shape, chan_shape, mean, std, dtype='f8'):
     key = random.PRNGKey(0)
-    val = val_mean + val_std * random.normal(key, ptcl_grid_shape + chan_shape,
-                                             dtype=dtype)
+    val = mean + std * random.normal(key, ptcl_grid_shape + chan_shape,
+                                     dtype=dtype)
     val = val.reshape(-1, *chan_shape)
     return val
 
@@ -54,6 +54,12 @@ def gen_ptcl(ptcl_grid_shape, disp_std, vel_ratio=None, acc_ratio=None,
     ptcl = Particles(pmid, disp, vel=vel, acc=acc, val=val)
 
     return ptcl
+
+
+def gen_mesh(shape, mean=0., std=1.):
+    key = random.PRNGKey(0)
+    mesh = mean + std * random.normal(key, shape)
+    return mesh
 
 
 def randn_float0_like(x, mean=0., std=1., key=random.PRNGKey(0)):
