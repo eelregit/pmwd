@@ -112,10 +112,6 @@ class DynamicConfig:
 
     time_steps: Optional[jnp.ndarray] = None
 
-    @property
-    def inv_cell_size(self):
-        return 1. / self.cell_size
-
 
 @dataclass(frozen=True)
 class StaticConfig:
@@ -127,7 +123,9 @@ class StaticConfig:
             particle numbers
     """
     mesh_shape: tuple
+
     chunk_size: int = 1<<24
+
     int_dtype: jnp.dtype = jnp.dtype(jnp.int32)
     real_dtype: jnp.dtype = jnp.dtype(jnp.float32)
 
@@ -160,14 +158,14 @@ def _chunk_cat(remainder_array, chunks_array):
     return array
 
 
-def scatter(ptcl, mesh, val=1., chunk_size=None):
+def scatter(ptcl, mesh, val=1., cell_size=1., chunk_size=None):
     """Scatter particle values to mesh in n-D with CIC window
     """
-    return _scatter(ptcl.pmid, ptcl.disp, mesh, val, chunk_size)
+    return _scatter(ptcl.pmid, ptcl.disp, mesh, val, cell_size, chunk_size)
 
 
-@partial(custom_vjp, nondiff_argnums=(4,))
-def _scatter(pmid, disp, mesh, val, chunk_size):
+@partial(custom_vjp, nondiff_argnums=(5,))
+def _scatter(pmid, disp, mesh, val, cell_size, chunk_size):
     ptcl_num = pmid.shape[0]
 
     val = jnp.asarray(val, dtype=disp.dtype)
@@ -177,15 +175,17 @@ def _scatter(pmid, disp, mesh, val, chunk_size):
 
     remainder, chunks = _chunk_split(ptcl_num, chunk_size, pmid, disp, val)
 
+    carry = mesh, cell_size
     if remainder is not None:
-        mesh = _scatter_chunk(mesh, remainder)[0]
-
-    mesh = scan(_scatter_chunk, mesh, chunks)[0]
+        carry = _scatter_chunk(carry, remainder)[0]
+    carry = scan(_scatter_chunk, carry, chunks)[0]
+    mesh = carry[0]
 
     return mesh
 
 
-def _scatter_chunk(mesh, chunk):
+def _scatter_chunk(carry, chunk):
+    mesh, cell_size = carry
     pmid, disp, val = chunk
 
     ptcl_num, spatial_ndim = pmid.shape
@@ -193,6 +193,10 @@ def _scatter_chunk(mesh, chunk):
     spatial_shape = mesh.shape[:spatial_ndim]
     chan_ndim = mesh.ndim - spatial_ndim
     chan_axis = tuple(range(-chan_ndim, 0))
+
+    # normalize by cell size
+    inv_cell_size = 1. / cell_size
+    disp = disp * inv_cell_size
 
     # insert neighbor axis
     pmid = pmid[:, jnp.newaxis]
@@ -217,16 +221,18 @@ def _scatter_chunk(mesh, chunk):
     tgt = tuple(tgt[..., i] for i in range(spatial_ndim))
     mesh = mesh.at[tgt].add(val * frac)
 
-    return mesh, None
+    carry = mesh, cell_size
+    return carry, None
 
 
-def _scatter_chunk_adj(mesh_cot, chunk):
+def _scatter_chunk_adj(carry, chunk):
     """Adjoint of `_scatter_chunk`, or equivalently `_scatter_adj_chunk`, i.e.
     scatter adjoint in chunks
 
     Gather disp_cot from mesh_cot and val;
     Gather val_cot from mesh_cot.
     """
+    mesh_cot, cell_size = carry
     pmid, disp, val = chunk
 
     ptcl_num, spatial_ndim = pmid.shape
@@ -234,6 +240,10 @@ def _scatter_chunk_adj(mesh_cot, chunk):
     spatial_shape = mesh_cot.shape[:spatial_ndim]
     chan_ndim = mesh_cot.ndim - spatial_ndim
     chan_axis = tuple(range(-chan_ndim, 0))
+
+    # normalize by cell size
+    inv_cell_size = 1. / cell_size
+    disp = disp * inv_cell_size
 
     # insert neighbor axis
     pmid = pmid[:, jnp.newaxis]
@@ -266,18 +276,19 @@ def _scatter_chunk_adj(mesh_cot, chunk):
 
     disp_cot = (val_cot * val).sum(axis=chan_axis)
     disp_cot = (disp_cot[..., jnp.newaxis] * frac_grad).sum(axis=1)
+    disp_cot = disp_cot * inv_cell_size
 
     val_cot = (val_cot * frac).sum(axis=1)
 
-    return mesh_cot, (disp_cot, val_cot)
+    return carry, (disp_cot, val_cot)
 
 
-def _scatter_fwd(pmid, disp, mesh, val, chunk_size):
-    mesh = _scatter(pmid, disp, mesh, val, chunk_size)
-    return mesh, (pmid, disp, val)
+def _scatter_fwd(pmid, disp, mesh, val, cell_size, chunk_size):
+    mesh = _scatter(pmid, disp, mesh, val, cell_size, chunk_size)
+    return mesh, (pmid, disp, val, cell_size)
 
 def _scatter_bwd(chunk_size, res, mesh_cot):
-    pmid, disp, val = res
+    pmid, disp, val, cell_size = res
 
     ptcl_num = pmid.shape[0]
 
@@ -288,28 +299,28 @@ def _scatter_bwd(chunk_size, res, mesh_cot):
 
     remainder, chunks = _chunk_split(ptcl_num, chunk_size, pmid, disp, val)
 
+    carry = mesh_cot, cell_size
     disp_cot_0, val_cot_0 = None, None
     if remainder is not None:
-        disp_cot_0, val_cot_0 = _scatter_chunk_adj(mesh_cot, remainder)[1]
-
-    disp_cot, val_cot = scan(_scatter_chunk_adj, mesh_cot, chunks)[1]
+        disp_cot_0, val_cot_0 = _scatter_chunk_adj(carry, remainder)[1]
+    disp_cot, val_cot = scan(_scatter_chunk_adj, carry, chunks)[1]
 
     disp_cot = _chunk_cat(disp_cot_0, disp_cot)
     val_cot = _chunk_cat(val_cot_0, val_cot)
 
-    return None, disp_cot, mesh_cot, val_cot
+    return None, disp_cot, mesh_cot, val_cot, None
 
 _scatter.defvjp(_scatter_fwd, _scatter_bwd)
 
 
-def gather(ptcl, mesh, val=0., chunk_size=None):
+def gather(ptcl, mesh, val=0., cell_size=1., chunk_size=None):
     """Gather particle values from mesh in n-D with CIC window
     """
-    return _gather(ptcl.pmid, ptcl.disp, mesh, val, chunk_size)
+    return _gather(ptcl.pmid, ptcl.disp, mesh, val, cell_size, chunk_size)
 
 
-@partial(custom_vjp, nondiff_argnums=(4,))
-def _gather(pmid, disp, mesh, val, chunk_size):
+@partial(custom_vjp, nondiff_argnums=(5,))
+def _gather(pmid, disp, mesh, val, cell_size, chunk_size):
     ptcl_num = pmid.shape[0]
 
     val = jnp.asarray(val, dtype=disp.dtype)
@@ -319,18 +330,19 @@ def _gather(pmid, disp, mesh, val, chunk_size):
 
     remainder, chunks = _chunk_split(ptcl_num, chunk_size, pmid, disp, val)
 
+    carry = mesh, cell_size
     val_0 = None
     if remainder is not None:
-        val_0 = _gather_chunk(mesh, remainder)[1]
-
-    val = scan(_gather_chunk, mesh, chunks)[1]
+        val_0 = _gather_chunk(carry, remainder)[1]
+    val = scan(_gather_chunk, carry, chunks)[1]
 
     val = _chunk_cat(val_0, val)
 
     return val
 
 
-def _gather_chunk(mesh, chunk):
+def _gather_chunk(carry, chunk):
+    mesh, cell_size = carry
     pmid, disp, val = chunk
 
     ptcl_num, spatial_ndim = pmid.shape
@@ -338,6 +350,10 @@ def _gather_chunk(mesh, chunk):
     spatial_shape = mesh.shape[:spatial_ndim]
     chan_ndim = mesh.ndim - spatial_ndim
     chan_axis = tuple(range(-chan_ndim, 0))
+
+    # normalize by cell size
+    inv_cell_size = 1. / cell_size
+    disp = disp * inv_cell_size
 
     # insert neighbor axis
     pmid = pmid[:, jnp.newaxis]
@@ -361,17 +377,17 @@ def _gather_chunk(mesh, chunk):
     tgt = tuple(tgt[..., i] for i in range(spatial_ndim))
     val = val + (mesh[tgt] * frac).sum(axis=1)
 
-    return mesh, val
+    return carry, val
 
 
-def _gather_chunk_adj(meshes, chunk):
+def _gather_chunk_adj(carry, chunk):
     """Adjoint of `_gather_chunk`, or equivalently `_gather_adj_chunk`, i.e.
     gather adjoint in chunks
 
     Gather disp_cot from val_cot and mesh;
     Scatter val_cot to mesh_cot.
     """
-    mesh, mesh_cot = meshes
+    mesh, mesh_cot, cell_size = carry
     pmid, disp, val_cot = chunk
 
     ptcl_num, spatial_ndim = pmid.shape
@@ -379,6 +395,10 @@ def _gather_chunk_adj(meshes, chunk):
     spatial_shape = mesh.shape[:spatial_ndim]
     chan_ndim = mesh.ndim - spatial_ndim
     chan_axis = tuple(range(-chan_ndim, 0))
+
+    # normalize by cell size
+    inv_cell_size = 1. / cell_size
+    disp = disp * inv_cell_size
 
     # insert neighbor axis
     pmid = pmid[:, jnp.newaxis]
@@ -411,55 +431,54 @@ def _gather_chunk_adj(meshes, chunk):
 
     disp_cot = (val_cot * val).sum(axis=chan_axis)
     disp_cot = (disp_cot[..., jnp.newaxis] * frac_grad).sum(axis=1)
+    disp_cot = disp_cot * inv_cell_size
 
     mesh_cot = mesh_cot.at[tgt].add(val_cot * frac)
 
-    return (mesh, mesh_cot), disp_cot
+    carry = mesh, mesh_cot, cell_size
+    return carry, disp_cot
 
 
-def _gather_fwd(pmid, disp, mesh, val, chunk_size):
-    val = _gather(pmid, disp, mesh, val, chunk_size)
-    return val, (pmid, disp, mesh)
+def _gather_fwd(pmid, disp, mesh, val, cell_size, chunk_size):
+    val = _gather(pmid, disp, mesh, val, cell_size, chunk_size)
+    return val, (pmid, disp, mesh, cell_size)
 
 def _gather_bwd(chunk_size, res, val_cot):
-    pmid, disp, mesh = res
+    pmid, disp, mesh, cell_size = res
 
     ptcl_num = pmid.shape[0]
 
     remainder, chunks = _chunk_split(ptcl_num, chunk_size, pmid, disp, val_cot)
 
     mesh_cot = jnp.zeros_like(mesh)
-    meshes = (mesh, mesh_cot)
-
+    carry = mesh, mesh_cot, cell_size
     disp_cot_0 = None
     if remainder is not None:
-        meshes, disp_cot_0 = _gather_chunk_adj(meshes, remainder)
-
-    meshes, disp_cot = scan(_gather_chunk_adj, meshes, chunks)
-
-    mesh_cot = meshes[1]
+        carry, disp_cot_0 = _gather_chunk_adj(carry, remainder)
+    carry, disp_cot = scan(_gather_chunk_adj, carry, chunks)
+    mesh_cot = carry[1]
 
     disp_cot = _chunk_cat(disp_cot_0, disp_cot)
 
-    return None, disp_cot, mesh_cot, val_cot
+    return None, disp_cot, mesh_cot, val_cot, None
 
 _gather.defvjp(_gather_fwd, _gather_bwd)
 
 
-def rfftnfreq(shape, dtype=float):
-    """wavevectors (angular frequencies) for `numpy.fft.rfftn`
+def rfftnfreq(shape, cell_size=1., dtype=float):
+    """wavevectors for `numpy.fft.rfftn`
 
     Returns:
         A list of broadcastable wavevectors as a "`sparse`" `numpy.meshgrid`
     """
-    rad_per_cycle = 2 * jnp.pi
+    freq_period = 2 * jnp.pi / cell_size
 
     kvec = []
     for axis, n in enumerate(shape[:-1]):
-        k = jnp.fft.fftfreq(n).astype(dtype) * rad_per_cycle
+        k = jnp.fft.fftfreq(n).astype(dtype) * freq_period
         kvec.append(k)
 
-    k = jnp.fft.rfftfreq(shape[-1]).astype(dtype) * rad_per_cycle
+    k = jnp.fft.rfftfreq(shape[-1]).astype(dtype) * freq_period
     kvec.append(k)
 
     kvec = jnp.meshgrid(*kvec, indexing='ij', sparse=True)
@@ -500,8 +519,8 @@ def laplace_bwd(res, pot_cot):
 laplace.defvjp(laplace_fwd, laplace_bwd)
 
 
-def negative_gradient(k, pot):
-    nyquist = jnp.pi
+def negative_gradient(k, pot, cell_size=1.):
+    nyquist = jnp.pi / cell_size
     eps = nyquist * jnp.finfo(k.dtype).eps
 
     spatial_ndim = k.ndim
@@ -519,7 +538,8 @@ def negative_gradient(k, pot):
 def gravity(ptcl, param, dconf, sconf):
     """Compute particles' gravitational forces on a mesh with FFT
     """
-    kvec = rfftnfreq(sconf.mesh_shape, dtype=ptcl.real_dtype)
+    kvec = rfftnfreq(sconf.mesh_shape,
+                     cell_size=dconf.cell_size, dtype=ptcl.real_dtype)
 
     dens = jnp.zeros(sconf.mesh_shape, dtype=ptcl.real_dtype)
 
@@ -531,7 +551,7 @@ def gravity(ptcl, param, dconf, sconf):
 
     acc = []
     for k in kvec:
-        neg_grad = negative_gradient(k, pot)
+        neg_grad = negative_gradient(k, pot, cell_size=dconf.cell_size)
 
         neg_grad = jnp.fft.irfftn(neg_grad, s=sconf.mesh_shape)
 

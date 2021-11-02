@@ -43,11 +43,11 @@ def test_ptcl(ptcl_grid_shape, disp_std, vel_ratio, acc_ratio,
 @pytest.mark.parametrize(
     'ptcl_num, pos, chan_shape',
     [
-        (3, (-0.5,),          (2, 1)),
-        (5, (0.5, -1.5),      (1, 2, 3)),
-        (7, (-1.5, 2.5, 3.5), None),
-        (7, (1.5, -2.5, 3.5), ()),
-        (7, (1.5, 2.5, -3.5), (1,)),
+        (3, (-1.,),        (2, 1)),
+        (5, (1., -3.),     (1, 2, 3)),
+        (7, (-3., 5., 7.), None),
+        (7, (3., -5., 7.), ()),
+        (7, (3., 5., -7.), (1,)),
     ],
     ids=['1d', '2d', '3d1', '3d2', '3d3'],
 )
@@ -65,7 +65,7 @@ def test_scatter_centered_ptcl(ptcl_num, pos, chan_shape):
         val = jnp.full((ptcl_num,) + chan_shape, val)
     mesh = jnp.zeros(mesh_shape + chan_shape)
 
-    mesh = scatter(ptcl, mesh, val=val, chunk_size=3)
+    mesh = scatter(ptcl, mesh, val=val, cell_size=2., chunk_size=3)
     mesh_expected = jnp.full(mesh_shape + chan_shape,
                              ptcl_num * 2**-spatial_ndim)
     jtu.check_eq(mesh, mesh_expected)
@@ -96,7 +96,7 @@ class TestScatterGather:
             val = ptcl.val
         mesh = jnp.zeros(mesh_shape + chan_shape)
 
-        mesh = scatter(ptcl, mesh, val=val, chunk_size=3)
+        mesh = scatter(ptcl, mesh, val=val, cell_size=2., chunk_size=3)
         sum_expected = ptcl_num * np.prod(chan_shape)
         jtu.check_close(mesh.sum(), sum_expected)
 
@@ -113,7 +113,7 @@ class TestScatterGather:
             val = ptcl.val
         mesh = jnp.ones(mesh_shape + chan_shape)
 
-        val = gather(ptcl, mesh, val=val, chunk_size=3)
+        val = gather(ptcl, mesh, val=val, cell_size=2., chunk_size=3)
         val_expected = jnp.ones((ptcl_num,) + chan_shape)
         jtu.check_eq(val, val_expected)
 
@@ -131,7 +131,7 @@ class TestScatterGatherCustomVJP:
 
         primals = ptcl.disp, mesh, ptcl.val
         args = (ptcl.pmid,)
-        kwargs = {'chunk_size': chunk_size}
+        kwargs = {'cell_size': 3., 'chunk_size': chunk_size}
         # custom_vjp is defined on _scatter
         check_custom_vjp(pm._scatter, primals, args=args, kwargs=kwargs)
 
@@ -146,7 +146,7 @@ class TestScatterGatherCustomVJP:
 
         primals = ptcl.disp, mesh, ptcl.val
         args = (ptcl.pmid,)
-        kwargs = {'chunk_size': chunk_size}
+        kwargs = {'cell_size': 3., 'chunk_size': chunk_size}
         # custom_vjp is defined on _gather
         check_custom_vjp(pm._gather, primals, args=args, kwargs=kwargs)
 
