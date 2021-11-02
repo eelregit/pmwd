@@ -10,7 +10,7 @@ setup(
     name='pmwd',
     description='particle mesh with derivatives',
     long_description=long_description,
-    long_description_content_type='text/x-rst'
+    long_description_content_type='text/x-rst',
     url='https://github.com/eelregit/pmwd',
     author='Yin Li and pmwd developers',
     author_email='eelregit@gmail.com',
