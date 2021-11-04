@@ -487,7 +487,7 @@ def rfftnfreq(shape, cell_size=1., dtype=float):
 
 
 @custom_vjp
-def laplace(kvec, dens, param):
+def laplace(kvec, dens, param=None):
     """Laplace kernel in Fourier space
     """
     spatial_ndim = len(kvec)
