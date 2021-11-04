@@ -130,10 +130,10 @@ class TestScatterGatherCustomVJP:
         mesh = jnp.zeros(mesh_shape + chan_shape)
 
         primals = ptcl.disp, mesh, ptcl.val
-        args = (ptcl.pmid,)
-        kwargs = {'cell_size': 3., 'chunk_size': chunk_size}
+        partial_args = (ptcl.pmid,)
+        partial_kwargs = {'cell_size': 3., 'chunk_size': chunk_size}
         # custom_vjp is defined on _scatter
-        check_custom_vjp(pm._scatter, primals, args=args, kwargs=kwargs)
+        check_custom_vjp(pm._scatter, primals, partial_args, partial_kwargs)
 
     def test_gather_custom_vjp(self, chunk_size):
         mesh_shape = (4, 9)
@@ -145,10 +145,10 @@ class TestScatterGatherCustomVJP:
         mesh = gen_mesh(mesh_shape + chan_shape)
 
         primals = ptcl.disp, mesh, ptcl.val
-        args = (ptcl.pmid,)
-        kwargs = {'cell_size': 3., 'chunk_size': chunk_size}
+        partial_args = (ptcl.pmid,)
+        partial_kwargs = {'cell_size': 3., 'chunk_size': chunk_size}
         # custom_vjp is defined on _gather
-        check_custom_vjp(pm._gather, primals, args=args, kwargs=kwargs)
+        check_custom_vjp(pm._gather, primals, partial_args, partial_kwargs)
 
 
 @pytest.mark.parametrize('mesh_shape', [(4, 9), (7, 8)],
@@ -206,6 +206,6 @@ class TestIntegrate:
         # otherwise acc cot also backprops in the automatic vjp
         cot_out_std[0].dm.acc = 0.
         # fix dconf here otherwise it gets cot in the automatic vjp
-        kwargs = {'dconf': dconf, 'sconf': sconf}
-        check_custom_vjp(integrate, primals,
-                         cot_out_std=cot_out_std, kwargs=kwargs)
+        partial_kwargs = {'dconf': dconf, 'sconf': sconf}
+        check_custom_vjp(integrate, primals, partial_kwargs=partial_kwargs,
+                         cot_out_std=cot_out_std)

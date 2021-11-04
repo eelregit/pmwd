@@ -77,17 +77,18 @@ def tree_randn_float0_like(tree, mean=None, std=None):
     return tree_map(randn_float0_like, tree, mean, std)
 
 
-def check_custom_vjp(fun, primals, cot_out_mean=None, cot_out_std=None,
-                     args=(), kwargs={}, atol=None, rtol=None):
+def check_custom_vjp(fun, primals, partial_args=(), partial_kwargs={},
+                     cot_out_mean=None, cot_out_std=None,
+                     atol=None, rtol=None):
     """Compare custom and automatic vjp's of a decorated function.
 
     Parameters:
         fun: function decorated with `custom_vjp`
         primals: function inputs whose cotangent vectors are to be compared
+        partial_args: positional function inputs to be fixed by `partial`
+        partial_kwargs: keyword function inputs to be fixed by `partial`
         cot_out_mean: mean of randn output cotangents. Default is a pytree of 0
         cot_out_std: std of randn output cotangents. Default is a pytree of 1
-        args: positional inputs to be fixed by `partial`
-        kwargs: keyword inputs to be fixed by `partial`
         atol: absolute tolerance
         rtol: relative tolerance
 
@@ -97,9 +98,9 @@ def check_custom_vjp(fun, primals, cot_out_mean=None, cot_out_std=None,
     """
     fun_orig = fun.__wrapped__  # original function without custom vjp
 
-    if args or kwargs:
-        fun = partial(fun, *args, **kwargs)
-        fun_orig = partial(fun_orig, *args, **kwargs)
+    if partial_args or partial_kwargs:
+        fun = partial(fun, *partial_args, **partial_kwargs)
+        fun_orig = partial(fun_orig, *partial_args, **partial_kwargs)
 
     primals_out, vjpfun = vjp(fun, *primals)
     primals_out_orig, vjpfun_orig = vjp(fun_orig, *primals)
