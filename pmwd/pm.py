@@ -3,12 +3,13 @@ from dataclasses import dataclass, fields
 from typing import Callable, Optional, Any
 
 import jax.numpy as jnp
-from jax import jit, vjp, custom_vjp
+from jax import jit, vjp, custom_vjp, random
 from jax.lax import scan
 from jax.tree_util import tree_map
 
 from .dataclasses import pytree_dataclass
-
+from . import background as bg
+import jax_cosmo as jc
 
 @pytree_dataclass
 class Particles:
@@ -79,6 +80,9 @@ class State:
         dm: dark matter particles
     """
     dm: Particles
+    ax : Optional[float] = None
+    ap : Optional[float] = None
+    af : Optional[float] = None
 
     # TODO: some parameter- and time-dependent factors that, like particle
     # states, are to be propagated forward and backward
@@ -123,7 +127,6 @@ class StaticConfig:
             particle numbers
     """
     mesh_shape: tuple
-
     chunk_size: int = 1<<24
 
     int_dtype: jnp.dtype = jnp.dtype(jnp.int32)
@@ -559,7 +562,7 @@ def gravity(ptcl, param, dconf, sconf):
 
         acc.append(neg_grad)
     acc = jnp.stack(acc, axis=-1)
-
+    acc = acc * param.Omega_m *1.5
     return acc
 
 
@@ -589,13 +592,18 @@ def init_force(state, param, dconf, sconf):
 
 def kick(state, param, step, dconf, sconf):
     ptcl = state.dm
-    ptcl.vel = ptcl.vel + ptcl.acc * step
+    ai = state.ap
+    af = step
+    ac = state.af
+    factor = 1 / (ac**2 * bg.E(param, ac)) * (bg.Gf(param, af) - bg.Gf(param, ai)) / bg.dGfa(
+        param, ac)
+    ptcl.vel = ptcl.vel + ptcl.acc * factor
+    state.ap = af
     return state
 
 
 def kick_adj(state, state_cot, param, step, dconf, sconf):
     state = kick(state, param, step, dconf, sconf)
-
     ptcl_cot = state_cot.dm
     ptcl_cot.disp = ptcl_cot.disp - ptcl_cot.acc * step
 
@@ -604,13 +612,20 @@ def kick_adj(state, state_cot, param, step, dconf, sconf):
 
 def drift(state, param, step, dconf, sconf):
     ptcl = state.dm
-    ptcl.disp = ptcl.disp + ptcl.vel * step
+    ai = state.ax
+    af = step
+    ac = state.ap
+    f1 = bg.growth_rate(param, ac)
+    D1 = bg.growth_factor(param, ac)
+    D1f = f1*D1/ ac
+    factor = 1. / (ac**3 * bg.E(param, ac)) * (bg.growth_factor(param, af) - bg.growth_factor(param, ai)) / D1f
+    ptcl.disp = ptcl.disp + ptcl.vel * factor
+    state.ax = af
     return state
 
 
 def drift_adj(state, state_cot, param, step, dconf, sconf):
     state = drift(state, param, step, dconf, sconf)
-
     ptcl_cot = state_cot.dm
     ptcl_cot.vel = ptcl_cot.vel - ptcl_cot.disp * step
 
@@ -645,7 +660,7 @@ def init_observe(state, obsvbl, param, dconf, sconf):
 @partial(jit, static_argnames='sconf')
 def integrate_init(state, obsvbl, param, dconf, sconf):
     state = init_force(state, param, dconf, sconf)
-
+    state.af = jnp.array([dconf.time_steps[0]])
     state = init_coevolve(state, param, dconf, sconf)
 
     obsvbl = init_observe(state, obsvbl, param, dconf, sconf)
@@ -655,11 +670,14 @@ def integrate_init(state, obsvbl, param, dconf, sconf):
 
 @partial(jit, static_argnames='sconf')
 def integrate_step(state, obsvbl, param, step, dconf, sconf):
-    # leapfrog
-    state = kick(state, param, 0.5*step, dconf, sconf)
+    #leapfrog
+
+    halfstep = (state.ax * step)**0.5
+    state = kick(state, param, halfstep, dconf, sconf)
     state = drift(state, param, step, dconf, sconf)
     state = force(state, param, dconf, sconf)
-    state = kick(state, param, 0.5*step, dconf, sconf)
+    state.af = jnp.array([state.ax])
+    state = kick(state, param, step, dconf, sconf)
 
     state = coevolve(state, param, step, dconf, sconf)
 
@@ -673,7 +691,8 @@ def integrate(state, obsvbl, param, dconf, sconf):
     """Time integration
     """
     state, obsvbl = integrate_init(state, obsvbl, param, dconf, sconf)
-    for step in dconf.time_steps:
+    for step in dconf.time_steps[1:]:
+        step = jnp.array([step])
         state, obsvbl = integrate_step(state, obsvbl, param, step, dconf, sconf)
     return state, obsvbl
 
@@ -737,3 +756,70 @@ def integrate_bwd(sconf, res, cotangents):
     return state_cot, obsvbl_cot, None, None  # FIXME HACK no param grad
 
 integrate.defvjp(integrate_fwd, integrate_bwd)
+
+
+
+
+
+def generate_initial_density(param, dconf, sconf, seed=100, verbose=False):
+    """Generate the Gaussian initial density field
+
+    Parameters:
+    ----------
+    param : Jax_cosmology object
+    sconf : Static config
+    dconf : Dynamic config
+    seed : Seed for random genertor
+
+    Returns:
+    ----------
+    ic : Tensor of shape N^3 representing the initial density field
+    """
+    if verbose: print('Generating initial denisty field')
+    kvec = rfftnfreq(sconf.mesh_shape,
+                     cell_size=dconf.cell_size)
+    kmesh = sum(k**2 for k in kvec)**0.5
+    pkmesh = jc.power.linear_matter_power(param, kmesh)
+
+    key = random.PRNGKey(seed)
+    z = random.normal(key, shape=sconf.mesh_shape)
+    zc = jnp.fft.rfftn(z)
+    ic = jnp.fft.irfftn(zc * (pkmesh/dconf.cell_size**3)**0.5)
+
+    return ic
+
+
+def generate_za(ptcl_grid_shape, ic, param, dconf, sconf, verbose=False):
+    """retrun particle object with ZA displacement and ZA velocity
+
+    """
+
+    ndim = len(ptcl_grid_shape)
+    pmid = jnp.meshgrid(*[jnp.arange(s, dtype='i8') for s in ptcl_grid_shape],
+                        indexing='ij')
+    pmid = jnp.stack(pmid, axis=-1).reshape(-1, ndim)
+    disp = jnp.zeros_like(pmid, dtype=float)
+    vel = jnp.zeros_like(pmid, dtype=float)
+    ptcl = Particles(pmid, disp, vel=vel)
+    state = State(ptcl)
+
+    if verbose: print('Generating ZA initial conditions')
+    kvec = rfftnfreq(sconf.mesh_shape,
+                     cell_size=dconf.cell_size, dtype=state.dm.real_dtype)
+
+    icf = jnp.fft.rfftn(ic)
+    pot = laplace(kvec, icf)
+    disp = []
+    for k in kvec:
+        neg_grad = negative_gradient(k, pot, cell_size=dconf.cell_size)
+        neg_grad = jnp.fft.irfftn(neg_grad, s=sconf.mesh_shape)
+        neg_grad = gather(ptcl, neg_grad, chunk_size=sconf.chunk_size, cell_size=dconf.cell_size)
+
+        disp.append(neg_grad)
+    a0 = jnp.array([dconf.time_steps[0]])
+    state.dm.disp = jnp.stack(disp, axis=-1) * bg.growth_factor(param, a0)
+    state.dm.vel = state.dm.disp * (a0**2 * bg.growth_rate(param, a0) * bg.Esqr(param, a0)**0.5)
+    state.ax = a0
+    state.ap = a0
+    return state
+
