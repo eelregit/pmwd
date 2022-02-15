@@ -159,7 +159,7 @@ def test_gravity_vjp(mesh_shape):
     pmid = gen_pmid(ptcl_grid_shape)
     disp = gen_disp(ptcl_grid_shape, disp_std)
     param = 0.
-    dconf = DynamicConfig()
+    dconf = DynamicConfig(cell_size=7.)
     sconf = StaticConfig(mesh_shape, chunk_size=49)
 
     def _gravity(disp, param):

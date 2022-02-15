@@ -543,7 +543,7 @@ def gravity(ptcl, param, dconf, sconf):
 
     dens = jnp.zeros(sconf.mesh_shape, dtype=ptcl.real_dtype)
 
-    dens = scatter(ptcl, dens, chunk_size=sconf.chunk_size)
+    dens = scatter(ptcl, dens, cell_size=dconf.cell_size, chunk_size=sconf.chunk_size)
 
     dens = jnp.fft.rfftn(dens)
 
@@ -555,7 +555,7 @@ def gravity(ptcl, param, dconf, sconf):
 
         neg_grad = jnp.fft.irfftn(neg_grad, s=sconf.mesh_shape)
 
-        neg_grad = gather(ptcl, neg_grad, chunk_size=sconf.chunk_size)
+        neg_grad = gather(ptcl, neg_grad, cell_size=dconf.cell_size, chunk_size=sconf.chunk_size)
 
         acc.append(neg_grad)
     acc = jnp.stack(acc, axis=-1)
