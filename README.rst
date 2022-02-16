@@ -1,4 +1,4 @@
-.. image:: https://raw.githubusercontent.com/eelregit/pmwd/master/assets/logo.svg
+.. image:: https://github.com/eelregit/pmwd/blob/master/assets/logo.svg?raw=true
    :alt: logo
 
 
