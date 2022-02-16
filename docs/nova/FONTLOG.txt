@@ -1,0 +1,168 @@
+This is the FONTLOG file for the "Nova" ("NovaFlat-Book", "NovaFlat-BookOblique",
+"NovaFlat-Bold", "NovaFlat-BoldOblique", "NovaFlatSlim-Book", "NovaFlatSlim-BookOblique",
+"NovaFlatSlim-Bold", "NovaFlatSlim-BoldOblique","NovaRound-Book", "NovaRound-BookOblique",
+"NovaRound-Bold", "NovaRound-BoldOblique", "NovaRoundSlim-Book", "NovaRoundSlim-BookOblique",
+"NovaRoundSlim-Bold", "NovaRoundSlim-BoldOblique", "NovaSquare-Book", "NovaSquare-BookOblique", "NovaSquare-Bold", "NovaSquare-BoldOblique", "NovaSquareSlim-Book",
+"NovaSquareSlim-BookOblique", "NovaSquareSlim-Bold", "NovaSquareSlim-BoldOblique") Font.
+
+
+This file provides detailed information on the "Nova" Font Software.
+This information should be distributed along with the "Nova" font
+and any derivative works.
+
+
+Basic Font Information
+
+"Nova" Font is a Unicode typeface family that supports all languages
+that use the Latin script and its variants, and could be expanded to support
+other scripts.
+
+
+"Nova" Font you'll find at: https://fontlibrary.org
+
+
+"Nova" Font is created with FontForge.
+
+
+More specifically, this release supports the following Unicode ranges:
+
+ - Basic Latin and Controls - 0000-007F (all)
+ - Latin 1 Supplement And Controls - 00A0-00FF (all)
+ - Latin Extended A - 0100-017F (all)
+ - Latin Extended B - 0192, 01FA-01FF, 0218-021B
+ - Spacing Modifier Letters - 02C6-02C7, 02C9-02CB, 02D8-02DD
+ - Latin Extended Additional - 1E02-1E03, 1E0A-1E0B, 1E1E-1E1F, 1E40-1E41,
+                               1E56-1E57, 1E60-1E61, 1E6A-1E6B, 1E80-1E85,
+                               1EF2-1EF3, 1E9E
+ - General Punctuation - 2013-2015, 2018-201E, 2020-2022, 2026, 2030, 2032-2033,
+                         2039, 203A, 203D, 2044
+ - Currency Symbols - 20AC
+ - Letterlike Symbols - 2105, 2113, 2116, 2117, 2122, 2126, 212E
+ - Mathematical Operators - 2202, 2206, 220F, 2211, 2212, 2215, 2219, 221A,
+                            221E, 222B, 2248, 2260, 2264, 2265
+ - Geometric Shapes - 25CA
+
+
+This release contains:
+
+ - NovaFlat-Book.ttf
+ - NovaFlat-BookOblique.ttf
+ - NovaFlat-Bold.ttf
+ - NovaFlat-BoldOblique.ttf
+ - NovaFlatSlim-Book.ttf
+ - NovaFlatSlim-BookOblique.ttf
+ - NovaFlatSlim-Bold.ttf
+ - NovaFlatSlim-BoldOblique.ttf
+ - NovaRound-Book.ttf
+ - NovaRound-BookOblique.ttf
+ - NovaRound-Bold.ttf
+ - NovaRound-BoldOblique.ttf
+ - NovaRoundSlim-Book.ttf
+ - NovaRoundSlim-BookOblique.ttf
+ - NovaRoundSlim-Bold.ttf
+ - NovaRoundSlim-BoldOblique.ttf
+ - NovaSquare-Book.ttf
+ - NovaSquare-BookOblique.ttf
+ - NovaSquare-Bold.ttf
+ - NovaSquare-BoldOblique.ttf
+ - NovaSquareSlim-Book.ttf
+ - NovaSquareSlim-BookOblique.ttf
+ - NovaSquareSlim-Bold.ttf
+ - NovaSquareSlim-BoldOblique.ttf
+ - FONTLOG.txt
+ - SIL - OpenFont License.txt - official license text
+ - NovaFlat-Book.pdf - demo
+ - NovaFlat-BookOblique.pdf - demo
+ - NovaFlat-Bold.pdf - demo
+ - NovaFlat-BoldOblique.pdf - demo
+ - NovaFlatSlim-Book.pdf - demo
+ - NovaFlatSlim-BookOblique.pdf - demo
+ - NovaFlatSlim-Bold.pdf - demo
+ - NovaFlatSlim-BoldOblique.pdf - demo
+ - NovaRound-Book.pdf - demo
+ - NovaRound-BookOblique.pdf - demo
+ - NovaRound-Bold.pdf - demo
+ - NovaRound-BoldOblique.pdf - demo
+ - NovaRoundSlim-Book.pdf - demo
+ - NovaRoundSlim-BookOblique.pdf - demo
+ - NovaRoundSlim-Bold.pdf - demo
+ - NovaRoundSlim-BoldOblique.pdf - demo
+ - NovaSquare-Book.pdf - demo
+ - NovaSquare-BookOblique.pdf - demo
+ - NovaSquare-Bold.pdf - demo
+ - NovaSquare-BoldOblique.pdf - demo
+ - NovaSquareSlim-Book.pdf - demo
+ - NovaSquareSlim-BookOblique.pdf - demo
+ - NovaSquareSlim-Bold.pdf - demo
+ - NovaSquareSlim-BoldOblique.pdf - demo
+
+
+ChangeLog
+
+26 May 2020 wmk69 (wmk69@o2.pl) Nova Version 3.0.0
+ - This version do not contains Nova Script and Nova Oval fonts. These fonts
+   didn't fit to all Nova family. Nova Cut also do not exists because it had
+   similar look to Gothica. Nova Slim is now Nova Round Slim, because I did slim
+   versions of other fonts (Nova Flat Slim and Nova Square Slim). It was a lot
+   of work. I am tired.
+ - Redesigned and improved all glphs.
+ - Kerning fixed.
+ - Added Oblique/Bold/Bold Oblique versions.
+ - Added UNI 01FA, 01FB, 02C6, 02C7, 02C9, 02CA, 02CB, 02D8, 02D9, 02DA, 02DB,
+                                     02DC, 02DD, 203D, 2116, 2117, 222B, 1E9E.
+
+16 September 2011 wmk69 (wmk69@o2.pl) Nova Version 2.000
+ - all glyphs redesigned - I "cleaned" all glyphs, removed unnecessary points
+   and improved shapes of all glyphs.
+ - added glyphs: 0191, 01FA-01FF, 022C, 022D, 0237, 1E02, 1E03, 1E0A, 1E0B, 1E1E,
+   1E1F, 1E40, 1E41, 1E56, 1E57, 1E60, 1E61, 1E6A, 1E6B, 1E80-1E85, 1EF2, 1EF3
+ - changed names of fonts: 'NovaCut' - 'Nova Cut'
+   'NovaFlat' - 'Nova Flat', 'NovaOval' - 'Nova Oval',...
+ - this release not contains 'Nova Mono'. I've stopped develop this font.
+
+29 May 2011 wmk69 (wmk69@o2.pl) Nova Version 1.22
+ - added Kerning by Classes Table (kern)
+ - changed left- / right side bearings in some glyphs
+ - changed PS Private Dictionary
+
+01 March 2011 (wmk69@o2.pl) Nova Version 1.21
+ - added Grid Fitting Table (gasp) version 1
+
+02 Feb 2011 wmk69 (wmk69@o2.pl) Nova Version 1.2
+ - changed metrics table, hinting added
+
+30 Jan 2011 wmk69 (wmk69@o2.pl) Nova Version 1.1
+ - Latin 1 and Latin A completed, changed panose
+
+05 Jan 2011 wmk69 (wmk69@o2.pl) Nova Version 1.000
+ - Initial release
+
+
+Acknowledgements
+
+If you make modifications be sure to add your name (N), email (E), web-address
+(if you have one) (W) and description (D).
+
+
+History
+
+I created the NovaCut font about 14-15 years ago for making inscriptions in
+stone. Initially the font contained only capitals and digits and existed only
+on paper and stone inscriptions. In 2010 I decided transfer this font
+to a computer, and made the missing lowercase and some basical signs;
+it was initially named Gothica.
+
+By the way I made other versions of some letters. It was a lot of this at the
+end of my work. I decided create new fonts based on these letters. And finally
+I created six fonts family and named these fonts Nova (NovaCut, NovaFlat,
+NovaOval, NovaRound, NovaSlim, NovaSquare - by the shape of individual fonts).
+At last I created monospace font - NovaMono - the seventh part of this family.
+
+NovaScript is based on my NovaOval font, and it's a part of the Nova set.
+I created it because the Nova family was missing an oblique font. Now I consider
+the Nova family complete.
+
+This release contains only seven fonts, without 'Nova Mono'.
+
+
+05 Jan 2011 wmk69 (wmk69@o2.pl)
