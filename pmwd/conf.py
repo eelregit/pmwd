@@ -131,6 +131,9 @@ class Configuration:
         if self.growth_lpt_size <= 0:
             raise ValueError('LPT growth table size must >= 1')
 
+        if self.a_num <= 0:
+            raise ValueError('Number of N-body time integration steps must >= 1')
+
     def __str__(self):
         return pformat(self, indent=4, width=1)  # for python >= 3.10
 
@@ -171,6 +174,11 @@ class Configuration:
     def ptcl_spacing(self):
         """Lagrangian particle grid cell size in [L]."""
         return self.cell_size * self.mesh_shape[0] / self.ptcl_grid_shape[0]
+
+    @property
+    def ptcl_cell_vol(self):
+        """Lagrangian particle grid cell volume in [L^dim]."""
+        return self.ptcl_spacing ** self.dim
 
     @property
     def V(self):
