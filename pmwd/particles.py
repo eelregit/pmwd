@@ -85,7 +85,7 @@ class Particles:
 
 
 def ptcl_gen(conf):
-    """Generate uniformly distributed particles with zero velocities.
+    """Generate particles on a uniform grid with zero velocities.
 
     Parameters
     ----------
@@ -94,15 +94,27 @@ def ptcl_gen(conf):
     Returns
     -------
     ptcl : Particles
-        Uniformly distributed particles with zero velocities.
+        Particles on a uniform grid with zero velocities.
 
     """
-    pmid = (jnp.arange(s, step=conf.ptcl_sample, dtype=conf.int_dtype)
-            for s in conf.mesh_shape)
+    pmid, disp = [], []
+    for i, (sp, sm) in enumerate(zip(conf.ptcl_grid_shape, conf.mesh_shape)):
+        pmid_1d = jnp.linspace(0, sm, num=sp, endpoint=False)
+        pmid_1d = jnp.rint(pmid_1d)
+        pmid_1d = pmid_1d.astype(conf.int_dtype)
+        pmid.append(pmid_1d)
+
+        disp_1d = jnp.arange(sp) * sm - pmid_1d.astype(int) * sp  # exact int arithmetic
+        disp_1d *= conf.cell_size / sp
+        disp_1d = disp_1d.astype(conf.float_dtype)
+        disp.append(disp_1d)
+
     pmid = jnp.meshgrid(*pmid, indexing='ij')
     pmid = jnp.stack(pmid, axis=-1).reshape(-1, conf.dim)
 
-    disp = jnp.zeros_like(pmid, dtype=conf.float_dtype)
+    disp = jnp.meshgrid(*disp, indexing='ij')
+    disp = jnp.stack(disp, axis=-1).reshape(-1, conf.dim)
+
     vel = jnp.zeros_like(disp)
 
     ptcl = Particles(pmid, disp, vel=vel)
