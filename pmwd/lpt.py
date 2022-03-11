@@ -177,6 +177,7 @@ def lpt(modes, cosmo):
     Returns
     -------
     ptcl : Particles
+    obsvbl : Observables
 
     Raises
     ------
@@ -194,7 +195,7 @@ def lpt(modes, cosmo):
     kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
     modes = linear_modes(kvec, None, modes, cosmo)  # not scaled by growth
-    modes *= 1 / conf.cell_vol  # remove volume factor first for convenience
+    modes *= 1 / conf.ptcl_cell_vol  # remove volume factor first for convenience
 
     pot = []
 
@@ -229,7 +230,7 @@ def lpt(modes, cosmo):
             grad = jnp.fft.irfftn(grad, s=conf.ptcl_grid_shape)
             grad = grad.astype(conf.float_dtype)  # no jnp.complex32
 
-            grad = grad[tuple(ptcl.pmid.T)]
+            grad = grad.ravel()
 
             disp = ptcl.disp.at[:, i].add(D * grad)
             ptcl = replace(ptcl, disp=disp)
@@ -237,4 +238,6 @@ def lpt(modes, cosmo):
             vel = ptcl.vel.at[:, i].add(a2HDp * grad)
             ptcl = replace(ptcl, vel=vel)
 
-    return ptcl
+    obsvbl = None  # TODO
+
+    return ptcl, None
