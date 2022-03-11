@@ -147,40 +147,30 @@ class Configuration:
     @property
     def box_size(self):
         """Simulation box size tuple in [L]."""
-        return self.cell_size * jnp.array(self.mesh_shape, self.float_dtype)
+        return tuple(self.cell_size * s for s in self.mesh_shape)
 
     @property
     def box_vol(self):
         """Simulation box volume in [L^dim]."""
-        return self.box_size.prod()
+        with jax.ensure_compile_time_eval():
+            return jnp.array(self.box_size).prod().item()
+
+    @property
+    def mesh_size(self):
+        """Mesh size in ``len(mesh_shape)`` dimensions."""
+        with jax.ensure_compile_time_eval():
+            return jnp.array(self.mesh_shape).prod().item()
+
+    @property
+    def ptcl_num(self):
+        """Number of particles."""
+        with jax.ensure_compile_time_eval():
+            return jnp.array(self.ptcl_grid_shape).prod().item()
 
     @property
     def ptcl_spacing(self):
         """Lagrangian particle grid cell size in [L]."""
         return self.cell_size * self.mesh_shape[0] / self.ptcl_grid_shape[0]
-
-    @property
-    def transfer_k(self):
-        """Transfer function wavenumbers, from the minimum fundamental frequency to the diagonal Nyquist frequency."""
-        log10_k_min = jnp.log10(2. * jnp.pi / self.box_size.max())
-        log10_k_max = jnp.log10(jnp.sqrt(self.dim) * jnp.pi / self.cell_size)
-        return jnp.logspace(log10_k_min, log10_k_max, num=self.transfer_size,
-                            dtype=self.float_dtype)
-
-    @property
-    def growth_a(self):
-        """Growth function scale factors."""
-        growth_a_lpt = jnp.linspace(0., self.a_start, num=self.growth_lpt_size,
-                                    endpoint=False, dtype=self.growth_dtype)
-        growth_a_nbody = jnp.linspace(self.a_start, self.a_stop, self.a_num,
-                                      dtype=self.growth_dtype)
-        return jnp.concatenate((growth_a_lpt, growth_a_nbody))
-
-    @property
-    def a_steps(self):
-        """N-body time integration steps, linearly spaced scale factors."""
-        return jnp.linspace(self.a_start, self.a_stop, self.a_num,
-                            dtype=self.float_dtype)
 
     @property
     def V(self):
@@ -206,3 +196,26 @@ class Configuration:
     def rho_crit(self):
         """Critical density in [M / L^3]."""
         return 3. * self.H_0**2 / (8. * jnp.pi * self.G)
+
+    @property
+    def transfer_k(self):
+        """Transfer function wavenumbers, minimum fundamental to diagonal Nyquist frequencies."""
+        log10_k_min = jnp.log10(2. * jnp.pi / self.box_size.max())
+        log10_k_max = jnp.log10(jnp.sqrt(self.dim) * jnp.pi / self.cell_size)
+        return jnp.logspace(log10_k_min, log10_k_max, num=self.transfer_size,
+                            dtype=self.float_dtype)
+
+    @property
+    def growth_a(self):
+        """Growth function scale factors."""
+        growth_a_lpt = jnp.linspace(0., self.a_start, num=self.growth_lpt_size,
+                                    endpoint=False, dtype=self.growth_dtype)
+        growth_a_nbody = jnp.linspace(self.a_start, self.a_stop, self.a_num,
+                                      dtype=self.growth_dtype)
+        return jnp.concatenate((growth_a_lpt, growth_a_nbody))
+
+    @property
+    def a_steps(self):
+        """N-body time integration steps, linearly spaced scale factors."""
+        return jnp.linspace(self.a_start, self.a_stop, self.a_num,
+                            dtype=self.float_dtype)
