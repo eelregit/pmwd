@@ -22,9 +22,9 @@ class Configuration:
         Mesh cell size in [L].
     mesh_shape : tuple of ints
         Mesh shape in ``len(mesh_shape)`` dimensions.
-    ptcl_sample : int, optional
-        Particle pre-initial conditions as a uniform grid that samples the mesh at this
-        interval.
+    ptcl_grid_shape : tuple of ints, optional
+        Lagrangian particle grid shape. Default is ``mesh_shape``. Particle and mesh
+        grids must have the same aspect ratio.
     k_pivot_Mpc : float, optional
         Primordial scalar power spectrum pivot scale in 1/Mpc.
     T_cmb : float, optional
@@ -76,7 +76,7 @@ class Configuration:
     #max_disp_to_box_size_ratio: float  # shortest axis  # TODO recall what was this?
     mesh_shape: tuple[int, ...]
 
-    ptcl_sample: int = 2
+    ptcl_grid_shape: Optional[tuple[int, ...]] = None
 
     k_pivot_Mpc: float = 0.05
 
@@ -113,15 +113,20 @@ class Configuration:
     float_dtype: jnp.dtype = jnp.dtype(jnp.float32)
 
     def __post_init__(self):
+        if self.ptcl_grid_shape is None:
+            object.__setattr__(self, 'ptcl_grid_shape', self.mesh_shape)
+        elif len(self.ptcl_grid_shape) != len(self.mesh_shape):
+            raise ValueError('particle and mesh grid dimensions differ')
+        elif any(self.ptcl_grid_shape[0] * sm != self.mesh_shape[0] * sp
+                 for sm, sp in zip(self.mesh_shape[1:], self.ptcl_grid_shape[1:])):
+            raise ValueError('particle and mesh grid aspect ratios differ')
+
         if self.growth_rtol is None:
             object.__setattr__(self, 'growth_rtol',
                 jnp.sqrt(jnp.finfo(self.growth_dtype).eps).item())  # ~ 1.5e-8 for float64
         if self.growth_atol is None:
             object.__setattr__(self, 'growth_atol',
                 jnp.sqrt(jnp.finfo(self.growth_dtype).eps).item())  # ~ 1.5e-8 for float64
-
-        if any(s % self.ptcl_sample != 0 for s in self.mesh_shape):
-            raise ValueError('particle grid cannot fit on mesh grid')
 
         if self.growth_lpt_size <= 0:
             raise ValueError('LPT growth table size must >= 1')
@@ -148,6 +153,11 @@ class Configuration:
     def box_vol(self):
         """Simulation box volume in [L^dim]."""
         return self.box_size.prod()
+
+    @property
+    def ptcl_spacing(self):
+        """Lagrangian particle grid cell size in [L]."""
+        return self.cell_size * self.mesh_shape[0] / self.ptcl_grid_shape[0]
 
     @property
     def transfer_k(self):
