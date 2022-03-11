@@ -13,11 +13,13 @@ from pmwd.gravity import rfftnfreq, laplace, neg_grad
 
 #TODO follow pmesh to fill the modes in Fourier space
 @jit
-def white_noise(conf):
+def white_noise(seed, conf):
     """White noise Fourier modes.
 
     Parameters
     ----------
+    seed : int
+        Seed for the pseudo-random number generator.
     conf : Configuration
 
     Returns
@@ -26,7 +28,7 @@ def white_noise(conf):
         White noise Fourier modes.
 
     """
-    key = random.PRNGKey(conf.seed)
+    key = random.PRNGKey(seed)
 
     # sample linear modes on the PM mesh
     modes = random.normal(key, conf.mesh_shape, dtype=conf.float_dtype)
