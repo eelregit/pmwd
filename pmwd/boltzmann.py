@@ -172,8 +172,7 @@ def growth_integ(cosmo):
 
     with ensure_compile_time_eval():
         eps = jnp.finfo(conf.growth_dtype).eps
-        growth_a_ic = 0.5 * jnp.cbrt(eps)  # ~ 3e-6 for float64
-        growth_a_ic = growth_a_ic.item()  # FIXME after jax issue #9200 is addressed
+        growth_a_ic = 0.5 * jnp.cbrt(eps).item()  # ~ 3e-6 for float64
     if growth_a_ic >= conf.a_start / conf.growth_lpt_size:
         growth_a_ic = 0.1 * conf.a_start / conf.growth_lpt_size
 
