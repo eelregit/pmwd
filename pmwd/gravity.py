@@ -92,11 +92,13 @@ def gravity(ptcl, cosmo):
 
     dens = jnp.zeros(conf.mesh_shape, dtype=conf.float_dtype)
 
-    dens = scatter(ptcl, dens, 1., conf.cell_size, chunk_size=conf.chunk_size)
+    inv_dens_mean = conf.mesh_size / conf.ptcl_num
+    dens = scatter(ptcl, dens, inv_dens_mean, conf.cell_size, chunk_size=conf.chunk_size)
+    dens -= 1  # overdensity
 
     dens *= 1.5 * cosmo.Omega_m
 
-    dens = jnp.fft.rfftn(dens)  # normalization canceled with that of irfftn below
+    dens = jnp.fft.rfftn(dens)  # normalization canceled by that of irfftn below
 
     pot = laplace(kvec, dens, cosmo)
 
