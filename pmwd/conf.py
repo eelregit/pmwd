@@ -18,8 +18,6 @@ class Configuration:
 
     Parameters
     ----------
-    seed : int
-        Seed for pseudo-random number generator.
     cell_size : float
         Mesh cell size in [L].
     mesh_shape : tuple of ints
@@ -73,8 +71,6 @@ class Configuration:
         Incorrect or inconsistent parameter values.
 
     """
-
-    seed: int
 
     cell_size: float
     #max_disp_to_box_size_ratio: float  # shortest axis  # TODO recall what was this?
