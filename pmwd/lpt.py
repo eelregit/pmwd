@@ -30,14 +30,13 @@ def white_noise(seed, conf):
     """
     key = random.PRNGKey(seed)
 
-    # sample linear modes on the PM mesh
-    modes = random.normal(key, conf.mesh_shape, dtype=conf.float_dtype)
+    # sample linear modes on Lagrangian particle grid
+    modes = random.normal(key, conf.ptcl_grid_shape, dtype=conf.float_dtype)
 
     # FIXME after jax PR #9815 is released
     #modes = jnp.fft.rfftn(modes, norm='ortho')
-    norm = 1 / jnp.sqrt(jnp.prod(jnp.array(modes.shape, dtype=modes.dtype)))
     modes = jnp.fft.rfftn(modes)
-    modes *= norm
+    modes *= 1 / jnp.sqrt(jnp.prod(jnp.array(modes.shape, dtype=modes.real.dtype)))
 
     return modes
 
@@ -72,7 +71,7 @@ def linear_modes(kvec, a, modes, cosmo):
 
 def _strain(k_i, k_j, pot, conf):
     """LPT strain component sourced by scalar potential only."""
-    nyquist = jnp.pi / conf.cell_size
+    nyquist = jnp.pi / conf.ptcl_spacing
     eps = nyquist * jnp.finfo(conf.float_dtype).eps
 
     k_i = jnp.where(jnp.abs(jnp.abs(k_i) - nyquist) <= eps, 0j, k_i)
@@ -80,7 +79,7 @@ def _strain(k_i, k_j, pot, conf):
 
     strain = -k_i * k_j * pot
 
-    strain = jnp.fft.irfftn(strain, s=conf.mesh_shape)
+    strain = jnp.fft.irfftn(strain, s=conf.ptcl_grid_shape)
     strain = strain.astype(conf.float_dtype)  # no jnp.complex32
 
     return strain
@@ -91,7 +90,7 @@ def _L(kvec, pot_m, pot_n, conf):
     if m_eq_n:
         pot_n = pot_m
 
-    L = jnp.zeros(conf.mesh_shape, dtype=conf.float_dtype)
+    L = jnp.zeros(conf.ptcl_grid_shape, dtype=conf.float_dtype)
 
     for i in range(conf.dim):
         strain_m = _strain(kvec[i], kvec[i], pot_m, conf)
@@ -151,7 +150,7 @@ def levi_civita(indices):
 
 
 def _M(kvec, pot, conf):
-    M = jnp.zeros(conf.mesh_shape, dtype=conf.float_dtype)
+    M = jnp.zeros(conf.ptcl_grid_shape, dtype=conf.float_dtype)
 
     for indices in permutations(range(conf.dim), r=3):
         i, j, k = indices
@@ -192,7 +191,7 @@ def lpt(modes, cosmo):
     if conf.lpt_order not in (1, 2):
         raise ValueError(f'lpt_order={conf.lpt_order} not supported')
 
-    kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
+    kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
     modes = linear_modes(kvec, None, modes, cosmo)  # not scaled by growth
     modes *= 1 / conf.cell_vol  # remove volume factor first for convenience
@@ -225,9 +224,9 @@ def lpt(modes, cosmo):
         a2HDp = a**2 * jnp.sqrt(E2(a, cosmo)) * dD_dlna
 
         for i, k in enumerate(kvec):
-            grad = neg_grad(k, pot[order-1], conf.cell_size)
+            grad = neg_grad(k, pot[order-1], conf.ptcl_spacing)
 
-            grad = jnp.fft.irfftn(grad, s=conf.mesh_shape)
+            grad = jnp.fft.irfftn(grad, s=conf.ptcl_grid_shape)
             grad = grad.astype(conf.float_dtype)  # no jnp.complex32
 
             grad = grad[tuple(ptcl.pmid.T)]
