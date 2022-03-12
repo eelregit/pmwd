@@ -32,6 +32,12 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
     .. _Augmented dataclass for JAX pytree:
         https://gist.github.com/odashi/813810a5bc06724ea3643456f8d3942d
 
+    .. _flax.struct package — Flax documentation:
+        https://flax.readthedocs.io/en/latest/flax.struct.html
+
+    .. _Automatically treat dataclasses as pytrees · Issue #2371 · google/jax:
+        https://github.com/google/jax/issues/2371
+
     """
     if is_dataclass(cls):
         raise TypeError('cls cannot already be a dataclass')
