@@ -31,6 +31,7 @@ class Particles:
         If any particle field has the wrong types, shapes, or dtypes.
 
     """
+
     pmid: jnp.ndarray
     disp: jnp.ndarray
     vel: Optional[jnp.ndarray] = None
@@ -82,6 +83,34 @@ class Particles:
             assert v.shape[0] == self.num, 'val num mismatch'
             assert v.dtype == self.disp.dtype, 'val dtype mismatch'
         tree_map(assert_valid_val, self.val)
+
+
+def ptcl_pos(ptcl, conf, dtype=None):
+    """Return particle positions in [L].
+
+    Parameters
+    ----------
+    ptcl : Particles
+    conf : Configuration
+    dtype : jax.numpy.dtype, optional
+        Output float dtype. Default is conf.float_dtype.
+
+    Returns
+    -------
+    pos : jax.numpy.ndarray
+        Particle positions.
+
+    """
+    if dtype is None:
+        dtype = conf.float_dtype
+
+    pos = ptcl.pmid * conf.cell_size
+    pos = pos.astype(dtype)
+
+    pos += ptcl.disp
+    pos %= jnp.array(conf.box_size, dtype=dtype)
+
+    return pos
 
 
 def ptcl_gen(conf):
