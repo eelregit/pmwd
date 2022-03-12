@@ -87,7 +87,7 @@ def _scatter_chunk(carry, chunk):
     tgt = pmid + tgt.astype(pmid.dtype)
 
     # periodic boundaries
-    tgt = jnp.remainder(tgt, jnp.array(spatial_shape))
+    tgt %= jnp.array(spatial_shape)
 
     # scatter
     tgt = tuple(tgt[..., i] for i in range(spatial_ndim))
@@ -143,7 +143,7 @@ def _scatter_chunk_adj(carry, chunk):
     tgt = pmid + tgt.astype(pmid.dtype)
 
     # periodic boundaries
-    tgt = jnp.remainder(tgt, jnp.array(spatial_shape))
+    tgt %= jnp.array(spatial_shape)
 
     # gather disp_cot from mesh_cot and val, and gather val_cot from mesh_cot
     tgt = tuple(tgt[..., i] for i in range(spatial_ndim))
