@@ -1,4 +1,5 @@
 from dataclasses import replace
+from functools import partial
 from itertools import permutations, combinations
 
 from jax import jit
@@ -12,8 +13,8 @@ from pmwd.gravity import rfftnfreq, laplace, neg_grad
 
 
 #TODO follow pmesh to fill the modes in Fourier space
-@jit
-def white_noise(seed, conf):
+@partial(jit, static_argnames=('fix_amp', 'negate'))
+def white_noise(seed, conf, fix_amp=False, negate=False):
     """White noise Fourier modes.
 
     Parameters
@@ -21,6 +22,10 @@ def white_noise(seed, conf):
     seed : int
         Seed for the pseudo-random number generator.
     conf : Configuration
+    fix_amp : bool, optional
+        Whether to fix the amplitudes to 1.
+    negate : bool, optional
+        Whether to reverse the signs (180° phase flips).
 
     Returns
     -------
@@ -36,7 +41,14 @@ def white_noise(seed, conf):
     # FIXME after jax PR #9815 is released
     #modes = jnp.fft.rfftn(modes, norm='ortho')
     modes = jnp.fft.rfftn(modes)
-    modes *= 1 / jnp.sqrt(jnp.prod(jnp.array(modes.shape, dtype=modes.real.dtype)))
+
+    if fix_amp:
+        modes /= jnp.abs(modes)
+    else:
+        modes *= 1 / jnp.sqrt(jnp.prod(jnp.array(modes.shape, dtype=modes.real.dtype)))
+
+    if negate:
+        modes = -modes
 
     return modes
 
@@ -49,7 +61,7 @@ def linear_modes(kvec, a, modes, cosmo):
     kvec : sequence of jax.numpy.ndarray
         Wavevectors.
     a : float or None
-        Scale factors. Output modes have no growth scaling if it is None.
+        Scale factors. If None, output is not scaled by growth.
     modes : jax.numpy.ndarray
         Fourier modes with white noise prior.
     cosmo : Cosmology
