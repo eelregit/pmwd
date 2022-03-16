@@ -45,7 +45,7 @@ def white_noise(seed, conf, fix_amp=False, negate=False):
     if fix_amp:
         modes /= jnp.abs(modes)
     else:
-        modes *= 1 / jnp.sqrt(jnp.prod(jnp.array(modes.shape, dtype=modes.real.dtype)))
+        modes *= 1 / jnp.sqrt(conf.ptcl_num).astype(conf.float_dtype)
 
     if negate:
         modes = -modes
