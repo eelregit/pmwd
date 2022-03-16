@@ -3,7 +3,7 @@ from functools import partial
 from pprint import pformat
 from typing import Optional
 
-from jax import jit, value_and_grad, vmap
+from jax import value_and_grad
 import jax.numpy as jnp
 
 from pmwd.conf import Configuration
@@ -63,6 +63,7 @@ class Cosmology:
         Notes
         -----
         Pivot scale is defined h-less unit, so needs h to convert its unit to [1/L].
+
         """
         return self.conf.k_pivot_Mpc / (self.h * self.conf.Mpc_SI) * self.conf.L
 
@@ -104,15 +105,6 @@ Planck18 = partial(
 Planck18.__doc__ = "Planck 2018 cosmology, arXiv:1807.06209 Table 2 last column."
 
 
-def _E2(a, cosmo):
-    de_a = (a**(-3.0 * (1.0 + cosmo.w_0 + cosmo.w_a))
-           * jnp.exp(-3.0 * cosmo.w_a * (1.0 - a)))
-    return cosmo.Omega_m * a**-3 + cosmo.Omega_k * a**-2 + cosmo.Omega_de * de_a
-
-_E2_vmap = vmap(_E2, in_axes=(0, None))
-_E2_valgrad_vmap = vmap(value_and_grad(_E2), in_axes=(0, None))
-
-
 def E2(a, cosmo):
     r"""Squared Hubble parameter time scaling factors, :math:`E^2`, at given scale
     factors.
@@ -130,7 +122,6 @@ def E2(a, cosmo):
 
     Notes
     -----
-
     The squared Hubble parameter
 
     .. math::
@@ -146,12 +137,12 @@ def E2(a, cosmo):
 
     """
     a = jnp.asarray(a)
-    shape = a.shape
-    a = jnp.ravel(a)
-    E2 = _E2_vmap(a, cosmo)
-    return E2.reshape(shape)
+    de_a = (a**(-3.0 * (1.0 + cosmo.w_0 + cosmo.w_a))
+           * jnp.exp(-3.0 * cosmo.w_a * (1.0 - a)))
+    return cosmo.Omega_m * a**-3 + cosmo.Omega_k * a**-2 + cosmo.Omega_de * de_a
 
 
+@partial(jnp.vectorize, excluded=(1,))
 def H_deriv(a, cosmo):
     r"""Hubble parameter derivatives, :math:`\mathrm{d}\ln H / \mathrm{d}\ln a`, at
     given scale factors.
@@ -168,12 +159,9 @@ def H_deriv(a, cosmo):
         Hubble parameter derivatives.
 
     """
-    a = jnp.asarray(a)
-    shape = a.shape
-    a = jnp.ravel(a)
-    E2, dE2_da = _E2_valgrad_vmap(a, cosmo)
-    dlnH_dlna = 0.5 * a * dE2_da / E2
-    return dlnH_dlna.reshape(shape)
+    E2_value, E2_grad = value_and_grad(E2)(a, cosmo)
+    dlnH_dlna = 0.5 * a * E2_grad / E2_value
+    return dlnH_dlna
 
 
 def Omega_m_a(a, cosmo):
