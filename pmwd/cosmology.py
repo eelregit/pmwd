@@ -88,6 +88,11 @@ class Cosmology:
         """Dark energy density parameter today."""
         return 1. - (self.Omega_m + self.Omega_k)
 
+    @property
+    def ptcl_mass(self):
+        """Particle mass in [M]."""
+        return self.conf.rho_crit * self.Omega_m * self.conf.ptcl_cell_vol
+
 
 SimpleLCDM = partial(
     Cosmology,
