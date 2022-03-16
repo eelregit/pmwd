@@ -1,10 +1,12 @@
 from dataclasses import field
 from functools import partial
+from operator import add
 from pprint import pformat
 from typing import Optional
 
 from jax import value_and_grad
 import jax.numpy as jnp
+from jax.tree_util import tree_map
 
 from pmwd.conf import Configuration
 from pmwd.dataclasses import pytree_dataclass
@@ -55,6 +57,15 @@ class Cosmology:
 
     def __str__(self):
         return pformat(self, indent=4, width=1)  # for python >= 3.10
+
+    def __add__(self, other):
+        return tree_map(add, self, other)
+
+    def __mul__(self, other):
+        return tree_map(lambda x: x * other, self)
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
 
     @property
     def k_pivot(self):
