@@ -15,9 +15,12 @@ class Particles:
     Parameters
     ----------
     pmid : jnp.ndarray
-        Particles' IDs by mesh indices, of signed int dtype.
+        Particles' IDs by mesh indices, of signed int dtype. They are the nearest mesh
+        grid points from particles' original locations.
     disp : jnp.ndarray
-        Particles' (comoving) displacements in [L], or adjoint.
+        Particles' (comoving) displacements from pmid in [L], or adjoint. For
+        displacements from particles' original locations, use ``ptcl.disp -
+        ptcl_gen(conf).disp``.
     vel : jnp.ndarray, optional
         Particles' canonical momenta in [H_0 L], or adjoint.
     acc : jnp.ndarray, optional
