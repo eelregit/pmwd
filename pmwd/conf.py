@@ -117,6 +117,8 @@ class Configuration:
             object.__setattr__(self, 'ptcl_grid_shape', self.mesh_shape)
         elif len(self.ptcl_grid_shape) != len(self.mesh_shape):
             raise ValueError('particle and mesh grid dimensions differ')
+        elif any(sp > sm for sp, sm in zip(self.ptcl_grid_shape, self.mesh_shape)):
+            raise ValueError('particle grid cannot be larger than mesh grid')
         elif any(self.ptcl_grid_shape[0] * sm != self.mesh_shape[0] * sp
                  for sm, sp in zip(self.mesh_shape[1:], self.ptcl_grid_shape[1:])):
             raise ValueError('particle and mesh grid aspect ratios differ')
