@@ -172,9 +172,9 @@ def growth_integ(cosmo):
 
     with ensure_compile_time_eval():
         eps = jnp.finfo(conf.growth_dtype).eps
-        growth_a_ic = 0.5 * jnp.cbrt(eps).item()  # ~ 3e-6 for float64
-    if growth_a_ic >= conf.a_start / conf.growth_lpt_size:
-        growth_a_ic = 0.1 * conf.a_start / conf.growth_lpt_size
+        growth_a_ic = 0.5 * jnp.cbrt(eps).item()  # ~ 3e-6 for float64, 2e-3 for float32
+        if growth_a_ic >= conf.a_start / conf.growth_lpt_size:
+            growth_a_ic = 0.1 * conf.a_start / conf.growth_lpt_size
 
     a = conf.growth_a
     lna = jnp.log(a.at[0].set(growth_a_ic))
@@ -288,7 +288,7 @@ def linear_power(k, a, cosmo):
     k : array_like
         Wavenumbers in [1/L].
     a : array_like or None
-        Scale factors. No growth function scaling if it is None.
+        Scale factors. If None, output is not scaled by growth.
     cosmo : Cosmology
 
     Returns
