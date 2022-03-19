@@ -1,4 +1,3 @@
-from dataclasses import replace
 from functools import partial
 
 from jax import jit, ensure_compile_time_eval
@@ -188,8 +187,8 @@ def growth_integ(cosmo):
         H_fac = H_deriv(a, cosmo)
         Omega_fac = 1.5 * Omega_m_a(a, cosmo)
         G_1, Gp_1, G_2, Gp_2 = jnp.split(G, num_order * (num_deriv-1), axis=-1)
-        Gpp_1 = (-3. - H_fac + Omega_fac) * G_1 + (-4. - H_fac) * Gp_1
-        Gpp_2 = Omega_fac * G_1**2 + (-8. - 2.*H_fac + Omega_fac) * G_2 + (-6. - H_fac) * Gp_2
+        Gpp_1 = (-3 - H_fac + Omega_fac) * G_1 + (-4 - H_fac) * Gp_1
+        Gpp_2 = Omega_fac * G_1**2 + (-8 - 2*H_fac + Omega_fac) * G_2 + (-6 - H_fac) * Gp_2
         return jnp.concatenate((Gp_1, Gpp_1, Gp_2, Gpp_2), axis=-1)
 
     G_ic = jnp.array((1, 0, 3/7, 0), dtype=conf.growth_dtype)
@@ -209,10 +208,10 @@ def growth_integ(cosmo):
     growth = jnp.stack((
         G[:, 0],
         G[:, 0] + G[:, 1],
-        G[:, 0] + 2.*G[:, 1] + G[:, 2],
+        G[:, 0] + 2*G[:, 1] + G[:, 2],
     ), axis=1)
 
-    return replace(cosmo, growth=growth)
+    return cosmo.replace(growth=growth)
 
 
 # TODO add 3rd order, which has two factors, so `order` probably need to support str
@@ -314,7 +313,7 @@ def linear_power(k, a, cosmo):
     k = jnp.asarray(k, dtype=conf.float_dtype)
     T = transfer_EH(k, cosmo)
 
-    D = 1.
+    D = 1
     if a is not None:
         D = growth(a, cosmo)
         D = D.astype(conf.float_dtype)
