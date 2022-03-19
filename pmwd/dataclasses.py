@@ -1,4 +1,4 @@
-from dataclasses import is_dataclass, dataclass, fields
+from dataclasses import is_dataclass, dataclass, fields, replace
 
 from jax.tree_util import register_pytree_node
 
@@ -64,5 +64,11 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
         return cls(**dict(zip(ckeys, children)), **dict(zip(akeys, aux_data)))
 
     register_pytree_node(cls, tree_flatten, tree_unflatten)
+
+    def _replace(self, **changes):
+        """Create a new object of the same type, replacing fields with changes."""
+        return replace(self, **changes)
+
+    setattr(cls, 'replace', _replace)
 
     return cls
