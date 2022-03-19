@@ -1,4 +1,3 @@
-from dataclasses import replace
 from functools import partial
 from itertools import permutations, combinations
 
@@ -245,10 +244,8 @@ def lpt(modes, cosmo):
             grad = grad.ravel()
 
             disp = ptcl.disp.at[:, i].add(D * grad)
-            ptcl = replace(ptcl, disp=disp)
-
             vel = ptcl.vel.at[:, i].add(a2HDp * grad)
-            ptcl = replace(ptcl, vel=vel)
+            ptcl = ptcl.replace(disp=disp, vel=vel)
 
     obsvbl = None  # TODO
 
