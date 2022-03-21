@@ -1,6 +1,6 @@
 from dataclasses import field
 from functools import partial
-from operator import add
+from operator import add, sub
 from pprint import pformat
 from typing import Optional
 
@@ -40,7 +40,7 @@ class Cosmology:
 
     """
 
-    conf: Configuration
+    conf: Configuration = field(repr=False)
 
     A_s_1e9: float
     n_s: float
@@ -60,6 +60,9 @@ class Cosmology:
 
     def __add__(self, other):
         return tree_map(add, self, other)
+
+    def __sub__(self, other):
+        return tree_map(sub, self, other)
 
     def __mul__(self, other):
         return tree_map(lambda x: x * other, self)
