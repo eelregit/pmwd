@@ -2,7 +2,9 @@ from functools import partial
 from dataclasses import fields
 from typing import Optional, Any
 
+import numpy as np
 import jax.numpy as jnp
+from jax import float0
 from jax.tree_util import tree_map
 
 from pmwd.dataclasses import pytree_dataclass
@@ -41,9 +43,6 @@ class Particles:
     acc: Optional[jnp.ndarray] = None
     val: Any = None
 
-    def __post_init__(self):
-        self._assert_valid()
-
     @property
     def num(self):
         return self.pmid.shape[0]
@@ -60,15 +59,17 @@ class Particles:
     def float_dtype(self):
         return self.disp.dtype
 
-    def _assert_valid(self):
+    def assert_valid(self):
         for field in fields(self):
             data = getattr(self, field.name)
             if data is not None:
-                assert isinstance(data, jnp.ndarray), (
+                # FIXME after jax issues #4433 is addressed
+                assert isinstance(data, (jnp.ndarray, np.ndarray)), (
                     f'{field.name} must be jax.numpy.ndarray')
 
-        assert jnp.issubdtype(self.pmid.dtype, jnp.signedinteger), (
-            'pmid must be signed integers')
+        # FIXME after jax issues #4433 is addressed
+        assert (jnp.issubdtype(self.pmid.dtype, jnp.signedinteger)
+                or self.pmid.dtype == float0), 'pmid must be signed integers'
 
         assert self.disp.shape == self.pmid.shape, 'disp shape mismatch'
         assert jnp.issubdtype(self.disp.dtype, jnp.floating), (
@@ -89,7 +90,7 @@ class Particles:
 
 
 def ptcl_pos(ptcl, conf, dtype=None):
-    """Return particle positions in [L].
+    """Particle positions in [L].
 
     Parameters
     ----------
