@@ -1,6 +1,6 @@
 from functools import partial
 
-from jax import jit, ensure_compile_time_eval
+from jax import jit, custom_vjp, ensure_compile_time_eval
 import jax.numpy as jnp
 from jax.experimental.ode import odeint
 
@@ -124,14 +124,14 @@ def transfer_EH(k, cosmo):
         alpha_b = 2.07 * k_eq * sh_d * (1.0 + R_d)**-0.75 * G_EH98
 
         beta_node = 8.41 * w_m**0.435
-        tilde_s = sh_d / jnp.cbrt(1.0 + (beta_node / (k * sh_d))**3)
+        tilde_s = k * sh_d / jnp.cbrt(k**3 + (beta_node / sh_d)**3)
 
         beta_b = 0.5 + f_b + (3.0 - 2.0 * f_b) * jnp.sqrt(1.0 + (17.2 * w_m)**2)
 
         T_b = (
             T_tilde(k, 1.0, 1.0) / (1.0 + (k * sh_d / 5.2)**2)
-            + alpha_b
-            / (1.0 + (beta_b / (k * sh_d))**3)
+            + alpha_b * k**3
+            / (k**3 + (beta_b / sh_d)**3)
             * jnp.exp(-(k / k_silk)**1.4)
         ) * jnp.sinc(k * tilde_s / jnp.pi)
 
@@ -276,7 +276,30 @@ def boltzmann(cosmo):
     """
     #cosmo = transfer_integ(cosmo)  # TODO
     cosmo = growth_integ(cosmo)
-    return cosmo
+    return cosmo * jnp.array(1, dtype=cosmo.conf.growth_dtype)  # FIXME HACK, cosmo_dtype?
+
+
+@custom_vjp
+def _safe_power(x1, x2):
+    """Safe power function for x1==0 and x2<1."""
+    return x1 ** x2
+
+def _safe_power_fwd(x1, x2):
+    y = _safe_power(x1, x2)
+    return y, (x1, x2, y)
+
+def _safe_power_bwd(res, y_cot):
+    x1, x2, y = res
+
+    x1_cot = jnp.where(x1 != 0, x2 * y / x1 * y_cot, 0)
+
+    lnx1 = jnp.where(x1 != 0, jnp.log(x1), 0)
+    x2_cot = (lnx1 * y * y_cot).sum()  # FIXME HACK only works for scalar x2
+    #x2_cot = x2_cot.astype(float)  # FIXME dtype HACK?  # TODO is this a odeint bug?
+
+    return x1_cot, x2_cot
+
+_safe_power.defvjp(_safe_power_fwd, _safe_power_bwd)
 
 
 def linear_power(k, a, cosmo):
@@ -319,7 +342,7 @@ def linear_power(k, a, cosmo):
         D = D.astype(conf.float_dtype)
 
     Plin = (
-        0.32e-9 * cosmo.A_s_1e9 * cosmo.k_pivot * (k / cosmo.k_pivot)**cosmo.n_s
+        0.32e-9 * cosmo.A_s_1e9 * cosmo.k_pivot * _safe_power(k / cosmo.k_pivot, cosmo.n_s)
         * (jnp.pi * (conf.c / conf.H_0)**2 / cosmo.Omega_m * T)**2
         * D**2
     )
