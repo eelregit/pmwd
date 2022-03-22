@@ -29,14 +29,19 @@ class Cosmology:
         Total matter density parameter today.
     Omega_b : float
         Baryonic matter density parameter today.
-    Omega_k : float
-        Spatial curvature density parameter today.
-    w_0 : float
-        First order term of dark energy equation.
-    w_a : float
-        Second order term of dark energy equation of state.
+    Omega_k : float or None, optional
+        Spatial curvature density parameter today. If None (default), Omega_k is 0.
+    w_0 : float or None, optional
+        Dark energy equation of state (0th order) parameter. If None (default), w is -1.
+    w_a : float or None, optional
+        Dark energy equation of state (linear) parameter. If None (default), w_a is 0.
     h : float
         Hubble constant in unit of 100 [km/s/Mpc].
+
+    Notes
+    -----
+    For (extension) parameters with None as default values, one needs to set them
+    explicitly to some values to receive their gradients.
 
     """
 
@@ -46,10 +51,11 @@ class Cosmology:
     n_s: float
     Omega_m: float
     Omega_b: float
-    Omega_k: float
-    w_0: float
-    w_a: float
     h: float
+
+    Omega_k: Optional[float] = None
+    w_0: Optional[float] = None
+    w_a: Optional[float] = None
 
     transfer: Optional[jnp.ndarray] = field(default=None, repr=False, compare=False)
 
@@ -89,7 +95,8 @@ class Cosmology:
     @property
     def Omega_de(self):
         """Dark energy density parameter today."""
-        return 1. - (self.Omega_m + self.Omega_k)
+        Omk = self.Omega_m if self.Omega_k is None else self.Omega_m + self.Omega_k
+        return 1 - Omk
 
     @property
     def ptcl_mass(self):
@@ -103,9 +110,6 @@ SimpleLCDM = partial(
     n_s=0.96,
     Omega_m=0.3,
     Omega_b=0.05,
-    Omega_k=0.0,
-    w_0=-1.0,
-    w_a=0.0,
     h=0.7,
 )
 SimpleLCDM.__doc__ = "Simple ΛCDM cosmology, for convenience and subject to change."
@@ -116,9 +120,6 @@ Planck18 = partial(
     n_s=0.9665,
     Omega_m=0.3111,
     Omega_b=0.04897,
-    Omega_k=0.0,
-    w_0=-1.0,
-    w_a=0.0,
     h=0.6766,
 )
 Planck18.__doc__ = "Planck 2018 cosmology, arXiv:1807.06209 Table 2 last column."
@@ -156,9 +157,12 @@ def E2(a, cosmo):
 
     """
     a = jnp.asarray(a)
-    de_a = (a**(-3.0 * (1.0 + cosmo.w_0 + cosmo.w_a))
-           * jnp.exp(-3.0 * cosmo.w_a * (1.0 - a)))
-    return cosmo.Omega_m * a**-3 + cosmo.Omega_k * a**-2 + cosmo.Omega_de * de_a
+    Oka2 = 0 if cosmo.Omega_k is None else cosmo.Omega_k * a**-2
+    w_0 = -1 if cosmo.w_0 is None else cosmo.w_0
+    w_a = 0 if cosmo.w_a is None else cosmo.w_a
+    de_a = (a**(-3 * (1 + w_0 + w_a))
+           * jnp.exp(-3 * w_a * (1 - a)))
+    return cosmo.Omega_m * a**-3 + Oka2 + cosmo.Omega_de * de_a
 
 
 @partial(jnp.vectorize, excluded=(1,))
