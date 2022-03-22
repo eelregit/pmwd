@@ -1,7 +1,7 @@
 from functools import partial
 from itertools import permutations, combinations
 
-from jax import jit
+from jax import jit, custom_vjp, checkpoint
 from jax import random
 import jax.numpy as jnp
 
@@ -52,6 +52,20 @@ def white_noise(seed, conf, fix_amp=False, negate=False):
     return modes
 
 
+@custom_vjp
+def _safe_sqrt(x):
+    return jnp.sqrt(x)
+
+def _safe_sqrt_fwd(x):
+    return _safe_sqrt(x), x
+
+def _safe_sqrt_bwd(x, y_cot):
+    x_cot = jnp.where(x != 0, 0.5 / x * y_cot, 0)
+    return (x_cot,)
+
+_safe_sqrt.defvjp(_safe_sqrt_fwd, _safe_sqrt_bwd)
+
+
 def linear_modes(kvec, a, modes, cosmo):
     """Linear matter density field Fourier modes.
 
@@ -75,7 +89,7 @@ def linear_modes(kvec, a, modes, cosmo):
 
     Plin = linear_power(k, a, cosmo)
 
-    modes *= jnp.sqrt(Plin * cosmo.conf.box_vol)
+    modes *= _safe_sqrt(Plin * cosmo.conf.box_vol)
 
     return modes
 
@@ -176,6 +190,7 @@ def _M(kvec, pot, conf):
 
 
 @jit
+@checkpoint
 def lpt(modes, cosmo):
     """Lagrangian perturbation theory at ``cosmo.conf.lpt_order``.
 
@@ -200,7 +215,7 @@ def lpt(modes, cosmo):
 
     if conf.dim not in (1, 2, 3):
         raise ValueError(f'dim={conf.dim} not supported')
-    if conf.lpt_order not in (1, 2):
+    if conf.lpt_order not in (0, 1, 2):
         raise ValueError(f'lpt_order={conf.lpt_order} not supported')
 
     kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
@@ -231,8 +246,8 @@ def lpt(modes, cosmo):
     ptcl = ptcl_gen(conf)
 
     for order in range(1, 1+conf.lpt_order):
-        D = growth(a, cosmo, order=order)
-        dD_dlna = growth(a, cosmo, order=order, deriv=1)
+        D = growth(a, cosmo, order=order).astype(conf.float_dtype)
+        dD_dlna = growth(a, cosmo, order=order, deriv=1).astype(conf.float_dtype)
         a2HDp = a**2 * jnp.sqrt(E2(a, cosmo)) * dD_dlna
 
         for i, k in enumerate(kvec):
