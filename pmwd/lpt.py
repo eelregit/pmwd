@@ -57,10 +57,11 @@ def _safe_sqrt(x):
     return jnp.sqrt(x)
 
 def _safe_sqrt_fwd(x):
-    return _safe_sqrt(x), x
+    y = _safe_sqrt(x)
+    return y, y
 
-def _safe_sqrt_bwd(x, y_cot):
-    x_cot = jnp.where(x != 0, 0.5 / x * y_cot, 0)
+def _safe_sqrt_bwd(y, y_cot):
+    x_cot = jnp.where(y != 0, 0.5 / y * y_cot, 0)
     return (x_cot,)
 
 _safe_sqrt.defvjp(_safe_sqrt_fwd, _safe_sqrt_bwd)
