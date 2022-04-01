@@ -7,10 +7,17 @@ from jax.experimental.ode import odeint
 from pmwd.cosmology import H_deriv, Omega_m_a
 
 
+def transfer_integ(cosmo):
+    if cosmo.conf.transfer_fit:
+        return cosmo
+    else:
+        raise NotImplementedError('TODO')
+
+
 # TODO maybe need to checkpoint EH for memory?
 # TODO Wayne's website
-def transfer_EH(k, cosmo):
-    """Eisenstein & Hu matter transfer function at given wavenumbers.
+def transfer_fit(k, cosmo):
+    """Eisenstein & Hu fit of matter transfer function at given wavenumbers.
 
     Parameters
     ----------
@@ -141,6 +148,28 @@ def transfer_EH(k, cosmo):
         raise NotImplementedError
 
     return T
+
+
+def transfer(k, cosmo):
+    """Evaluate interpolation or Eisenstein & Hu fit of matter transfer function at
+    given wavenumbers.
+
+    Parameters
+    ----------
+    k: array_like
+        Wavenumbers in [1/L].
+    cosmo: Cosmology
+
+    Returns
+    -------
+    T : jax.numpy.ndarray
+        Matter transfer function.
+
+    """
+    if cosmo.conf.transfer_fit:
+        return transfer_fit(k, cosmo)
+    else:
+        raise NotImplementedError('TODO')
 
 
 def growth_integ(cosmo):
@@ -274,7 +303,7 @@ def boltzmann(cosmo):
     Eisenstein-Hu approximation to transfer function is used instead for now.
 
     """
-    #cosmo = transfer_integ(cosmo)  # TODO
+    cosmo = transfer_integ(cosmo)
     cosmo = growth_integ(cosmo)
     return cosmo * jnp.array(1, dtype=cosmo.conf.growth_dtype)  # FIXME HACK, cosmo_dtype?
 
@@ -303,7 +332,7 @@ _safe_power.defvjp(_safe_power_fwd, _safe_power_bwd)
 
 
 def linear_power(k, a, cosmo):
-    r"""Linear matter power spectrum at given wavenumbers and scale factor.
+    r"""Linear matter power spectrum at given wavenumbers and scale factors.
 
     Parameters
     ----------
@@ -334,7 +363,7 @@ def linear_power(k, a, cosmo):
     conf = cosmo.conf
 
     k = jnp.asarray(k, dtype=conf.float_dtype)
-    T = transfer_EH(k, cosmo)
+    T = transfer(k, cosmo)
 
     D = 1
     if a is not None:
