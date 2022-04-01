@@ -36,6 +36,9 @@ class Configuration:
     T : float, optional
         Time unit defined in s/h. Default is Hubble time 1/H_0 ~ 1e10 years/h ~ age of
         the Universe.
+    transfer_fit : bool, optional
+        Whether to use Eisenstein & Hu fit to transfer function. Default is True
+        (subject to change when False is implemented).
     transfer_size : int, optional
         Transfer function table size. Log spaced wavenumbers ``transfer_k`` is generated
         to span the full range of mesh scales, from the (minimum) fundamental frequency
@@ -94,6 +97,7 @@ class Configuration:
     L: float = Mpc_SI
     T: float = 1 / H_0_SI
 
+    transfer_fit: bool = True
     transfer_size: int = 1024
 
     growth_lpt_size: int = 128
@@ -162,7 +166,7 @@ class Configuration:
 
     @property
     def mesh_size(self):
-        """Mesh size in ``len(mesh_shape)`` dimensions."""
+        """Number of mesh grid points."""
         with jax.ensure_compile_time_eval():
             return jnp.array(self.mesh_shape).prod().item()
 
