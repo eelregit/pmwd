@@ -1,9 +1,11 @@
 from functools import partial
+from math import ceil
 from pprint import pformat
 from typing import ClassVar, Optional
 
 import jax
 jax.config.update("jax_enable_x64", True)
+from jax import ensure_compile_time_eval
 import jax.numpy as jnp
 
 from pmwd.dataclasses import pytree_dataclass
@@ -40,27 +42,29 @@ class Configuration:
         Whether to use Eisenstein & Hu fit to transfer function. Default is True
         (subject to change when False is implemented).
     transfer_size : int, optional
-        Transfer function table size. Log spaced wavenumbers ``transfer_k`` is generated
-        to span the full range of mesh scales, from the (minimum) fundamental frequency
-        to the (space diagonal) Nyquist frequency.
-    growth_lpt_size : int (>= 1), optional
-        Growth function table size for LPT. Linearly spaced scale factors are generated
-        from 0 to ``a_start``, and then concatenated with ``a_steps`` to make the growth
-        function scale factors ``growth_a``.
+        Transfer function table size. Wavenumbers ``transfer_k`` are log spaced spanning
+        the full range of mesh scales, from the (minimum) fundamental frequency to the
+        (space diagonal) Nyquist frequency.
     growth_dtype : jax.numpy.dtype, optional
         Float dtype for growth functions and derivatives. Default is float64.
     growth_rtol : float, optional
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
         Absolute tolerance for solving the growth ODEs.
+    growth_lpt_size : int (>= 1), optional
+        Growth function table size for LPT. Growth LPT scale factors are linearly spaced
+        from 0 to ``a_start`` (exclusive), then concatenated with the N-body ``a_steps``
+        to make the whole growth function scale factors ``growth_a``. Default is
+        ``ceil(128 * a_start)``.
     lpt_order : int in {1, 2}, optional
         LPT order. TODO: add 3rd order.
     a_start : float, optional
         LPT scale factor and N-body starting time.
     a_stop : float, optional
         N-body stopping time (scale factor).
-    a_num : int, optional
-        Number of N-body time integration steps, linearly spaced scale factors.
+    a_num : int (>= 1), optional
+        Number of N-body time integration steps. Scale factors ``a_steps`` are linearly
+        spaced from ``a_start`` and ``a_stop`` (inclusive).
     chunk_size : int, optional
         Chunk size of particles for scatter and gather. Default is 2**24.
     int_dtype : jax.numpy.dtype, optional
@@ -100,16 +104,17 @@ class Configuration:
     transfer_fit: bool = True
     transfer_size: int = 1024
 
-    growth_lpt_size: int = 128
     growth_dtype: jnp.dtype = jnp.dtype(jnp.float64)
     growth_rtol: Optional[float] = None
     growth_atol: Optional[float] = None
 
+    growth_lpt_size: Optional[int] = None
+
     lpt_order: int = 2
 
-    a_start: float = 0.02
+    a_start: float = 1/64
     a_stop: float = 1.
-    a_num: int = 50
+    a_num: int = 64
 
     chunk_size: int = 1<<24
 
@@ -127,15 +132,18 @@ class Configuration:
                  for sm, sp in zip(self.mesh_shape[1:], self.ptcl_grid_shape[1:])):
             raise ValueError('particle and mesh grid aspect ratios differ')
 
+        # ~ 1.5e-8 for float64, 3.5e-4 for float32
+        with ensure_compile_time_eval():
+            growth_tol = jnp.sqrt(jnp.finfo(self.growth_dtype).eps).item()
         if self.growth_rtol is None:
-            object.__setattr__(self, 'growth_rtol',
-                jnp.sqrt(jnp.finfo(self.growth_dtype).eps).item())  # ~ 1.5e-8 for float64
+            object.__setattr__(self, 'growth_rtol', growth_tol)
         if self.growth_atol is None:
-            object.__setattr__(self, 'growth_atol',
-                jnp.sqrt(jnp.finfo(self.growth_dtype).eps).item())  # ~ 1.5e-8 for float64
+            object.__setattr__(self, 'growth_atol', growth_tol)
 
+        if self.growth_lpt_size is None:
+            object.__setattr__(self, 'growth_lpt_size', ceil(128 * self.a_start))
         if self.growth_lpt_size <= 0:
-            raise ValueError('LPT growth table size must >= 1')
+            raise ValueError('LPT growth table size must >= 1 and a_start must > 0')
 
         if self.a_num <= 0:
             raise ValueError('Number of N-body time integration steps must >= 1')
