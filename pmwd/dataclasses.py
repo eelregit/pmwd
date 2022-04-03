@@ -1,4 +1,4 @@
-from dataclasses import is_dataclass, dataclass, fields, replace
+import dataclasses
 
 from jax.tree_util import register_pytree_node
 
@@ -39,18 +39,20 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
         https://github.com/google/jax/issues/2371
 
     """
-    if is_dataclass(cls):
+    if dataclasses.is_dataclass(cls):
         raise TypeError('cls cannot already be a dataclass')
-    cls = dataclass(cls, **kwargs)
+    cls = dataclasses.dataclass(cls, **kwargs)
 
     if aux_fields is None:
         aux_fields = ()
     elif isinstance(aux_fields, str):
         aux_fields = (aux_fields,)
     elif aux_fields is Ellipsis:
-        aux_fields = tuple(field.name for field in fields(cls))
-    akeys = tuple(field.name for field in fields(cls) if field.name in aux_fields)
-    ckeys = tuple(field.name for field in fields(cls) if field.name not in aux_fields)
+        aux_fields = tuple(field.name for field in dataclasses.fields(cls))
+    akeys = tuple(field.name for field in dataclasses.fields(cls)
+                  if field.name in aux_fields)
+    ckeys = tuple(field.name for field in dataclasses.fields(cls)
+                  if field.name not in aux_fields)
 
     if aux_invert:
         akeys, ckeys = ckeys, akeys
@@ -65,10 +67,10 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
 
     register_pytree_node(cls, tree_flatten, tree_unflatten)
 
-    def _replace(self, **changes):
+    def replace(self, **changes):
         """Create a new object of the same type, replacing fields with changes."""
-        return replace(self, **changes)
+        return dataclasses.replace(self, **changes)
 
-    setattr(cls, 'replace', _replace)
+    setattr(cls, 'replace', replace)
 
     return cls
