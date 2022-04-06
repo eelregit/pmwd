@@ -111,7 +111,7 @@ def form(a_prev, a_next, ptcl, cosmo):
 
 
 def form_init(a, ptcl, cosmo):
-    pass  # TODO 1) necessary? 2) form_init & observe_init handles LPT part?
+    pass  # TODO necessary?
 
 
 def coevolve(a_prev, a_next, ptcl, cosmo):
@@ -173,14 +173,6 @@ def nbody(ptcl, obsvbl, cosmo):
 
 @jit
 def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl_cot, cosmo):
-    """
-    Notes
-    -----
-    No need for `force_adj_init` here like the `force_init` in `nbody_init` to skip
-    redundant computations, because one probably want to recompute force vjp after
-    loading checkpoints. FIXME: force_init has been removed.
-
-    """
     def zeros_float0_like(x):
         if issubclass(x.dtype.type, (jnp.bool_, jnp.integer)):
             # FIXME after jax issues #4433 is addressed
