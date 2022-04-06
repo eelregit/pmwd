@@ -13,6 +13,7 @@ def rfftnfreq(shape, cell_size, dtype=float):
     shape : tuple of int
         Shape of ``rfftn`` input.
     cell_size : float
+    dtype : jax.numpy.dtype
 
     Returns
     -------
@@ -45,7 +46,7 @@ def laplace(kvec, src, cosmo=None):
     k2 = sum(k**2 for k in kvec)
     k2 = jnp.expand_dims(k2, chan_axis)
 
-    pot = jnp.where(k2 != 0., - src / k2, 0.)
+    pot = jnp.where(k2 != 0, - src / k2, 0)
 
     return pot
 
