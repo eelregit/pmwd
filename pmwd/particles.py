@@ -7,7 +7,7 @@ import jax.numpy as jnp
 from jax import float0
 from jax.tree_util import tree_map
 
-from pmwd.dataclasses import pytree_dataclass
+from pmwd.tree_util import pytree_dataclass
 
 
 @partial(pytree_dataclass, frozen=True)
@@ -21,8 +21,8 @@ class Particles:
         grid points from particles' original locations.
     disp : jnp.ndarray
         Particles' (comoving) displacements from pmid in [L], or adjoint. For
-        displacements from particles' original locations, use ``ptcl.disp -
-        ptcl_gen(conf).disp``.
+        displacements from particles' original Lagrangian locations, use ``ptcl.disp -
+        gen_ptcl(conf).disp``.
     vel : jnp.ndarray, optional
         Particles' canonical momenta in [H_0 L], or adjoint.
     acc : jnp.ndarray, optional
@@ -89,35 +89,7 @@ class Particles:
         tree_map(assert_valid_val, self.val)
 
 
-def ptcl_pos(ptcl, conf, dtype=None):
-    """Particle positions in [L].
-
-    Parameters
-    ----------
-    ptcl : Particles
-    conf : Configuration
-    dtype : jax.numpy.dtype, optional
-        Output float dtype. Default is conf.float_dtype.
-
-    Returns
-    -------
-    pos : jax.numpy.ndarray
-        Particle positions.
-
-    """
-    if dtype is None:
-        dtype = conf.float_dtype
-
-    pos = ptcl.pmid * conf.cell_size
-    pos = pos.astype(dtype)
-
-    pos += ptcl.disp
-    pos %= jnp.array(conf.box_size, dtype=dtype)
-
-    return pos
-
-
-def ptcl_gen(conf):
+def gen_ptcl(conf):
     """Generate particles on a uniform grid with zero velocities.
 
     Parameters
@@ -153,3 +125,31 @@ def ptcl_gen(conf):
     ptcl = Particles(pmid, disp, vel=vel)
 
     return ptcl
+
+
+def ptcl_pos(ptcl, conf, dtype=None):
+    """Particle positions in [L].
+
+    Parameters
+    ----------
+    ptcl : Particles
+    conf : Configuration
+    dtype : jax.numpy.dtype, optional
+        Output float dtype. Default is conf.float_dtype.
+
+    Returns
+    -------
+    pos : jax.numpy.ndarray
+        Particle positions.
+
+    """
+    if dtype is None:
+        dtype = conf.float_dtype
+
+    pos = ptcl.pmid * conf.cell_size
+    pos = pos.astype(dtype)
+
+    pos += ptcl.disp
+    pos %= jnp.array(conf.box_size, dtype=dtype)
+
+    return pos
