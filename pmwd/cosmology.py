@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from jax.tree_util import tree_map
 
 from pmwd.conf import Configuration
-from pmwd.dataclasses import pytree_dataclass
+from pmwd.tree_util import pytree_dataclass
 
 
 @partial(pytree_dataclass, aux_fields="conf", frozen=True)
