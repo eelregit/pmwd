@@ -44,9 +44,7 @@ def _gather_chunk(carry, chunk):
     chan_ndim = mesh.ndim - spatial_ndim
     chan_axis = tuple(range(-chan_ndim, 0))
 
-    # normalize by cell size
-    inv_cell_size = 1 / cell_size
-    disp *= inv_cell_size
+    disp /= cell_size
 
     # insert neighbor axis
     pmid = pmid[:, jnp.newaxis]
@@ -92,9 +90,7 @@ def _gather_chunk_adj(carry, chunk):
     chan_ndim = mesh.ndim - spatial_ndim
     chan_axis = tuple(range(-chan_ndim, 0))
 
-    # normalize by cell size
-    inv_cell_size = 1 / cell_size
-    disp *= inv_cell_size
+    disp /= cell_size
 
     # insert neighbor axis
     pmid = pmid[:, jnp.newaxis]
@@ -127,7 +123,7 @@ def _gather_chunk_adj(carry, chunk):
 
     disp_cot = (val_cot * val).sum(axis=chan_axis)
     disp_cot = (disp_cot[..., jnp.newaxis] * frac_grad).sum(axis=1)
-    disp_cot *= inv_cell_size
+    disp_cot /= cell_size
 
     mesh_cot = mesh_cot.at[tgt].add(val_cot * frac)
 
