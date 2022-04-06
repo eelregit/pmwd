@@ -8,7 +8,7 @@ jax.config.update("jax_enable_x64", True)
 from jax import ensure_compile_time_eval
 import jax.numpy as jnp
 
-from pmwd.dataclasses import pytree_dataclass
+from pmwd.tree_util import pytree_dataclass
 
 
 # FIXME dtype whereever jnp
@@ -221,7 +221,8 @@ class Configuration:
 
     @property
     def transfer_k(self):
-        """Transfer function wavenumbers, minimum fundamental to diagonal Nyquist frequencies."""
+        """Transfer function wavenumbers, from minimum fundamental to diagonal """
+        """Nyquist frequencies."""
         log10_k_min = jnp.log10(2. * jnp.pi / self.box_size.max())
         log10_k_max = jnp.log10(jnp.sqrt(self.dim) * jnp.pi / self.cell_size)
         return jnp.logspace(log10_k_min, log10_k_max, num=self.transfer_size,
