@@ -5,7 +5,7 @@ from jax import jit, custom_vjp, checkpoint
 from jax import random
 import jax.numpy as jnp
 
-from pmwd.particles import ptcl_gen
+from pmwd.particles import gen_ptcl
 from pmwd.cosmology import E2
 from pmwd.boltzmann import growth, linear_power
 from pmwd.gravity import rfftnfreq, laplace, neg_grad
@@ -216,7 +216,7 @@ def lpt(modes, cosmo):
 
     if conf.dim not in (1, 2, 3):
         raise ValueError(f'dim={conf.dim} not supported')
-    if conf.lpt_order not in (0, 1, 2):
+    if conf.lpt_order not in (0, 1, 2, 3):
         raise ValueError(f'lpt_order={conf.lpt_order} not supported')
 
     kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
@@ -239,12 +239,11 @@ def lpt(modes, cosmo):
         pot_2 = laplace(kvec, src_2, cosmo)
         pot.append(pot_2)
 
-    # TODO 3rd order
     if conf.lpt_order > 2:
-        pass
+        raise NotImplementedError('TODO')
 
     a = conf.a_start
-    ptcl = ptcl_gen(conf)
+    ptcl = gen_ptcl(conf)
 
     for order in range(1, 1+conf.lpt_order):
         D = growth(a, cosmo, order=order).astype(conf.float_dtype)
@@ -263,6 +262,6 @@ def lpt(modes, cosmo):
             vel = ptcl.vel.at[:, i].add(a2HDp * grad)
             ptcl = ptcl.replace(disp=disp, vel=vel)
 
-    obsvbl = None  # TODO
+    obsvbl = None  # TODO cubic Hermite interp lightcone as in nbody
 
     return ptcl, None
