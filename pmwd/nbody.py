@@ -165,8 +165,8 @@ def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo):
 def nbody(ptcl, obsvbl, cosmo):
     """N-body time integration."""
     conf = cosmo.conf
-    ptcl, obsvbl = nbody_init(conf.a_steps[0], ptcl, obsvbl, cosmo)
-    for a_prev, a_next in zip(conf.a_steps[:-1], conf.a_steps[1:]):
+    ptcl, obsvbl = nbody_init(conf.a_nbody[0], ptcl, obsvbl, cosmo)
+    for a_prev, a_next in zip(conf.a_nbody[:-1], conf.a_nbody[1:]):
         ptcl, obsvbl = nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo)
     return ptcl, obsvbl
 
@@ -211,8 +211,8 @@ def nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo):
     """N-body time integration with adjoint equation."""
     conf = cosmo.conf
     ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_init(
-        conf.a_steps[-1], ptcl, ptcl_cot, obsvbl_cot, cosmo)
-    for a_prev, a_next in zip(conf.a_steps[:0:-1], conf.a_steps[-2::-1]):
+        conf.a_nbody[-1], ptcl, ptcl_cot, obsvbl_cot, cosmo)
+    for a_prev, a_next in zip(conf.a_nbody[:0:-1], conf.a_nbody[-2::-1]):
         ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_step(
             a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force)
     return ptcl, ptcl_cot, cosmo_cot
