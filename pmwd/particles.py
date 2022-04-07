@@ -1,5 +1,6 @@
-from functools import partial
 from dataclasses import fields
+from functools import partial
+from operator import itemgetter
 from typing import Optional, Any
 
 import numpy as np
@@ -71,6 +72,9 @@ class Particles:
             pmid %= jnp.array(conf.mesh_shape, dtype=conf.int_dtype)
 
         return cls(pmid, disp)
+
+    def __getitem__(self, key):
+        return tree_map(itemgetter(key), self)
 
     @property
     def num(self):
