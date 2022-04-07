@@ -115,14 +115,14 @@ def form_init(a, ptcl, cosmo):
 
 
 def coevolve(a_prev, a_next, ptcl, cosmo):
-    val = form(a_prev, a_next, ptcl, cosmo)
-    return ptcl.replace(val=val)
+    attr = form(a_prev, a_next, ptcl, cosmo)
+    return ptcl.replace(attr=attr)
 
 
 def coevolve_init(a, ptcl, cosmo):
-    if ptcl.val is None:
-        val = form_init(a, ptcl, cosmo)
-        ptcl = ptcl.replace(val=val)
+    if ptcl.attr is None:
+        attr = form_init(a, ptcl, cosmo)
+        ptcl = ptcl.replace(attr=attr)
     return ptcl
 
 
