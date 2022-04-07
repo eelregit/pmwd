@@ -201,8 +201,8 @@ def growth_integ(cosmo):
     with ensure_compile_time_eval():
         eps = jnp.finfo(conf.growth_dtype).eps
         growth_a_ic = 0.5 * jnp.cbrt(eps).item()  # ~ 3e-6 for float64, 2e-3 for float32
-        if growth_a_ic >= conf.a_start / conf.growth_lpt_size:
-            growth_a_ic = 0.1 * conf.a_start / conf.growth_lpt_size
+        if growth_a_ic >= conf.a_lpt_step:
+            growth_a_ic = 0.1 * conf.a_lpt_step
 
     a = conf.growth_a
     lna = jnp.log(a.at[0].set(growth_a_ic))
