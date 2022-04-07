@@ -8,6 +8,7 @@ from jax import float0
 from jax.tree_util import tree_map
 
 from pmwd.tree_util import pytree_dataclass
+from pmwd.cosmology import E2
 
 
 @partial(pytree_dataclass, frozen=True)
@@ -18,17 +19,17 @@ class Particles:
     ----------
     pmid : jnp.ndarray
         Particles' IDs by mesh indices, of signed int dtype. They are the nearest mesh
-        grid points from particles' original locations.
+        grid points from particles' Lagrangian positions.
     disp : jnp.ndarray
         Particles' (comoving) displacements from pmid in [L], or adjoint. For
-        displacements from particles' original Lagrangian locations, use ``ptcl.disp -
+        displacements from particles' Lagrangian positions, use ``ptcl.disp -
         gen_ptcl(conf).disp``.
     vel : jnp.ndarray, optional
         Particles' canonical momenta in [H_0 L], or adjoint.
     acc : jnp.ndarray, optional
         Particles' accelerations in [H_0^2 L], or force vjp.
-    val : pytree
-        Particles' custom feature values or adjoint.
+    attr : pytree
+        Particles' attributes or adjoint, can be custom features.
 
     Raises
     ------
@@ -41,7 +42,35 @@ class Particles:
     disp: jnp.ndarray
     vel: Optional[jnp.ndarray] = None
     acc: Optional[jnp.ndarray] = None
-    val: Any = None
+    attr: Any = None
+
+    @classmethod
+    def from_pos(cls, pos, conf, wrap=True):
+        """Construct particle state of pmid and disp from positions.
+
+        Parameters
+        ----------
+        pos : array_like
+            Particle positions in [L].
+        conf : Configuration
+        wrap : bool, optional
+            Whether to wrap around the periodic boundaries.
+
+        Notes
+        -----
+        There may be collisions in particle ``pmid``.
+
+        """
+        pmid = jnp.rint(pos / conf.cell_size)
+        disp = pos - pmid * conf.cell_size
+
+        pmid = pmid.astype(conf.int_dtype)
+        disp = disp.astype(conf.float_dtype)
+
+        if wrap:
+            pmid %= jnp.array(conf.mesh_shape, dtype=conf.int_dtype)
+
+        return cls(pmid, disp)
 
     @property
     def num(self):
@@ -83,10 +112,10 @@ class Particles:
             assert self.acc.shape == self.pmid.shape, 'acc shape mismatch'
             assert self.acc.dtype == self.disp.dtype, 'acc dtype mismatch'
 
-        def assert_valid_val(v):
-            assert v.shape[0] == self.num, 'val num mismatch'
-            assert v.dtype == self.disp.dtype, 'val dtype mismatch'
-        tree_map(assert_valid_val, self.val)
+        def assert_valid_attr(v):
+            assert v.shape[0] == self.num, 'attr num mismatch'
+            assert v.dtype == self.disp.dtype, 'attr dtype mismatch'
+        tree_map(assert_valid_attr, self.attr)
 
 
 def gen_ptcl(conf):
@@ -127,7 +156,7 @@ def gen_ptcl(conf):
     return ptcl
 
 
-def ptcl_pos(ptcl, conf, dtype=None):
+def ptcl_pos(ptcl, conf, dtype=None, wrap=True):
     """Particle positions in [L].
 
     Parameters
@@ -136,6 +165,8 @@ def ptcl_pos(ptcl, conf, dtype=None):
     conf : Configuration
     dtype : jax.numpy.dtype, optional
         Output float dtype. Default is conf.float_dtype.
+    wrap : bool, optional
+        Whether to wrap around the periodic boundaries.
 
     Returns
     -------
@@ -146,10 +177,99 @@ def ptcl_pos(ptcl, conf, dtype=None):
     if dtype is None:
         dtype = conf.float_dtype
 
-    pos = ptcl.pmid * conf.cell_size
-    pos = pos.astype(dtype)
+    pos = ptcl.pmid.astype(dtype)
+    pos *= conf.cell_size
+    pos += ptcl.disp.astype(dtype)
 
-    pos += ptcl.disp
-    pos %= jnp.array(conf.box_size, dtype=dtype)
+    if wrap:
+        pos %= jnp.array(conf.box_size, dtype=dtype)
 
     return pos
+
+
+def ptcl_rpos(ptcl1, ptcl0, conf, wrap=True):
+    """Positions of Particles ptcl1 relative to Particles ptcl0 in [L].
+
+    Parameters
+    ----------
+    ptcl1 : Particles
+    ptcl0 : Particles
+    conf : Configuration
+    wrap : bool, optional
+        Whether to wrap around the periodic boundaries.
+
+    Returns
+    -------
+    rpos : jax.numpy.ndarray
+        Particle relative positions.
+
+    """
+    rpos = ptcl1.pmid - ptcl0.pmid
+    rpos = rpos.astype(conf.float_dtype)
+    rpos *= conf.cell_size
+    rpos += ptcl1.disp - ptcl0.disp
+
+    if wrap:
+        box_size = jnp.array(conf.box_size, dtype=conf.float_dtype)
+        rpos -= jnp.rint(rpos / box_size) * box_size
+
+    return rpos
+
+
+def ptcl_rsd(ptcl, los, a, cosmo):
+    """Particle redshift-space distortion displacements in [L].
+
+    Parameters
+    ----------
+    ptcl : Particles
+    los : array_like
+        Line-of-sight **unit vectors**, global or per particle. Vector norms are *not*
+        checked.
+    a : array_like
+        Scale factors, global or per particle.
+    cosmo : Cosmology
+
+    Returns
+    -------
+    rsd : jax.numpy.ndarray
+        Particle redshift-space distortion displacements.
+
+    """
+    conf = cosmo.conf
+
+    los = jnp.asarray(los, dtype=conf.float_dtype)
+    a = jnp.asarray(a, dtype=conf.float_dtype)
+
+    E = jnp.sqrt(E2(a, cosmo))
+    E = E.astype(conf.float_dtype)
+
+    rsd = (ptcl.vel * los).sum(axis=1, keepdims=True)
+    rsd *= los / (a**2 * E)
+
+    return rsd
+
+
+def ptcl_los(ptcl, obs, conf):
+    """Particle line-of-sight unit vectors.
+
+    Parameters
+    ----------
+    ptcl : Particles
+    obs : array_like or Particles
+        Observer position in [L].
+    conf : Configuration
+
+    Returns
+    -------
+    los : jax.numpy.ndarray
+        Particles line-of-sight unit vectors.
+
+    """
+    if not isinstance(obs, Particles):
+        obs = jnp.asarray(obs, conf.float_dtype)
+        obs = Particles.from_pos(obs, conf, wrap=False)
+
+    los = ptcl_rpos(ptcl, obs, conf, wrap=False)
+    los /= jnp.linalg.norm(los, axis=1, keepdims=True)
+
+    return los
