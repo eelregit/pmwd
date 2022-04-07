@@ -1,7 +1,7 @@
 from functools import partial
 from itertools import permutations, combinations
 
-from jax import jit, custom_vjp, checkpoint
+from jax import jit, custom_vjp, checkpoint, ensure_compile_time_eval
 from jax import random
 import jax.numpy as jnp
 
@@ -159,7 +159,7 @@ def levi_civita(indices):
 
     Returns
     -------
-    epsilon : jax.numpy.ndarray
+    epsilon : int
         Levi-Civita symbol value.
 
     """
@@ -172,7 +172,7 @@ def levi_civita(indices):
 
     epsilon = jnp.sign(indices[hi] - indices[lo]).prod()
 
-    return epsilon
+    return epsilon.item()
 
 
 def _M(kvec, pot, conf):
@@ -184,8 +184,9 @@ def _M(kvec, pot, conf):
         strain_1j = _strain(kvec[1], kvec[j], pot, conf)
         strain_2k = _strain(kvec[2], kvec[k], pot, conf)
 
-        indices = jnp.array(indices, dtype=conf.float_dtype)
-        M += levi_civita(indices) * strain_0i * strain_1j * strain_2k
+        with ensure_compile_time_eval():
+            epsilon = levi_civita(indices)
+        M += epsilon * strain_0i * strain_1j * strain_2k
 
     return M
 
