@@ -51,20 +51,20 @@ class Configuration:
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
         Absolute tolerance for solving the growth ODEs.
-    growth_lpt_size : int (>= 1), optional
-        Growth function table size for LPT. Growth LPT scale factors are linearly spaced
-        from 0 to ``a_start`` (exclusive), then concatenated with the N-body ``a_steps``
-        to make the whole growth function scale factors ``growth_a``. Default is
-        ``ceil(128 * a_start)``.
     lpt_order : int in {1, 2}, optional
         LPT order. TODO: add 3rd order.
     a_start : float, optional
         LPT scale factor and N-body starting time.
     a_stop : float, optional
         N-body stopping time (scale factor).
-    a_num : int (>= 1), optional
-        Number of N-body time integration steps. Scale factors ``a_steps`` are linearly
-        spaced from ``a_start`` and ``a_stop`` (inclusive).
+    a_lpt_maxstep : float, optional
+        Maximum scale factor LPT light cone step size. It determines the number of
+        steps ``a_lpt_num``, the actual step size ``a_lpt_step``, and the steps
+        ``a_lpt``.
+    a_nbody_maxstep : float, optional
+        Maximum scale factor N-body time integration step size. It determines the
+        number of steps ``a_nbody_num``, the actual step size ``a_nbody_step``, and the
+        steps ``a_nbody``.
     chunk_size : int, optional
         Chunk size of particles for scatter and gather. Default is 2**24.
     int_dtype : jax.numpy.dtype, optional
@@ -108,13 +108,12 @@ class Configuration:
     growth_rtol: Optional[float] = None
     growth_atol: Optional[float] = None
 
-    growth_lpt_size: Optional[int] = None
-
     lpt_order: int = 2
 
     a_start: float = 1/64
     a_stop: float = 1.
-    a_num: int = 64
+    a_lpt_maxstep: float = 1/128
+    a_nbody_maxstep: float = 1/64
 
     chunk_size: int = 1<<24
 
@@ -139,14 +138,6 @@ class Configuration:
             object.__setattr__(self, 'growth_rtol', growth_tol)
         if self.growth_atol is None:
             object.__setattr__(self, 'growth_atol', growth_tol)
-
-        if self.growth_lpt_size is None:
-            object.__setattr__(self, 'growth_lpt_size', ceil(128 * self.a_start))
-        if self.growth_lpt_size <= 0:
-            raise ValueError('LPT growth table size must >= 1 and a_start must > 0')
-
-        if self.a_num <= 0:
-            raise ValueError('Number of N-body time integration steps must >= 1')
 
     def __str__(self):
         return pformat(self, indent=4, width=1)  # for python >= 3.10
@@ -220,6 +211,26 @@ class Configuration:
         return 3. * self.H_0**2 / (8. * jnp.pi * self.G)
 
     @property
+    def a_lpt_num(self):
+        """Number of LPT light cone scale factor steps, excluding a_start."""
+        return ceil(self.a_start / self.a_lpt_maxstep)
+
+    @property
+    def a_lpt_step(self):
+        """LPT light cone scale factor step size."""
+        return self.a_start / self.a_lpt_num
+
+    @property
+    def a_nbody_num(self):
+        """Number of N-body time integration scale factor steps, excluding a_start."""
+        return ceil((self.a_stop - self.a_start) / self.a_nbody_maxstep)
+
+    @property
+    def a_nbody_step(self):
+        """N-body time integration scale factor step size."""
+        return (self.a_stop - self.a_start) / self.a_nbody_num
+
+    @property
     def transfer_k(self):
         """Transfer function wavenumbers, from minimum fundamental to diagonal """
         """Nyquist frequencies."""
@@ -230,15 +241,21 @@ class Configuration:
 
     @property
     def growth_a(self):
-        """Growth function scale factors."""
-        growth_a_lpt = jnp.linspace(0., self.a_start, num=self.growth_lpt_size,
+        """Growth function scale factors, for both LPT and N-body."""
+        growth_a_lpt = jnp.linspace(0, self.a_start, num=self.a_lpt_num,
                                     endpoint=False, dtype=self.growth_dtype)
-        growth_a_nbody = jnp.linspace(self.a_start, self.a_stop, self.a_num,
+        growth_a_nbody = jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
                                       dtype=self.growth_dtype)
         return jnp.concatenate((growth_a_lpt, growth_a_nbody))
 
     @property
-    def a_steps(self):
-        """N-body time integration steps, linearly spaced scale factors."""
-        return jnp.linspace(self.a_start, self.a_stop, self.a_num,
+    def a_lpt(self):
+        """LPT light cone scale factor steps, including a_start."""
+        return jnp.linspace(0, self.a_start, num=self.a_lpt_num+1,
+                            dtype=self.float_dtype)
+
+    @property
+    def a_nbody(self):
+        """N-body time integration scale factor steps, including a_start."""
+        return jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
                             dtype=self.float_dtype)
