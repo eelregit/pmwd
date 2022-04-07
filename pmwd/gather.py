@@ -8,7 +8,7 @@ from pmwd.scatter import _chunk_split, _chunk_cat
 
 
 def gather(ptcl, mesh, val, cell_size, chunk_size=None):
-    """Gather particle values from mesh in n-D with CIC window."""
+    """Gather particle values from mesh in n-D with trilinear scheme."""
     return _gather(ptcl.pmid, ptcl.disp, mesh, val, cell_size, chunk_size)
 
 
@@ -50,7 +50,7 @@ def _gather_chunk(carry, chunk):
     pmid = pmid[:, jnp.newaxis]
     disp = disp[:, jnp.newaxis]
 
-    # CIC
+    # trilinear
     neighbors = (jnp.arange(2 ** spatial_ndim)[:, jnp.newaxis]
                  >> jnp.arange(spatial_ndim)
                 ) & 1
@@ -62,7 +62,7 @@ def _gather_chunk(carry, chunk):
     tgt = pmid + tgt.astype(pmid.dtype)
 
     # periodic boundaries
-    tgt %= jnp.array(spatial_shape)
+    tgt %= jnp.array(spatial_shape, dtype=pmid.dtype)
 
     # gather
     tgt = tuple(tgt[..., i] for i in range(spatial_ndim))
@@ -97,7 +97,7 @@ def _gather_chunk_adj(carry, chunk):
     disp = disp[:, jnp.newaxis]
     val_cot = val_cot[:, jnp.newaxis]
 
-    # CIC
+    # trilinear
     neighbors = (jnp.arange(2 ** spatial_ndim)[:, jnp.newaxis]
                  >> jnp.arange(spatial_ndim)
                 ) & 1
@@ -115,7 +115,7 @@ def _gather_chunk_adj(carry, chunk):
     tgt = pmid + tgt.astype(pmid.dtype)
 
     # periodic boundaries
-    tgt %= jnp.array(spatial_shape)
+    tgt %= jnp.array(spatial_shape, dtype=pmid.dtype)
 
     # gather disp_cot from val_cot and mesh, and scatter val_cot to mesh_cot
     tgt = tuple(tgt[..., i] for i in range(spatial_ndim))

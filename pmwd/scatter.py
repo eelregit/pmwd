@@ -32,7 +32,7 @@ def _chunk_cat(remainder_array, chunks_array):
 
 
 def scatter(ptcl, mesh, val, cell_size, chunk_size=None):
-    """Scatter particle values to mesh in n-D with CIC window."""
+    """Scatter particle values to mesh in n-D with trilinear scheme."""
     return _scatter(ptcl.pmid, ptcl.disp, mesh, val, cell_size, chunk_size)
 
 
@@ -73,7 +73,7 @@ def _scatter_chunk(carry, chunk):
     disp = disp[:, jnp.newaxis]
     val = val[:, jnp.newaxis]
 
-    # CIC
+    # trilinear
     neighbors = (jnp.arange(2**spatial_ndim)[:, jnp.newaxis]
                  >> jnp.arange(spatial_ndim)
                 ) & 1
@@ -85,7 +85,7 @@ def _scatter_chunk(carry, chunk):
     tgt = pmid + tgt.astype(pmid.dtype)
 
     # periodic boundaries
-    tgt %= jnp.array(spatial_shape)
+    tgt %= jnp.array(spatial_shape, dtype=pmid.dtype)
 
     # scatter
     tgt = tuple(tgt[..., i] for i in range(spatial_ndim))
@@ -121,7 +121,7 @@ def _scatter_chunk_adj(carry, chunk):
     disp = disp[:, jnp.newaxis]
     val = val[:, jnp.newaxis]
 
-    # CIC
+    # trilinear
     neighbors = (jnp.arange(2**spatial_ndim)[:, jnp.newaxis]
                  >> jnp.arange(spatial_ndim)
                 ) & 1
@@ -139,7 +139,7 @@ def _scatter_chunk_adj(carry, chunk):
     tgt = pmid + tgt.astype(pmid.dtype)
 
     # periodic boundaries
-    tgt %= jnp.array(spatial_shape)
+    tgt %= jnp.array(spatial_shape, dtype=pmid.dtype)
 
     # gather disp_cot from mesh_cot and val, and gather val_cot from mesh_cot
     tgt = tuple(tgt[..., i] for i in range(spatial_ndim))
