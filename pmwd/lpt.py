@@ -37,14 +37,10 @@ def white_noise(seed, conf, fix_amp=False, negate=False):
     # sample linear modes on Lagrangian particle grid
     modes = random.normal(key, conf.ptcl_grid_shape, dtype=conf.float_dtype)
 
-    # FIXME after jax PR #9815 is released
-    #modes = jnp.fft.rfftn(modes, norm='ortho')
-    modes = jnp.fft.rfftn(modes)
+    modes = jnp.fft.rfftn(modes, norm='ortho')
 
     if fix_amp:
         modes /= jnp.abs(modes)
-    else:
-        modes *= 1 / jnp.sqrt(conf.ptcl_num).astype(conf.float_dtype)
 
     if negate:
         modes = -modes
@@ -100,8 +96,8 @@ def _strain(k_i, k_j, pot, conf):
     nyquist = jnp.pi / conf.ptcl_spacing
     eps = nyquist * jnp.finfo(conf.float_dtype).eps
 
-    k_i = jnp.where(jnp.abs(jnp.abs(k_i) - nyquist) <= eps, 0j, k_i)
-    k_j = jnp.where(jnp.abs(jnp.abs(k_j) - nyquist) <= eps, 0j, k_j)
+    k_i = jnp.where(jnp.abs(jnp.abs(k_i) - nyquist) <= eps, 0, k_i)
+    k_j = jnp.where(jnp.abs(jnp.abs(k_j) - nyquist) <= eps, 0, k_j)
 
     strain = -k_i * k_j * pot
 
