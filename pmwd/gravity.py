@@ -13,7 +13,7 @@ def rfftnfreq(shape, cell_size, dtype=float):
     shape : tuple of int
         Shape of ``rfftn`` input.
     cell_size : float
-    dtype : jax.numpy.dtype
+    dtype : dtype_like
 
     Returns
     -------
@@ -78,7 +78,7 @@ def neg_grad(k, pot, cell_size):
     chan_axis = tuple(range(-chan_ndim, 0))
 
     k = jnp.expand_dims(k, chan_axis)
-    neg_ik = jnp.where(jnp.abs(jnp.abs(k) - nyquist) <= eps, 0j, -1j * k)
+    neg_ik = jnp.where(jnp.abs(jnp.abs(k) - nyquist) <= eps, 0, -1j * k)
 
     grad = neg_ik * pot
 
@@ -97,7 +97,7 @@ def gravity(ptcl, cosmo):
     dens = scatter(ptcl, dens, inv_dens_mean, conf.cell_size, chunk_size=conf.chunk_size)
     dens -= 1  # overdensity
 
-    dens *= 1.5 * cosmo.Omega_m
+    dens *= 1.5 * cosmo.Omega_m.astype(conf.float_dtype)
 
     dens = jnp.fft.rfftn(dens)  # normalization canceled by that of irfftn below
 
@@ -110,7 +110,7 @@ def gravity(ptcl, cosmo):
         grad = jnp.fft.irfftn(grad, s=conf.mesh_shape)
         grad = grad.astype(conf.float_dtype)  # no jnp.complex32
 
-        grad = gather(ptcl, grad, 0., conf.cell_size, chunk_size=conf.chunk_size)
+        grad = gather(ptcl, grad, 0, conf.cell_size, chunk_size=conf.chunk_size)
 
         acc.append(grad)
     acc = jnp.stack(acc, axis=-1)
