@@ -223,10 +223,11 @@ def lpt(modes, cosmo):
 
     pot = []
 
-    src_1 = modes
+    if conf.lpt_order > 0:
+        src_1 = modes
 
-    pot_1 = laplace(kvec, src_1, cosmo)
-    pot.append(pot_1)
+        pot_1 = laplace(kvec, src_1, cosmo)
+        pot.append(pot_1)
 
     if conf.lpt_order > 1:
         src_2 = _L(kvec, pot_1, None, conf)
