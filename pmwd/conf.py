@@ -1,8 +1,8 @@
 from functools import partial
 from math import ceil
-from pprint import pformat
 from typing import ClassVar, Optional
 
+from numpy.typing import DTypeLike
 import jax
 jax.config.update("jax_enable_x64", True)
 from jax import ensure_compile_time_eval
@@ -11,12 +11,9 @@ import jax.numpy as jnp
 from pmwd.tree_util import pytree_dataclass
 
 
-# FIXME dtype whereever jnp
-
-
 @partial(pytree_dataclass, aux_fields=Ellipsis, frozen=True)
 class Configuration:
-    """Configuration parameters, "immutable" as a frozen dataclass, not traced by JAX.
+    """Configuration parameters, "immutable" as a frozen dataclass.
 
     Parameters
     ----------
@@ -27,6 +24,12 @@ class Configuration:
     ptcl_grid_shape : tuple of ints, optional
         Lagrangian particle grid shape. Default is ``mesh_shape``. Particle and mesh
         grids must have the same aspect ratio.
+    cosmo_dtype : dtype_like, optional
+        Float dtype for Cosmology. Default is float64.
+    pmid_dtype : dtype_like, optional
+        Signed integer dtype for particle pmid. Default is int16.
+    float_dtype : dtype_like, optional
+        Float dtype for other particle and mesh quantities. Default is float32.
     k_pivot_Mpc : float, optional
         Primordial scalar power spectrum pivot scale in 1/Mpc.
     T_cmb : float, optional
@@ -45,8 +48,6 @@ class Configuration:
         Transfer function table size. Wavenumbers ``transfer_k`` are log spaced spanning
         the full range of mesh scales, from the (minimum) fundamental frequency to the
         (space diagonal) Nyquist frequency.
-    growth_dtype : jax.numpy.dtype, optional
-        Float dtype for growth functions and derivatives. Default is float64.
     growth_rtol : float, optional
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
@@ -67,10 +68,6 @@ class Configuration:
         steps ``a_nbody``.
     chunk_size : int, optional
         Chunk size of particles for scatter and gather. Default is 2**24.
-    int_dtype : jax.numpy.dtype, optional
-        Integer dtype for particle pmid. Default is int16.
-    float_dtype : jax.numpy.dtype, optional
-        Float dtype for other particle and mesh attributes. Default is float32.
 
     Raises
     ------
@@ -84,6 +81,10 @@ class Configuration:
     mesh_shape: tuple[int, ...]
 
     ptcl_grid_shape: Optional[tuple[int, ...]] = None
+
+    cosmo_dtype: DTypeLike = jnp.dtype(jnp.float64)
+    pmid_dtype: DTypeLike = jnp.dtype(jnp.int16)
+    float_dtype: DTypeLike = jnp.dtype(jnp.float32)
 
     k_pivot_Mpc: float = 0.05
 
@@ -104,7 +105,6 @@ class Configuration:
     transfer_fit: bool = True
     transfer_size: int = 1024
 
-    growth_dtype: jnp.dtype = jnp.dtype(jnp.float64)
     growth_rtol: Optional[float] = None
     growth_atol: Optional[float] = None
 
@@ -117,9 +117,6 @@ class Configuration:
 
     chunk_size: int = 1<<24
 
-    int_dtype: jnp.dtype = jnp.dtype(jnp.int16)
-    float_dtype: jnp.dtype = jnp.dtype(jnp.float32)
-
     def __post_init__(self):
         if self.ptcl_grid_shape is None:
             object.__setattr__(self, 'ptcl_grid_shape', self.mesh_shape)
@@ -131,20 +128,24 @@ class Configuration:
                  for sm, sp in zip(self.mesh_shape[1:], self.ptcl_grid_shape[1:])):
             raise ValueError('particle and mesh grid aspect ratios differ')
 
+        if not jnp.issubdtype(self.cosmo_dtype, jnp.floating):
+            raise ValueError('cosmo_dtype must be floating point numbers')
+        if not jnp.issubdtype(self.pmid_dtype, jnp.signedinteger):
+            raise ValueError('pmid_dtype for pmid must be signed integers')
+        if not jnp.issubdtype(self.float_dtype, jnp.floating):
+            raise ValueError('float_dtype must be floating point numbers')
+
         # ~ 1.5e-8 for float64, 3.5e-4 for float32
         with ensure_compile_time_eval():
-            growth_tol = jnp.sqrt(jnp.finfo(self.growth_dtype).eps).item()
+            growth_tol = jnp.sqrt(jnp.finfo(self.cosmo_dtype).eps).item()
         if self.growth_rtol is None:
             object.__setattr__(self, 'growth_rtol', growth_tol)
         if self.growth_atol is None:
             object.__setattr__(self, 'growth_atol', growth_tol)
 
-    def __str__(self):
-        return pformat(self, indent=4, width=1)  # for python >= 3.10
-
     @property
     def dim(self):
-        """Spatial dimensionality."""
+        """Spatial dimension."""
         return len(self.mesh_shape)
 
     @property
@@ -243,9 +244,9 @@ class Configuration:
     def growth_a(self):
         """Growth function scale factors, for both LPT and N-body."""
         growth_a_lpt = jnp.linspace(0, self.a_start, num=self.a_lpt_num,
-                                    endpoint=False, dtype=self.growth_dtype)
+                                    endpoint=False, dtype=self.cosmo_dtype)
         growth_a_nbody = jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
-                                      dtype=self.growth_dtype)
+                                      dtype=self.cosmo_dtype)
         return jnp.concatenate((growth_a_lpt, growth_a_nbody))
 
     @property
