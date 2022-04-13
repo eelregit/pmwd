@@ -1,5 +1,5 @@
 import numpy as np
-from jax import value_and_grad, jit, vjp, custom_vjp, float0
+from jax import value_and_grad, jit, vjp, custom_vjp
 import jax.numpy as jnp
 from jax.tree_util import tree_map
 
@@ -173,14 +173,7 @@ def nbody(ptcl, obsvbl, cosmo):
 
 @jit
 def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl_cot, cosmo):
-    def zeros_float0_like(x):
-        if issubclass(x.dtype.type, (jnp.bool_, jnp.integer)):
-            # FIXME after jax issues #4433 is addressed
-            return np.empty(x.shape, dtype=float0)
-        else:
-            return jnp.zeros_like(x)
-
-    cosmo_cot = tree_map(zeros_float0_like, cosmo)
+    cosmo_cot = tree_map(lambda x: jnp.zeros_like(x), cosmo)
 
     #ptcl_cot = observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo)
 
