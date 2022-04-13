@@ -1,10 +1,15 @@
 import dataclasses
+from pprint import pformat
 
+from jax import float0
+from jax.numpy import asarray
 from jax.tree_util import register_pytree_node
 
 
 def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
     """Register python dataclasses as custom pytree nodes.
+
+    Also added are pretty string representation and replace method.
 
     Parameters
     ----------
@@ -66,6 +71,33 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
         return cls(**dict(zip(ckeys, children)), **dict(zip(akeys, aux_data)))
 
     register_pytree_node(cls, tree_flatten, tree_unflatten)
+
+    @staticmethod
+    def _safe_asarray_factory(dtype=None):
+        """Return an array converter that's safe for float0 and JAX transformations.
+
+        .. _Pytrees — JAX documentation:
+            https://jax.readthedocs.io/en/latest/pytrees.html#custom-pytrees-and-initialization
+
+        .. _JAX Issues #10238:
+            https://github.com/google/jax/issues/10238
+
+        """
+        def _safe_asarray(x):
+            if not (hasattr(x, 'dtype') and x.dtype == float0
+                    or type(x) is object or x is None or isinstance(x, cls)):
+                x = asarray(x, dtype=dtype)
+            return x
+
+        return _safe_asarray
+
+    setattr(cls, '_safe_asarray_factory', _safe_asarray_factory)
+
+    def __str__(self):
+        """Pretty string representation for python >= 3.10."""
+        return pformat(self)
+
+    setattr(cls, '__str__', __str__)
 
     def replace(self, **changes):
         """Create a new object of the same type, replacing fields with changes."""
