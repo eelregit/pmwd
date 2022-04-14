@@ -74,17 +74,18 @@ def _scatter_chunk(carry, chunk):
     val = val[:, jnp.newaxis]
 
     # trilinear
-    neighbors = (jnp.arange(2**spatial_ndim)[:, jnp.newaxis]
-                 >> jnp.arange(spatial_ndim)
+    neighbors = (jnp.arange(2**spatial_ndim, dtype=pmid.dtype)[:, jnp.newaxis]
+                 >> jnp.arange(spatial_ndim, dtype=pmid.dtype)
                 ) & 1
-    tgt = jnp.floor(disp)
-    tgt += neighbors.astype(tgt.dtype)
-    frac = 1. - jnp.abs(disp - tgt)
+    tgt = jnp.floor(disp).astype(pmid.dtype)
+    tgt += neighbors
+    frac = 1 - jnp.abs(disp - tgt)
     frac = frac.prod(axis=-1)
     frac = jnp.expand_dims(frac, chan_axis)
-    tgt = pmid + tgt.astype(pmid.dtype)
+    tgt += pmid
 
     # periodic boundaries
+    # TODO no wrapping for parallelization
     tgt %= jnp.array(spatial_shape, dtype=pmid.dtype)
 
     # scatter
@@ -99,8 +100,6 @@ def _scatter_chunk_adj(carry, chunk):
     """Adjoint of `_scatter_chunk`, or equivalently `_scatter_adj_chunk`, i.e. scatter
     adjoint in chunks.
 
-    Notes
-    -----
     Gather disp_cot from mesh_cot and val;
     Gather val_cot from mesh_cot.
 
@@ -122,12 +121,12 @@ def _scatter_chunk_adj(carry, chunk):
     val = val[:, jnp.newaxis]
 
     # trilinear
-    neighbors = (jnp.arange(2**spatial_ndim)[:, jnp.newaxis]
-                 >> jnp.arange(spatial_ndim)
+    neighbors = (jnp.arange(2**spatial_ndim, dtype=pmid.dtype)[:, jnp.newaxis]
+                 >> jnp.arange(spatial_ndim, dtype=pmid.dtype)
                 ) & 1
-    tgt = jnp.floor(disp)
-    tgt += neighbors.astype(tgt.dtype)
-    frac = 1. - jnp.abs(disp - tgt)
+    tgt = jnp.floor(disp).astype(pmid.dtype)
+    tgt += neighbors
+    frac = 1 - jnp.abs(disp - tgt)
     sign = jnp.sign(tgt - disp)
     frac_grad = []
     for i in range(spatial_ndim):
@@ -136,9 +135,10 @@ def _scatter_chunk_adj(carry, chunk):
     frac_grad = jnp.stack(frac_grad, axis=-1)
     frac = frac.prod(axis=-1)
     frac = jnp.expand_dims(frac, chan_axis)
-    tgt = pmid + tgt.astype(pmid.dtype)
+    tgt += pmid
 
     # periodic boundaries
+    # TODO no wrapping for parallelization
     tgt %= jnp.array(spatial_shape, dtype=pmid.dtype)
 
     # gather disp_cot from mesh_cot and val, and gather val_cot from mesh_cot
