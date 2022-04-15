@@ -3,7 +3,7 @@ from pprint import pformat
 
 from jax import float0
 from jax.numpy import asarray
-from jax.tree_util import register_pytree_node
+from jax.tree_util import register_pytree_node, tree_leaves
 
 
 def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
@@ -72,9 +72,8 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
 
     register_pytree_node(cls, tree_flatten, tree_unflatten)
 
-    @staticmethod
-    def _safe_asarray_factory(dtype=None):
-        """Return an array converter that's safe for float0 and JAX transformations.
+    def _is_transforming(self):
+        """Whether dataclass fields are pytrees initialized by JAX transformations.
 
         .. _Pytrees — JAX documentation:
             https://jax.readthedocs.io/en/latest/pytrees.html#custom-pytrees-and-initialization
@@ -83,15 +82,19 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
             https://github.com/google/jax/issues/10238
 
         """
-        def _safe_asarray(x):
-            if not (hasattr(x, 'dtype') and x.dtype == float0
-                    or type(x) is object or x is None or isinstance(x, cls)):
-                x = asarray(x, dtype=dtype)
-            return x
+        def leaves_all(is_placeholder, tree):
+            # equivalent to tree_all(tree_map(is_placeholder, tree))
+            return all(is_placeholder(x) for x in tree_leaves(tree))
 
-        return _safe_asarray
+        tree = [getattr(self, field.name) for field in dataclasses.fields(self)]
 
-    setattr(cls, '_safe_asarray_factory', _safe_asarray_factory)
+        return (
+            leaves_all(lambda x: type(x) is object, tree)
+            or leaves_all(lambda x: x is None, tree)
+            or leaves_all(lambda x: isinstance(x, cls), tree)
+        )
+
+    setattr(cls, '_is_transforming', _is_transforming)
 
     def __str__(self):
         """Pretty string representation for python >= 3.10."""
