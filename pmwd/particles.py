@@ -1,125 +1,101 @@
-from dataclasses import fields
+from dataclasses import field, fields
 from functools import partial
 from operator import itemgetter
 from typing import Optional, Any
 
 import numpy as np
+from numpy.typing import ArrayLike
 import jax.numpy as jnp
 from jax import float0
 from jax.tree_util import tree_map
 
 from pmwd.tree_util import pytree_dataclass
+from pmwd.conf import Configuration
 from pmwd.cosmology import E2
 
 
-@partial(pytree_dataclass, frozen=True)
+@partial(pytree_dataclass, aux_fields="conf", frozen=True)
 class Particles:
     """Particle state or adjoint particle state.
 
+    Particles are indexable.
+
+    Array_like's are converted to jax.numpy.ndarray of conf.pmid_dtype or
+    conf.float_dtype at instantiation.
+
     Parameters
     ----------
-    pmid : jnp.ndarray
+    conf : Configuration
+        Configuration parameters.
+    pmid : array_like
         Particles' IDs by mesh indices, of signed int dtype. They are the nearest mesh
         grid points from particles' Lagrangian positions.
-    disp : jnp.ndarray
+    disp : array_like
         Particles' (comoving) displacements from pmid in [L], or adjoint. For
         displacements from particles' Lagrangian positions, use ``ptcl.disp -
         gen_ptcl(conf).disp``.
-    vel : jnp.ndarray, optional
+    vel : array_like, optional
         Particles' canonical momenta in [H_0 L], or adjoint.
-    acc : jnp.ndarray, optional
+    acc : array_like, optional
         Particles' accelerations in [H_0^2 L], or force vjp.
-    attr : pytree
+    attr : pytree, optional
         Particles' attributes or adjoint, can be custom features.
-
-    Raises
-    ------
-    AssertionError
-        If any particle field has the wrong types, shapes, or dtypes.
 
     """
 
-    pmid: jnp.ndarray
-    disp: jnp.ndarray
-    vel: Optional[jnp.ndarray] = None
-    acc: Optional[jnp.ndarray] = None
+    conf: Configuration = field(repr=False)
+
+    pmid: ArrayLike
+    disp: ArrayLike
+    vel: Optional[ArrayLike] = None
+    acc: Optional[ArrayLike] = None
     attr: Any = None
 
-    @classmethod
-    def from_pos(cls, pos, conf, wrap=True):
-        """Construct particle state of pmid and disp from positions.
+    def __post_init__(self):
+        if self._is_transforming():
+            return
 
-        Parameters
-        ----------
-        pos : array_like
-            Particle positions in [L].
-        conf : Configuration
-        wrap : bool, optional
-            Whether to wrap around the periodic boundaries.
-
-        Notes
-        -----
-        There may be collisions in particle ``pmid``.
-
-        """
-        pmid = jnp.rint(pos / conf.cell_size)
-        disp = pos - pmid * conf.cell_size
-
-        pmid = pmid.astype(conf.int_dtype)
-        disp = disp.astype(conf.float_dtype)
-
-        if wrap:
-            pmid %= jnp.array(conf.mesh_shape, dtype=conf.int_dtype)
-
-        return cls(pmid, disp)
+        conf = self.conf
+        for field in fields(self):
+            value = getattr(self, field.name)
+            dtype = conf.pmid_dtype if field.name == 'pmid' else conf.float_dtype
+            value = tree_map(
+                lambda x: x if isinstance(x, np.ndarray) and x.dtype == float0
+                else jnp.asarray(x, dtype=dtype),
+                value,
+            )
+            object.__setattr__(self, field.name, value)
 
     def __getitem__(self, key):
         return tree_map(itemgetter(key), self)
 
-    @property
-    def num(self):
-        return self.pmid.shape[0]
+    @classmethod
+    def from_pos(cls, conf, pos, wrap=True):
+        """Construct particle state of pmid and disp from positions.
 
-    @property
-    def dim(self):
-        return self.pmid.shape[1]
+        There may be collisions in particle ``pmid``.
 
-    @property
-    def int_dtype(self):
-        return self.pmid.dtype
+        Parameters
+        ----------
+        conf : Configuration
+        pos : array_like
+            Particle positions in [L].
+        wrap : bool, optional
+            Whether to wrap around the periodic boundaries.
 
-    @property
-    def float_dtype(self):
-        return self.disp.dtype
+        """
+        pos = jnp.asarray(pos)
 
-    def assert_valid(self):
-        for field in fields(self):
-            data = getattr(self, field.name)
-            if data is not None:
-                # FIXME after jax issues #4433 is addressed
-                assert isinstance(data, (jnp.ndarray, np.ndarray)), (
-                    f'{field.name} must be jax.numpy.ndarray')
+        pmid = jnp.rint(pos / conf.cell_size)
+        disp = pos - pmid * conf.cell_size
 
-        # FIXME after jax issues #4433 is addressed
-        assert (jnp.issubdtype(self.pmid.dtype, jnp.signedinteger)
-                or self.pmid.dtype == float0), 'pmid must be signed integers'
+        pmid = pmid.astype(conf.pmid_dtype)
+        disp = disp.astype(conf.float_dtype)
 
-        assert self.disp.shape == self.pmid.shape, 'disp shape mismatch'
-        assert jnp.issubdtype(self.disp.dtype, jnp.floating), (
-            'disp must be floating point numbers')
+        if wrap:
+            pmid %= jnp.array(conf.mesh_shape, dtype=conf.pmid_dtype)
 
-        if self.vel is not None:
-            assert self.vel.shape == self.pmid.shape, 'vel shape mismatch'
-            assert self.vel.dtype == self.disp.dtype, 'vel dtype mismatch'
-
-        if self.acc is not None:
-            assert self.acc.shape == self.pmid.shape, 'acc shape mismatch'
-            assert self.acc.dtype == self.disp.dtype, 'acc dtype mismatch'
-
-        def assert_valid_attr(v):
-            assert v.shape[0] == self.num, 'attr num mismatch'
-            assert v.dtype == self.disp.dtype, 'attr dtype mismatch'
-        tree_map(assert_valid_attr, self.attr)
+        return cls(conf, pmid, disp)
 
 
 def gen_ptcl(conf):
@@ -139,7 +115,7 @@ def gen_ptcl(conf):
     for i, (sp, sm) in enumerate(zip(conf.ptcl_grid_shape, conf.mesh_shape)):
         pmid_1d = jnp.linspace(0, sm, num=sp, endpoint=False)
         pmid_1d = jnp.rint(pmid_1d)
-        pmid_1d = pmid_1d.astype(conf.int_dtype)
+        pmid_1d = pmid_1d.astype(conf.pmid_dtype)
         pmid.append(pmid_1d)
 
         disp_1d = jnp.arange(sp) * sm - pmid_1d.astype(int) * sp  # exact int arithmetic
@@ -155,7 +131,7 @@ def gen_ptcl(conf):
 
     vel = jnp.zeros_like(disp)
 
-    ptcl = Particles(pmid, disp, vel=vel)
+    ptcl = Particles(conf, pmid, disp, vel=vel)
 
     return ptcl
 
@@ -167,8 +143,8 @@ def ptcl_pos(ptcl, conf, dtype=None, wrap=True):
     ----------
     ptcl : Particles
     conf : Configuration
-    dtype : jax.numpy.dtype, optional
-        Output float dtype. Default is conf.float_dtype.
+    dtype : dtype_like, optional
+        Output float dtype. If None (default), conf.float_dtype.
     wrap : bool, optional
         Whether to wrap around the periodic boundaries.
 
@@ -204,7 +180,7 @@ def ptcl_rpos(ptcl1, ptcl0, conf, wrap=True):
 
     Returns
     -------
-    rpos : jax.numpy.ndarray
+    rpos : jax.numpy.ndarray of cosmo.conf.float_dtype
         Particle relative positions.
 
     """
@@ -235,7 +211,7 @@ def ptcl_rsd(ptcl, los, a, cosmo):
 
     Returns
     -------
-    rsd : jax.numpy.ndarray
+    rsd : jax.numpy.ndarray of cosmo.conf.float_dtype
         Particle redshift-space distortion displacements.
 
     """
@@ -265,13 +241,12 @@ def ptcl_los(ptcl, obs, conf):
 
     Returns
     -------
-    los : jax.numpy.ndarray
+    los : jax.numpy.ndarray of cosmo.conf.float_dtype
         Particles line-of-sight unit vectors.
 
     """
     if not isinstance(obs, Particles):
-        obs = jnp.asarray(obs, conf.float_dtype)
-        obs = Particles.from_pos(obs, conf, wrap=False)
+        obs = Particles.from_pos(conf, obs, wrap=False)
 
     los = ptcl_rpos(ptcl, obs, conf, wrap=False)
     los /= jnp.linalg.norm(los, axis=1, keepdims=True)
