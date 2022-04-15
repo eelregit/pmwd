@@ -44,6 +44,8 @@ class Configuration:
     transfer_fit : bool, optional
         Whether to use Eisenstein & Hu fit to transfer function. Default is True
         (subject to change when False is implemented).
+    transfer_fit_nowiggle : bool, optional
+        Whether to use non-oscillatory transfer function fit. Default is False.
     transfer_size : int, optional
         Transfer function table size. Wavenumbers ``transfer_k`` are log spaced spanning
         the full range of mesh scales, from the (minimum) fundamental frequency to the
@@ -103,6 +105,7 @@ class Configuration:
     T: float = 1 / H_0_SI
 
     transfer_fit: bool = True
+    transfer_fit_nowiggle: bool = False
     transfer_size: int = 1024
 
     growth_rtol: Optional[float] = None
