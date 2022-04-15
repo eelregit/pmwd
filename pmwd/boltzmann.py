@@ -8,14 +8,14 @@ from pmwd.cosmology import H_deriv, Omega_m_a
 
 
 def transfer_integ(cosmo):
-    if cosmo.conf.transfer_fit:
+    if cosmo.conf.transfer_fit or cosmo.transfer is not None:
         return cosmo
     else:
         raise NotImplementedError('TODO')
 
 
 # TODO maybe need to checkpoint EH for memory?
-# TODO Wayne's website
+# TODO Wayne's website: neutrino no wiggle case
 def transfer_fit(k, cosmo):
     """Eisenstein & Hu fit of matter transfer function at given wavenumbers.
 
@@ -36,116 +36,78 @@ def transfer_fit(k, cosmo):
     """
     conf = cosmo.conf
 
-    k = jnp.asarray(k)
+    k = jnp.asarray(k, dtype=conf.float_dtype)
+    cosmo = cosmo.astype(conf.float_dtype)
 
     k = k * cosmo.h / conf.L * conf.Mpc_SI  # unit conversion to [1/Mpc]
 
-    #############################################
-    # Quantities computed from 1998:EisensteinHu
-    # Provides : - k_eq   : scale of the particle horizon at equality epoch
-    #            - z_eq   : redshift of equality epoch
-    #            - R_eq   : ratio of the baryon to photon momentum density at z_eq
-    #            - z_d    : redshift of drag epoch
-    #            - R_d    : ratio of the baryon to photon momentum density at z_d
-    #            - sh_d   : sound horizon at drag epoch
-    #            - k_silk : Silk damping scale
     T2_cmb_norm = (conf.T_cmb / 2.7)**2
     h2 = cosmo.h**2
     w_m = cosmo.Omega_m * h2
-    w_b = cosmo.Omega_b * h2
-    f_b = cosmo.Omega_b / cosmo.Omega_m
-    f_c = (cosmo.Omega_m - cosmo.Omega_b) / cosmo.Omega_m  # TODO Omega_c or neutrinos
+    Omega_b = 0 if cosmo.Omega_b is None else cosmo.Omega_b
+    w_b = Omega_b * h2
+    f_b = Omega_b / cosmo.Omega_m
+    f_c = cosmo.Omega_c / cosmo.Omega_m  # TODO neutrinos?
 
-    k_eq = 7.46e-2 * w_m / T2_cmb_norm  # Eq. (3)
-    z_eq = 2.50e4 * w_m / T2_cmb_norm**2  # Eq. (2)
+    z_eq = 2.50e4 * w_m / T2_cmb_norm**2
+    k_eq = 7.46e-2 * w_m / T2_cmb_norm
 
-    # z drag from Eq. (4)
-    b1 = 0.313 * w_m**-0.419 * (1.0 + 0.607 * w_m**0.674)
+    b1 = 0.313 * w_m**-0.419 * (1 + 0.607 * w_m**0.674)
     b2 = 0.238 * w_m**0.223
-    z_d = 1291.0 * w_m**0.251 / (1.0 + 0.659 * w_m**0.828) * (1.0 + b1 * w_b**b2)
+    z_d = 1291 * w_m**0.251 / (1 + 0.659 * w_m**0.828) * (1 + b1 * w_b**b2)
 
-    # Ratio of the baryon to photon momentum density at z_d Eq. (5)
-    R_d = 31.5 * w_b / T2_cmb_norm**2 * (1.0e3 / z_d)  # TODO what's the 0 in 1.0e3?
-    # Ratio of the baryon to photon momentum density at z_eq Eq. (5)
-    R_eq = 31.5 * w_b / T2_cmb_norm**2 * (1.0e3 / z_eq)
-    # Sound horizon at drag epoch Eq. (6)
-    sh_d = (
-        2.0
-        / (3.0 * k_eq)
-        * jnp.sqrt(6.0 / R_eq)
-        * jnp.log((jnp.sqrt(1.0 + R_d) + jnp.sqrt(R_eq + R_d)) / (1.0 + jnp.sqrt(R_eq)))
+    R_d = 31.5 * w_b / T2_cmb_norm**2 * (1e3 / z_d)
+    R_eq = 31.5 * w_b / T2_cmb_norm**2 * (1e3 / z_eq)
+    s = (
+        2 / (3 * k_eq) * jnp.sqrt(6 / R_eq)
+        * jnp.log((jnp.sqrt(1 + R_d) + jnp.sqrt(R_eq + R_d)) / (1 + jnp.sqrt(R_eq)))
     )
-    # Eq. (7)
-    k_silk = 1.6 * w_b**0.52 * w_m**0.73 * (1.0 + (10.4 * w_m)**-0.95)
-    #############################################
+    k_silk = 1.6 * w_b**0.52 * w_m**0.73 * (1 + (10.4 * w_m)**-0.95)
 
-    type = "eisenhu_osc"  # FIXME HACK
-    if type == "eisenhu":
-        alpha_gamma = (
-            1.0
-            - 0.328 * jnp.log(431.0 * w_m) * f_b
-            + 0.38 * jnp.log(22.3 * w_m) * f_b**2
-        )
-        gamma_eff = (
-            w_m
-            * (alpha_gamma + (1.0 - alpha_gamma) / (1.0 + (0.43 * k * sh_d)**4))
-        )  # TODO w_m vs Om*h as shape parameter
+    if conf.transfer_fit_nowiggle:
+        alpha_gamma = (1 - 0.328 * jnp.log(431 * w_m) * f_b
+                       + 0.38 * jnp.log(22.3 * w_m) * f_b**2)
+        gamma_eff_ratio = alpha_gamma + (1 - alpha_gamma) / (1 + (0.43 * k * s)**4)
 
-        q = k * T2_cmb_norm / gamma_eff
+        q_eff = k / (13.41 * k_eq * gamma_eff_ratio)
 
-        # EH98 (29) TODO Eq. vs EH98
-        L = jnp.log(2.0 * jnp.e + 1.8 * q)
-        C = 14.2 + 731.0 / (1.0 + 62.5 * q)
-        T = L / (L + C * q**2)
+        L0 = jnp.log(2 * jnp.e + 1.8 * q_eff)
+        C0 = 14.2 + 731 / (1 + 62.5 * q_eff)
+        T0 = L0 / (L0 + C0 * q_eff**2)
 
-    elif type == "eisenhu_osc":
-        # Cold dark matter transfer function
+        return T0
 
-        # EH98 (11, 12)
-        a1 = (46.9 * w_m)**0.670 * (1.0 + (32.1 * w_m)**-0.532)
-        a2 = (12.0 * w_m)**0.424 * (1.0 + (45.0 * w_m)**-0.582)
-        alpha_c = a1**-f_b * a2**-f_b**3
-        b1 = 0.944 / (1.0 + (458.0 * w_m)**-0.708)
-        b2 = (0.395 * w_m)**-0.0266
-        beta_c = 1.0 + b1 * (f_c**b2 - 1.0)
-        beta_c = 1.0 / beta_c
+    a1 = (46.9 * w_m)**0.670 * (1 + (32.1 * w_m)**-0.532)
+    a2 = (12.0 * w_m)**0.424 * (1 + (45.0 * w_m)**-0.582)
+    alpha_c = a1**-f_b * a2**-f_b**3
+    b1 = 0.944 / (1 + (458 * w_m)**-0.708)
+    b2 = (0.395 * w_m)**-0.0266
+    beta_c = 1 / (1 + b1 * (f_c**b2 - 1))
 
-        # EH98 (19)
-        def T_tilde(k, alpha, beta):
-            # EH98 (10)
-            q = k / (13.41 * k_eq)
-            L = jnp.log(jnp.e + 1.8 * beta * q)
-            C = 14.2 / alpha + 386.0 / (1.0 + 69.9 * q**1.08)
-            T0 = L / (L + C * q**2)
-            return T0
+    def T0_tilde(k, alpha_c, beta_c):
+        q = k / (13.41 * k_eq)
+        L = jnp.log(jnp.e + 1.8 * beta_c * q)
+        C = 14.2 / alpha_c + 386 / (1 + 69.9 * q**1.08)
+        T0 = L / (L + C * q**2)
+        return T0
 
-        # EH98 (17, 18)
-        f = 1.0 / (1.0 + (k * sh_d / 5.4)**4)
-        T_c = f * T_tilde(k, 1.0, beta_c) + (1.0 - f) * T_tilde(k, alpha_c, beta_c)
+    f = 1 / (1 + (k * s / 5.4)**4)
+    T_c = f * T0_tilde(k, 1, beta_c) + (1 - f) * T0_tilde(k, alpha_c, beta_c)
 
-        # Baryon transfer function
-        # EH98 (19, 14, 21)
-        y = (1.0 + z_eq) / (1.0 + z_d)
-        x = jnp.sqrt(1.0 + y)
-        G_EH98 = y * (-6.0 * x + (2.0 + 3.0 * y) * jnp.log((x + 1.0) / (x - 1.0)))
-        alpha_b = 2.07 * k_eq * sh_d * (1.0 + R_d)**-0.75 * G_EH98
+    y = (1 + z_eq) / (1 + z_d)
+    x = jnp.sqrt(1 + y)
+    G = y * (-6 * x + (2 + 3 * y) * jnp.log((x + 1) / (x - 1)))
+    alpha_b = 2.07 * k_eq * s * (1 + R_d)**-0.75 * G
 
-        beta_node = 8.41 * w_m**0.435
-        tilde_s = k * sh_d / jnp.cbrt(k**3 + (beta_node / sh_d)**3)
+    beta_node = 8.41 * w_m**0.435
+    beta_b = 0.5 + f_b + (3 - 2 * f_b) * jnp.sqrt(1 + (17.2 * w_m)**2)
 
-        beta_b = 0.5 + f_b + (3.0 - 2.0 * f_b) * jnp.sqrt(1.0 + (17.2 * w_m)**2)
+    T_b = (
+        T0_tilde(k, 1, 1) / (1 + (k * s / 5.2)**2)
+        + alpha_b * (k * s)**3 / (beta_b**3 + (k * s)**3) * jnp.exp(-(k / k_silk)**1.4)
+    ) * jnp.sinc((k * s)**2 / (jnp.pi * jnp.cbrt(beta_node**3 + (k * s)**3)))
 
-        T_b = (
-            T_tilde(k, 1.0, 1.0) / (1.0 + (k * sh_d / 5.2)**2)
-            + alpha_b * k**3
-            / (k**3 + (beta_b / sh_d)**3)
-            * jnp.exp(-(k / k_silk)**1.4)
-        ) * jnp.sinc(k * tilde_s / jnp.pi)
-
-        # Total transfer function
-        T = f_c * T_c + f_b * T_b
-    else:
-        raise NotImplementedError
+    T = f_c * T_c + f_b * T_b
 
     return T
 
@@ -185,7 +147,7 @@ def growth_integ(cosmo):
     cosmo : Cosmology
         A new instance containing a growth table, or the input one if it already exists.
         The growth table has the shape ``(num_lpt_order, num_derivatives,
-        num_scale_factors)`` and ``cosmo.conf.growth_dtype``.
+        num_scale_factors)`` and ``cosmo.conf.cosmo_dtype``.
 
     Notes
     -----
@@ -199,7 +161,7 @@ def growth_integ(cosmo):
     conf = cosmo.conf
 
     with ensure_compile_time_eval():
-        eps = jnp.finfo(conf.growth_dtype).eps
+        eps = jnp.finfo(conf.cosmo_dtype).eps
         growth_a_ic = 0.5 * jnp.cbrt(eps).item()  # ~ 3e-6 for float64, 2e-3 for float32
         if growth_a_ic >= conf.a_lpt_step:
             growth_a_ic = 0.1 * conf.a_lpt_step
@@ -209,7 +171,7 @@ def growth_integ(cosmo):
 
     num_order, num_deriv, num_a = 2, 3, len(a)
 
-    # TODO add lpt_order support
+    # TODO necessary to add lpt_order support?
     # G and lna can either be at a single time, or have leading time axes
     def ode(G, lna, cosmo):
         a = jnp.exp(lna)
@@ -220,7 +182,7 @@ def growth_integ(cosmo):
         Gpp_2 = Omega_fac * G_1**2 + (-8 - 2*H_fac + Omega_fac) * G_2 + (-6 - H_fac) * Gp_2
         return jnp.concatenate((Gp_1, Gpp_1, Gp_2, Gpp_2), axis=-1)
 
-    G_ic = jnp.array((1, 0, 3/7, 0), dtype=conf.growth_dtype)
+    G_ic = jnp.array((1, 0, 3/7, 0), dtype=conf.cosmo_dtype)
 
     G = odeint(ode, G_ic, lna, cosmo, rtol=conf.growth_rtol, atol=conf.growth_atol)
 
@@ -243,7 +205,7 @@ def growth_integ(cosmo):
     return cosmo.replace(growth=growth)
 
 
-# TODO add 3rd order, which has two factors, so `order` probably need to support str
+# TODO 3rd order has two factors, so `order` probably need to support str
 @partial(jit, static_argnames=('order', 'deriv'))
 def growth(a, cosmo, order=1, deriv=0):
     """Evaluate interpolation of (LPT) growth function or derivative, the n-th
@@ -263,7 +225,7 @@ def growth(a, cosmo, order=1, deriv=0):
 
     Returns
     -------
-    D : jax.numpy.ndarray of cosmo.conf.growth_dtype
+    D : jax.numpy.ndarray of cosmo.conf.cosmo_dtype
         Growth functions or derivatives.
 
     Raises
@@ -277,7 +239,7 @@ def growth(a, cosmo, order=1, deriv=0):
 
     conf = cosmo.conf
 
-    a = jnp.asarray(a, dtype=conf.growth_dtype)
+    a = jnp.asarray(a, dtype=conf.cosmo_dtype)
 
     D = a**order * jnp.interp(a, conf.growth_a, cosmo.growth[order-1][deriv])
 
@@ -295,22 +257,18 @@ def boltzmann(cosmo):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing transfer (TODO) and growth tables, or the input one if
-        it already exists.
-
-    Notes
-    -----
-    Eisenstein-Hu approximation to transfer function is used instead for now.
+        A new instance containing transfer and growth tables, or the input one if they
+        already exists.
 
     """
     cosmo = transfer_integ(cosmo)
     cosmo = growth_integ(cosmo)
-    return cosmo * jnp.array(1, dtype=cosmo.conf.growth_dtype)  # FIXME HACK, cosmo_dtype?
+    return cosmo
 
 
 @custom_vjp
 def _safe_power(x1, x2):
-    """Safe power function for x1==0 and x2<1."""
+    """Safe power function for x1==0 and 0<x2<1. x2 must be a scalar."""
     return x1 ** x2
 
 def _safe_power_fwd(x1, x2):
@@ -323,8 +281,7 @@ def _safe_power_bwd(res, y_cot):
     x1_cot = jnp.where(x1 != 0, x2 * y / x1 * y_cot, 0)
 
     lnx1 = jnp.where(x1 != 0, jnp.log(x1), 0)
-    x2_cot = (lnx1 * y * y_cot).sum()  # FIXME HACK only works for scalar x2
-    #x2_cot = x2_cot.astype(float)  # FIXME dtype HACK?  # TODO is this a odeint bug?
+    x2_cot = (lnx1 * y * y_cot).sum()
 
     return x1_cot, x2_cot
 
