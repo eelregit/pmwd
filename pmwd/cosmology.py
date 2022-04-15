@@ -1,68 +1,82 @@
-from dataclasses import field
+from dataclasses import field, fields
 from functools import partial
 from operator import add, sub
-from pprint import pformat
-from typing import Optional
+from typing import Optional, Union
 
+import numpy as np
 from jax import value_and_grad
 import jax.numpy as jnp
 from jax.tree_util import tree_map
 
-from pmwd.conf import Configuration
 from pmwd.tree_util import pytree_dataclass
+from pmwd.conf import Configuration
 
 
+FloatParam = Union[float, jnp.ndarray]
+
+
+# TODO really a bad idea to add leading or trailing underscores to Omega_b, w_a, etc?
 @partial(pytree_dataclass, aux_fields="conf", frozen=True)
 class Cosmology:
     """Cosmological and configuration parameters, "immutable" as a frozen dataclass.
-    Cosmological parameters are traced by JAX while configuration parameters are not.
+
+    Extension parameters have None as default values. Set them explicitly to activate
+    them, e.g., for their gradients.
+
+    Linear operators (addition, subtraction, and scalar multiplication) are defined for
+    Cosmology tangent and cotangent vectors.
+
+    Float parameters are converted to JAX arrays of conf.cosmo_dtype at instantiation,
+    to avoid possible JAX weak type problems.
 
     Parameters
     ----------
     conf : Configuration
-        Configuration parameters, not traced by JAX.
-    A_s_1e9 : float
+        Configuration parameters.
+    A_s_1e9 : float or jax.numpy.ndarray
         Primordial scalar power spectrum amplitude, multiplied by 1e9.
-    n_s : float
+    n_s : float or jax.numpy.ndarray
         Primordial scalar power spectrum spectral index.
-    Omega_m : float
+    Omega_m : float or jax.numpy.ndarray
         Total matter density parameter today.
-    Omega_b : float
-        Baryonic matter density parameter today.
-    Omega_k : float or None, optional
+    Omega_b : float, jax.numpy.ndarray, or None
+        Baryonic matter density parameter today. If None, dark matter only.
+    Omega_k : None, float, or jax.numpy.ndarray, optional
         Spatial curvature density parameter today. If None (default), Omega_k is 0.
-    w_0 : float or None, optional
+    w_0 : None, float, or jax.numpy.ndarray, optional
         Dark energy equation of state (0th order) parameter. If None (default), w is -1.
-    w_a : float or None, optional
+    w_a : None, float, or jax.numpy.ndarray, optional
         Dark energy equation of state (linear) parameter. If None (default), w_a is 0.
-    h : float
+    h : float or jax.numpy.ndarray
         Hubble constant in unit of 100 [km/s/Mpc].
-
-    Notes
-    -----
-    For (extension) parameters with None as default values, one needs to set them
-    explicitly to some values to receive their gradients.
 
     """
 
     conf: Configuration = field(repr=False)
 
-    A_s_1e9: float
-    n_s: float
-    Omega_m: float
-    Omega_b: float
-    h: float
+    A_s_1e9: FloatParam
+    n_s: FloatParam
+    Omega_m: FloatParam
+    Omega_b: FloatParam
+    h: FloatParam
 
-    Omega_k: Optional[float] = None
-    w_0: Optional[float] = None
-    w_a: Optional[float] = None
+    Omega_k: Optional[FloatParam] = None
+    w_0: Optional[FloatParam] = None
+    w_a: Optional[FloatParam] = None
 
-    transfer: Optional[jnp.ndarray] = field(default=None, repr=False, compare=False)
+    transfer: Optional[jnp.ndarray] = field(default=None, compare=False)
 
-    growth: Optional[jnp.ndarray] = field(default=None, repr=False, compare=False)
+    growth: Optional[jnp.ndarray] = field(default=None, compare=False)
 
-    def __str__(self):
-        return pformat(self, indent=4, width=1)  # for python >= 3.10
+    def __post_init__(self):
+        if self._is_transforming():
+            return
+
+        dtype = self.conf.cosmo_dtype
+        for field in fields(self):
+            value = getattr(self, field.name)
+            value = tree_map(lambda x: jnp.asarray(x, dtype=dtype), value)
+            object.__setattr__(self, field.name, value)
 
     def __add__(self, other):
         return tree_map(add, self, other)
@@ -76,12 +90,15 @@ class Cosmology:
     def __rmul__(self, other):
         return self.__mul__(other)
 
+    def astype(self, dtype):
+        """Cast parameters to dtype by changing conf.cosmo_dtype."""
+        conf = self.conf.replace(cosmo_dtype=dtype)
+        return self.replace(conf=conf)  # calls __post_init__
+
     @property
     def k_pivot(self):
         """Primordial scalar power spectrum pivot scale in [1/L].
 
-        Notes
-        -----
         Pivot scale is defined h-less unit, so needs h to convert its unit to [1/L].
 
         """
@@ -90,19 +107,23 @@ class Cosmology:
     @property
     def Omega_c(self):
         """Cold dark matter density parameter today."""
-        return self.Omega_m - self.Omega_b
+        Omega_b = 0 if self.Omega_b is None else self.Omega_b
+        return self.Omega_m - Omega_b
 
     @property
     def Omega_de(self):
         """Dark energy density parameter today."""
-        Omk = self.Omega_m if self.Omega_k is None else self.Omega_m + self.Omega_k
-        return 1 - Omk
+        Omega_mk = self.Omega_m if self.Omega_k is None else self.Omega_m + self.Omega_k
+        return 1 - Omega_mk
 
     @property
     def ptcl_mass(self):
         """Particle mass in [M]."""
         return self.conf.rho_crit * self.Omega_m * self.conf.ptcl_cell_vol
 
+
+DMO = partial(Cosmology, Omega_b=None)
+DMO.__doc__ = "Dark matter only cosmology."
 
 SimpleLCDM = partial(
     Cosmology,
@@ -137,7 +158,7 @@ def E2(a, cosmo):
 
     Returns
     -------
-    E2 : jax.numpy.ndarray
+    E2 : jax.numpy.ndarray of cosmo.conf.cosmo_dtype
         Squared Hubble parameter time scaling factors.
 
     Notes
@@ -156,10 +177,12 @@ def E2(a, cosmo):
                  + \Omega_\mathrm{de} a^{-3 (1 + w_0 + w_a)} e^{-3 w_a (1 - a)}.
 
     """
-    a = jnp.asarray(a)
+    a = jnp.asarray(a, dtype=cosmo.conf.cosmo_dtype)
+
     Oka2 = 0 if cosmo.Omega_k is None else cosmo.Omega_k * a**-2
     w_0 = -1 if cosmo.w_0 is None else cosmo.w_0
     w_a = 0 if cosmo.w_a is None else cosmo.w_a
+
     de_a = (a**(-3 * (1 + w_0 + w_a))
            * jnp.exp(-3 * w_a * (1 - a)))
     return cosmo.Omega_m * a**-3 + Oka2 + cosmo.Omega_de * de_a
@@ -178,12 +201,15 @@ def H_deriv(a, cosmo):
 
     Returns
     -------
-    dlnH_dlna : jax.numpy.ndarray
+    dlnH_dlna : jax.numpy.ndarray of cosmo.conf.cosmo_dtype
         Hubble parameter derivatives.
 
     """
+    a = jnp.asarray(a, dtype=cosmo.conf.cosmo_dtype)
+
     E2_value, E2_grad = value_and_grad(E2)(a, cosmo)
     dlnH_dlna = 0.5 * a * E2_grad / E2_value
+
     return dlnH_dlna
 
 
@@ -198,7 +224,7 @@ def Omega_m_a(a, cosmo):
 
     Returns
     -------
-    Omega : jax.numpy.ndarray
+    Omega : jax.numpy.ndarray of cosmo.conf.cosmo_dtype
         Matter density parameters.
 
     Notes
@@ -209,5 +235,5 @@ def Omega_m_a(a, cosmo):
         \Omega_\mathrm{m}(a) = \frac{\Omega_\mathrm{m} a^{-3}}{E^2(a)}
 
     """
-    a = jnp.asarray(a)
+    a = jnp.asarray(a, dtype=cosmo.conf.cosmo_dtype)
     return cosmo.Omega_m / (a**3 * E2(a, cosmo))
