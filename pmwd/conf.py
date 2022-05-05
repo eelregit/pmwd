@@ -1,6 +1,6 @@
 from functools import partial
 from math import ceil
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, Tuple
 
 from numpy.typing import DTypeLike
 import jax
@@ -79,10 +79,9 @@ class Configuration:
     """
 
     cell_size: float
-    #max_disp_to_box_size_ratio: float  # shortest axis  # TODO recall what was this?
-    mesh_shape: tuple[int, ...]
+    mesh_shape: Tuple[int, ...]  # tuple[int, ...] for python >= 3.9 (PEP 585)
 
-    ptcl_grid_shape: Optional[tuple[int, ...]] = None
+    ptcl_grid_shape: Optional[Tuple[int, ...]] = None
 
     cosmo_dtype: DTypeLike = jnp.dtype(jnp.float64)
     pmid_dtype: DTypeLike = jnp.dtype(jnp.int16)
