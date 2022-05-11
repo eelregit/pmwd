@@ -54,8 +54,8 @@ class Configuration:
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
         Absolute tolerance for solving the growth ODEs.
-    lpt_order : int in {1, 2}, optional
-        LPT order. TODO: add 3rd order.
+    lpt_order : int, optional
+        LPT order, with 1 for Zel'dovich approximation, 2 for 2LPT, and 3 for 3LPT.
     a_start : float, optional
         LPT scale factor and N-body starting time.
     a_stop : float, optional
@@ -89,7 +89,7 @@ class Configuration:
 
     k_pivot_Mpc: float = 0.05
 
-    T_cmb: float = 2.726
+    T_cmb: float = 2.7255  # Fixsen 2009, arXiv:0911.1955
 
     # constants in SI units, as class variables
     M_sun_SI: ClassVar[float] = 1.98847e30  # solar mass in kg
