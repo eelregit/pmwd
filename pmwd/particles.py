@@ -31,11 +31,11 @@ class Particles:
         Particles' IDs by mesh indices, of signed int dtype. They are the nearest mesh
         grid points from particles' Lagrangian positions.
     disp : array_like
-        Particles' (comoving) displacements from pmid in [L], or adjoint. For
-        displacements from particles' Lagrangian positions, use ``ptcl.disp -
-        gen_ptcl(conf).disp``.
+        Particles' comoving displacements from pmid in [L], or adjoint. For
+        displacements from particles' grid Lagrangian positions, use ``ptcl_rpos(ptcl,
+        Particles.gen_grid(ptcl.conf), ptcl.conf)``.  # TODO maybe a real_disp property
     vel : array_like, optional
-        Particles' canonical momenta in [H_0 L], or adjoint.
+        Particles' canonical velocity in [H_0 L], or adjoint.
     acc : array_like, optional
         Particles' accelerations in [H_0^2 L], or force vjp.
     attr : pytree, optional
@@ -56,7 +56,7 @@ class Particles:
             return
 
         conf = self.conf
-        for field in fields(self):
+        for field in fields(self):  # FIXME only pytree children?
             value = getattr(self, field.name)
             dtype = conf.pmid_dtype if field.name == 'pmid' else conf.float_dtype
             value = tree_map(
@@ -97,43 +97,37 @@ class Particles:
 
         return cls(conf, pmid, disp)
 
+    @classmethod
+    def gen_grid(cls, conf):
+        """Generate particles on a uniform grid with zero velocities.
 
-def gen_ptcl(conf):
-    """Generate particles on a uniform grid with zero velocities.
+        Parameters
+        ----------
+        conf : Configuration
 
-    Parameters
-    ----------
-    conf : Configuration
+        """
+        pmid, disp = [], []
+        for i, (sp, sm) in enumerate(zip(conf.ptcl_grid_shape, conf.mesh_shape)):
+            pmid_1d = jnp.linspace(0, sm, num=sp, endpoint=False)
+            pmid_1d = jnp.rint(pmid_1d)
+            pmid_1d = pmid_1d.astype(conf.pmid_dtype)
+            pmid.append(pmid_1d)
 
-    Returns
-    -------
-    ptcl : Particles
-        Particles on a uniform grid with zero velocities.
+            # exact int arithmetic
+            disp_1d = jnp.arange(sp) * sm - pmid_1d.astype(int) * sp
+            disp_1d *= conf.cell_size / sp
+            disp_1d = disp_1d.astype(conf.float_dtype)
+            disp.append(disp_1d)
 
-    """
-    pmid, disp = [], []
-    for i, (sp, sm) in enumerate(zip(conf.ptcl_grid_shape, conf.mesh_shape)):
-        pmid_1d = jnp.linspace(0, sm, num=sp, endpoint=False)
-        pmid_1d = jnp.rint(pmid_1d)
-        pmid_1d = pmid_1d.astype(conf.pmid_dtype)
-        pmid.append(pmid_1d)
+        pmid = jnp.meshgrid(*pmid, indexing='ij')
+        pmid = jnp.stack(pmid, axis=-1).reshape(-1, conf.dim)
 
-        disp_1d = jnp.arange(sp) * sm - pmid_1d.astype(int) * sp  # exact int arithmetic
-        disp_1d *= conf.cell_size / sp
-        disp_1d = disp_1d.astype(conf.float_dtype)
-        disp.append(disp_1d)
+        disp = jnp.meshgrid(*disp, indexing='ij')
+        disp = jnp.stack(disp, axis=-1).reshape(-1, conf.dim)
 
-    pmid = jnp.meshgrid(*pmid, indexing='ij')
-    pmid = jnp.stack(pmid, axis=-1).reshape(-1, conf.dim)
+        vel = jnp.zeros_like(disp)
 
-    disp = jnp.meshgrid(*disp, indexing='ij')
-    disp = jnp.stack(disp, axis=-1).reshape(-1, conf.dim)
-
-    vel = jnp.zeros_like(disp)
-
-    ptcl = Particles(conf, pmid, disp, vel=vel)
-
-    return ptcl
+        return cls(conf, pmid, disp, vel=vel)
 
 
 def ptcl_pos(ptcl, conf, dtype=None, wrap=True):
