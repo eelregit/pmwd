@@ -5,15 +5,15 @@ from jax import jit, custom_vjp, checkpoint, ensure_compile_time_eval
 from jax import random
 import jax.numpy as jnp
 
-from pmwd.particles import gen_ptcl
+from pmwd.particles import Particles
 from pmwd.cosmology import E2
 from pmwd.boltzmann import growth, linear_power
 from pmwd.gravity import rfftnfreq, laplace, neg_grad
 
 
 #TODO follow pmesh to fill the modes in Fourier space
-@partial(jit, static_argnames=('fix_amp', 'negate'))
-def white_noise(seed, conf, fix_amp=False, negate=False):
+@partial(jit, static_argnames=('unit_abs', 'negate'))
+def white_noise(seed, conf, unit_abs=False, negate=False):
     """White noise Fourier modes.
 
     Parameters
@@ -21,8 +21,8 @@ def white_noise(seed, conf, fix_amp=False, negate=False):
     seed : int
         Seed for the pseudo-random number generator.
     conf : Configuration
-    fix_amp : bool, optional
-        Whether to fix the amplitudes to 1.
+    unit_abs : bool, optional
+        Whether to set the absolute values to 1.
     negate : bool, optional
         Whether to reverse the signs (180° phase flips).
 
@@ -39,7 +39,7 @@ def white_noise(seed, conf, fix_amp=False, negate=False):
 
     modes = jnp.fft.rfftn(modes, norm='ortho')
 
-    if fix_amp:
+    if unit_abs:
         modes /= jnp.abs(modes)
 
     if negate:
@@ -91,13 +91,24 @@ def linear_modes(kvec, a, modes, cosmo):
     return modes
 
 
-def _strain(k_i, k_j, pot, conf):
-    """LPT strain component sourced by scalar potential only."""
+def _strain(kvec, i, j, pot, conf):
+    """LPT strain component sourced by scalar potential only.
+
+     The Nyquist planes are not zeroed when i == j.
+
+    .. _Notes on FFT-based differentiation:
+        https://math.mit.edu/~stevenj/fft-deriv.pdf
+
+    """
+    k_i, k_j = kvec[i], kvec[j]
+
     nyquist = jnp.pi / conf.ptcl_spacing
     eps = nyquist * jnp.finfo(conf.float_dtype).eps
 
-    k_i = jnp.where(jnp.abs(jnp.abs(k_i) - nyquist) <= eps, 0, k_i)
-    k_j = jnp.where(jnp.abs(jnp.abs(k_j) - nyquist) <= eps, 0, k_j)
+    #TODO test if more accurate
+    if i != j:
+        k_i = jnp.where(jnp.abs(jnp.abs(k_i) - nyquist) <= eps, 0, k_i)
+        k_j = jnp.where(jnp.abs(jnp.abs(k_j) - nyquist) <= eps, 0, k_j)
 
     strain = -k_i * k_j * pot
 
@@ -115,16 +126,16 @@ def _L(kvec, pot_m, pot_n, conf):
     L = jnp.zeros(conf.ptcl_grid_shape, dtype=conf.float_dtype)
 
     for i in range(conf.dim):
-        strain_m = _strain(kvec[i], kvec[i], pot_m, conf)
+        strain_m = _strain(kvec, i, i, pot_m, conf)
 
         for j in range(conf.dim-1, i, -1):
-            strain_n = _strain(kvec[j], kvec[j], pot_n, conf)
+            strain_n = _strain(kvec, j, j, pot_n, conf)
 
             L += strain_m * strain_n
 
         if not m_eq_n:
             for j in range(i-1, -1, -1):
-                strain_n = _strain(kvec[j], kvec[j], pot_n, conf)
+                strain_n = _strain(kvec, j, j, pot_n, conf)
 
                 L += strain_m * strain_n
 
@@ -135,11 +146,11 @@ def _L(kvec, pot_m, pot_n, conf):
     # for lpt_order <=3, i.e., m, n <= 2
     for i in range(conf.dim-1):
         for j in range(i+1, conf.dim):
-            strain_m = _strain(kvec[i], kvec[j], pot_m, conf)
+            strain_m = _strain(kvec, i, j, pot_m, conf)
 
             strain_n = strain_m
             if not m_eq_n:
-                strain_n = _strain(kvec[j], kvec[i], pot_n, conf)
+                strain_n = _strain(kvec, j, i, pot_n, conf)
 
             L -= strain_m * strain_n
 
@@ -176,15 +187,32 @@ def _M(kvec, pot, conf):
 
     for indices in permutations(range(conf.dim), r=3):
         i, j, k = indices
-        strain_0i = _strain(kvec[0], kvec[i], pot, conf)
-        strain_1j = _strain(kvec[1], kvec[j], pot, conf)
-        strain_2k = _strain(kvec[2], kvec[k], pot, conf)
+        strain_0i = _strain(kvec, 0, i, pot, conf)
+        strain_1j = _strain(kvec, 1, j, pot, conf)
+        strain_2k = _strain(kvec, 2, k, pot, conf)
 
         with ensure_compile_time_eval():
             epsilon = levi_civita(indices)
         M += epsilon * strain_0i * strain_1j * strain_2k
 
     return M
+
+
+def next_fast_len(n):
+    """Find the next fast size to FFT.
+
+    .. _scipy fftpack next_fast_len:
+        https://github.com/scipy/scipy/blob/v1.8.0/scipy/fftpack/_helper.py
+    .. _cupy scipy fft next_fast_len:
+        https://github.com/cupy/cupy/blob/v10.4.0/cupyx/scipy/fft/_helper.py
+    .. _JuliaDSP DSP.jl util:
+        https://github.com/JuliaDSP/DSP.jl/blob/v0.7.5/src/util.jl#L109-L116
+    .. _JuliaLang julia combinatorics:
+        https://github.com/JuliaLang/julia/blob/v1.7.2/base/combinatorics.jl#L299-L316
+    .. _nextprod-py:
+        https://github.com/fasiha/nextprod-py
+    """
+    raise NotImplementedError
 
 
 @jit
@@ -219,7 +247,7 @@ def lpt(modes, cosmo):
     kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
     modes = linear_modes(kvec, None, modes, cosmo)  # not scaled by growth
-    modes *= 1 / conf.ptcl_cell_vol  # remove volume factor first for convenience
+    modes /= conf.ptcl_cell_vol  # remove volume factor first for convenience
 
     pot = []
 
@@ -241,12 +269,15 @@ def lpt(modes, cosmo):
         raise NotImplementedError('TODO')
 
     a = conf.a_start
-    ptcl = gen_ptcl(conf)
+    ptcl = Particles.gen_grid(conf)
 
     for order in range(1, 1+conf.lpt_order):
-        D = growth(a, cosmo, order=order).astype(conf.float_dtype)
-        dD_dlna = growth(a, cosmo, order=order, deriv=1).astype(conf.float_dtype)
+        D = growth(a, cosmo, order=order)
+        dD_dlna = growth(a, cosmo, order=order, deriv=1)
         a2HDp = a**2 * jnp.sqrt(E2(a, cosmo)) * dD_dlna
+        D = D.astype(conf.float_dtype)
+        dD_dlna = dD_dlna.astype(conf.float_dtype)
+        a2HDp = a2HDp.astype(conf.float_dtype)
 
         for i, k in enumerate(kvec):
             grad = neg_grad(k, pot[order-1], conf.ptcl_spacing)
@@ -260,6 +291,6 @@ def lpt(modes, cosmo):
             vel = ptcl.vel.at[:, i].add(a2HDp * grad)
             ptcl = ptcl.replace(disp=disp, vel=vel)
 
-    obsvbl = None  # TODO cubic Hermite interp lightcone as in nbody
+    obsvbl = None  # TODO cubic Hermite interp light cone as in nbody
 
     return ptcl, None
