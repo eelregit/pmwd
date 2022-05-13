@@ -3,10 +3,10 @@
 
 from pmwd.tree_util import pytree_dataclass
 from pmwd.conf import Configuration
-from pmwd.cosmology import Cosmology, DMO, SimpleLCDM, Planck18, E2, H_deriv, Omega_m_a
+from pmwd.cosmology import Cosmology, SimpleLCDM, Planck18, E2, H_deriv, Omega_m_a
 from pmwd.boltzmann import (transfer_integ, transfer_fit, transfer,
                             growth_integ, growth, boltzmann, linear_power)
-from pmwd.particles import Particles, gen_ptcl, ptcl_pos, ptcl_rpos, ptcl_rsd, ptcl_los
+from pmwd.particles import Particles, ptcl_pos, ptcl_rpos, ptcl_rsd, ptcl_los
 from pmwd.scatter import scatter
 from pmwd.gather import gather
 from pmwd.gravity import rfftnfreq, laplace, neg_grad, gravity
