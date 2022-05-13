@@ -27,7 +27,7 @@ def transfer_fit(k, cosmo):
 
     Returns
     -------
-    T : jax.numpy.ndarray
+    T : jax.numpy.ndarray of cosmo.conf.float_dtype
         Matter transfer function.
 
     .. _Transfer Function:
@@ -44,9 +44,8 @@ def transfer_fit(k, cosmo):
     T2_cmb_norm = (conf.T_cmb / 2.7)**2
     h2 = cosmo.h**2
     w_m = cosmo.Omega_m * h2
-    Omega_b = 0 if cosmo.Omega_b is None else cosmo.Omega_b
-    w_b = Omega_b * h2
-    f_b = Omega_b / cosmo.Omega_m
+    w_b = cosmo.Omega_b * h2
+    f_b = cosmo.Omega_b / cosmo.Omega_m
     f_c = cosmo.Omega_c / cosmo.Omega_m  # TODO neutrinos?
 
     z_eq = 2.50e4 * w_m / T2_cmb_norm**2
@@ -162,12 +161,12 @@ def growth_integ(cosmo):
 
     with ensure_compile_time_eval():
         eps = jnp.finfo(conf.cosmo_dtype).eps
-        growth_a_ic = 0.5 * jnp.cbrt(eps).item()  # ~ 3e-6 for float64, 2e-3 for float32
-        if growth_a_ic >= conf.a_lpt_step:
-            growth_a_ic = 0.1 * conf.a_lpt_step
+        a_ic = 0.5 * jnp.cbrt(eps).item()  # ~ 3e-6 for float64, 2e-3 for float32
+        if a_ic >= conf.a_lpt_step:
+            a_ic = 0.1 * conf.a_lpt_step
 
     a = conf.growth_a
-    lna = jnp.log(a.at[0].set(growth_a_ic))
+    lna = jnp.log(a.at[0].set(a_ic))
 
     num_order, num_deriv, num_a = 2, 3, len(a)
 
@@ -175,12 +174,12 @@ def growth_integ(cosmo):
     # G and lna can either be at a single time, or have leading time axes
     def ode(G, lna, cosmo):
         a = jnp.exp(lna)
-        H_fac = H_deriv(a, cosmo)
+        dlnH_dlna = H_deriv(a, cosmo)
         Omega_fac = 1.5 * Omega_m_a(a, cosmo)
-        G_1, Gp_1, G_2, Gp_2 = jnp.split(G, num_order * (num_deriv-1), axis=-1)
-        Gpp_1 = (-3 - H_fac + Omega_fac) * G_1 + (-4 - H_fac) * Gp_1
-        Gpp_2 = Omega_fac * G_1**2 + (-8 - 2*H_fac + Omega_fac) * G_2 + (-6 - H_fac) * Gp_2
-        return jnp.concatenate((Gp_1, Gpp_1, Gp_2, Gpp_2), axis=-1)
+        G1, G1p, G2, G2p = jnp.split(G, num_order * (num_deriv-1), axis=-1)
+        G1pp = -(3 + dlnH_dlna - Omega_fac) * G1 - (4 + dlnH_dlna) * G1p
+        G2pp = Omega_fac * G1**2 - (8 + 2*dlnH_dlna - Omega_fac) * G2 - (6 + dlnH_dlna) * G2p
+        return jnp.concatenate((G1p, G1pp, G2p, G2pp), axis=-1)
 
     G_ic = jnp.array((1, 0, 3/7, 0), dtype=conf.cosmo_dtype)
 
@@ -328,7 +327,7 @@ def linear_power(k, a, cosmo):
         D = D.astype(conf.float_dtype)
 
     Plin = (
-        0.32e-9 * cosmo.A_s_1e9 * cosmo.k_pivot * _safe_power(k / cosmo.k_pivot, cosmo.n_s)
+        0.32 * cosmo.A_s * cosmo.k_pivot * _safe_power(k / cosmo.k_pivot, cosmo.n_s)
         * (jnp.pi * (conf.c / conf.H_0)**2 / cosmo.Omega_m * T)**2
         * D**2
     )
