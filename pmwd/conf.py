@@ -7,6 +7,7 @@ import jax
 jax.config.update("jax_enable_x64", True)
 from jax import ensure_compile_time_eval
 import jax.numpy as jnp
+jnp.set_printoptions(precision=3, edgeitems=2, linewidth=128)
 
 from pmwd.tree_util import pytree_dataclass
 
@@ -234,31 +235,27 @@ class Configuration:
         return (self.a_stop - self.a_start) / self.a_nbody_num
 
     @property
+    def a_lpt(self):
+        """LPT light cone scale factor steps, including a_start."""
+        return jnp.linspace(0, self.a_start, num=self.a_lpt_num+1,
+                            dtype=self.cosmo_dtype)
+
+    @property
+    def a_nbody(self):
+        """N-body time integration scale factor steps, including a_start."""
+        return jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
+                            dtype=self.cosmo_dtype)
+
+    @property
+    def growth_a(self):
+        """Growth function scale factors, for both LPT and N-body."""
+        return jnp.concatenate((self.a_lpt, self.a_nbody[1:]))
+
+    @property
     def transfer_k(self):
         """Transfer function wavenumbers, from minimum fundamental to diagonal """
         """Nyquist frequencies."""
         log10_k_min = jnp.log10(2. * jnp.pi / self.box_size.max())
         log10_k_max = jnp.log10(jnp.sqrt(self.dim) * jnp.pi / self.cell_size)
         return jnp.logspace(log10_k_min, log10_k_max, num=self.transfer_size,
-                            dtype=self.float_dtype)
-
-    @property
-    def growth_a(self):
-        """Growth function scale factors, for both LPT and N-body."""
-        growth_a_lpt = jnp.linspace(0, self.a_start, num=self.a_lpt_num,
-                                    endpoint=False, dtype=self.cosmo_dtype)
-        growth_a_nbody = jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
-                                      dtype=self.cosmo_dtype)
-        return jnp.concatenate((growth_a_lpt, growth_a_nbody))
-
-    @property
-    def a_lpt(self):
-        """LPT light cone scale factor steps, including a_start."""
-        return jnp.linspace(0, self.a_start, num=self.a_lpt_num+1,
-                            dtype=self.float_dtype)
-
-    @property
-    def a_nbody(self):
-        """N-body time integration scale factor steps, including a_start."""
-        return jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
                             dtype=self.float_dtype)
