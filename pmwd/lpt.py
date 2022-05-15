@@ -1,4 +1,3 @@
-from functools import partial
 from itertools import permutations, combinations
 
 from jax import jit, custom_vjp, checkpoint, ensure_compile_time_eval
@@ -12,8 +11,8 @@ from pmwd.gravity import rfftnfreq, laplace, neg_grad
 
 
 #TODO follow pmesh to fill the modes in Fourier space
-@partial(jit, static_argnames=('unit_abs', 'negate'))
-def white_noise(seed, conf, unit_abs=False, negate=False):
+@jit
+def white_noise(seed, conf):
     """White noise Fourier modes.
 
     Parameters
@@ -21,10 +20,6 @@ def white_noise(seed, conf, unit_abs=False, negate=False):
     seed : int
         Seed for the pseudo-random number generator.
     conf : Configuration
-    unit_abs : bool, optional
-        Whether to set the absolute values to 1.
-    negate : bool, optional
-        Whether to reverse the signs (180° phase flips).
 
     Returns
     -------
@@ -39,10 +34,10 @@ def white_noise(seed, conf, unit_abs=False, negate=False):
 
     modes = jnp.fft.rfftn(modes, norm='ortho')
 
-    if unit_abs:
+    if conf.modes_unit_abs:
         modes /= jnp.abs(modes)
 
-    if negate:
+    if conf.modes_negate:
         modes = -modes
 
     return modes
