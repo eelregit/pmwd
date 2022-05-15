@@ -26,11 +26,11 @@ class Configuration:
         Lagrangian particle grid shape. Default is ``mesh_shape``. Particle and mesh
         grids must have the same aspect ratio.
     cosmo_dtype : dtype_like, optional
-        Float dtype for Cosmology. Default is float64.
+        Float dtype for Cosmology and Configuration.
     pmid_dtype : dtype_like, optional
-        Signed integer dtype for particle pmid. Default is int16.
+        Signed integer dtype for particle pmid.
     float_dtype : dtype_like, optional
-        Float dtype for other particle and mesh quantities. Default is float32.
+        Float dtype for other particle and mesh quantities.
     k_pivot_Mpc : float, optional
         Primordial scalar power spectrum pivot scale in 1/Mpc.
     T_cmb : float, optional
@@ -46,7 +46,7 @@ class Configuration:
         Whether to use Eisenstein & Hu fit to transfer function. Default is True
         (subject to change when False is implemented).
     transfer_fit_nowiggle : bool, optional
-        Whether to use non-oscillatory transfer function fit. Default is False.
+        Whether to use non-oscillatory transfer function fit.
     transfer_size : int, optional
         Transfer function table size. Wavenumbers ``transfer_k`` are log spaced spanning
         the full range of mesh scales, from the (minimum) fundamental frequency to the
@@ -55,6 +55,10 @@ class Configuration:
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
         Absolute tolerance for solving the growth ODEs.
+    modes_unit_abs : bool, optional
+        Whether to fix absolute values of the white noise Fourier modes to 1.
+    modes_negate : bool, optional
+        Whether to reverse signs (180° phase flips) of the white noise Fourier modes.
     lpt_order : int, optional
         LPT order, with 1 for Zel'dovich approximation, 2 for 2LPT, and 3 for 3LPT.
     a_start : float, optional
@@ -70,7 +74,7 @@ class Configuration:
         number of steps ``a_nbody_num``, the actual step size ``a_nbody_step``, and the
         steps ``a_nbody``.
     chunk_size : int, optional
-        Chunk size of particles for scatter and gather. Default is 2**24.
+        Chunk size of particles for scatter and gather.
 
     Raises
     ------
@@ -111,6 +115,9 @@ class Configuration:
     growth_rtol: Optional[float] = None
     growth_atol: Optional[float] = None
 
+    modes_unit_abs: bool = False
+    modes_negate: bool = False
+
     lpt_order: int = 2
 
     a_start: float = 1/64
@@ -121,6 +128,9 @@ class Configuration:
     chunk_size: int = 1<<24
 
     def __post_init__(self):
+        if self._is_transforming():
+            return
+
         if self.ptcl_grid_shape is None:
             object.__setattr__(self, 'ptcl_grid_shape', self.mesh_shape)
         elif len(self.ptcl_grid_shape) != len(self.mesh_shape):
@@ -145,6 +155,11 @@ class Configuration:
             object.__setattr__(self, 'growth_rtol', growth_tol)
         if self.growth_atol is None:
             object.__setattr__(self, 'growth_atol', growth_tol)
+
+        dtype = self.cosmo_dtype
+        for name, value in self.named_children():
+            value = tree_map(lambda x: jnp.asarray(x, dtype=dtype), value)
+            object.__setattr__(self, name, value)
 
     @property
     def dim(self):
