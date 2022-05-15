@@ -1,7 +1,7 @@
-from dataclasses import field, fields
+from dataclasses import field, InitVar
 from functools import partial
 from operator import add, sub
-from typing import ClassVar, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 from jax import value_and_grad
@@ -61,25 +61,24 @@ class Cosmology:
     h: FloatParam
 
     Omega_k_: Optional[FloatParam] = None
-    Omega_k_fixed: ClassVar[int] = 0
+    Omega_k_fixed: InitVar[float] = 0.
     w_0_: Optional[FloatParam] = None
-    w_0_fixed: ClassVar[int] = -1
+    w_0_fixed: InitVar[float] = -1.
     w_a_: Optional[FloatParam] = None
-    w_a_fixed: ClassVar[int] = 0
+    w_a_fixed: InitVar[float] = 0.
 
     transfer: Optional[jnp.ndarray] = field(default=None, compare=False)
 
     growth: Optional[jnp.ndarray] = field(default=None, compare=False)
 
-    def __post_init__(self):
+    def __post_init__(self, Omega_k_fixed, w_0_fixed, w_a_fixed):
         if self._is_transforming():
             return
 
         dtype = self.conf.cosmo_dtype
-        for field in fields(self):  # FIXME only pytree children?
-            value = getattr(self, field.name)
+        for name, value in self.named_children():
             value = tree_map(lambda x: jnp.asarray(x, dtype=dtype), value)
-            object.__setattr__(self, field.name, value)
+            object.__setattr__(self, name, value)
 
     def __add__(self, other):
         return tree_map(add, self, other)
