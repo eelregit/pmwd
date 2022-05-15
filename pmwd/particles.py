@@ -1,7 +1,7 @@
-from dataclasses import field, fields
+from dataclasses import field
 from functools import partial
 from operator import itemgetter
-from typing import Optional, Any
+from typing import Optional, Any, Union
 
 import numpy as np
 from numpy.typing import ArrayLike
@@ -12,6 +12,9 @@ from jax.tree_util import tree_map
 from pmwd.tree_util import pytree_dataclass
 from pmwd.conf import Configuration
 from pmwd.cosmology import E2
+
+
+ArrayLike = Union[ArrayLike, jnp.ndarray]
 
 
 @partial(pytree_dataclass, aux_fields="conf", frozen=True)
@@ -56,15 +59,14 @@ class Particles:
             return
 
         conf = self.conf
-        for field in fields(self):  # FIXME only pytree children?
-            value = getattr(self, field.name)
-            dtype = conf.pmid_dtype if field.name == 'pmid' else conf.float_dtype
+        for name, value in self.named_children():
+            dtype = conf.pmid_dtype if name == 'pmid' else conf.float_dtype
             value = tree_map(
                 lambda x: x if isinstance(x, np.ndarray) and x.dtype == float0
                 else jnp.asarray(x, dtype=dtype),
                 value,
             )
-            object.__setattr__(self, field.name, value)
+            object.__setattr__(self, name, value)
 
     def __getitem__(self, key):
         return tree_map(itemgetter(key), self)
