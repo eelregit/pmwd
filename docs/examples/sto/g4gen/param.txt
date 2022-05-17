@@ -1,0 +1,68 @@
+# Files
+OutputDir                           output
+SnapshotFileBase                    snapshot
+SnapFormat                          3
+InitCondFile                        ic
+ICFormat                            3
+NumFilesPerSnapshot                 1
+MaxFilesWithConcurrentIO            1
+
+# Output frequency
+OutputListOn                        1
+OutputListFilename                  outtimes.txt
+TimeBetSnapshot                     n/a
+TimeOfFirstSnapshot                 n/a
+TimeBetStatistics                   0.1
+
+# CPU time and memory
+TimeLimitCPU                        604800
+CpuTimeBetRestartFile               604800
+MaxMemSize                          7168
+
+# Spacetime
+ComovingIntegrationOn               1
+TimeBegin                           0.02
+TimeMax                             1.05
+BoxSize                             {box_size}
+
+# Cosmological parameters
+Omega0                              {Omega_m}
+OmegaLambda                         {Omega_de}
+OmegaBaryon                         {Omega_b}
+HubbleParam                         {h}
+Hubble                              1.0
+
+# Time integration accuracy
+MaxSizeTimestep                     0.001
+MinSizeTimestep                     0.0
+ErrTolIntAccuracy                   0.005
+CourantFac                          n/a
+
+# Force accuracy
+TypeOfOpeningCriterion              0
+ErrTolTheta                         0.4  # arXiv:2010.03567 Fig.10, 14, and 15, 1e-4 ~ 1e-5 force accuracy
+ErrTolForceAcc                      0.002
+ErrTolThetaMax                      1.0
+
+# Domain decomposition
+ActivePartFracForNewDomainDecomp    0.01
+TopNodeFactor                       5.0
+
+# Softening
+SofteningComovingClass0             {soften_cmv}
+SofteningMaxPhysClass0              {soften_phy}
+SofteningClassOfPartType0           0
+SofteningClassOfPartType1           0
+
+# SPH
+DesNumNgb                           n/a
+MaxNumNgbDeviation                  n/a
+InitGasTemp                         n/a
+ArtBulkViscConst                    n/a
+MinEgySpec                          n/a
+
+# System of units
+UnitLength_in_cm                    3.0856775815e24
+UnitMass_in_g                       1.98847e43
+UnitVelocity_in_cm_per_s            1e7
+GravityConstantInternal             0
