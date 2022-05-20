@@ -2,7 +2,7 @@
 
 
 from pmwd.tree_util import pytree_dataclass
-from pmwd.conf import Configuration
+from pmwd.configuration import Configuration
 from pmwd.cosmology import Cosmology, SimpleLCDM, Planck18, E2, H_deriv, Omega_m_a
 from pmwd.boltzmann import (transfer_integ, transfer_fit, transfer,
                             growth_integ, growth, boltzmann, linear_power)
