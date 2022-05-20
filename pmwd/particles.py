@@ -176,7 +176,7 @@ def ptcl_rpos(ptcl1, ptcl0, conf, wrap=True):
 
     Returns
     -------
-    rpos : jax.numpy.ndarray of cosmo.conf.float_dtype
+    rpos : jax.numpy.ndarray of conf.float_dtype
         Particle relative positions.
 
     """
@@ -237,7 +237,7 @@ def ptcl_los(ptcl, obs, conf):
 
     Returns
     -------
-    los : jax.numpy.ndarray of cosmo.conf.float_dtype
+    los : jax.numpy.ndarray of conf.float_dtype
         Particles line-of-sight unit vectors.
 
     """
