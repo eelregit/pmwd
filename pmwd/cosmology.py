@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from jax.tree_util import tree_map
 
 from pmwd.tree_util import pytree_dataclass
-from pmwd.conf import Configuration
+from pmwd.configuration import Configuration
 
 
 FloatParam = Union[float, jnp.ndarray]
