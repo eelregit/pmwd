@@ -85,10 +85,8 @@ def neg_grad(k, pot, cell_size):
     return grad
 
 
-def gravity(ptcl, cosmo):
+def gravity(a, ptcl, cosmo, conf):
     """Particles' gravitational accelerations in [H_0^2], solved on a mesh with FFT."""
-    conf = cosmo.conf
-
     kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
 
     dens = jnp.zeros(conf.mesh_shape, dtype=conf.float_dtype)
