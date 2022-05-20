@@ -19,9 +19,10 @@ FloatParam = Union[float, jnp.ndarray]
 class Cosmology:
     """Cosmological and configuration parameters, "immutable" as a frozen dataclass.
 
-    Cosmological parameters with trailing underscores can be set to None, in which case
-    they take some fixed values and will not receive gradients. They should be accessed
-    through corresponding properties named without the trailing underscores.
+    Cosmological parameters with trailing underscores ("foo_") can be set to None, in
+    which case they take some fixed values (set by "foo_fixed") and will not receive
+    gradients. They should be accessed through corresponding properties named without
+    the trailing underscores ("foo").
 
     Linear operators (addition, subtraction, and scalar multiplication) are defined for
     Cosmology tangent and cotangent vectors.
@@ -79,6 +80,13 @@ class Cosmology:
         for name, value in self.named_children():
             value = tree_map(lambda x: jnp.asarray(x, dtype=dtype), value)
             object.__setattr__(self, name, value)
+
+        if self.Omega_k_ is None:
+            object.__setattr__(self, 'Omega_k_fixed', Omega_k_fixed)
+        if self.w_0_ is None:
+            object.__setattr__(self, 'w_0_fixed', w_0_fixed)
+        if self.w_a_ is None:
+            object.__setattr__(self, 'w_a_fixed', w_a_fixed)
 
     def __add__(self, other):
         return tree_map(add, self, other)
