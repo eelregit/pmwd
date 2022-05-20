@@ -23,7 +23,7 @@ def white_noise(seed, conf):
 
     Returns
     -------
-    modes : jax.numpy.ndarray of cosmo.conf.float_dtype
+    modes : jax.numpy.ndarray of conf.float_dtype
         White noise Fourier modes.
 
     """
@@ -58,7 +58,7 @@ def _safe_sqrt_bwd(y, y_cot):
 _safe_sqrt.defvjp(_safe_sqrt_fwd, _safe_sqrt_bwd)
 
 
-def linear_modes(kvec, a, modes, cosmo):
+def linear_modes(kvec, a, modes, cosmo, conf):
     """Linear matter density field Fourier modes.
 
     Parameters
@@ -70,18 +70,19 @@ def linear_modes(kvec, a, modes, cosmo):
     modes : jax.numpy.ndarray
         Fourier modes with white noise prior.
     cosmo : Cosmology
+    conf : Configuration
 
     Returns
     -------
-    modes : jax.numpy.ndarray of cosmo.conf.float_dtype
+    modes : jax.numpy.ndarray of conf.float_dtype
         Linear matter density field Fourier modes in [L^3].
 
     """
     k = jnp.sqrt(sum(k**2 for k in kvec))
 
-    Plin = linear_power(k, a, cosmo)
+    Plin = linear_power(k, a, cosmo, conf)
 
-    modes *= _safe_sqrt(Plin * cosmo.conf.box_vol)
+    modes *= _safe_sqrt(Plin * conf.box_vol)
 
     return modes
 
@@ -212,14 +213,15 @@ def next_fast_len(n):
 
 @jit
 @checkpoint
-def lpt(modes, cosmo):
-    """Lagrangian perturbation theory at ``cosmo.conf.lpt_order``.
+def lpt(modes, cosmo, conf):
+    """Lagrangian perturbation theory at ``conf.lpt_order``.
 
     Parameters
     ----------
     modes : jax.numpy.ndarray
         Fourier modes with white noise prior.
     cosmo : Cosmology
+    conf : Configuration
 
     Returns
     -------
@@ -229,11 +231,9 @@ def lpt(modes, cosmo):
     Raises
     ------
     ValueError
-        If ``cosmo.conf.dim`` or ``cosmo.conf.lpt_order`` is not supported.
+        If ``conf.dim`` or ``conf.lpt_order`` is not supported.
 
     """
-    conf = cosmo.conf
-
     if conf.dim not in (1, 2, 3):
         raise ValueError(f'dim={conf.dim} not supported')
     if conf.lpt_order not in (0, 1, 2, 3):
@@ -241,7 +241,7 @@ def lpt(modes, cosmo):
 
     kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
-    modes = linear_modes(kvec, None, modes, cosmo)  # not scaled by growth
+    modes = linear_modes(kvec, None, modes, cosmo, conf)  # not scaled by growth
     modes /= conf.ptcl_cell_vol  # remove volume factor first for convenience
 
     pot = []
@@ -267,8 +267,8 @@ def lpt(modes, cosmo):
     ptcl = Particles.gen_grid(conf)
 
     for order in range(1, 1+conf.lpt_order):
-        D = growth(a, cosmo, order=order)
-        dD_dlna = growth(a, cosmo, order=order, deriv=1)
+        D = growth(a, cosmo, conf, order=order)
+        dD_dlna = growth(a, cosmo, conf, order=order, deriv=1)
         a2HDp = a**2 * jnp.sqrt(E2(a, cosmo)) * dD_dlna
         D = D.astype(conf.float_dtype)
         dD_dlna = dD_dlna.astype(conf.float_dtype)
