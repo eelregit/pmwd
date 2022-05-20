@@ -7,8 +7,8 @@ from jax.experimental.ode import odeint
 from pmwd.cosmology import H_deriv, Omega_m_a
 
 
-def transfer_integ(cosmo):
-    if cosmo.conf.transfer_fit or cosmo.transfer is not None:
+def transfer_integ(cosmo, conf):
+    if conf.transfer_fit or cosmo.transfer is not None:
         return cosmo
     else:
         raise NotImplementedError('TODO')
@@ -16,26 +16,25 @@ def transfer_integ(cosmo):
 
 # TODO maybe need to checkpoint EH for memory?
 # TODO Wayne's website: neutrino no wiggle case
-def transfer_fit(k, cosmo):
+def transfer_fit(k, cosmo, conf):
     """Eisenstein & Hu fit of matter transfer function at given wavenumbers.
 
     Parameters
     ----------
-    k: array_like
+    k : array_like
         Wavenumbers in [1/L].
-    cosmo: Cosmology
+    cosmo : Cosmology
+    conf : Configuration
 
     Returns
     -------
-    T : jax.numpy.ndarray of cosmo.conf.float_dtype
+    T : jax.numpy.ndarray of conf.float_dtype
         Matter transfer function.
 
     .. _Transfer Function:
         http://background.uchicago.edu/~whu/transfer/transferpage.html
 
     """
-    conf = cosmo.conf
-
     k = jnp.asarray(k, dtype=conf.float_dtype)
     cosmo = cosmo.astype(conf.float_dtype)
 
@@ -111,15 +110,16 @@ def transfer_fit(k, cosmo):
     return T
 
 
-def transfer(k, cosmo):
+def transfer(k, cosmo, conf):
     """Evaluate interpolation or Eisenstein & Hu fit of matter transfer function at
     given wavenumbers.
 
     Parameters
     ----------
-    k: array_like
+    k : array_like
         Wavenumbers in [1/L].
-    cosmo: Cosmology
+    cosmo : Cosmology
+    conf : Configuration
 
     Returns
     -------
@@ -127,26 +127,27 @@ def transfer(k, cosmo):
         Matter transfer function.
 
     """
-    if cosmo.conf.transfer_fit:
-        return transfer_fit(k, cosmo)
+    if conf.transfer_fit:
+        return transfer_fit(k, cosmo, conf)
     else:
         raise NotImplementedError('TODO')
 
 
-def growth_integ(cosmo):
+def growth_integ(cosmo, conf):
     """Intergrate and tabulate (LPT) growth functions and derivatives at given scale
     factors.
 
     Parameters
     ----------
     cosmo : Cosmology
+    conf : Configuration
 
     Returns
     -------
     cosmo : Cosmology
         A new instance containing a growth table, or the input one if it already exists.
         The growth table has the shape ``(num_lpt_order, num_derivatives,
-        num_scale_factors)`` and ``cosmo.conf.cosmo_dtype``.
+        num_scale_factors)`` and ``conf.cosmo_dtype``.
 
     Notes
     -----
@@ -156,8 +157,6 @@ def growth_integ(cosmo):
     """
     if cosmo.growth is not None:
         return cosmo
-
-    conf = cosmo.conf
 
     with ensure_compile_time_eval():
         eps = jnp.finfo(conf.cosmo_dtype).eps
@@ -206,7 +205,7 @@ def growth_integ(cosmo):
 
 # TODO 3rd order has two factors, so `order` probably need to support str
 @partial(jit, static_argnames=('order', 'deriv'))
-def growth(a, cosmo, order=1, deriv=0):
+def growth(a, cosmo, conf, order=1, deriv=0):
     """Evaluate interpolation of (LPT) growth function or derivative, the n-th
     derivatives of the m-th order growth function :math:`\mathrm{d}^n D_m /
     \mathrm{d}\ln^n a`, at given scale factors. Growth functions are normalized at the
@@ -217,6 +216,7 @@ def growth(a, cosmo, order=1, deriv=0):
     a : array_like
         Scale factors.
     cosmo : Cosmology
+    conf : Configuration
     order : int in {1, 2}, optional
         Order of growth function.
     deriv : int in {0, 1, 2}, optional
@@ -224,7 +224,7 @@ def growth(a, cosmo, order=1, deriv=0):
 
     Returns
     -------
-    D : jax.numpy.ndarray of cosmo.conf.cosmo_dtype
+    D : jax.numpy.ndarray of conf.cosmo_dtype
         Growth functions or derivatives.
 
     Raises
@@ -236,8 +236,6 @@ def growth(a, cosmo, order=1, deriv=0):
     if cosmo.growth is None:
         raise ValueError('Growth table is empty. Call growth_integ or boltzmann first.')
 
-    conf = cosmo.conf
-
     a = jnp.asarray(a, dtype=conf.cosmo_dtype)
 
     D = a**order * jnp.interp(a, conf.growth_a, cosmo.growth[order-1][deriv])
@@ -246,12 +244,13 @@ def growth(a, cosmo, order=1, deriv=0):
 
 
 @jit
-def boltzmann(cosmo):
+def boltzmann(cosmo, conf):
     """Solve Einstein-Boltzmann equations and precompute transfer and growth functions.
 
     Parameters
     ----------
     cosmo : Cosmology
+    conf : Configuration
 
     Returns
     -------
@@ -260,8 +259,8 @@ def boltzmann(cosmo):
         already exists.
 
     """
-    cosmo = transfer_integ(cosmo)
-    cosmo = growth_integ(cosmo)
+    cosmo = transfer_integ(cosmo, conf)
+    cosmo = growth_integ(cosmo, conf)
     return cosmo
 
 
@@ -287,7 +286,7 @@ def _safe_power_bwd(res, y_cot):
 _safe_power.defvjp(_safe_power_fwd, _safe_power_bwd)
 
 
-def linear_power(k, a, cosmo):
+def linear_power(k, a, cosmo, conf):
     r"""Linear matter power spectrum at given wavenumbers and scale factors.
 
     Parameters
@@ -297,10 +296,11 @@ def linear_power(k, a, cosmo):
     a : array_like or None
         Scale factors. If None, output is not scaled by growth.
     cosmo : Cosmology
+    conf : Configuration
 
     Returns
     -------
-    Plin: jax.numpy.ndarray of cosmo.conf.float_dtype
+    Plin : jax.numpy.ndarray of conf.float_dtype
         Linear matter power spectrum.
 
     Notes
@@ -316,14 +316,12 @@ def linear_power(k, a, cosmo):
             \Bigl( \frac{D(a)}{\Omega_\mathrm{m}} \Bigr)
 
     """
-    conf = cosmo.conf
-
     k = jnp.asarray(k, dtype=conf.float_dtype)
-    T = transfer(k, cosmo)
+    T = transfer(k, cosmo, conf)
 
     D = 1
     if a is not None:
-        D = growth(a, cosmo)
+        D = growth(a, cosmo, conf)
         D = D.astype(conf.float_dtype)
 
     Plin = (
