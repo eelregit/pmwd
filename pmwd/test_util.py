@@ -3,77 +3,64 @@ from functools import partial
 import numpy as np
 import jax.numpy as jnp
 import jax.test_util as jtu
-from jax import vjp, float0
+from jax import custom_vjp, vjp, float0
 from jax import random
 from jax.tree_util import tree_map
 
-from .pm import Particles
+from pmwd.particles import Particles
 
 
-def gen_pmid(ptcl_grid_shape, dtype='i8'):
-    ndim = len(ptcl_grid_shape)
-    pmid = jnp.meshgrid(*[jnp.arange(s, dtype=dtype) for s in ptcl_grid_shape],
-                        indexing='ij')
-    pmid = jnp.stack(pmid, axis=-1).reshape(-1, ndim)
-    return pmid
+def gen_ptcl(conf, disp_std, vel_std=None, acc_std=None,
+             attr_shape=None, attr_mean=1, attr_std=0, seed=0):
+    ptcl = Particles.gen_grid(conf)
 
-def gen_disp(ptcl_grid_shape, std, dtype='f8'):
-    key = random.PRNGKey(0)
-    ndim = len(ptcl_grid_shape)
-    disp = std * random.normal(key, ptcl_grid_shape + (ndim,),
-                                    dtype=dtype)
-    disp = disp.reshape(-1, ndim)
-    return disp
+    key = random.PRNGKey(seed)
+    disp_key, vel_key, acc_key, attr_key = random.split(key, num=4)
 
-def gen_val(ptcl_grid_shape, chan_shape, mean, std, dtype='f8'):
-    key = random.PRNGKey(0)
-    val = mean + std * random.normal(key, ptcl_grid_shape + chan_shape,
-                                     dtype=dtype)
-    val = val.reshape(-1, *chan_shape)
-    return val
+    vec_shape = (conf.ptcl_num, conf.dim)
+    dtype = conf.float_dtype
 
-def gen_ptcl(ptcl_grid_shape, disp_std, vel_ratio=None, acc_ratio=None,
-             chan_shape=None, val_mean=1., val_std=0.,
-             int_dtype='i8', real_dtype='f8'):
-    pmid = gen_pmid(ptcl_grid_shape, dtype=int_dtype)
-    disp = gen_disp(ptcl_grid_shape, disp_std, dtype=real_dtype)
+    disp = disp_std * random.normal(disp_key, shape=vec_shape, dtype=dtype)
 
     vel = None
-    if vel_ratio is not None:
-        vel = vel_ratio * disp
+    if vel_std is not None:
+        vel = vel_std * random.normal(vel_key, shape=vec_shape, dtype=dtype)
 
     acc = None
-    if acc_ratio is not None:
-        acc = acc_ratio * disp
+    if acc_std is not None:
+        acc = acc_std * random.normal(acc_key, shape=vec_shape, dtype=dtype)
 
-    val = None
-    if chan_shape is not None:
-        val = gen_val(ptcl_grid_shape, chan_shape, val_mean, val_std,
-                      dtype=real_dtype)
+    attr = None
+    if attr_shape is not None:
+        attr_shape = (conf.ptcl_num,) + attr_shape
+        attr = attr_mean + attr_std * random.normal(attr_key, shape=attr_shape,
+                                                    dtype=dtype)
 
-    ptcl = Particles(pmid, disp, vel=vel, acc=acc, val=val)
-
-    return ptcl
+    return ptcl.replace(disp=disp, vel=vel, acc=acc, attr=attr)
 
 
-def gen_mesh(shape, mean=0., std=1.):
-    key = random.PRNGKey(0)
-    mesh = mean + std * random.normal(key, shape)
+def gen_mesh(shape, dtype, mean=0, std=1, seed=0):
+    key = random.PRNGKey(seed)
+    mesh = mean + std * random.normal(key, shape=shape, dtype=dtype)
     return mesh
 
 
-def randn_float0_like(x, mean=0., std=1., key=random.PRNGKey(0)):
-    if issubclass(x.dtype.type, (jnp.bool_, jnp.integer)):
-        # FIXME after https://github.com/google/jax/issues/4433 is addressed
+def randn_float0_like(x, mean=0, std=1, seed=0):
+    # see primal_dtype_to_tangent_dtype() from jax/core.py
+    if not jnp.issubdtype(x.dtype, np.inexact):
+        # FIXME after jax issue #4433 is addressed
         return np.empty(x.shape, dtype=float0)
-    return mean + std * random.normal(key, shape=x.shape, dtype=x.dtype)
+
+    key = random.PRNGKey(seed)
+    y = mean + std * random.normal(key, shape=x.shape, dtype=x.dtype)
+    return y
 
 
 def tree_randn_float0_like(tree, mean=None, std=None):
     if mean is None:
-        mean = tree_map(lambda x: 0., tree)
+        mean = tree_map(lambda x: 0, tree)
     if std is None:
-        std = tree_map(lambda x: 1., tree)
+        std = tree_map(lambda x: 1, tree)
     return tree_map(randn_float0_like, tree, mean, std)
 
 
@@ -82,21 +69,38 @@ def check_custom_vjp(fun, primals, partial_args=(), partial_kwargs={},
                      atol=None, rtol=None):
     """Compare custom and automatic vjp's of a decorated function.
 
-    Parameters:
-        fun: function decorated with `custom_vjp`
-        primals: function inputs whose cotangent vectors are to be compared
-        partial_args: positional function inputs to be fixed by `partial`
-        partial_kwargs: keyword function inputs to be fixed by `partial`
-        cot_out_mean: mean of randn output cotangents. Default is a pytree of 0
-        cot_out_std: std of randn output cotangents. Default is a pytree of 1
-        atol: absolute tolerance
-        rtol: relative tolerance
+    Setting matching leaves of ``cot_out_mean`` and ``cot_out_std`` pytrees to zeros
+    disables the corresponding output cotangents.
 
-    Note:
-        Setting leaves of both `cot_out_mean` and `cot_out_std` pytrees to
-        zeros can disable the corresponding output cotangents.
+    Parameters
+    ----------
+    fun : callable
+        Function decorated with ``custom_vjp``.
+    primals : iterable
+        Function inputs whose cotangent vectors are to be compared.
+    partial_args : iterable
+        Positional function inputs to be fixed by ``partial``.
+    partial_kwargs : mapping
+        Keyword function inputs to be fixed by ``partial``.
+    cot_out_mean : pytree
+        Means of normally distributed output cotangents. Default is a pytree of 0.
+    cot_out_std : pytree
+        Standard deviations of normally distributed output cotangents. Default is a
+        pytree of 1.
+    atol : float, optional
+        Absolute tolerance.
+    rtol : float, optional
+        Relative tolerance.
+
+    Raises
+    ------
+    TypeError
+        If ``fun`` has no ``custom_vjp``.
+
     """
-    fun_orig = fun.__wrapped__  # original function without custom vjp
+    if not isinstance(fun, custom_vjp):
+        raise TypeError(f'{fun.__name__} has no custom_vjp')
+    fun_orig = fun.__wrapped__  # original function without custom_vjp
 
     if partial_args or partial_kwargs:
         fun = partial(fun, *partial_args, **partial_kwargs)
