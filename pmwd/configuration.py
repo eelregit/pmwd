@@ -1,6 +1,6 @@
 from functools import partial
 from math import ceil
-from typing import ClassVar, Optional, Tuple
+from typing import ClassVar, Optional, Tuple, Union
 
 from numpy.typing import DTypeLike
 import jax
@@ -22,9 +22,12 @@ class Configuration:
         Mesh cell size in [L].
     mesh_shape : tuple of ints
         Mesh shape in ``len(mesh_shape)`` dimensions.
-    ptcl_grid_shape : tuple of ints, optional
-        Lagrangian particle grid shape. Default is ``mesh_shape``. Particle and mesh
-        grids must have the same aspect ratio.
+    ptcl_grid_shape : float or tuple of ints, optional
+        Lagrangian particle grid shape. If a float, it is used as the 1D sampling rate
+        of particles on mesh, i.e. the number of particles per cell per dimension, to
+        determine the particles grid shape. The particle grid cannot be larger than the
+        mesh grid, i.e. the float value must not exceed 1, and they must have the same
+        aspect ratio.
     cosmo_dtype : dtype_like, optional
         Float dtype for Cosmology and Configuration.
     pmid_dtype : dtype_like, optional
@@ -48,9 +51,8 @@ class Configuration:
     transfer_fit_nowiggle : bool, optional
         Whether to use non-oscillatory transfer function fit.
     transfer_size : int, optional
-        Transfer function table size. Wavenumbers ``transfer_k`` are log spaced spanning
-        the full range of mesh scales, from the (minimum) fundamental frequency to the
-        (space diagonal) Nyquist frequency.
+        Transfer function table size. Its wavenumbers ``transfer_k`` are log spaced
+        spanning the full range of particle grid scales.
     growth_rtol : float, optional
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
@@ -74,7 +76,7 @@ class Configuration:
         number of steps ``a_nbody_num``, the actual step size ``a_nbody_step``, and the
         steps ``a_nbody``.
     chunk_size : int, optional
-        Chunk size of particles for scatter and gather.
+        Chunk size to split particles in batches in scatter and gather to save memory.
 
     Raises
     ------
@@ -86,7 +88,7 @@ class Configuration:
     cell_size: float
     mesh_shape: Tuple[int, ...]  # tuple[int, ...] for python >= 3.9 (PEP 585)
 
-    ptcl_grid_shape: Optional[Tuple[int, ...]] = None
+    ptcl_grid_shape: Union[float, Tuple[int, ...]] = 1.
 
     cosmo_dtype: DTypeLike = jnp.dtype(jnp.float64)
     pmid_dtype: DTypeLike = jnp.dtype(jnp.int16)
@@ -131,13 +133,15 @@ class Configuration:
         if self._is_transforming():
             return
 
-        if self.ptcl_grid_shape is None:
-            object.__setattr__(self, 'ptcl_grid_shape', self.mesh_shape)
-        elif len(self.ptcl_grid_shape) != len(self.mesh_shape):
+        if isinstance(self.ptcl_grid_shape, float):
+            ptcl_grid_shape = tuple(round(s * self.ptcl_grid_shape)
+                                    for s in self.mesh_shape)
+            object.__setattr__(self, 'ptcl_grid_shape', ptcl_grid_shape)
+        if len(self.ptcl_grid_shape) != len(self.mesh_shape):
             raise ValueError('particle and mesh grid dimensions differ')
-        elif any(sp > sm for sp, sm in zip(self.ptcl_grid_shape, self.mesh_shape)):
+        if any(sp > sm for sp, sm in zip(self.ptcl_grid_shape, self.mesh_shape)):
             raise ValueError('particle grid cannot be larger than mesh grid')
-        elif any(self.ptcl_grid_shape[0] * sm != self.mesh_shape[0] * sp
+        if any(self.ptcl_grid_shape[0] * sm != self.mesh_shape[0] * sp
                  for sm, sp in zip(self.mesh_shape[1:], self.ptcl_grid_shape[1:])):
             raise ValueError('particle and mesh grid aspect ratios differ')
 
@@ -231,7 +235,7 @@ class Configuration:
 
     @property
     def a_lpt_num(self):
-        """Number of LPT light cone scale factor steps, excluding a_start."""
+        """Number of LPT light cone scale factor steps, excluding ``a_start``."""
         return ceil(self.a_start / self.a_lpt_maxstep)
 
     @property
@@ -241,7 +245,8 @@ class Configuration:
 
     @property
     def a_nbody_num(self):
-        """Number of N-body time integration scale factor steps, excluding a_start."""
+        """Number of N-body time integration scale factor steps, excluding """
+        """``a_start``."""
         return ceil((self.a_stop - self.a_start) / self.a_nbody_maxstep)
 
     @property
@@ -251,13 +256,13 @@ class Configuration:
 
     @property
     def a_lpt(self):
-        """LPT light cone scale factor steps, including a_start."""
+        """LPT light cone scale factor steps, including ``a_start``."""
         return jnp.linspace(0, self.a_start, num=self.a_lpt_num+1,
                             dtype=self.cosmo_dtype)
 
     @property
     def a_nbody(self):
-        """N-body time integration scale factor steps, including a_start."""
+        """N-body time integration scale factor steps, including ``a_start``."""
         return jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
                             dtype=self.cosmo_dtype)
 
@@ -266,11 +271,12 @@ class Configuration:
         """Growth function scale factors, for both LPT and N-body."""
         return jnp.concatenate((self.a_lpt, self.a_nbody[1:]))
 
+    #TODO transfer_size -> transfer_lgk_maxstep
     @property
     def transfer_k(self):
-        """Transfer function wavenumbers, from minimum fundamental to diagonal """
-        """Nyquist frequencies."""
+        """Transfer function wavenumbers in [1/L], from the minimum fundamental """
+        """wavenumber to the space diagonal Nyquist wavenumber of the particle grid."""
         log10_k_min = jnp.log10(2. * jnp.pi / self.box_size.max())
-        log10_k_max = jnp.log10(jnp.sqrt(self.dim) * jnp.pi / self.cell_size)
+        log10_k_max = jnp.log10(jnp.sqrt(self.dim) * jnp.pi / self.ptcl_spacing)
         return jnp.logspace(log10_k_min, log10_k_max, num=self.transfer_size,
                             dtype=self.float_dtype)
