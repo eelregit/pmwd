@@ -43,6 +43,9 @@ def gen_ptcl(conf, disp_std=None, vel_std=None, acc_std=None,
 
 
 def gen_mesh(shape, dtype, mean=0, std=1, seed=0):
+    if std == 0:
+        return jnp.full(shape, mean, dtype=dtype)
+
     key = random.PRNGKey(seed)
     mesh = mean + std * random.normal(key, shape=shape, dtype=dtype)
     return mesh
