@@ -1,3 +1,5 @@
+from functools import partial
+
 import numpy as np
 from jax import value_and_grad, jit, vjp, custom_vjp
 import jax.numpy as jnp
@@ -164,11 +166,13 @@ def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
     return ptcl, obsvbl
 
 
-@custom_vjp
-def nbody(ptcl, obsvbl, cosmo, conf):
+@partial(custom_vjp, nondiff_argnums=(4,))
+def nbody(ptcl, obsvbl, cosmo, conf, reverse=False):
     """N-body time integration."""
-    ptcl, obsvbl = nbody_init(conf.a_nbody[0], ptcl, obsvbl, cosmo, conf)
-    for a_prev, a_next in zip(conf.a_nbody[:-1], conf.a_nbody[1:]):
+    a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
+
+    ptcl, obsvbl = nbody_init(a_nbody[0], ptcl, obsvbl, cosmo, conf)
+    for a_prev, a_next in zip(a_nbody[:-1], a_nbody[1:]):
         ptcl, obsvbl = nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
     return ptcl, obsvbl
 
@@ -204,26 +208,29 @@ def nbody_adj_step(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot,
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
 
-def nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf):
+def nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf, reverse=False):
     """N-body time integration with adjoint equation."""
+    a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
+
     ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_init(
-        conf.a_nbody[-1], ptcl, ptcl_cot, obsvbl_cot, cosmo, conf)
-    for a_prev, a_next in zip(conf.a_nbody[:0:-1], conf.a_nbody[-2::-1]):
+        a_nbody[-1], ptcl, ptcl_cot, obsvbl_cot, cosmo, conf)
+    for a_prev, a_next in zip(a_nbody[:0:-1], a_nbody[-2::-1]):
         ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_step(
             a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
     return ptcl, ptcl_cot, cosmo_cot
 
 
-def nbody_fwd(ptcl, obsvbl, cosmo, conf):
-    ptcl, obsvbl = nbody(ptcl, obsvbl, cosmo, conf)
+def nbody_fwd(ptcl, obsvbl, cosmo, conf, reverse):
+    ptcl, obsvbl = nbody(ptcl, obsvbl, cosmo, conf, reverse)
     return (ptcl, obsvbl), (ptcl, cosmo, conf)
 
-def nbody_bwd(res, cotangents):
+def nbody_bwd(reverse, res, cotangents):
     ptcl, cosmo, conf = res
     ptcl_cot, obsvbl_cot = cotangents
 
-    ptcl, ptcl_cot, cosmo_cot = nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf)
+    ptcl, ptcl_cot, cosmo_cot = nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf,
+                                          reverse=reverse)
 
-    return ptcl_cot, obsvbl_cot, cosmo_cot, conf  # FIXME HACK, should be conf_cot
+    return ptcl_cot, obsvbl_cot, cosmo_cot, None  # FIXME HACK on conf_cot
 
 nbody.defvjp(nbody_fwd, nbody_bwd)
