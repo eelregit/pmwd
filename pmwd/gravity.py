@@ -5,14 +5,15 @@ from pmwd.scatter import scatter
 from pmwd.gather import gather
 
 
-def rfftnfreq(shape, cell_size, dtype=float):
+def rfftnfreq(shape, spacing, dtype=float):
     """Broadcastable "``sparse``" wavevectors for ``numpy.fft.rfftn``.
 
     Parameters
     ----------
     shape : tuple of int
         Shape of ``rfftn`` input.
-    cell_size : float
+    spacing : float
+        Grid spacing in [L].
     dtype : dtype_like
 
     Returns
@@ -21,7 +22,7 @@ def rfftnfreq(shape, cell_size, dtype=float):
         Wavevectors.
 
     """
-    freq_period = 2. * jnp.pi / cell_size
+    freq_period = 2. * jnp.pi / spacing
 
     kvec = []
     for axis, s in enumerate(shape[:-1]):
@@ -39,12 +40,7 @@ def rfftnfreq(shape, cell_size, dtype=float):
 @custom_vjp
 def laplace(kvec, src, cosmo=None):
     """Laplace kernel in Fourier space."""
-    spatial_ndim = len(kvec)
-    chan_ndim = src.ndim - spatial_ndim
-    chan_axis = tuple(range(-chan_ndim, 0))
-
     k2 = sum(k**2 for k in kvec)
-    k2 = jnp.expand_dims(k2, chan_axis)
 
     pot = jnp.where(k2 != 0, - src / k2, 0)
 
@@ -69,15 +65,9 @@ def laplace_bwd(res, pot_cot):
 laplace.defvjp(laplace_fwd, laplace_bwd)
 
 
-def neg_grad(k, pot, cell_size):
-    nyquist = jnp.pi / cell_size
+def neg_grad(k, pot, spacing):
+    nyquist = jnp.pi / spacing
     eps = nyquist * jnp.finfo(k.dtype).eps
-
-    spatial_ndim = k.ndim
-    chan_ndim = pot.ndim - spatial_ndim
-    chan_axis = tuple(range(-chan_ndim, 0))
-
-    k = jnp.expand_dims(k, chan_axis)
     neg_ik = jnp.where(jnp.abs(jnp.abs(k) - nyquist) <= eps, 0, -1j * k)
 
     grad = neg_ik * pot
