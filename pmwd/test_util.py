@@ -3,14 +3,15 @@ from functools import partial
 import numpy as np
 import jax.numpy as jnp
 import jax.test_util as jtu
-from jax import custom_vjp, vjp, float0
+from jax import custom_vjp, vjp
 from jax import random
 from jax.tree_util import tree_map
 
 from pmwd.particles import Particles
+from pmwd.util import is_float0_array, float0_like
 
 
-def gen_ptcl(conf, disp_std, vel_std=None, acc_std=None,
+def gen_ptcl(conf, disp_std=None, vel_std=None, acc_std=None,
              attr_shape=None, attr_mean=1, attr_std=0, seed=0):
     ptcl = Particles.gen_grid(conf)
 
@@ -20,7 +21,9 @@ def gen_ptcl(conf, disp_std, vel_std=None, acc_std=None,
     vec_shape = (conf.ptcl_num, conf.dim)
     dtype = conf.float_dtype
 
-    disp = disp_std * random.normal(disp_key, shape=vec_shape, dtype=dtype)
+    disp = ptcl.disp
+    if disp_std is not None:
+        disp += disp_std * random.normal(disp_key, shape=vec_shape, dtype=dtype)
 
     vel = None
     if vel_std is not None:
@@ -48,8 +51,7 @@ def gen_mesh(shape, dtype, mean=0, std=1, seed=0):
 def randn_float0_like(x, mean=0, std=1, seed=0):
     # see primal_dtype_to_tangent_dtype() from jax/core.py
     if not jnp.issubdtype(x.dtype, np.inexact):
-        # FIXME after jax issue #4433 is addressed
-        return np.empty(x.shape, dtype=float0)
+        return float0_like(x)
 
     key = random.PRNGKey(seed)
     y = mean + std * random.normal(key, shape=x.shape, dtype=x.dtype)
@@ -62,6 +64,22 @@ def tree_randn_float0_like(tree, mean=None, std=None):
     if std is None:
         std = tree_map(lambda x: 1, tree)
     return tree_map(randn_float0_like, tree, mean, std)
+
+
+def _safe_sub(x, y):
+    if is_float0_array(x) and is_float0_array(y):
+        return x
+    return x - y
+
+
+def check_eq(xs, ys, err_msg=''):
+    jtu.check_eq(xs, ys, err_msg=err_msg)
+    return tree_map(_safe_sub, xs, ys)
+
+
+def check_close(xs, ys, atol=None, rtol=None, err_msg=''):
+    jtu.check_close(xs, ys, atol=atol, rtol=rtol, err_msg=err_msg)
+    return tree_map(_safe_sub, xs, ys)
 
 
 def check_custom_vjp(fun, primals, partial_args=(), partial_kwargs={},
@@ -92,6 +110,15 @@ def check_custom_vjp(fun, primals, partial_args=(), partial_kwargs={},
     rtol : float, optional
         Relative tolerance.
 
+    Returns
+    -------
+    cot : jax.numpy.ndarray
+        Input cotangents by custom vjp.
+    cot_orig : jax.numpy.ndarray
+        Input cotangents by automatic vjp.
+    cot_diff : jax.numpy.ndarray
+        Input cotangent differences.
+
     Raises
     ------
     TypeError
@@ -114,4 +141,6 @@ def check_custom_vjp(fun, primals, partial_args=(), partial_kwargs={},
 
     cot = vjpfun(cot_out)
     cot_orig = vjpfun_orig(cot_out)
-    jtu.check_close(cot, cot_orig, atol=atol, rtol=rtol)
+    cot_diff = check_close(cot, cot_orig, atol=atol, rtol=rtol)
+
+    return cot, cot_orig, cot_diff
