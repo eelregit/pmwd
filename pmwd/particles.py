@@ -3,15 +3,14 @@ from functools import partial
 from operator import itemgetter
 from typing import Optional, Any, Union
 
-import numpy as np
 from numpy.typing import ArrayLike
 import jax.numpy as jnp
-from jax import float0
 from jax.tree_util import tree_map
 
 from pmwd.tree_util import pytree_dataclass
 from pmwd.configuration import Configuration
 from pmwd.cosmology import E2
+from pmwd.util import is_float0_array
 
 
 ArrayLike = Union[ArrayLike, jnp.ndarray]
@@ -62,8 +61,7 @@ class Particles:
         for name, value in self.named_children():
             dtype = conf.pmid_dtype if name == 'pmid' else conf.float_dtype
             value = tree_map(
-                lambda x: x if isinstance(x, np.ndarray) and x.dtype == float0
-                else jnp.asarray(x, dtype=dtype),
+                lambda x: x if is_float0_array(x) else jnp.asarray(x, dtype=dtype),
                 value,
             )
             object.__setattr__(self, name, value)
