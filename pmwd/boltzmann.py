@@ -8,7 +8,7 @@ from pmwd.cosmology import H_deriv, Omega_m_a
 
 
 def transfer_integ(cosmo, conf):
-    if conf.transfer_fit or cosmo.transfer is not None:
+    if conf.transfer_fit:
         return cosmo
     else:
         raise NotImplementedError('TODO')
@@ -155,9 +155,6 @@ def growth_integ(cosmo, conf):
     TODO: ODE math
 
     """
-    if cosmo.growth is not None:
-        return cosmo
-
     with ensure_compile_time_eval():
         eps = jnp.finfo(conf.cosmo_dtype).eps
         a_ic = 0.5 * jnp.cbrt(eps).item()  # ~ 3e-6 for float64, 2e-3 for float32
@@ -287,7 +284,7 @@ _safe_power.defvjp(_safe_power_fwd, _safe_power_bwd)
 
 
 def linear_power(k, a, cosmo, conf):
-    r"""Linear matter power spectrum at given wavenumbers and scale factors.
+    r"""Linear matter power spectrum in [L^3] at given wavenumbers and scale factors.
 
     Parameters
     ----------
@@ -301,7 +298,12 @@ def linear_power(k, a, cosmo, conf):
     Returns
     -------
     Plin : jax.numpy.ndarray of conf.float_dtype
-        Linear matter power spectrum.
+        Linear matter power spectrum in [L^3].
+
+    Raises
+    ------
+    ValueError
+        If not in 3D.
 
     Notes
     -----
@@ -316,6 +318,9 @@ def linear_power(k, a, cosmo, conf):
             \Bigl( \frac{D(a)}{\Omega_\mathrm{m}} \Bigr)
 
     """
+    if conf.dim != 3:
+        raise ValueError(f'dim={conf.dim} not supported')
+
     k = jnp.asarray(k, dtype=conf.float_dtype)
     T = transfer(k, cosmo, conf)
 
