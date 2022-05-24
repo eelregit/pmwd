@@ -189,12 +189,13 @@ def growth_integ(cosmo, conf):
     G = jnp.moveaxis(G, 0, 2)
 
     # D_m /a^m = G
-    # D_m'/a^m = G + G'
-    # D_m"/a^m = G + 2G' + G"
+    # D_m'/a^m = m G + G'
+    # D_m"/a^m = m^2 G + 2m G' + G"
+    m = jnp.array((1, 2), dtype=conf.cosmo_dtype)[:, jnp.newaxis]
     growth = jnp.stack((
         G[:, 0],
-        G[:, 0] + G[:, 1],
-        G[:, 0] + 2*G[:, 1] + G[:, 2],
+        m * G[:, 0] + G[:, 1],
+        m**2 * G[:, 0] + 2 * m * G[:, 1] + G[:, 2],
     ), axis=1)
 
     return cosmo.replace(growth=growth)
