@@ -164,7 +164,7 @@ def growth_integ(cosmo, conf):
     a = conf.growth_a
     lna = jnp.log(a.at[0].set(a_ic))
 
-    num_order, num_deriv, num_a = 2, 3, len(a)
+    num_order, num_deriv, num_a = 5, 3, len(a)
 
     # TODO necessary to add lpt_order support?
     # G and lna can either be at a single time, or have leading time axes
@@ -172,12 +172,15 @@ def growth_integ(cosmo, conf):
         a = jnp.exp(lna)
         dlnH_dlna = H_deriv(a, cosmo)
         Omega_fac = 1.5 * Omega_m_a(a, cosmo)
-        G1, G1p, G2, G2p = jnp.split(G, num_order * (num_deriv-1), axis=-1)
+        G1, G1p, G2, G2p, G3a, G3ap, G3b, G3bp, G3c, G3cp = jnp.split(G, num_order * (num_deriv-1), axis=-1)
         G1pp = -(3 + dlnH_dlna - Omega_fac) * G1 - (4 + dlnH_dlna) * G1p
         G2pp = Omega_fac * G1**2 - (8 + 2*dlnH_dlna - Omega_fac) * G2 - (6 + dlnH_dlna) * G2p
-        return jnp.concatenate((G1p, G1pp, G2p, G2pp), axis=-1)
+        G3app = Omega_fac * G1*G2 - (15 + 3*dlnH_dlna - Omega_fac) * G3a - (8 + dlnH_dlna) * G3ap
+        G3bpp = Omega_fac * G1**3 - (15 + 3*dlnH_dlna - Omega_fac) * G3b - (8 + dlnH_dlna) * G3bp
+        G3cpp = Omega_fac * G1**3 - (15 + 3*dlnH_dlna) * G3c - (8 + dlnH_dlna) * G3cp
+        return jnp.concatenate((G1p, G1pp, G2p, G2pp, G3ap, G3app, G3bp, G3pp, G3cpp, G3cpp), axis=-1)
 
-    G_ic = jnp.array((1, 0, 3/7, 0), dtype=conf.cosmo_dtype)
+    G_ic = jnp.array((1, 0, 3/7, 0, 3/77, 0, 1/11, 0, 1/12, 0), dtype=conf.cosmo_dtype)
 
     G = odeint(ode, G_ic, lna, cosmo, rtol=conf.growth_rtol, atol=conf.growth_atol)
 
@@ -191,7 +194,7 @@ def growth_integ(cosmo, conf):
     # D_m /a^m = G
     # D_m'/a^m = m G + G'
     # D_m"/a^m = m^2 G + 2m G' + G"
-    m = jnp.array((1, 2), dtype=conf.cosmo_dtype)[:, jnp.newaxis]
+    m = jnp.array((1, 2, 3, 3, 3), dtype=conf.cosmo_dtype)[:, jnp.newaxis]
     growth = jnp.stack((
         G[:, 0],
         m * G[:, 0] + G[:, 1],

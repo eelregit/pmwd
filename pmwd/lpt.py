@@ -117,6 +117,17 @@ def _M(kvec, pot, conf):
     return M
 
 
+
+def _V(kvec, pot_1, pot_2, conf):
+    V = jnp.zeros((conf.dim, conf.ptcl_grid_shape), dtype=conf.float_dtype)
+
+    for i in permutations(range(conf.dim)) :
+        sgn = levi_civita(i)
+        for j in range(conf.dim) :
+            V[i[0], :] = sgn * _strain(kvec, j, i[1], pot_1, conf) * _strain(kvec, j, i[2], pot_2, conf)
+
+    return V
+
 def next_fast_len(n):
     """Find the next fast size to FFT.
 
@@ -166,13 +177,14 @@ def lpt(modes, cosmo, conf):
 
     kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
-    pot = []
+    scalar_pots = []
 
     if conf.lpt_order > 0:
         src_1 = modes
 
         pot_1 = laplace(kvec, src_1, cosmo)
-        pot.append(pot_1)
+
+        scalar_pots.append(pot_1)
 
     if conf.lpt_order > 1:
         src_2 = _L(kvec, pot_1, None, conf)
@@ -180,34 +192,97 @@ def lpt(modes, cosmo, conf):
         src_2 = jnp.fft.rfftn(src_2)
 
         pot_2 = laplace(kvec, src_2, cosmo)
-        pot.append(pot_2)
+
+        scalar_pots.append(pot_2)
 
     if conf.lpt_order > 2:
-        raise NotImplementedError('TODO')
 
-    a = conf.a_start
-    ptcl = Particles.gen_grid(conf, vel=True)
+        src_3_a = _L(kvec, pot_1, pot_2, conf)
 
-    for order in range(1, 1+conf.lpt_order):
-        D = growth(a, cosmo, conf, order=order)
-        dD_dlna = growth(a, cosmo, conf, order=order, deriv=1)
-        a2HDp = a**2 * jnp.sqrt(E2(a, cosmo)) * dD_dlna
-        D = D.astype(conf.float_dtype)
-        dD_dlna = dD_dlna.astype(conf.float_dtype)
-        a2HDp = a2HDp.astype(conf.float_dtype)
+        src_3_a = jnp.fft.rfftn(src_3_a)
 
-        for i, k in enumerate(kvec):
-            grad = neg_grad(k, pot[order-1], conf.ptcl_spacing)
+        pot_3_a = laplace(kvec, src_3_a, cosmo)
 
-            grad = jnp.fft.irfftn(grad, s=conf.ptcl_grid_shape)
-            grad = grad.astype(conf.float_dtype)  # no jnp.complex32
+        scalar_pots.append(pot_3_a)
 
-            grad = grad.ravel()
+        src_3_b = 2. * _M(kvec, pot_1)
 
-            disp = ptcl.disp.at[:, i].add(D * grad)
-            vel = ptcl.vel.at[:, i].add(a2HDp * grad)
-            ptcl = ptcl.replace(disp=disp, vel=vel)
+        src_3_b = jnp.fft.rfftn(src_3_b)
 
-    obsvbl = None  # TODO cubic Hermite interp light cone as in nbody
+        pot_3_b = pot_3_a + laplace(kvec, src_3_b, cosmo)
+
+        scalar_pots.append(pot_3_b)
+
+        vector_pot = _V(kvec, pot_1, pot_2, conf)
+
+        for i in range(conf.dim) :
+            src_3_v[i] = jnp.fft.rfftn(src_3_v[i])
+
+            vector_pots.append(laplace(kvec, src_3_v[i], cosmo))
+
+        a = conf.a_start
+        ptcl = Particls.gen_grid(conf, vel=True)
+
+        for order in range(1,conf.lpt_order+1) :
+
+            D = growth(a, cosmo, conf, order=order)
+            dD_dlna = growth(a, cosmo, conf, order=order, deriv=1)
+            a2HDp = a**2 * jnp.sqrt(E2(a, cosmo)) * dD_dlna
+            D = D.astype(conf.float_dtype)
+            dD_dlna = dD_dlna.astype(conf.float_dtype)
+            a2HDp = a2HDp.astype(conf.float_dtype)
+
+            for i, k in enumerate(kvec):
+                grad = neg_grad(k, scalar_pots[order-1], conf.ptcl_spacing)
+
+                grad = jnp.fft.irfftn(grad, s=conf.ptcl_grid_shape)
+                grad = grad.astype(conf.float_dtype)  # no jnp.complex32
+
+                grad = grad.ravel()
+
+                disp = ptcl.disp.at[:, i].add(D * grad)
+                vel = ptcl.vel.at[:, i].add(a2HDp * grad)
+                ptcl = ptcl.replace(disp=disp, vel=vel)
+
+            if order == 3 :
+                D = growth(a, cosmo, conf, order=order+1)
+                dD_dlna = growth(a, cosmo, conf, order=order+1, deriv=1)
+                a2HDp = a**2 * jnp.sqrt(E2(a, cosmo)) * dD_dlna
+                D = D.astype(conf.float_dtype)
+                dD_dlna = dD_dlna.astype(conf.float_dtype)
+                a2HDp = a2HDp.astype(conf.float_dtype)
+
+                for i, k in enumerate(kvec):
+                    grad = neg_grad(k, scalar_pots[order], conf.ptcl_spacing)
+
+                    grad = jnp.fft.irfftn(grad, s=conf.ptcl_grid_shape)
+                    grad = grad.astype(conf.float_dtype)  # no jnp.complex32
+
+                    grad = grad.ravel()
+
+                    disp = ptcl.disp.at[:, i].add(D * grad)
+                    vel = ptcl.vel.at[:, i].add(a2HDp * grad)
+                    ptcl = ptcl.replace(disp=disp, vel=vel)
+
+                D = growth(a, cosmo, conf, order=order+2)
+                dD_dlna = growth(a, cosmo, conf, order=order+2, deriv=1)
+                a2HDp = a**2 * jnp.sqrt(E2(a, cosmo)) * dD_dlna
+                D = D.astype(conf.float_dtype)
+                dD_dlna = dD_dlna.astype(conf.float_dtype)
+                a2HDp = a2HDp.astype(conf.float_dtype)
+
+                for j in permutations(jnp.arange(conf.dim)) :
+                    sgn = -levi_civita(j)
+
+                    grad = neg_grad(kvec[j[1]], vec_pots[j[2]], conf.ptcl_spacing)
+
+                    grad = jnp.fft.irfftn(grad, s=conf.ptcl_grid_shape)
+                    grad = grad.astype(conf.float_dtype)  # no jnp.complex32
+
+                    grad = grad.ravel()
+
+                    disp = ptcl.disp.at[:, j[0]].add(sgn * D * grad)
+                    vel = ptcl.vel.at[:, j[0]].add(sgn * a2HDp * grad)
+                    ptcl = ptcl.replace(disp=disp, vel=vel)
 
     return ptcl, None

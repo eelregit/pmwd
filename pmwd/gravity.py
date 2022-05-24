@@ -44,6 +44,16 @@ def neg_grad(k, pot, spacing):
     return grad
 
 
+def curl(k, vec_pot, spacing):
+    nyquist = jnp.pi / spacing
+    eps = nyquist * jnp.finfo(k.dtype).eps
+    ik = jnp.where(jnp.abs(jnp.abs(k) - nyquist) <= eps, 0, 1j * k)
+
+    curl = jnp.cross(ik, vec_pot)
+
+    return curl
+
+
 def gravity(a, ptcl, cosmo, conf):
     """Gravitational accelerations of particles in [H_0^2], solved on a mesh with FFT."""
     kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
