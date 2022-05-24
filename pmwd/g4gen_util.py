@@ -174,13 +174,13 @@ class ParamGenerator:
         with open(temp_param, 'r') as f, \
              open(os.path.join(file_dir, 'param.txt'), 'w') as fo:
             param = f.read()
-            param.format(box_size=conf.box_size[0],
-                         Omega_m=cosmo.Omega_m,
-                         Omega_de=cosmo.Omega_de,
-                         Omega_b=cosmo.Omega_b,
-                         h=cosmo.h,
-                         soften_cmv=soften_length,
-                         soften_phy=soften_length*1.5,) # to make it irrelevant ?
+            param = param.format(box_size=conf.box_size[0],
+                                 Omega_m=cosmo.Omega_m,
+                                 Omega_de=cosmo.Omega_de,
+                                 Omega_b=cosmo.Omega_b,
+                                 h=cosmo.h,
+                                 soften_cmv=soften_length,
+                                 soften_phy=soften_length*1.5,) # to make it irrelevant ?
             fo.write(param)
 
         with open(temp_job, 'r') as f, \
@@ -190,7 +190,7 @@ class ParamGenerator:
 
         # times (scale factors) of output snapshots
         times = np.logspace(np.log10(self.pars['a_start'][i]),
-                            np.log10(self.pars['a_start'][i]),
+                            np.log10(self.pars['a_stop'][i]),
                             num=self.pars['number of snapshots'])
         np.savetxt(os.path.join(file_dir, 'outtimes.txt'), times, fmt='%.15f')
 
