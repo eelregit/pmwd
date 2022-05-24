@@ -52,9 +52,8 @@ def writeGadgetHDF5(
         'Time': time,
     }
 
-    # TODO: check the units of pos and vel
     pos = np.asarray(ptcl_pos(ptcl, conf))
-    vel = np.asarray(ptcl.vel)
+    vel = np.asarray(ptcl.vel) * np.power(time, -1.5)
     ids = np.asarray(ptcl.pmid)
 
     for i, (part_pos, part_vel, part_ids) in enumerate(zip(
