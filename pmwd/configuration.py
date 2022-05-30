@@ -22,12 +22,12 @@ class Configuration:
         Mesh cell size in [L].
     mesh_shape : tuple of ints
         Mesh shape in ``len(mesh_shape)`` dimensions.
-    ptcl_grid_shape : float or tuple of ints, optional
-        Lagrangian particle grid shape. If a float, it is used as the 1D sampling rate
-        of particles on mesh, i.e. the number of particles per cell per dimension, to
-        determine the particles grid shape. The particle grid cannot be larger than the
-        mesh grid, i.e. the float value must not exceed 1, and they must have the same
-        aspect ratio.
+    ptcl_grid_shape : int, float or tuple of ints, optional
+        Lagrangian particle grid shape. If an int or float, it is used as the 1D
+        sampling rate of particles on mesh, i.e. the number of particles per cell per
+        dimension, to determine the particles grid shape. The particle grid cannot be
+        larger than the mesh grid, i.e. the float value must not exceed 1, and they must
+        have the same aspect ratio.
     cosmo_dtype : dtype_like, optional
         Float dtype for Cosmology and Configuration.
     pmid_dtype : dtype_like, optional
@@ -88,7 +88,7 @@ class Configuration:
     cell_size: float
     mesh_shape: Tuple[int, ...]  # tuple[int, ...] for python >= 3.9 (PEP 585)
 
-    ptcl_grid_shape: Union[float, Tuple[int, ...]] = 1.
+    ptcl_grid_shape: Union[int, float, Tuple[int, ...]] = 1
 
     cosmo_dtype: DTypeLike = jnp.dtype(jnp.float64)
     pmid_dtype: DTypeLike = jnp.dtype(jnp.int16)
@@ -133,7 +133,7 @@ class Configuration:
         if self._is_transforming():
             return
 
-        if isinstance(self.ptcl_grid_shape, float):
+        if isinstance(self.ptcl_grid_shape, (int, float)):
             ptcl_grid_shape = tuple(round(s * self.ptcl_grid_shape)
                                     for s in self.mesh_shape)
             object.__setattr__(self, 'ptcl_grid_shape', ptcl_grid_shape)
