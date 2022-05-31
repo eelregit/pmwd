@@ -1,6 +1,6 @@
 #!/bin/bash -l
 
-#SBATCH --job-name=g4sto
+#SBATCH --job-name=g4sto-{job_index}
 #SBATCH --output=%x-%j.out
 #SBATCH --partition=ccm
 #SBATCH --constraint=rome
