@@ -33,12 +33,13 @@ def writeGadgetHDF5(
     time : float
         The scale factor a.
     """
-    num_part_total = np.zeros(6, dtype='u4')
+    ntypes = 2
+    num_part_total = np.zeros(ntypes, dtype='u4') 
     num_part_total[1] = conf.ptcl_num
     num_part_per_file = conf.ptcl_num // num_files
 
-    masses = np.zeros(6, dtype='f8')
-    masses[num_part_total != 0] = (
+    masses = np.zeros(ntypes, dtype='f8')
+    masses[1] = (
         conf.rho_crit * cosmo.Omega_m * conf.box_vol
         / num_part_total[num_part_total != 0]
         * 1e-10)
