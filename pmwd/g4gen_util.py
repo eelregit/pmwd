@@ -198,7 +198,8 @@ class ParamGenerator:
                seed=16807,
                temp_config='./templates/Config.sh',
                temp_param='./templates/param.txt',
-               temp_job='./templates/job.sh'):
+               temp_job='./templates/job.sh',
+               submit_job=True):
         """A setup pipeline of the 2**m Gadget4 simulations.
 
         Parameters
@@ -227,7 +228,11 @@ class ParamGenerator:
             self.gen_IC(file_dir, i, conf=conf, cosmo=cosmo, seed=seed)
 
             # generate the Gadget4 files
-            self.gen_GadgetFiles(file_dir, i, conf=conf, cosmo=cosmo)
+            self.gen_GadgetFiles(file_dir, i, conf=conf, cosmo=cosmo,
+                                 temp_config=temp_config,
+                                 temp_param=temp_param,
+                                 temp_job=temp_job)
 
             # submit the job (compile + run)
-#             os.system('bash ' + os.path.join(file_dir, 'job.sh'))
+            if submit_job:
+                os.system(f'cd {file_dir}; sbatch job.sh')
