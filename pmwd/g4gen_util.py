@@ -186,6 +186,7 @@ class ParamGenerator:
         with open(temp_job, 'r') as f, \
              open(os.path.join(file_dir, 'job.sh'), 'w') as fo:
             job = f.read()
+            job = job.format(job_index=i)
             fo.write(job)
 
         # times (scale factors) of output snapshots
