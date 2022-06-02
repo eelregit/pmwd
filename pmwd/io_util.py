@@ -39,10 +39,8 @@ def writeGadgetHDF5(
     num_part_per_file = conf.ptcl_num // num_files
 
     masses = np.zeros(ntypes, dtype='f8')
-    masses[1] = (
-        conf.rho_crit * cosmo.Omega_m * conf.box_vol
-        / num_part_total[num_part_total != 0]
-        * 1e-10)
+    masses[1] = (conf.rho_crit * cosmo.Omega_m * conf.box_vol
+                 / num_part_total[1])
 
     header = {
         'BoxSize': conf.box_size[0],
@@ -55,7 +53,8 @@ def writeGadgetHDF5(
 
     pos = np.asarray(ptcl_pos(ptcl, conf))
     vel = np.asarray(ptcl.vel) * np.power(time, -1.5)
-    ids = np.asarray(ptcl.pmid)
+    # ids = np.asarray(ptcl.pmid)
+    ids = np.arange(1, conf.ptcl_num+1)
 
     for i, (part_pos, part_vel, part_ids) in enumerate(zip(
         np.array_split(pos, num_files),
