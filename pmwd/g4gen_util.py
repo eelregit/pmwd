@@ -197,6 +197,8 @@ class ParamGenerator:
 
     def deploy(self, base_dir,
                seed=16807,
+               i_start=0,
+               i_end=None,
                temp_config='./templates/Config.sh',
                temp_param='./templates/param.txt',
                temp_job='./templates/job.sh',
@@ -210,6 +212,10 @@ class ParamGenerator:
             Each simulation will be in a sub-directory created here.
         seed : int
             Seed passed to pmwd.lpt.white_noise for pseudo-RNG.
+        i_start : int
+            The start index of the sample in the Sobol sequence (included).
+        i_end : int
+            The end index of the sample in the Sobol sequence (included).
         temp_config : str
             The template for generating the Config.sh file.
         temp_param : str
@@ -217,7 +223,12 @@ class ParamGenerator:
         temp_job : str
             The template for generating the job.sh file.
         """
-        for i in range(self.num_sims):
+        if not i_end:
+            i_end = self.num_sims - 1
+        elif i_end > self.num_sims - 1:
+            raise ValueError('i_end should be smaller than 2**m')
+
+        for i in range(i_start, i_end+1):
             # create the sub-directories for each simulation
             file_dir = os.path.join(base_dir, f'sim_{i:03}')
             if not os.path.exists(file_dir):
