@@ -14,7 +14,7 @@ class ParamGenerator:
     """To sample parameters and generate files needed for running Gadget4.
     """
 
-    def __init__(self, m=9, ptcl_grid_shape=128):
+    def __init__(self, m=9, ptcl_grid_shape=128, num_snapshot=64):
         """
         Sample parameters using a Sobol sequence for quasi Monte Carlo.
         Note that the Sobol sequence is not scrambled, i.e. a definite sequence is always used.
@@ -26,6 +26,9 @@ class ParamGenerator:
         ptcl_grid_shape : int
             1D ptcl grid shape for the cube.
         """
+        self.num_sims = 2**m
+
+        ### raw setup ranges to sample
         range_dic = OrderedDict([
             # PM
             ('0: log mesh-to-ptcl shape ratio', [np.log(1), np.log(4)]),
@@ -45,26 +48,49 @@ class ParamGenerator:
         ranges = np.array(list(range_dic.values()))
         rands = Sobol(d=len(range_dic), scramble=False).random_base2(m=m)
         sample = rands * (ranges[:, 1] - ranges[:, 0]) + ranges[:, 0]
-        self.num_sims = 2**m
 
-        # convert the samples above
+        ### convert to parameters in pmwd and Gadget
         self.pars = OrderedDict()
-        self.pars['ptcl grid shape'] = ptcl_grid_shape
-        self.pars['mesh shape'] = np.exp(sample[:, 0]) * self.pars['ptcl grid shape']
-        self.pars['cell size'] = np.exp(sample[:, 1])
-        self.pars['number time step'] = np.power(sample[:, 2], 10)
-        self.pars['softening length ratio'] = np.exp(sample[:, 3])
-        self.pars['a_start'] = np.exp(-np.log(16) + sample[:, 4])
-        self.pars['a_stop'] = np.exp(np.log(1) + sample[:, 4])
-        self.pars['a_nbody_maxstep'] = (self.pars['a_stop'] - self.pars['a_start']
-                                        ) / self.pars['number time step']
+
+        # cosmological parameters
         self.pars['A_s_1e9'] = np.exp(sample[:, 5])
         self.pars['n_s'] = np.exp(sample[:, 6])
         self.pars['Omega_m'] = np.exp(sample[:, 7])
         self.pars['Omega_b'] = np.exp(sample[:, 8]) * self.pars['Omega_m']
         self.pars['h'] = np.exp(sample[:, 9])
         self.pars['Omega_k'] = 1 - np.exp(sample[:, 10])
-        self.pars['number of snapshots'] = 64
+
+        # particle and mesh sizes
+        self.pars['ptcl grid shape'] = ptcl_grid_shape
+        self.pars['mesh shape'] = np.exp(sample[:, 0]) * self.pars['ptcl grid shape']
+        self.pars['cell size'] = np.exp(sample[:, 1])
+
+        # time integral
+        self.pars['number time step'] = np.power(sample[:, 2], 10)
+        self.pars['a_start'] = np.exp(-np.log(16) + sample[:, 4])
+        self.pars['a_stop'] = np.exp(np.log(1) + sample[:, 4])
+        self.pars['a_nbody_maxstep'] = (self.pars['a_stop'] - self.pars['a_start']
+                                        ) / self.pars['number time step']
+
+        # Gadget
+        self.pars['softening length ratio'] = np.exp(sample[:, 3])
+
+        # snapshot output
+        self.pars['number of snapshots'] = num_snapshot
+
+    def print_params(self, i):
+        """Print the parameters in a Sobol sample.
+
+        Parameters
+        ----------
+        i : int
+            Index of the sample.
+        """
+        for k, v in self.pars.items():
+            if isinstance(v, np.ndarray) and len(v) == self.num_sims:
+                print(f'{k:>25} : {v[i]:12g}   in   [{v.min():12g}, {v.max():12g}]')
+            else:
+                print(f'{k:>25} : {v:12g}')
 
     def init_conf(self, i):
         """Initialize a pmwd Configuration instance.
