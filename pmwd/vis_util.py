@@ -258,3 +258,78 @@ class CosmicWebNorm(FuncNorm):
             pass  # python < 3.9
 
         return ticks, ticklabels
+
+
+def slice_view(pos,
+               box_size=None,
+               dim=0,
+               origin=None,
+               start=0.4,
+               width=0.2,
+               bins=300,
+               cmap='viridis',
+               save_fig=None,
+               dpi=100,
+               fsize=10,
+               logscale=True):
+    """Plot a projected slice view of the particles in a cubic snapshot.
+
+    Parameters
+    ----------
+    pos : ndarray
+        Particle positions array of dimension ``(N, 3)``.
+    box_size : float
+        Size of the cubic box.
+    dim : int
+        The dimension along which the slice is made.
+    origin : float
+        The origin coordinate of the box.
+    start : float
+        The start position of the slice, given as a fraction of ``box_size``.
+    width : float
+        The width of the slice, given as a fraction of ``box_size``.
+    bins : int
+        The number of bins for the projected 2D histogram.
+    cmap : str
+        Color map for ``imshow``.
+    save_fig : str
+        The file name where the figure will be saved.
+    dpi : int
+        Dots per inch for the figure.
+    fsize : float
+        Size (inch) of the figure.
+    logscale : bool
+        Plot in log scale or not.
+    """
+    # range of the cube box
+    if not box_size:
+        box_size = np.max(np.abs(pos.max(axis=0) - pos.min(axis=0)))
+    if not origin:
+        origin = pos.min()
+
+    # range of slice
+    width *= box_size
+    start = origin + start * box_size
+    end = start + width
+
+    # generate the projected number of particles
+    mask = np.ones(3, dtype=bool)
+    mask[dim] = False
+    pos = pos[(pos[:, dim] >= start) & (pos[:, dim] <= end)][:, mask]
+    hist, edges = np.histogramdd(pos, bins=bins, range=[(origin, origin + box_size)]*2)
+    if logscale:
+        hist[hist == 0] = np.nan
+        hist = np.log10(hist)
+        hist[np.isnan(hist)] = -1e-15 # empty pixels
+
+    # plot
+    fig, ax = plt.subplots(1, 1, figsize=(fsize, fsize), dpi=dpi)
+    ax.imshow(hist, cmap=cmap)
+    ax.set_facecolor('k')
+    ax.axis('off')
+
+    # save figure
+    if save_fig:
+        fig.savefig(save_fig, bbox_inches='tight', pad_inches=0)
+
+    return fig, ax
