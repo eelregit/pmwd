@@ -1,3 +1,4 @@
+from functools import partial
 from itertools import permutations, combinations
 
 from jax import jit, custom_vjp, checkpoint, ensure_compile_time_eval
@@ -7,12 +8,13 @@ import jax.numpy as jnp
 from pmwd.particles import Particles
 from pmwd.cosmology import E2
 from pmwd.boltzmann import growth, linear_power
-from pmwd.gravity import rfftnfreq, laplace, neg_grad
+from pmwd.gravity import laplace, neg_grad
+from pmwd.pm_util import rfftnfreq
 
 
 #TODO follow pmesh to fill the modes in Fourier space
-@jit
-def white_noise(seed, conf):
+@partial(jit, static_argnames=('unit_abs', 'negate'))
+def white_noise(seed, conf, unit_abs=False, negate=False):
     """White noise Fourier modes.
 
     Parameters
@@ -20,6 +22,10 @@ def white_noise(seed, conf):
     seed : int
         Seed for the pseudo-random number generator.
     conf : Configuration
+    unit_abs : bool, optional
+        Whether to set the absolute values to 1.
+    negate : bool, optional
+        Whether to reverse the signs (180° phase flips).
 
     Returns
     -------
@@ -30,14 +36,14 @@ def white_noise(seed, conf):
     key = random.PRNGKey(seed)
 
     # sample linear modes on Lagrangian particle grid
-    modes = random.normal(key, conf.ptcl_grid_shape, dtype=conf.float_dtype)
+    modes = random.normal(key, shape=conf.ptcl_grid_shape, dtype=conf.float_dtype)
 
     modes = jnp.fft.rfftn(modes, norm='ortho')
 
-    if conf.modes_unit_abs:
+    if unit_abs:
         modes /= jnp.abs(modes)
 
-    if conf.modes_negate:
+    if negate:
         modes = -modes
 
     return modes
@@ -68,7 +74,7 @@ def linear_modes(kvec, a, modes, cosmo, conf):
     a : float or None
         Scale factors. If None, output is not scaled by growth.
     modes : jax.numpy.ndarray
-        Fourier modes with white noise prior.
+        Fourier or real modes with white noise prior.
     cosmo : Cosmology
     conf : Configuration
 
@@ -81,6 +87,9 @@ def linear_modes(kvec, a, modes, cosmo, conf):
     k = jnp.sqrt(sum(k**2 for k in kvec))
 
     Plin = linear_power(k, a, cosmo, conf)
+
+    if jnp.isrealobj(modes):
+        modes = jnp.fft.rfftn(modes, norm='ortho')
 
     modes *= _safe_sqrt(Plin * conf.box_vol)
 
@@ -219,7 +228,7 @@ def lpt(modes, cosmo, conf):
     Parameters
     ----------
     modes : jax.numpy.ndarray
-        Fourier modes with white noise prior.
+        Fourier or real modes with white noise prior.
     cosmo : Cosmology
     conf : Configuration
 
@@ -264,7 +273,7 @@ def lpt(modes, cosmo, conf):
         raise NotImplementedError('TODO')
 
     a = conf.a_start
-    ptcl = Particles.gen_grid(conf)
+    ptcl = Particles.gen_grid(conf, vel=True)
 
     for order in range(1, 1+conf.lpt_order):
         D = growth(a, cosmo, conf, order=order)
