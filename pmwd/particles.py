@@ -11,6 +11,7 @@ from pmwd.tree_util import pytree_dataclass
 from pmwd.configuration import Configuration
 from pmwd.cosmology import E2
 from pmwd.util import is_float0_array
+from pmwd.pm_util import enmesh
 
 
 ArrayLike = Union[ArrayLike, jnp.ndarray]
@@ -18,30 +19,30 @@ ArrayLike = Union[ArrayLike, jnp.ndarray]
 
 @partial(pytree_dataclass, aux_fields="conf", frozen=True)
 class Particles:
-    """Particle state or adjoint particle state.
+    """Particle state.
 
     Particles are indexable.
 
-    Array_like's are converted to jax.numpy.ndarray of conf.pmid_dtype or
-    conf.float_dtype at instantiation.
+    Array-like's are converted to ``jax.numpy.ndarray`` of ``conf.pmid_dtype`` or
+    ``conf.float_dtype`` at instantiation.
 
     Parameters
     ----------
     conf : Configuration
         Configuration parameters.
     pmid : array_like
-        Particles' IDs by mesh indices, of signed int dtype. They are the nearest mesh
+        Particle IDs by mesh indices, of signed int dtype. They are the nearest mesh
         grid points from particles' Lagrangian positions.
     disp : array_like
-        Particles' comoving displacements from pmid in [L], or adjoint. For
-        displacements from particles' grid Lagrangian positions, use ``ptcl_rpos(ptcl,
+        Particle comoving displacements from pmid in [L]. For displacements from
+        particles' grid Lagrangian positions, use ``ptcl_rpos(ptcl,
         Particles.gen_grid(ptcl.conf), ptcl.conf)``.  # TODO maybe a real_disp property
     vel : array_like, optional
-        Particles' canonical velocity in [H_0 L], or adjoint.
+        Particle canonical velocities in [H_0 L].
     acc : array_like, optional
-        Particles' accelerations in [H_0^2 L], or force vjp.
+        Particle accelerations in [H_0^2 L].
     attr : pytree, optional
-        Particles' attributes or adjoint, can be custom features.
+        Particle attributes (custom features).
 
     """
 
@@ -51,6 +52,7 @@ class Particles:
     disp: ArrayLike
     vel: Optional[ArrayLike] = None
     acc: Optional[ArrayLike] = None
+
     attr: Any = None
 
     def __post_init__(self):
@@ -60,18 +62,22 @@ class Particles:
         conf = self.conf
         for name, value in self.named_children():
             dtype = conf.pmid_dtype if name == 'pmid' else conf.float_dtype
-            value = tree_map(
-                lambda x: x if is_float0_array(x) else jnp.asarray(x, dtype=dtype),
-                value,
-            )
+            if name == 'attr':
+                value = tree_map(lambda x: jnp.asarray(x, dtype=dtype), value)
+            else:
+                value = (value if value is None or is_float0_array(value)
+                         else jnp.asarray(value, dtype=dtype))
             object.__setattr__(self, name, value)
+
+    def __len__(self):
+        return len(self.pmid)
 
     def __getitem__(self, key):
         return tree_map(itemgetter(key), self)
 
     @classmethod
     def from_pos(cls, conf, pos, wrap=True):
-        """Construct particle state of pmid and disp from positions.
+        """Construct particle state of ``pmid`` and ``disp`` from positions.
 
         There may be collisions in particle ``pmid``.
 
@@ -98,12 +104,16 @@ class Particles:
         return cls(conf, pmid, disp)
 
     @classmethod
-    def gen_grid(cls, conf):
+    def gen_grid(cls, conf, vel=False, acc=False):
         """Generate particles on a uniform grid with zero velocities.
 
         Parameters
         ----------
         conf : Configuration
+        vel : bool, optional
+            Whether to initialize velocities to zeros.
+        acc : bool, optional
+            Whether to initialize accelerations to zeros.
 
         """
         pmid, disp = [], []
@@ -125,9 +135,65 @@ class Particles:
         disp = jnp.meshgrid(*disp, indexing='ij')
         disp = jnp.stack(disp, axis=-1).reshape(-1, conf.dim)
 
-        vel = jnp.zeros_like(disp)
+        vel = jnp.zeros_like(disp) if vel else None
+        acc = jnp.zeros_like(disp) if acc else None
 
-        return cls(conf, pmid, disp, vel=vel)
+        return cls(conf, pmid, disp, vel=vel, acc=acc)
+
+        #pid = [jnp.arange(s, dtype=conf.id_dtype) for s in conf.ptcl_grid_shape]
+        #pid = jnp.meshgrid(*pid, indexing='ij')
+        #pid = jnp.stack(pid, axis=-1).reshape(conf.ptcl_num, conf.dim)
+
+        #dis = jnp.zeros_like(pid, dtype=conf.float_dtype)
+        #vel = jnp.zeros_like(dis) if vel else None
+        #acc = jnp.zeros_like(dis) if acc else None
+
+        #return cls(conf, pid, dis, vel=vel, acc=acc)
+
+
+def ptcl_enmesh(ptcl, conf, offset=0, cell_size=None, mesh_shape=None,
+                wrap=True, drop=True, grad=False):
+    """Compute multilinear mesh indices and fractions given particles.
+
+    See ``pm_util.enmesh``.
+
+    Parameters
+    ----------
+    ptcl : Particles
+    conf : Configuration
+    offset : array_like, optional
+        Offset of mesh to particle grid. If 0D, the value is used in each dimension.
+    cell_size : float, optional
+        Mesh cell size in [L]. Default is ``conf.cell_size``.
+    mesh_shape : tuple of int, optional
+        Mesh shape. Default is ``conf.mesh_shape``.
+    wrap : bool, optional
+        Whether to wrap around the periodic boundaries.
+    drop : bool, optional
+        Whether to set negative out-of-bounds indices of ``ind`` to ``mesh_shape``,
+        avoiding some of them being treated as in bounds, thus allowing them to be
+        dropped by ``add()`` and ``get()`` of ``jax.numpy.ndarray.at``.
+    grad : bool, optional
+        Whether to return ``frac_grad``, gradients of ``frac``.
+
+    Returns
+    -------
+    ind : (ptcl_num, 2**dim, dim) jax.numpy.ndarray
+        Mesh indices.
+    frac : (ptcl_num, 2**dim) jax.numpy.ndarray
+        Multilinear fractions on the mesh.
+    frac_grad : (ptcl_num, 2**dim, dim) jax.numpy.ndarray
+        Multilinear fraction gradients on the mesh.
+
+    """
+    wrap_shape = conf.mesh_shape if wrap else None
+
+    if mesh_shape is None:
+        mesh_shape = conf.mesh_shape
+    drop_shape = mesh_shape if drop else None
+
+    return enmesh(ptcl.pmid, ptcl.disp, conf.cell_size, wrap_shape,
+                  offset, cell_size, drop_shape, grad)
 
 
 def ptcl_pos(ptcl, conf, dtype=None, wrap=True):
@@ -161,13 +227,14 @@ def ptcl_pos(ptcl, conf, dtype=None, wrap=True):
     return pos
 
 
-def ptcl_rpos(ptcl1, ptcl0, conf, wrap=True):
-    """Positions of Particles ptcl1 relative to Particles ptcl0 in [L].
+def ptcl_rpos(ptcl, ref, conf, wrap=True):
+    """Positions of Particles ptcl relative to references in [L].
 
     Parameters
     ----------
-    ptcl1 : Particles
-    ptcl0 : Particles
+    ptcl : Particles
+    ref : array_like or Particles
+        Reference points or particles.
     conf : Configuration
     wrap : bool, optional
         Whether to wrap around the periodic boundaries.
@@ -178,10 +245,13 @@ def ptcl_rpos(ptcl1, ptcl0, conf, wrap=True):
         Particle relative positions.
 
     """
-    rpos = ptcl1.pmid - ptcl0.pmid
+    if not isinstance(ref, Particles):
+        ref = Particles.from_pos(conf, ref, wrap=False)
+
+    rpos = ptcl.pmid - ref.pmid
     rpos = rpos.astype(conf.float_dtype)
     rpos *= conf.cell_size
-    rpos += ptcl1.disp - ptcl0.disp
+    rpos += ptcl.disp - ref.disp
 
     if wrap:
         box_size = jnp.array(conf.box_size, dtype=conf.float_dtype)
@@ -230,7 +300,7 @@ def ptcl_los(ptcl, obs, conf):
     ----------
     ptcl : Particles
     obs : array_like or Particles
-        Observer position in [L].
+        Observer position.
     conf : Configuration
 
     Returns
@@ -239,9 +309,6 @@ def ptcl_los(ptcl, obs, conf):
         Particles line-of-sight unit vectors.
 
     """
-    if not isinstance(obs, Particles):
-        obs = Particles.from_pos(conf, obs, wrap=False)
-
     los = ptcl_rpos(ptcl, obs, conf, wrap=False)
     los /= jnp.linalg.norm(los, axis=1, keepdims=True)
 
