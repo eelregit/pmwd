@@ -3,38 +3,7 @@ from jax import custom_vjp
 
 from pmwd.scatter import scatter
 from pmwd.gather import gather
-
-
-def rfftnfreq(shape, spacing, dtype=float):
-    """Broadcastable "``sparse``" wavevectors for ``numpy.fft.rfftn``.
-
-    Parameters
-    ----------
-    shape : tuple of int
-        Shape of ``rfftn`` input.
-    spacing : float
-        Grid spacing in [L].
-    dtype : dtype_like
-
-    Returns
-    -------
-    kvec : list of jax.numpy.ndarray
-        Wavevectors.
-
-    """
-    freq_period = 2. * jnp.pi / spacing
-
-    kvec = []
-    for axis, s in enumerate(shape[:-1]):
-        k = jnp.fft.fftfreq(s).astype(dtype) * freq_period
-        kvec.append(k)
-
-    k = jnp.fft.rfftfreq(shape[-1]).astype(dtype) * freq_period
-    kvec.append(k)
-
-    kvec = jnp.meshgrid(*kvec, indexing='ij', sparse=True)
-
-    return kvec
+from pmwd.pm_util import rfftnfreq
 
 
 @custom_vjp
@@ -76,13 +45,10 @@ def neg_grad(k, pot, spacing):
 
 
 def gravity(a, ptcl, cosmo, conf):
-    """Particles' gravitational accelerations in [H_0^2], solved on a mesh with FFT."""
+    """Gravitational accelerations of particles in [H_0^2], solved on a mesh with FFT."""
     kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
 
-    dens = jnp.zeros(conf.mesh_shape, dtype=conf.float_dtype)
-
-    inv_dens_mean = conf.mesh_size / conf.ptcl_num
-    dens = scatter(ptcl, dens, inv_dens_mean, conf.cell_size, chunk_size=conf.chunk_size)
+    dens = scatter(ptcl, conf)
     dens -= 1  # overdensity
 
     dens *= 1.5 * cosmo.Omega_m.astype(conf.float_dtype)
@@ -98,7 +64,7 @@ def gravity(a, ptcl, cosmo, conf):
         grad = jnp.fft.irfftn(grad, s=conf.mesh_shape)
         grad = grad.astype(conf.float_dtype)  # no jnp.complex32
 
-        grad = gather(ptcl, grad, 0, conf.cell_size, chunk_size=conf.chunk_size)
+        grad = gather(ptcl, conf, grad)
 
         acc.append(grad)
     acc = jnp.stack(acc, axis=-1)
