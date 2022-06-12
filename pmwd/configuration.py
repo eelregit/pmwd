@@ -1,3 +1,4 @@
+import os
 from functools import partial
 from math import ceil
 from typing import ClassVar, Optional, Tuple, Union
@@ -12,26 +13,28 @@ jnp.set_printoptions(precision=3, edgeitems=2, linewidth=128)
 from pmwd.tree_util import pytree_dataclass
 
 
+os.environ['NVIDIA_TF32_OVERRIDE'] = '1'  # enable TF32
+
+
 @partial(pytree_dataclass, aux_fields=Ellipsis, frozen=True)
 class Configuration:
     """Configuration parameters, "immutable" as a frozen dataclass.
 
     Parameters
     ----------
-    cell_size : float
-        Mesh cell size in [L].
-    mesh_shape : tuple of ints
-        Mesh shape in ``len(mesh_shape)`` dimensions.
-    ptcl_grid_shape : int, float or tuple of ints, optional
-        Lagrangian particle grid shape. If an int or float, it is used as the 1D
-        sampling rate of particles on mesh, i.e. the number of particles per cell per
-        dimension, to determine the particles grid shape. The particle grid cannot be
-        larger than the mesh grid, i.e. the float value must not exceed 1, and they must
-        have the same aspect ratio.
+    ptcl_spacing : float
+        Lagrangian particle grid cell size in [L].
+    ptcl_grid_shape : tuple of int
+        Lagrangian particle grid shape, in ``len(ptcl_grid_shape)`` spatial dimensions.
+    mesh_shape : int, float, or tuple of int, optional
+        Mesh shape. If an int or float, it is used as the 1D mesh to particle grid shape
+        ratio, to determine the mesh shape from that of the particle grid. The mesh grid
+        cannot be smaller than the particle grid (int or float values must not be
+        smaller than 1) and the two grids must have the same aspect ratio.
     cosmo_dtype : dtype_like, optional
         Float dtype for Cosmology and Configuration.
     pmid_dtype : dtype_like, optional
-        Signed integer dtype for particle pmid.
+        Signed integer dtype for particle or mesh grid indices.
     float_dtype : dtype_like, optional
         Float dtype for other particle and mesh quantities.
     k_pivot_Mpc : float, optional
@@ -57,10 +60,6 @@ class Configuration:
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
         Absolute tolerance for solving the growth ODEs.
-    modes_unit_abs : bool, optional
-        Whether to fix absolute values of the white noise Fourier modes to 1.
-    modes_negate : bool, optional
-        Whether to reverse signs (180° phase flips) of the white noise Fourier modes.
     lpt_order : int, optional
         LPT order, with 1 for Zel'dovich approximation, 2 for 2LPT, and 3 for 3LPT.
     a_start : float, optional
@@ -85,10 +84,10 @@ class Configuration:
 
     """
 
-    cell_size: float
-    mesh_shape: Tuple[int, ...]  # tuple[int, ...] for python >= 3.9 (PEP 585)
+    ptcl_spacing: float
+    ptcl_grid_shape: Tuple[int, ...]  # tuple[int, ...] for python >= 3.9 (PEP 585)
 
-    ptcl_grid_shape: Union[int, float, Tuple[int, ...]] = 1
+    mesh_shape: Union[int, float, Tuple[int, ...]] = 1
 
     cosmo_dtype: DTypeLike = jnp.dtype(jnp.float64)
     pmid_dtype: DTypeLike = jnp.dtype(jnp.int16)
@@ -117,9 +116,6 @@ class Configuration:
     growth_rtol: Optional[float] = None
     growth_atol: Optional[float] = None
 
-    modes_unit_abs: bool = False
-    modes_negate: bool = False
-
     lpt_order: int = 2
 
     a_start: float = 1/64
@@ -133,22 +129,21 @@ class Configuration:
         if self._is_transforming():
             return
 
-        if isinstance(self.ptcl_grid_shape, (int, float)):
-            ptcl_grid_shape = tuple(round(s * self.ptcl_grid_shape)
-                                    for s in self.mesh_shape)
-            object.__setattr__(self, 'ptcl_grid_shape', ptcl_grid_shape)
+        if isinstance(self.mesh_shape, (int, float)):
+            mesh_shape = tuple(round(s * self.mesh_shape) for s in self.ptcl_grid_shape)
+            object.__setattr__(self, 'mesh_shape', mesh_shape)
         if len(self.ptcl_grid_shape) != len(self.mesh_shape):
             raise ValueError('particle and mesh grid dimensions differ')
-        if any(sp > sm for sp, sm in zip(self.ptcl_grid_shape, self.mesh_shape)):
-            raise ValueError('particle grid cannot be larger than mesh grid')
+        if any(sm < sp for sp, sm in zip(self.ptcl_grid_shape, self.mesh_shape)):
+            raise ValueError('mesh grid cannot be smaller than particle grid')
         if any(self.ptcl_grid_shape[0] * sm != self.mesh_shape[0] * sp
-                 for sm, sp in zip(self.mesh_shape[1:], self.ptcl_grid_shape[1:])):
+               for sp, sm in zip(self.ptcl_grid_shape[1:], self.mesh_shape[1:])):
             raise ValueError('particle and mesh grid aspect ratios differ')
 
         if not jnp.issubdtype(self.cosmo_dtype, jnp.floating):
             raise ValueError('cosmo_dtype must be floating point numbers')
         if not jnp.issubdtype(self.pmid_dtype, jnp.signedinteger):
-            raise ValueError('pmid_dtype for pmid must be signed integers')
+            raise ValueError('pmid_dtype must be signed integers')
         if not jnp.issubdtype(self.float_dtype, jnp.floating):
             raise ValueError('float_dtype must be floating point numbers')
 
@@ -168,29 +163,12 @@ class Configuration:
     @property
     def dim(self):
         """Spatial dimension."""
-        return len(self.mesh_shape)
+        return len(self.ptcl_grid_shape)
 
     @property
-    def cell_vol(self):
-        """Mesh cell volume in [L^dim]."""
-        return self.cell_size ** self.dim
-
-    @property
-    def box_size(self):
-        """Simulation box size tuple in [L]."""
-        return tuple(self.cell_size * s for s in self.mesh_shape)
-
-    @property
-    def box_vol(self):
-        """Simulation box volume in [L^dim]."""
-        with jax.ensure_compile_time_eval():
-            return jnp.array(self.box_size).prod().item()
-
-    @property
-    def mesh_size(self):
-        """Number of mesh grid points."""
-        with jax.ensure_compile_time_eval():
-            return jnp.array(self.mesh_shape).prod().item()
+    def ptcl_cell_vol(self):
+        """Lagrangian particle grid cell volume in [L^dim]."""
+        return self.ptcl_spacing ** self.dim
 
     @property
     def ptcl_num(self):
@@ -199,14 +177,31 @@ class Configuration:
             return jnp.array(self.ptcl_grid_shape).prod().item()
 
     @property
-    def ptcl_spacing(self):
-        """Lagrangian particle grid cell size in [L]."""
-        return self.cell_size * self.mesh_shape[0] / self.ptcl_grid_shape[0]
+    def box_size(self):
+        """Simulation box size tuple in [L]."""
+        return tuple(self.ptcl_spacing * s for s in self.ptcl_grid_shape)
 
     @property
-    def ptcl_cell_vol(self):
-        """Lagrangian particle grid cell volume in [L^dim]."""
-        return self.ptcl_spacing ** self.dim
+    def box_vol(self):
+        """Simulation box volume in [L^dim]."""
+        with jax.ensure_compile_time_eval():
+            return jnp.array(self.box_size).prod().item()
+
+    @property
+    def cell_size(self):
+        """Mesh cell size in [L]."""
+        return self.ptcl_spacing * self.ptcl_grid_shape[0] / self.mesh_shape[0]
+
+    @property
+    def cell_vol(self):
+        """Mesh cell volume in [L^dim]."""
+        return self.cell_size ** self.dim
+
+    @property
+    def mesh_size(self):
+        """Number of mesh grid points."""
+        with jax.ensure_compile_time_eval():
+            return jnp.array(self.mesh_shape).prod().item()
 
     @property
     def V(self):
