@@ -52,11 +52,11 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
     elif isinstance(aux_fields, str):
         aux_fields = (aux_fields,)
     elif aux_fields is Ellipsis:
-        aux_fields = tuple(field.name for field in dataclasses.fields(cls))
-    aux_data_names = tuple(field.name for field in dataclasses.fields(cls)
-                           if field.name in aux_fields)
-    children_names = tuple(field.name for field in dataclasses.fields(cls)
-                           if field.name not in aux_fields)
+        aux_fields = [field.name for field in dataclasses.fields(cls)]
+    aux_data_names = [field.name for field in dataclasses.fields(cls)
+                      if field.name in aux_fields]
+    children_names = [field.name for field in dataclasses.fields(cls)
+                      if field.name not in aux_fields]
 
     if aux_invert:
         aux_data_names, children_names = children_names, aux_data_names
