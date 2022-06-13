@@ -1,5 +1,3 @@
-from functools import partial
-
 from jax import jit, custom_vjp, ensure_compile_time_eval
 import jax.numpy as jnp
 from jax.experimental.ode import odeint
@@ -7,6 +5,7 @@ from jax.experimental.ode import odeint
 from pmwd.cosmology import H_deriv, Omega_m_a
 
 
+@jit
 def transfer_integ(cosmo, conf):
     if conf.transfer_fit:
         return cosmo
@@ -133,6 +132,7 @@ def transfer(k, cosmo, conf):
         raise NotImplementedError('TODO')
 
 
+@jit
 def growth_integ(cosmo, conf):
     """Intergrate and tabulate (LPT) growth functions and derivatives at given scale
     factors.
@@ -202,7 +202,6 @@ def growth_integ(cosmo, conf):
 
 
 # TODO 3rd order has two factors, so `order` probably need to support str
-@partial(jit, static_argnames=('order', 'deriv'))
 def growth(a, cosmo, conf, order=1, deriv=0):
     """Evaluate interpolation of (LPT) growth function or derivative, the n-th
     derivatives of the m-th order growth function :math:`\mathrm{d}^n D_m /
@@ -241,7 +240,6 @@ def growth(a, cosmo, conf, order=1, deriv=0):
     return D
 
 
-@jit
 def boltzmann(cosmo, conf):
     """Solve Einstein-Boltzmann equations and precompute transfer and growth functions.
 
