@@ -62,7 +62,8 @@ class ParamGenerator:
 
         # particle and mesh sizes
         self.pars['ptcl grid shape'] = ptcl_grid_shape
-        self.pars['mesh shape'] = np.exp(sample[:, 0]) * self.pars['ptcl grid shape']
+        self.pars['mesh shape'] = np.rint(np.exp(sample[:, 0]) *
+                                          self.pars['ptcl grid shape']).astype(int)
         self.pars['cell size'] = np.exp(sample[:, 1])
 
         # time integral
