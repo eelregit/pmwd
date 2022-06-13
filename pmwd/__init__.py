@@ -11,7 +11,8 @@ from pmwd.particles import (Particles, ptcl_enmesh,
 from pmwd.scatter import scatter
 from pmwd.gather import gather
 from pmwd.gravity import laplace, neg_grad, gravity
-from pmwd.lpt import white_noise, linear_modes, lpt
+from pmwd.modes import white_noise, linear_modes
+from pmwd.lpt import lpt
 from pmwd.nbody import nbody
 from pmwd.pm_util import enmesh, rfftnfreq
 try:
