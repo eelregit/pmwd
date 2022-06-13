@@ -64,24 +64,29 @@ def _safe_sqrt_bwd(y, y_cot):
 _safe_sqrt.defvjp(_safe_sqrt_fwd, _safe_sqrt_bwd)
 
 
-def linear_modes(kvec, a, modes, cosmo, conf):
-    """Linear matter density field Fourier modes.
+def linear_modes(kvec, modes, cosmo, conf, a=None):
+    """Linear matter overdensity field Fourier modes.
 
     Parameters
     ----------
     kvec : sequence of jax.numpy.ndarray
         Wavevectors.
-    a : float or None
-        Scale factors. If None, output is not scaled by growth.
     modes : jax.numpy.ndarray
         Fourier or real modes with white noise prior.
     cosmo : Cosmology
     conf : Configuration
+    a : float, optional
+        Scale factors. Default (None) is to not scale the output modes by growth.
 
     Returns
     -------
     modes : jax.numpy.ndarray of conf.float_dtype
-        Linear matter density field Fourier modes in [L^3].
+        Linear matter overdensity field Fourier modes in [L^3].
+
+    Notes
+    -----
+
+    TODO: IC scaling math
 
     """
     k = jnp.sqrt(sum(k**2 for k in kvec))
@@ -228,7 +233,7 @@ def lpt(modes, cosmo, conf):
     Parameters
     ----------
     modes : jax.numpy.ndarray
-        Fourier or real modes with white noise prior.
+        Fourier or real linear modes.
     cosmo : Cosmology
     conf : Configuration
 
@@ -250,7 +255,6 @@ def lpt(modes, cosmo, conf):
 
     kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
-    modes = linear_modes(kvec, None, modes, cosmo, conf)  # not scaled by growth
     modes /= conf.ptcl_cell_vol  # remove volume factor first for convenience
 
     pot = []
