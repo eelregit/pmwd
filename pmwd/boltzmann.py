@@ -178,7 +178,7 @@ def growth_integ(cosmo, conf):
         G3app = Omega_fac * G1*G2 - (15 + 3*dlnH_dlna - Omega_fac) * G3a - (8 + dlnH_dlna) * G3ap
         G3bpp = Omega_fac * G1**3 - (15 + 3*dlnH_dlna - Omega_fac) * G3b - (8 + dlnH_dlna) * G3bp
         G3cpp = Omega_fac * G1**3 - (15 + 3*dlnH_dlna) * G3c - (8 + dlnH_dlna) * G3cp
-        return jnp.concatenate((G1p, G1pp, G2p, G2pp, G3ap, G3app, G3bp, G3pp, G3cpp, G3cpp), axis=-1)
+        return jnp.concatenate((G1p, G1pp, G2p, G2pp, G3ap, G3app, G3bp, G3bpp, G3cp, G3cpp), axis=-1)
 
     G_ic = jnp.array((1, 0, 3/7, 0, 3/77, 0, 1/11, 0, 1/12, 0), dtype=conf.cosmo_dtype)
 
