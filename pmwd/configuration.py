@@ -117,6 +117,7 @@ class Configuration:
     growth_atol: Optional[float] = None
 
     lpt_order: int = 2
+    lpt_pad_ratio: Optional[float] = None
 
     a_start: float = 1/64
     a_stop: float = 1.

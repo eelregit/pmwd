@@ -9,7 +9,72 @@ from pmwd.boltzmann import growth
 from pmwd.gravity import laplace, neg_grad
 from pmwd.pm_util import rfftnfreq
 
-def _strain(kvec, i, j, pot, conf):
+def _pad(pot, padded_shape, conf) :
+
+    if conf.lpt_pad_ratio is None :
+        return pot
+
+    inds = []
+    for d, s in enumerate(pot.shape[:-1]) :
+        ny = s//2
+        i = jnp.arange(ny)
+        ii = jnp.concatenate((i, jnp.array([ny]), -1-i[::-1]))
+        shape = [1] * pot.ndim
+        shape[d] = s + 1
+        ii = ii.reshape(shape)
+        inds.append(ii)
+    inds.append(jnp.arange(pot.shape[-1]))
+    inds = tuple(inds)
+
+    padded = jnp.zeros(padded_shape, dtype = pot.dtype)
+    padded = padded.at[inds].set(pot[inds])
+
+    # Nyquist have been doubled, need to half them
+    ny = pot.shape[0] // 2
+    two_ny = pot.shape[0]
+    padded = padded.at[ny,:,:].multiply(0.5);
+    padded = padded.at[two_ny,:,:].multiply(0.5);
+    ny = pot.shape[1] // 2
+    two_ny = pot.shape[1]
+    padded = padded.at[:,ny,:].multiply(0.5);
+    padded = padded.at[:,two_ny,:].multiply(0.5);
+    ny = pot.shape[2] - 1
+    two_ny = 2 * ny
+    padded = padded.at[:,:,ny].multiply(0.5);
+    padded = padded.at[:,:,two_ny].multiply(0.5);
+
+    return padded
+
+def _trunc(pot, orig_shape, conf) :
+
+    if conf.lpt_pad_ratio is None :
+        return pot
+
+    inds = []
+    for d, s in enumerate(orig_shape[:-1]) :
+        i = jnp.arange(s//2)
+        ii = jnp.concatenate((i, -1-i[::-1]))
+        shape = [1] * pot.ndim
+        shape[d] = s
+        ii = ii.reshape(shape)
+        inds.append(ii)
+    inds.append(jnp.arange(orig_shape[-1]))
+    inds = tuple(inds)
+
+    unpadded = pot[inds]
+
+    # Nyquist were cut in half, need to double
+    ny = pot.shape[0] // 2
+    unpadded = unpadded.at[ny,:,:].multiply(2);
+    ny = pot.shape[1] // 2
+    unpadded = unpadded.at[:,ny,:].multiply(2);
+    ny = pot.shape[2] - 1
+    unpadded = unpadded.at[:,:,ny].multiply(2);
+
+    return unpadded
+
+
+def _strain(kvec, i, j, pot, padded_shape, conf):
     """LPT strain component sourced by scalar potential only.
 
      The Nyquist planes are not zeroed when i == j.
@@ -28,32 +93,32 @@ def _strain(kvec, i, j, pot, conf):
         k_i = jnp.where(jnp.abs(jnp.abs(k_i) - nyquist) <= eps, 0, k_i)
         k_j = jnp.where(jnp.abs(jnp.abs(k_j) - nyquist) <= eps, 0, k_j)
 
-    strain = -k_i * k_j * pot
+    strain = _pad(-k_i * k_j * pot, padded_shape, conf)
 
-    strain = jnp.fft.irfftn(strain, s=conf.ptcl_grid_shape)
+    strain = jnp.fft.irfftn(strain, s=padded_shape)
     strain = strain.astype(conf.float_dtype)  # no jnp.complex32
 
     return strain
 
 
-def _L(kvec, pot_m, pot_n, conf):
+def _L(kvec, pot_m, pot_n, padded_shape, conf):
     m_eq_n = pot_n is None
     if m_eq_n:
         pot_n = pot_m
 
-    L = jnp.zeros(conf.ptcl_grid_shape, dtype=conf.float_dtype)
+    L = jnp.zeros(padded_shape, dtype=conf.float_dtype)
 
     for i in range(conf.dim):
-        strain_m = _strain(kvec, i, i, pot_m, conf)
+        strain_m = _strain(kvec, i, i, pot_m, padded_shape, conf)
 
         for j in range(conf.dim-1, i, -1):
-            strain_n = _strain(kvec, j, j, pot_n, conf)
+            strain_n = _strain(kvec, j, j, pot_n, padded_shape, conf)
 
             L += strain_m * strain_n
 
         if not m_eq_n:
             for j in range(i-1, -1, -1):
-                strain_n = _strain(kvec, j, j, pot_n, conf)
+                strain_n = _strain(kvec, j, j, pot_n, padded_shape, conf)
 
                 L += strain_m * strain_n
 
@@ -64,11 +129,11 @@ def _L(kvec, pot_m, pot_n, conf):
     # for lpt_order <=3, i.e., m, n <= 2
     for i in range(conf.dim-1):
         for j in range(i+1, conf.dim):
-            strain_m = _strain(kvec, i, j, pot_m, conf)
+            strain_m = _strain(kvec, i, j, pot_m, padded_shape, conf)
 
             strain_n = strain_m
             if not m_eq_n:
-                strain_n = _strain(kvec, j, i, pot_n, conf)
+                strain_n = _strain(kvec, j, i, pot_n, padded_shape, conf)
 
             L -= strain_m * strain_n
 
@@ -100,14 +165,14 @@ def levi_civita(indices):
     return epsilon.item()
 
 
-def _M(kvec, pot, conf):
-    M = jnp.zeros(conf.ptcl_grid_shape, dtype=conf.float_dtype)
+def _M(kvec, pot, padded_shape, conf):
+    M = jnp.zeros(padded_shape, dtype=conf.float_dtype)
 
     for indices in permutations(range(conf.dim), r=3):
         i, j, k = indices
-        strain_0i = _strain(kvec, 0, i, pot, conf)
-        strain_1j = _strain(kvec, 1, j, pot, conf)
-        strain_2k = _strain(kvec, 2, k, pot, conf)
+        strain_0i = _strain(kvec, 0, i, pot, padded_shape, conf)
+        strain_1j = _strain(kvec, 1, j, pot, padded_shape, conf)
+        strain_2k = _strain(kvec, 2, k, pot, padded_shape, conf)
 
         with ensure_compile_time_eval():
             epsilon = levi_civita(indices)
@@ -115,22 +180,22 @@ def _M(kvec, pot, conf):
 
     return M
 
-def _V(kvec, pot_1, pot_2, axis, conf):
-    V = jnp.zeros(conf.ptcl_grid_shape, dtype=conf.float_dtype)
+def _V(kvec, pot_1, pot_2, axis, padded_shape, conf):
+    V = jnp.zeros(padded_shape, dtype=conf.float_dtype)
 
     i = (axis + 1) % 3
     j = (axis + 2) % 3
     for k in range(conf.dim) :
-        strain_1 = _strain(kvec, i, k, pot_1, conf)
-        strain_2 = _strain(kvec, j, k, pot_2, conf)
+        strain_1 = _strain(kvec, i, k, pot_1, padded_shape, conf)
+        strain_2 = _strain(kvec, j, k, pot_2, padded_shape, conf)
         V += strain_1 * strain_2
-        strain_1 = _strain(kvec, j, k, pot_1, conf)
-        strain_2 = _strain(kvec, i, k, pot_2, conf)
+        strain_1 = _strain(kvec, j, k, pot_1, padded_shape, conf)
+        strain_2 = _strain(kvec, i, k, pot_2, padded_shape, conf)
         V -= strain_1 * strain_2
 
     return V
 
-def next_fast_len(n):
+def next_fast_len(orig_shape, conf):
     """Find the next fast size to FFT.
 
     .. _scipy fftpack next_fast_len:
@@ -144,7 +209,11 @@ def next_fast_len(n):
     .. _nextprod-py:
         https://github.com/fasiha/nextprod-py
     """
-    raise NotImplementedError
+    #raise NotImplementedError
+    if conf.lpt_pad_ratio is not None :
+        return tuple([int(jnp.round(s * conf.lpt_pad_ratio)) for s in orig_shape])
+    else :
+        return orig_shape
 
 
 @jit
@@ -185,17 +254,22 @@ def lpt(modes, cosmo, conf):
     scalar_pots = []
     vector_pot = []
 
+    with ensure_compile_time_eval():
+        padded_shape = next_fast_len(modes.shape, conf)
+
     if conf.lpt_order > 0:
         src_1 = modes
 
         pot_1 = laplace(kvec, src_1, cosmo)
 
+        pot_shape = pot_1.shape
+
         scalar_pots.append(pot_1)
 
     if conf.lpt_order > 1:
-        src_2 = _L(kvec, pot_1, None, conf)
+        src_2 = _L(kvec, pot_1, None, padded_shape, conf)
 
-        src_2 = jnp.fft.rfftn(src_2)
+        src_2 = _trunc(jnp.fft.rfftn(src_2), pot_shape, conf)
 
         pot_2 = laplace(kvec, src_2, cosmo)
 
@@ -203,26 +277,26 @@ def lpt(modes, cosmo, conf):
 
     if conf.lpt_order > 2:
 
-        src_3_a = _L(kvec, pot_1, pot_2, conf)
+        src_3_a = _L(kvec, pot_1, pot_2, padded_shape, conf)
 
-        src_3_a = jnp.fft.rfftn(src_3_a)
+        src_3_a = _trunc(jnp.fft.rfftn(src_3_a), pot_shape, conf)
 
         pot_3_a = laplace(kvec, src_3_a, cosmo)
 
         scalar_pots.append(pot_3_a)
 
-        src_3_b = -2. * _M(kvec, pot_1, conf)
+        src_3_b = -2. * _M(kvec, pot_1, padded_shape, conf)
 
-        src_3_b = jnp.fft.rfftn(src_3_b)
+        src_3_b = _trunc(jnp.fft.rfftn(src_3_b), pot_shape, conf)
 
         pot_3_b = pot_3_a + laplace(kvec, src_3_b, cosmo)
 
         scalar_pots.append(pot_3_b)
 
         for i in range(conf.dim) :
-            vector_src = _V(kvec, pot_1, pot_2, i, conf)
+            vector_src = _V(kvec, pot_1, pot_2, i, padded_shape, conf)
 
-            vector_src = jnp.fft.rfftn(vector_src)
+            vector_src = _trunc(jnp.fft.rfftn(vector_src), pot_shape, conf)
 
             vector_src = laplace(kvec, vector_src, cosmo)
 
