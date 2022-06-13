@@ -78,6 +78,10 @@ class ParamGenerator:
 
         # snapshot output
         self.pars['number of snapshots'] = num_snapshot
+        self.pars['times of snapshots'] = np.logspace(np.log10(self.pars['a_start']),
+                                                      np.log10(self.pars['a_stop']),
+                                                      num=self.pars['number of snapshots'],
+                                                      axis=-1)
 
     def print_params(self, i):
         """Print the parameters in a Sobol sample.
@@ -88,7 +92,9 @@ class ParamGenerator:
             Index of the sample.
         """
         for k, v in self.pars.items():
-            if isinstance(v, np.ndarray) and len(v) == self.num_sims:
+            if k == 'times of snapshots':
+                print(f'{k:>25} : {v[i]}')
+            elif isinstance(v, np.ndarray) and len(v) == self.num_sims:
                 print(f'{k:>25} : {v[i]:12g}   in   [{v.min():12g}, {v.max():12g}]')
             else:
                 print(f'{k:>25} : {v:12g}')
@@ -160,8 +166,11 @@ class ParamGenerator:
 
         writeGadgetHDF5(os.path.join(file_dir, 'ic'), 1, ptcl, cosmo, conf, conf.a_start)
 
-    def gen_GadgetFiles(self, file_dir,
-                        i, conf=None, cosmo=None,
+    def gen_GadgetFiles(self,
+                        file_dir,
+                        i,
+                        conf=None,
+                        cosmo=None,
                         temp_config='./templates/Config.sh',
                         temp_param='./templates/param.txt',
                         temp_job='./templates/job.sh'):
@@ -217,12 +226,11 @@ class ParamGenerator:
             fo.write(job)
 
         # times (scale factors) of output snapshots
-        times = np.logspace(np.log10(self.pars['a_start'][i]),
-                            np.log10(self.pars['a_stop'][i]),
-                            num=self.pars['number of snapshots'])
-        np.savetxt(os.path.join(file_dir, 'outtimes.txt'), times, fmt='%.15f')
+        np.savetxt(os.path.join(file_dir, 'outtimes.txt'),
+                   self.pars['times of snapshots'][i], fmt='%.15f')
 
-    def deploy(self, base_dir,
+    def deploy(self,
+               base_dir,
                seed=16807,
                i_start=0,
                i_end=None,
