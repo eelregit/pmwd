@@ -1,104 +1,13 @@
-from functools import partial
 from itertools import permutations, combinations
 
-from jax import jit, custom_vjp, checkpoint, ensure_compile_time_eval
-from jax import random
+from jax import jit, checkpoint, ensure_compile_time_eval
 import jax.numpy as jnp
 
 from pmwd.particles import Particles
 from pmwd.cosmology import E2
-from pmwd.boltzmann import growth, linear_power
+from pmwd.boltzmann import growth
 from pmwd.gravity import laplace, neg_grad
 from pmwd.pm_util import rfftnfreq
-
-
-#TODO follow pmesh to fill the modes in Fourier space
-@partial(jit, static_argnames=('unit_abs', 'negate'))
-def white_noise(seed, conf, unit_abs=False, negate=False):
-    """White noise Fourier modes.
-
-    Parameters
-    ----------
-    seed : int
-        Seed for the pseudo-random number generator.
-    conf : Configuration
-    unit_abs : bool, optional
-        Whether to set the absolute values to 1.
-    negate : bool, optional
-        Whether to reverse the signs (180° phase flips).
-
-    Returns
-    -------
-    modes : jax.numpy.ndarray of conf.float_dtype
-        White noise Fourier modes.
-
-    """
-    key = random.PRNGKey(seed)
-
-    # sample linear modes on Lagrangian particle grid
-    modes = random.normal(key, shape=conf.ptcl_grid_shape, dtype=conf.float_dtype)
-
-    modes = jnp.fft.rfftn(modes, norm='ortho')
-
-    if unit_abs:
-        modes /= jnp.abs(modes)
-
-    if negate:
-        modes = -modes
-
-    return modes
-
-
-@custom_vjp
-def _safe_sqrt(x):
-    return jnp.sqrt(x)
-
-def _safe_sqrt_fwd(x):
-    y = _safe_sqrt(x)
-    return y, y
-
-def _safe_sqrt_bwd(y, y_cot):
-    x_cot = jnp.where(y != 0, 0.5 / y * y_cot, 0)
-    return (x_cot,)
-
-_safe_sqrt.defvjp(_safe_sqrt_fwd, _safe_sqrt_bwd)
-
-
-def linear_modes(kvec, modes, cosmo, conf, a=None):
-    """Linear matter overdensity field Fourier modes.
-
-    Parameters
-    ----------
-    kvec : sequence of jax.numpy.ndarray
-        Wavevectors.
-    modes : jax.numpy.ndarray
-        Fourier or real modes with white noise prior.
-    cosmo : Cosmology
-    conf : Configuration
-    a : float, optional
-        Scale factors. Default (None) is to not scale the output modes by growth.
-
-    Returns
-    -------
-    modes : jax.numpy.ndarray of conf.float_dtype
-        Linear matter overdensity field Fourier modes in [L^3].
-
-    Notes
-    -----
-
-    TODO: IC scaling math
-
-    """
-    k = jnp.sqrt(sum(k**2 for k in kvec))
-
-    Plin = linear_power(k, a, cosmo, conf)
-
-    if jnp.isrealobj(modes):
-        modes = jnp.fft.rfftn(modes, norm='ortho')
-
-    modes *= _safe_sqrt(Plin * conf.box_vol)
-
-    return modes
 
 
 def _strain(kvec, i, j, pot, conf):
@@ -233,7 +142,7 @@ def lpt(modes, cosmo, conf):
     Parameters
     ----------
     modes : jax.numpy.ndarray
-        Fourier or real linear modes.
+        Linear matter overdensity Fourier modes in [L^3].
     cosmo : Cosmology
     conf : Configuration
 
@@ -253,9 +162,9 @@ def lpt(modes, cosmo, conf):
     if conf.lpt_order not in (0, 1, 2, 3):
         raise ValueError(f'lpt_order={conf.lpt_order} not supported')
 
-    kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
-
     modes /= conf.ptcl_cell_vol  # remove volume factor first for convenience
+
+    kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
     pot = []
 
