@@ -69,9 +69,9 @@ class ParamGenerator:
         self.pars['cell size'] = np.exp(sample[:, 1])
 
         # time integral
+        self.pars['a_start'] = 1/64
+        self.pars['a_stop'] = np.round_(np.exp(ranges[4, 1])+0.005, 2)
         self.pars['number time step'] = np.power(sample[:, 2], 10)
-        self.pars['a_start'] = np.exp(-np.log(16) + sample[:, 4])
-        self.pars['a_stop'] = np.exp(np.log(1) + sample[:, 4])
         self.pars['a_nbody_maxstep'] = (self.pars['a_stop'] - self.pars['a_start']
                                         ) / self.pars['number time step']
 
@@ -80,10 +80,10 @@ class ParamGenerator:
 
         # snapshot output
         self.pars['number of snapshots'] = num_snapshot
-        self.pars['times of snapshots'] = np.logspace(np.log10(self.pars['a_start']),
-                                                      np.log10(self.pars['a_stop']),
-                                                      num=self.pars['number of snapshots'],
-                                                      axis=-1)
+        self.pars['times of snapshots'] = np.exp(np.linspace(np.log(1/16) + sample[:, 4],
+                                                             np.log(1) + sample[:, 4],
+                                                             num=self.pars['number of snapshots'],
+                                                             axis=-1))
 
     def print_params(self, i):
         """Print the parameters in a Sobol sample.
@@ -91,7 +91,7 @@ class ParamGenerator:
         Parameters
         ----------
         i : int
-            Index of the sample.
+            Index of the sample in the Sobol sequence.
         """
         for k, v in self.pars.items():
             if k == 'times of snapshots':
@@ -107,14 +107,14 @@ class ParamGenerator:
         Parameters
         ----------
         i : int
-            Index of the sample.
+            Index of the sample in the Sobol sequence.
         """
         conf = Configuration(
-            cell_size=self.pars['cell size'][i],
-            mesh_shape=(self.pars['mesh shape'][i],)*3,
+            ptcl_spacing=self.pars['cell size'][i],
             ptcl_grid_shape=(self.pars['ptcl grid shape'],)*3,
-            a_start=self.pars['a_start'][i],
-            a_stop=self.pars['a_stop'][i],
+            mesh_shape=(self.pars['mesh shape'][i],)*3,
+            a_start=self.pars['a_start'],
+            a_stop=self.pars['a_stop'],
             a_nbody_maxstep=self.pars['a_nbody_maxstep'][i],
         )
         return conf
@@ -125,7 +125,7 @@ class ParamGenerator:
         Parameters
         ----------
         i : int
-            Index of the sample.
+            Index of the sample in the Sobol sequence.
         """
         if not conf:
             conf = self.init_conf(i)
@@ -141,7 +141,7 @@ class ParamGenerator:
         )
         return cosmo
 
-    def gen_IC(self, file_dir, i, conf=None, cosmo=None, seed=16807):
+    def gen_IC(self, file_dir, i, conf=None, cosmo=None, seed=None):
         """Generate and write the initial condition.
 
         Parameters
@@ -149,7 +149,7 @@ class ParamGenerator:
         file_dir : str
             The directory to output the files and run Gadget.
         i : int
-            Index of the sample.
+            Index of the sample in the Sobol sequence.
         conf : Configuration
             Configuration parameters in pmwd.
         cosmo : Cosmology
@@ -161,6 +161,8 @@ class ParamGenerator:
             conf = self.init_conf(i)
         if not cosmo:
             cosmo = self.init_cosmo(i, conf=conf)
+        if not seed:
+            seed = i
 
         modes = white_noise(seed, conf)
         cosmo = boltzmann(cosmo, conf)
@@ -185,7 +187,7 @@ class ParamGenerator:
         file_dir : str
             The directory to output the files and run Gadget.
         i : int
-            Index of the sample.
+            Index of the sample in the Sobol sequence.
         conf : Configuration
             Configuration parameters in pmwd.
         cosmo : Cosmology
@@ -233,22 +235,19 @@ class ParamGenerator:
 
     def deploy(self,
                base_dir,
-               seed=16807,
                i_start=0,
                i_end=None,
                temp_config='./templates/Config.sh',
                temp_param='./templates/param.txt',
                temp_job='./templates/job.sh',
                submit_job=True):
-        """A setup pipeline of the 2**m Gadget4 simulations.
+        """A setup pipeline of the Gadget4 simulations.
 
         Parameters
         ----------
         base_dir : str
             The directory where the simulations are run.
             Each simulation will be in a sub-directory created here.
-        seed : int
-            Seed passed to pmwd.lpt.white_noise for pseudo-RNG.
         i_start : int
             The start index of the sample in the Sobol sequence (included).
         i_end : int
@@ -274,7 +273,7 @@ class ParamGenerator:
             # conf, cosmo and IC
             conf = self.init_conf(i)
             cosmo = self.init_cosmo(i, conf=conf)
-            self.gen_IC(file_dir, i, conf=conf, cosmo=cosmo, seed=seed)
+            self.gen_IC(file_dir, i, conf=conf, cosmo=cosmo, seed=i)
 
             # generate the Gadget4 files
             self.gen_GadgetFiles(file_dir, i, conf=conf, cosmo=cosmo,
