@@ -115,9 +115,6 @@ def enmesh(i1, d1, a1, s1, b12, a2, s2, grad):
         d2 = d2.astype(d1.dtype)
         a2 = a2.astype(d1.dtype)
 
-        if s1 is None and s2 is not None:  # all i2 >= 0 if s1 is not None
-            i2 = jnp.where(i2 < 0, s2, i2)
-
         d2 /= a2
     else:
         i12, d12 = jnp.divmod(b12, a1)
