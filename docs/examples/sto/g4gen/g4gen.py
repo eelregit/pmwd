@@ -1,13 +1,15 @@
-import numpy as np
-from collections import OrderedDict
-from scipy.stats.qmc import Sobol
 import os
+from collections import OrderedDict
+
+import numpy as np
+from scipy.stats.qmc import Sobol
 
 from pmwd.configuration import Configuration
 from pmwd.cosmology import Cosmology
 from pmwd.boltzmann import boltzmann
-from pmwd.lpt import white_noise, lpt
-from pmwd.io_util import writeGadgetHDF5
+from pmwd.modes import white_noise, linear_modes
+from pmwd.lpt import lpt
+from pmwd.io_util import write_gadget_hdf5
 
 
 class ParamGenerator:
@@ -164,7 +166,7 @@ class ParamGenerator:
         cosmo = boltzmann(cosmo, conf)
         ptcl, obsvbl = lpt(modes, cosmo, conf)
 
-        writeGadgetHDF5(os.path.join(file_dir, 'ic'), 1, ptcl, cosmo, conf, conf.a_start)
+        write_gadget_hdf5(os.path.join(file_dir, 'ic'), 1, ptcl, cosmo, conf, conf.a_start)
 
     def gen_GadgetFiles(self,
                         file_dir,
