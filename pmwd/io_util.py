@@ -4,7 +4,7 @@ import h5py
 from pmwd.particles import ptcl_pos
 
 
-def writeGadgetHDF5(
+def write_gadget_hdf5(
         filename_base,
         num_files,
         ptcl,
@@ -34,7 +34,7 @@ def writeGadgetHDF5(
         The scale factor a.
     """
     ntypes = 2
-    num_part_total = np.zeros(ntypes, dtype='u4') 
+    num_part_total = np.zeros(ntypes, dtype='u4')
     num_part_total[1] = conf.ptcl_num
     num_part_per_file = conf.ptcl_num // num_files
 
