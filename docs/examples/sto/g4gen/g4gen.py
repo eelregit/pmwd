@@ -67,11 +67,13 @@ class ParamGenerator:
         self.pars['mesh shape'] = np.rint(np.exp(sample[:, 0]) *
                                           self.pars['ptcl grid shape']).astype(int)
         self.pars['cell size'] = np.exp(sample[:, 1])
+        self.pars['ptcl spacing'] = (self.pars['mesh shape'] * self.pars['cell size']
+                                     / self.pars['ptcl grid shape'])
 
         # time integral
         self.pars['a_start'] = 1/64
         self.pars['a_stop'] = np.round_(np.exp(ranges[4, 1])+0.005, 2)
-        self.pars['number time step'] = np.power(sample[:, 2], 10)
+        self.pars['number time step'] = 10**sample[:, 2]
         self.pars['a_nbody_maxstep'] = (self.pars['a_stop'] - self.pars['a_start']
                                         ) / self.pars['number time step']
 
@@ -110,7 +112,7 @@ class ParamGenerator:
             Index of the sample in the Sobol sequence.
         """
         conf = Configuration(
-            ptcl_spacing=self.pars['cell size'][i],
+            ptcl_spacing=self.pars['ptcl spacing'][i],
             ptcl_grid_shape=(self.pars['ptcl grid shape'],)*3,
             mesh_shape=(self.pars['mesh shape'][i],)*3,
             a_start=self.pars['a_start'],
@@ -164,11 +166,11 @@ class ParamGenerator:
         if not seed:
             seed = i
 
-        modes = white_noise(seed, conf)
         cosmo = boltzmann(cosmo, conf)
+        modes = white_noise(seed, conf)
+        modes = linear_modes(modes, cosmo, conf)
         ptcl, obsvbl = lpt(modes, cosmo, conf)
-
-        write_gadget_hdf5(os.path.join(file_dir, 'ic'), 1, ptcl, cosmo, conf, conf.a_start)
+        write_gadget_hdf5(os.path.join(file_dir, 'ic'), 1, conf.a_start, ptcl, cosmo, conf)
 
     def gen_GadgetFiles(self,
                         file_dir,
