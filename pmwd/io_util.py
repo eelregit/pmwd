@@ -4,82 +4,73 @@ import h5py
 from pmwd.particles import ptcl_pos
 
 
-def write_gadget_hdf5(
-        filename_base,
-        num_files,
-        ptcl,
-        cosmo,
-        conf,
-        time,
-        dtype='f8',
-):
-    """
-    Writes minimal Gadget4 HDF5 initial condition or snapshot files
-    for dark matter only simulations.
+def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf):
+    """Writes minimal Gadget HDF5 snapshot or initial condition files for dark matter
+    only simulations.
 
     Parameters
     ----------
-    filename_base : str
-        Output is written to filename_base.hdf5 for single file output or
-        filename_base.0.hdf5, filename_base.1.hdf5, etc., for multiple files.
+    base : str
+        Base of output path. Single file output is written to base.hdf5, and multiple
+        ones are written to base.0.hdf5, base.1.hdf5, etc.
     num_files : int
-        The number of output files.
+        Number of output files.
+    a : float
+        Scale factor.
     ptcl : Particles
-        Particle state.
     cosmo : Cosmology
-        Cosmology parameters.
     conf : Configuration
-        Configuration parameters.
-    time : float
-        The scale factor a.
-    """
-    ntypes = 2
-    num_part_total = np.zeros(ntypes, dtype='u4')
-    num_part_total[1] = conf.ptcl_num
-    num_part_per_file = conf.ptcl_num // num_files
 
-    masses = np.zeros(ntypes, dtype='f8')
-    masses[1] = (conf.rho_crit * cosmo.Omega_m * conf.box_vol
-                 / num_part_total[1])
+    Raises
+    ------
+    ValueError
+        If box is not a 3D cube.
+
+    """
+    if conf.dim != 3:
+        raise ValueError('dim={conf.dim} not supported')
+    if len(set(conf.box_size)) != 1:
+        raise ValueError('noncubic box not supported')
+
+    ids_dtype = conf.pmid_dtype.str.replace('i', 'u')  # change to unsigned int
+
+    ids = np.arange(1, 1+conf.ptcl_num, dtype=ids_dtype)
+    pos = ptcl_pos(ptcl, conf, dtype=np.float64, wrap=True)
+    pos = np.asarray(pos, dtype=conf.float_dtype)
+    vel = np.asarray(ptcl.vel, dtype=conf.float_dtype) / a**1.5
+
+    # PartType0 is reserved for gas particles in Gadget
+    ptcl_num = np.array([0, conf.ptcl_num], dtype=ids_dtype)
+    ptcl_mass = np.array([0, cosmo.ptcl_mass], dtype=conf.float_dtype)
 
     header = {
         'BoxSize': conf.box_size[0],
-        'MassTable': masses,
-        'NumPart_Total': num_part_total,
+        'MassTable': ptcl_mass,
         'NumFilesPerSnapshot': num_files,
-        'Redshift': 1./time - 1.,
-        'Time': time,
+        'NumPart_Total': ptcl_num,
+        'Redshift': 1/a - 1,
+        'Time': a,
     }
 
-    pos = np.asarray(ptcl_pos(ptcl, conf))
-    vel = np.asarray(ptcl.vel) * np.power(time, -1.5)
-    # ids = np.asarray(ptcl.pmid)
-    ids = np.arange(1, conf.ptcl_num+1)
+    for i, (ids_chunk, pos_chunk, vel_chunk) in enumerate(zip(
+        np.array_split(ids, num_files, axis=0),
+        np.array_split(pos, num_files, axis=0),
+        np.array_split(vel, num_files, axis=0))):
 
-    for i, (part_pos, part_vel, part_ids) in enumerate(zip(
-        np.array_split(pos, num_files),
-        np.array_split(vel, num_files),
-        np.array_split(ids, num_files))):
-        if num_files == 1:
-            filename = filename_base + '.hdf5'
-        else:
-            filename = filename_base + '.' + str(i) + '.hdf5'
+        suffix = '.hdf5'
+        if num_files != 1:
+            suffix = f'.{i}' + suffix
+        path = base + suffix
 
-        num_part_this_file = np.zeros_like(num_part_total)
-        num_part_this_file[1] = num_part_per_file
-        if i < conf.ptcl_num % num_files:
-            num_part_this_file[1] += 1
+        ptcl_num = np.array([0, len(ids_chunk)], dtype=ids_dtype)
 
-        with h5py.File(filename, 'w') as f:
+        with h5py.File(path, 'w') as f:
             f.create_group('Header')
             for k, v in header.items():
                 f['Header'].attrs[k] = v
-            f['Header'].attrs['NumPart_ThisFile'] = num_part_this_file
+            f['Header'].attrs['NumPart_ThisFile'] = ptcl_num
 
             f.create_group('PartType1')
-            f['PartType1'].create_dataset('Coordinates', dtype=dtype,
-                                          data=part_pos)
-            f['PartType1'].create_dataset('Velocities', dtype=dtype,
-                                          data=part_vel)
-            f['PartType1'].create_dataset('ParticleIDs', dtype='u4',
-                                          data=part_ids)
+            f['PartType1'].create_dataset('ParticleIDs', data=ids_chunk)
+            f['PartType1'].create_dataset('Coordinates', data=pos_chunk)
+            f['PartType1'].create_dataset('Velocities', data=vel_chunk)
