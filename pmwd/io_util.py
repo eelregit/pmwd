@@ -1,11 +1,12 @@
 import numpy as np
 import h5py
+from jax import device_get
 
 from pmwd.particles import ptcl_pos
 
 
 def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf):
-    """Writes minimal Gadget HDF5 snapshot or initial condition files for dark matter
+    """Write minimal Gadget HDF5 snapshot or initial condition files for dark matter
     only simulations.
 
     Parameters
@@ -35,9 +36,9 @@ def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf):
     ids_dtype = conf.pmid_dtype.str.replace('i', 'u')  # change to unsigned int
 
     ids = np.arange(1, 1+conf.ptcl_num, dtype=ids_dtype)
-    pos = ptcl_pos(ptcl, conf, dtype=np.float64, wrap=True)
-    pos = np.asarray(pos, dtype=conf.float_dtype)
-    vel = np.asarray(ptcl.vel, dtype=conf.float_dtype) / a**1.5
+    pos = ptcl_pos(ptcl, conf).astype(conf.float_dtype)
+    vel = ptcl.vel.astype(conf.float_dtype) / a**1.5
+    pos, vel = device_get([pos, vel])
 
     # PartType0 is reserved for gas particles in Gadget
     ptcl_num = np.array([0, conf.ptcl_num], dtype=ids_dtype)
