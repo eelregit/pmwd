@@ -1,4 +1,4 @@
-#!/bin/bash -l
+#!/usr/bin/bash
 
 #SBATCH --job-name=g4sto-{job_index}
 #SBATCH --output=%x-%j.out
@@ -24,10 +24,7 @@ cd $SLURM_SUBMIT_DIR
 
 
 hostname; pwd; date
-echo $SLURM_NPROCS processors on $SLURM_NNODES nodes: $SLURM_NODELIST
 
-
-mpirun ./Gadget4 param.txt
-
+time -p mpirun ./Gadget4 param.txt
 
 date
