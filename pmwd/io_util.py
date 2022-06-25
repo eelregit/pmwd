@@ -66,12 +66,12 @@ def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf):
         ptcl_num = np.array([0, len(ids_chunk)], dtype=ids_dtype)
 
         with h5py.File(path, 'w') as f:
-            f.create_group('Header')
+            h = f.create_group('Header')
             for k, v in header.items():
-                f['Header'].attrs[k] = v
-            f['Header'].attrs['NumPart_ThisFile'] = ptcl_num
+                h.attrs[k] = v
+            h.attrs['NumPart_ThisFile'] = ptcl_num
 
-            f.create_group('PartType1')
-            f['PartType1'].create_dataset('ParticleIDs', data=ids_chunk)
-            f['PartType1'].create_dataset('Coordinates', data=pos_chunk)
-            f['PartType1'].create_dataset('Velocities', data=vel_chunk)
+            g = f.create_group('PartType1')
+            g.create_dataset('ParticleIDs', data=ids_chunk)
+            g.create_dataset('Coordinates', data=pos_chunk)
+            g.create_dataset('Velocities', data=vel_chunk)
