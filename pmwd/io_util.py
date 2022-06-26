@@ -1,11 +1,35 @@
-import numpy as np
 import h5py
+import numpy as np
+import jax.numpy as jnp
 from jax import device_get
 
 from pmwd.particles import ptcl_pos
 
 
-def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf):
+def read_gadget_hdf5(base, pmid_dtype=jnp.int16):
+    """Read dark-matter-only Gadget HDF5 snapshot or initial condition files.
+
+    Parameters
+    ----------
+    base : str
+        Base of input path. Single file input is read from base.hdf5, and multiple ones
+        from base.0.hdf5, base.1.hdf5, etc.
+    pmid_dtype : dtype_like, optional
+        Signed integer dtype for particle or mesh grid indices.
+
+    Returns
+    -------
+    a : float
+        Scale factor.
+    ptcl : Particles
+    cosmo : Cosmology
+    conf : Configuration
+
+    """
+    raise NotImplementedError
+
+
+def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf, ids_dtype=np.uint32):
     """Write minimal Gadget HDF5 snapshot or initial condition files for dark matter
     only simulations.
 
@@ -13,7 +37,7 @@ def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf):
     ----------
     base : str
         Base of output path. Single file output is written to base.hdf5, and multiple
-        ones are written to base.0.hdf5, base.1.hdf5, etc.
+        ones to base.0.hdf5, base.1.hdf5, etc.
     num_files : int
         Number of output files.
     a : float
@@ -21,6 +45,8 @@ def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf):
     ptcl : Particles
     cosmo : Cosmology
     conf : Configuration
+    ids_dtype : dtype_like, optional
+        Particle ID precision for Gadget.
 
     Raises
     ------
@@ -32,8 +58,6 @@ def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf):
         raise ValueError('dim={conf.dim} not supported')
     if len(set(conf.box_size)) != 1:
         raise ValueError('noncubic box not supported')
-
-    ids_dtype = conf.pmid_dtype.str.replace('i', 'u')  # change to unsigned int
 
     ids = np.arange(1, 1+conf.ptcl_num, dtype=ids_dtype)
     pos = ptcl_pos(ptcl, conf).astype(conf.float_dtype)
