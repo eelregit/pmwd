@@ -7,4 +7,4 @@ def is_float0_array(x):
 
 
 def float0_like(x):
-    return np.empty(x.shape, dtype=float0)  # FIXME after jax issue #4433 is addressed
+    return np.empty(x.shape, dtype=float0)  # see jax issue #4433
