@@ -9,15 +9,17 @@ from pmwd.pm_util import rfftnfreq
 
 
 #TODO follow pmesh to fill the modes in Fourier space
-@partial(jit, static_argnames=('unit_abs', 'negate'))
-def white_noise(seed, conf, unit_abs=False, negate=False):
-    """White noise Fourier modes.
+@partial(jit, static_argnames=('real', 'unit_abs', 'negate'))
+def white_noise(seed, conf, real=False, unit_abs=False, negate=False):
+    """White noise Fourier or real modes.
 
     Parameters
     ----------
     seed : int
         Seed for the pseudo-random number generator.
     conf : Configuration
+    real : bool, optional
+        Whether to return real or Fourier modes.
     unit_abs : bool, optional
         Whether to set the absolute values to 1.
     negate : bool, optional
@@ -26,13 +28,16 @@ def white_noise(seed, conf, unit_abs=False, negate=False):
     Returns
     -------
     modes : jax.numpy.ndarray of conf.float_dtype
-        White noise Fourier modes.
+        White noise modes.
 
     """
     key = random.PRNGKey(seed)
 
     # sample linear modes on Lagrangian particle grid
     modes = random.normal(key, shape=conf.ptcl_grid_shape, dtype=conf.float_dtype)
+
+    if real and not unit_abs and not negate:
+        return modes
 
     modes = jnp.fft.rfftn(modes, norm='ortho')
 
@@ -41,6 +46,9 @@ def white_noise(seed, conf, unit_abs=False, negate=False):
 
     if negate:
         modes = -modes
+
+    if real:
+        modes = jnp.fft.irfftn(modes, s=conf.ptcl_grid_shape, norm='ortho')
 
     return modes
 
