@@ -89,9 +89,9 @@ class Configuration:
 
     mesh_shape: Union[int, float, Tuple[int, ...]] = 1
 
-    cosmo_dtype: DTypeLike = jnp.dtype(jnp.float64)
-    pmid_dtype: DTypeLike = jnp.dtype(jnp.int16)
-    float_dtype: DTypeLike = jnp.dtype(jnp.float32)
+    cosmo_dtype: DTypeLike = jnp.float64
+    pmid_dtype: DTypeLike = jnp.int16
+    float_dtype: DTypeLike = jnp.float32
 
     k_pivot_Mpc: float = 0.05
 
@@ -123,7 +123,7 @@ class Configuration:
     a_lpt_maxstep: float = 1/128
     a_nbody_maxstep: float = 1/64
 
-    chunk_size: int = 1<<24
+    chunk_size: int = 2**24
 
     def __post_init__(self):
         if self._is_transforming():
@@ -140,6 +140,9 @@ class Configuration:
                for sp, sm in zip(self.ptcl_grid_shape[1:], self.mesh_shape[1:])):
             raise ValueError('particle and mesh grid aspect ratios differ')
 
+        object.__setattr__(self, 'cosmo_dtype', jnp.dtype(self.cosmo_dtype))
+        object.__setattr__(self, 'pmid_dtype', jnp.dtype(self.pmid_dtype))
+        object.__setattr__(self, 'float_dtype', jnp.dtype(self.float_dtype))
         if not jnp.issubdtype(self.cosmo_dtype, jnp.floating):
             raise ValueError('cosmo_dtype must be floating point numbers')
         if not jnp.issubdtype(self.pmid_dtype, jnp.signedinteger):
