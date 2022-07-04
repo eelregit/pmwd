@@ -196,7 +196,7 @@ def ptcl_enmesh(ptcl, conf, offset=0, cell_size=None, mesh_shape=None,
                   offset, cell_size, drop_shape, grad)
 
 
-def ptcl_pos(ptcl, conf, dtype=None, wrap=True):
+def ptcl_pos(ptcl, conf, dtype=float, wrap=True):
     """Particle positions in [L].
 
     Parameters
@@ -204,7 +204,7 @@ def ptcl_pos(ptcl, conf, dtype=None, wrap=True):
     ptcl : Particles
     conf : Configuration
     dtype : dtype_like, optional
-        Output float dtype. If None (default), conf.float_dtype.
+        Output float dtype.
     wrap : bool, optional
         Whether to wrap around the periodic boundaries.
 
@@ -214,9 +214,6 @@ def ptcl_pos(ptcl, conf, dtype=None, wrap=True):
         Particle positions.
 
     """
-    if dtype is None:
-        dtype = conf.float_dtype
-
     pos = ptcl.pmid.astype(dtype)
     pos *= conf.cell_size
     pos += ptcl.disp.astype(dtype)
