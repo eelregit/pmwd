@@ -20,7 +20,7 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
     aux_invert : bool, optional
         Whether to invert ``aux_fields`` selections, convenient when most fields are not
         aux_data.
-    kwargs
+    **kwargs
         Keyword arguments to be passed to python dataclass decorator.
 
     Returns
