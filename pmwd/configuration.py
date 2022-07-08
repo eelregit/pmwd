@@ -9,6 +9,7 @@ jax.config.update("jax_enable_x64", True)
 from jax import ensure_compile_time_eval
 import jax.numpy as jnp
 jnp.set_printoptions(precision=3, edgeitems=2, linewidth=128)
+from jax.tree_util import tree_map
 
 from pmwd.tree_util import pytree_dataclass
 
