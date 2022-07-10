@@ -46,7 +46,7 @@ def _scatter(pmid, disp, conf, mesh, val, offset, cell_size):
         raise ValueError('channel shape mismatch: '
                          f'{mesh.shape[spatial_ndim:]} != {val.shape[1:]}')
 
-    remainder, chunks = _chunk_split(ptcl_num, conf.chunk_size, pmid, disp, val)
+    remainder, chunks = _chunk_split(ptcl_num, conf.chunk_len, pmid, disp, val)
 
     carry = conf, mesh, offset, cell_size
     if remainder is not None:
@@ -134,7 +134,7 @@ def _scatter_bwd(res, mesh_cot):
         val = conf.mesh_size / conf.ptcl_num
     val = jnp.asarray(val, dtype=conf.float_dtype)
 
-    remainder, chunks = _chunk_split(ptcl_num, conf.chunk_size, pmid, disp, val)
+    remainder, chunks = _chunk_split(ptcl_num, conf.chunk_len, pmid, disp, val)
 
     carry = conf, mesh_cot, offset, cell_size
     disp_cot_0, val_cot_0 = None, None

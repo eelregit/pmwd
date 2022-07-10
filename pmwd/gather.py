@@ -42,7 +42,7 @@ def _gather(pmid, disp, conf, mesh, val, offset, cell_size):
         raise ValueError('channel shape mismatch: '
                          f'{mesh.shape[spatial_ndim:]} != {val.shape[1:]}')
 
-    remainder, chunks = _chunk_split(ptcl_num, conf.chunk_size, pmid, disp, val)
+    remainder, chunks = _chunk_split(ptcl_num, conf.chunk_len, pmid, disp, val)
 
     carry = conf, mesh, offset, cell_size
     val_0 = None
@@ -128,7 +128,7 @@ def _gather_bwd(res, val_cot):
     mesh = jnp.asarray(mesh, dtype=conf.float_dtype)
     mesh_cot = jnp.zeros_like(mesh)
 
-    remainder, chunks = _chunk_split(ptcl_num, conf.chunk_size, pmid, disp, val_cot)
+    remainder, chunks = _chunk_split(ptcl_num, conf.chunk_len, pmid, disp, val_cot)
 
     carry = conf, mesh, mesh_cot, offset, cell_size
     disp_cot_0 = None
