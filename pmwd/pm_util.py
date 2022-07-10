@@ -1,21 +1,25 @@
+from math import floor, log
+from functools import reduce, lru_cache
+
+import jax
 import jax.numpy as jnp
 
 
-def _chunk_split(ptcl_num, chunk_size, *arrays):
+def _chunk_split(ptcl_num, chunk_len, *arrays):
     """Split and reshape particle arrays into chunks and remainders, with the remainders
-    preceding the chunks. 0D ones are duplicated as full arrays in the chunks."""
-    chunk_size = ptcl_num if chunk_size is None else min(chunk_size, ptcl_num)
-    remainder_size = ptcl_num % chunk_size
-    chunk_num = ptcl_num // chunk_size
+    preceding the chunks. 0D ones are passed into the remainders and chunks."""
+    chunk_len = ptcl_num if chunk_len is None else min(chunk_len, ptcl_num)
+    remainder_len = ptcl_num % chunk_len
+    chunk_num = ptcl_num // chunk_len
 
     remainder = None
     chunks = arrays
-    if remainder_size:
-        remainder = [x[:remainder_size] if x.ndim != 0 else x for x in arrays]
-        chunks = [x[remainder_size:] if x.ndim != 0 else x for x in arrays]
+    if remainder_len:
+        remainder = [x[:remainder_len] if x.ndim != 0 else x for x in arrays]
+        chunks = [x[remainder_len:] if x.ndim != 0 else x for x in arrays]
 
-    chunks = [x.reshape(chunk_num, chunk_size, *x.shape[1:]) if x.ndim != 0
-              else jnp.full(chunk_num, x) for x in chunks]
+    chunks = [x.reshape(chunk_num, chunk_len, *x.shape[1:]) if x.ndim != 0
+              else x for x in chunks]
 
     return remainder, chunks
 
@@ -186,3 +190,46 @@ def rfftnfreq(shape, spacing, dtype=float):
     kvec = jnp.meshgrid(*kvec, indexing='ij', sparse=True)
 
     return kvec
+
+
+@lru_cache(maxsize=None)
+def next_fft_len(n):
+    """Find the next fast length for FFT.
+
+    Parameters
+    ----------
+    n : int
+        FFT length to start searching from.
+
+    .. _scipy pocketfft good_size_cmplx and good_size_real:
+        https://github.com/scipy/scipy/blob/v1.8.0/scipy/fft/_pocketfft/pocketfft_hdronly.h
+    .. _pocketfft good_size:
+        https://gitlab.mpcdf.mpg.de/mtr/pocketfft/-/blob/c314ef4c/pocketfft.c
+    .. _JuliaLang julia combinatorics nextprod:
+        https://github.com/JuliaLang/julia/blob/v1.7.2/base/combinatorics.jl#L299-L316
+    .. _nextprod-py:
+        https://github.com/fasiha/nextprod-py
+    .. _XLA FFT:
+        https://www.tensorflow.org/xla/operation_semantics#fft
+    .. _cuFFT:
+        https://docs.nvidia.com/cuda/cufft/index.html
+    .. _Eigen TensorFFT:
+        http://eigen.tuxfamily.org/dox/unsupported/classTensorFFT.html
+    """
+    platform = jax.lib.xla_bridge.get_backend().platform
+    if platform == 'cpu':
+        radices = [2]
+    elif platform == 'gpu':
+        radices = [2, 3, 5, 7]
+    else:
+        raise NotImprementedError
+
+    return _next_fft_len(n, radices)
+
+def _next_fft_len(n, radices):
+    if n <= max(radices):
+        return n
+
+    powers = [radix ** (jnp.arange(1 + floor(log(2*n, radix)))) for radix in radices]
+    products = reduce(jnp.kron, powers)
+    return products[products >= n].min().item()
