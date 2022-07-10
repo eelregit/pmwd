@@ -1,4 +1,3 @@
-import os
 from functools import partial
 from math import ceil
 from typing import ClassVar, Optional, Tuple, Union
@@ -11,9 +10,7 @@ import jax.numpy as jnp
 jnp.set_printoptions(precision=3, edgeitems=2, linewidth=128)
 
 from pmwd.tree_util import pytree_dataclass
-
-
-os.environ['NVIDIA_TF32_OVERRIDE'] = '1'  # enable TF32
+from pmwd.pm_util import next_fft_len
 
 
 @partial(pytree_dataclass, aux_fields=Ellipsis, frozen=True)
@@ -62,6 +59,9 @@ class Configuration:
         Absolute tolerance for solving the growth ODEs.
     lpt_order : int, optional
         LPT order, with 1 for Zel'dovich approximation, 2 for 2LPT, and 3 for 3LPT.
+    lpt_padded_shape : int, float, or tuple of int, optional
+        LPT grid shape with padding, to avoid aliasing for ``lpt_order >= 2``. See
+        ``mesh_shape``.
     a_start : float, optional
         LPT scale factor and N-body starting time.
     a_stop : float, optional
@@ -74,8 +74,8 @@ class Configuration:
         Maximum scale factor N-body time integration step size. It determines the
         number of steps ``a_nbody_num``, the actual step size ``a_nbody_step``, and the
         steps ``a_nbody``.
-    chunk_size : int, optional
-        Chunk size to split particles in batches in scatter and gather to save memory.
+    chunk_len : int, optional
+        Chunk length to split particles in batches in scatter and gather to save memory.
 
     Raises
     ------
@@ -117,39 +117,33 @@ class Configuration:
     growth_atol: Optional[float] = None
 
     lpt_order: int = 2
-    lpt_pad_ratio: Optional[float] = None
+    lpt_padded_shape: Union[int, float, Tuple[int, ...]] = 1
 
     a_start: float = 1/64
     a_stop: float = 1.
     a_lpt_maxstep: float = 1/128
     a_nbody_maxstep: float = 1/64
 
-    chunk_size: int = 2**24
+    chunk_len: int = 2**24
 
     def __post_init__(self):
         if self._is_transforming():
             return
 
-        if isinstance(self.mesh_shape, (int, float)):
-            mesh_shape = tuple(round(s * self.mesh_shape) for s in self.ptcl_grid_shape)
-            object.__setattr__(self, 'mesh_shape', mesh_shape)
-        if len(self.ptcl_grid_shape) != len(self.mesh_shape):
-            raise ValueError('particle and mesh grid dimensions differ')
-        if any(sm < sp for sp, sm in zip(self.ptcl_grid_shape, self.mesh_shape)):
-            raise ValueError('mesh grid cannot be smaller than particle grid')
-        if any(self.ptcl_grid_shape[0] * sm != self.mesh_shape[0] * sp
-               for sp, sm in zip(self.ptcl_grid_shape[1:], self.mesh_shape[1:])):
-            raise ValueError('particle and mesh grid aspect ratios differ')
+        self._set_fft_shape('mesh_shape', self.mesh_shape)
+        self._set_fft_shape('lpt_padded_shape', self.lpt_padded_shape)
 
         object.__setattr__(self, 'cosmo_dtype', jnp.dtype(self.cosmo_dtype))
         object.__setattr__(self, 'pmid_dtype', jnp.dtype(self.pmid_dtype))
         object.__setattr__(self, 'float_dtype', jnp.dtype(self.float_dtype))
         if not jnp.issubdtype(self.cosmo_dtype, jnp.floating):
-            raise ValueError('cosmo_dtype must be floating point numbers')
+            raise ValueError('cosmo_dtype must be floating point numbers: '
+                             f'{self.cosmo_dtype}')
         if not jnp.issubdtype(self.pmid_dtype, jnp.signedinteger):
-            raise ValueError('pmid_dtype must be signed integers')
+            raise ValueError('pmid_dtype must be signed integers: {self.pmid_dtype}')
         if not jnp.issubdtype(self.float_dtype, jnp.floating):
-            raise ValueError('float_dtype must be floating point numbers')
+            raise ValueError('float_dtype must be floating point numbers: '
+                             f'{self.float_dtype}')
 
         # ~ 1.5e-8 for float64, 3.5e-4 for float32
         with ensure_compile_time_eval():
@@ -163,6 +157,29 @@ class Configuration:
         for name, value in self.named_children():
             value = tree_map(lambda x: jnp.asarray(x, dtype=dtype), value)
             object.__setattr__(self, name, value)
+
+    def _set_fft_shape(self, name, shape):
+        # try to find a good FFT shape, but without guarantee
+        if isinstance(shape, (int, float)):
+            shape = tuple(next_fft_len(round(sp * shape))
+                          for sp in self.ptcl_grid_shape)
+            shape = max(s / sp for s, sp in zip(shape, self.ptcl_grid_shape))
+            shape = tuple(next_fft_len(round(sp * shape))
+                          for sp in self.ptcl_grid_shape)
+            object.__setattr__(self, name, shape)
+
+        if len(shape) != len(self.ptcl_grid_shape):
+            raise ValueError(f'{name} and ptcl_grid_shape dimensions differ: '
+                             f'{shape}, {self.ptcl_grid_shape}')
+
+        if any(s < sp for s, sp in zip(shape, self.ptcl_grid_shape)):
+            raise ValueError(f'{name} cannot be smaller than ptcl_grid_shape: '
+                             f'{shape}, {self.ptcl_grid_shape}')
+
+        if any(self.ptcl_grid_shape[0] * s != shape[0] * sp
+               for s, sp in zip(shape[1:], self.ptcl_grid_shape[1:])):
+            raise ValueError(f'{name} and ptcl_grid_shape aspect ratios differ: '
+                             f'{shape}, {self.ptcl_grid_shape}')
 
     @property
     def dim(self):
