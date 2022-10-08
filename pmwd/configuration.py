@@ -61,6 +61,10 @@ class Configuration:
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
         Absolute tolerance for solving the growth ODEs.
+    growth_anum : int, optional
+        Number of a points (linearly spaced) for integration of growth ODEs.
+    growth_mode : str, optional
+        "adaptive" (default), "rk4" or "mlp" for which way to estimate growth factors
     lpt_order : int, optional
         LPT order, with 1 for Zel'dovich approximation, 2 for 2LPT, and 3 for 3LPT.
     a_start : float, optional

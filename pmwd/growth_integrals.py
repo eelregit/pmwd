@@ -14,6 +14,7 @@ from typing import Sequence
 from pmwd.cosmology import H_deriv, Omega_m_a
 
 
+#
 def odeint_rk4(fun, y0, t, *args):
 
     def rk4(carry, t):
@@ -25,13 +26,14 @@ def odeint_rk4(fun, y0, t, *args):
         k4 = fun(y + h * k3, t, *args)
         y = y + 1.0 / 6.0 * h * (k1 + 2 * k2 + 2 * k3 + k4)
         return (y, t), y
-    #(yf, _), y = scan(rk4, (y0, np.array(t[0])), t)
     (yf, _), y = scan(rk4, (y0, t[0]), t)
     return y
 
 
 #
 class Simple_MLP(nn.Module):
+    """MLP architecture for the growth function emulators
+    """
     features:Sequence[int]
     nodes:int
 
@@ -50,7 +52,6 @@ class Simple_MLP(nn.Module):
     
 @jit
 def _deBoorVectorized(x,t,c):
-    #print("compile boor")
     p=3
     k=jnp.digitize(x,t)-1
     d=[c[j+k-p] for j in range(0,p+1)]
@@ -59,34 +60,32 @@ def _deBoorVectorized(x,t,c):
             alpha=(x-t[j+k-p])/(t[j+1+k-r]-t[j+k-p])
             d[j]=(1.0-alpha)*d[j-1]+alpha*d[j]
     return d[p]
-
 deBoor = vmap(_deBoorVectorized,in_axes=(None,0,0))
 
 
 
 class Growth_MLP():
-
+    """MLP for growth function and its derivatives
+    """
     def __init__(self):
         self.build()
-        # self.model = model
-        # self.params = params
 
     def build(self):
         layer_sizes = [64,64,64]
         nodes = 8
         model = Simple_MLP(features=layer_sizes,nodes=nodes)
         params = {}
+        dirname = os.path.dirname(__file__)
         for order in range(1, 3):
             for deriv in range(3):
                 key = "{}{}".format(order, deriv)
-                params[key] = checkpoints.restore_checkpoint(ckpt_dir="/mnt/home/cmodi/Research/Projects/pmwd/pmwd/nets/d%dd%dcheckpoint_0"%(order, deriv),target=None)['params']
+                params[key] = checkpoints.restore_checkpoint(ckpt_dir=dirname + "/nets/d%dd%dcheckpoint_0"%(order, deriv),target=None)['params']
         self.model, self.params = model, params
                 
         
     @partial(jit, static_argnums=(0,))
     def _growth(self, cosmo, a, params, order):
 
-        #print('compile growth')
         reshape = False
         if len(cosmo.shape) == 1: 
             reshape = True
@@ -108,10 +107,9 @@ class Growth_MLP():
 
 
 
-
 @jit
 def growth_integ(cosmo, conf):
-    """Intergrate and tabulate (LPT) growth functions and derivatives at given scale
+    """Intergrate with jax odeint (Dopri5) and tabulate (LPT) growth functions and derivatives at given scale
     factors.
 
     Parameters
@@ -179,9 +177,8 @@ def growth_integ(cosmo, conf):
 
 
 
-
 def growth_integ_rk4(cosmo, conf, growth_a=None):
-    """Intergrate and tabulate (LPT) growth functions and derivatives at given scale
+    """Intergrate with Runge-Kutta 4 and tabulate (LPT) growth functions and derivatives at given scale
     factors.
 
     Parameters
@@ -212,8 +209,7 @@ def growth_integ_rk4(cosmo, conf, growth_a=None):
         if growth_a_ic >= conf.a_lpt_step:
             growth_a_ic = 0.1 * conf.a_lpt_step
 
-    if growth_a is None: a = conf.growth_a
-    else: a = growth_a
+    a = conf.growth_a
     lna = jnp.log(a.at[0].set(growth_a_ic))
 
     num_order, num_deriv, num_a = 2, 3, len(a)
@@ -253,11 +249,8 @@ def growth_integ_rk4(cosmo, conf, growth_a=None):
 
 
 
-
-
-
-def growth_integ_mlp(cosmo, conf, growth_a=None):
-    """Intergrate and tabulate (LPT) growth functions and derivatives at given scale
+def growth_integ_mlp(cosmo, conf):
+    """Use Growth MLP to tabulate (LPT) growth functions and derivatives at given scale
     factors.
 
     Parameters
@@ -281,7 +274,6 @@ def growth_integ_mlp(cosmo, conf, growth_a=None):
         return cosmo
 
     conf = cosmo.conf
-    #growth_fn = Growth_MLP(model, params)
     growth_fn = Growth_MLP()
     
     with ensure_compile_time_eval():
@@ -290,13 +282,11 @@ def growth_integ_mlp(cosmo, conf, growth_a=None):
         if growth_a_ic >= conf.a_lpt_step:
             growth_a_ic = 0.1 * conf.a_lpt_step
 
-    if growth_a is None: a = conf.growth_a
-    else: a = growth_a
+    a = conf.growth_a
     lna = jnp.log(a.at[0].set(growth_a_ic))
 
     num_order, num_deriv, num_a = 2, 3, len(a)
 
-    #growth = jnp.zeros(shape=(num_order, num_deriv, num_a))
     growth = []
     a = jnp.array(a)
     for order in [1,2]:

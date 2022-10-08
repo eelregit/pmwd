@@ -172,11 +172,6 @@ def growth(a, cosmo, conf, order=1, deriv=0):
     else:
         D = a**order * jnp.interp(a, conf.growth_a, cosmo.growth[order-1][deriv])
     
-    # if conf.growth_mode == 'mlp':
-    #     D = growth_fn(jnp.array([cosmo.Omega_m]), a, order, deriv)
-    # else:
-    #     a = jnp.asarray(a, dtype=conf.cosmo_dtype)
-    #     D = a**order * jnp.interp(a, conf.growth_a, cosmo.growth[order-1][deriv])
     return D
 
 
