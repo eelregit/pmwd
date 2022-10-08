@@ -116,6 +116,8 @@ class Configuration:
 
     growth_rtol: Optional[float] = None
     growth_atol: Optional[float] = None
+    growth_anum: Optional[int] = None
+    growth_mode: Optional[str] = "adaptive"
 
     lpt_order: int = 2
 
@@ -268,7 +270,10 @@ class Configuration:
     @property
     def growth_a(self):
         """Growth function scale factors, for both LPT and N-body."""
-        return jnp.concatenate((self.a_lpt, self.a_nbody[1:]))
+        if self.growth_anum is None: 
+            return jnp.concatenate((self.a_lpt, self.a_nbody[1:]))
+        else:
+            return jnp.linspace(1e-3, 1., self.growth_anum)
 
     #TODO transfer_size -> transfer_lgk_maxstep
     @property
