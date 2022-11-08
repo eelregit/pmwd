@@ -19,7 +19,6 @@
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/zip_function.h>
 
-
 #include <climits>
 #include <cmath>
 #include <complex>
@@ -32,6 +31,8 @@
 #include <string>
 
 #include "cnpy.h"
+#include "kernels.h"
+#include "kernel_helpers.h"
 
 namespace jax_pmwd {
 
@@ -308,6 +309,15 @@ gather_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride,
         // accumulate point val to its global mem
         values[idx] += pt_val;
     }
+}
+
+void scatter(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+}
+void gather(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+}
+void scatterf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+}
+void gatherf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
 }
 
 int test()
