@@ -1,0 +1,4 @@
+\ProvidesFile{t1nova.fd}
+\DeclareFontFamily{T1}{nova}{}
+\DeclareFontShape{T1}{nova}{m}{sl}{<-> nova}{}
+\pdfmapline{+nova\space <nova.ttf\space <T1-WGL4.enc}

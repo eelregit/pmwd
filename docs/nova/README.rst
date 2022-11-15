@@ -11,7 +11,7 @@ It has nice symmetric glyphs, such as "p" and "d", and "m" and "w".
 pdfTeX error: unknown version of OS/2 table (0004)
 --------------------------------------------------
 
-Designed by FontForge, Nova ttf files trigger the above errors of
+Designed with FontForge, Nova ttf files trigger the above errors of
 pdfTeX, as described in https://tex.stackexchange.com/a/225089.
 These files have been "fixed" with FontForge following Reuben Thomas'
 comment to that answer.
