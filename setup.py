@@ -6,6 +6,11 @@ this_directory = Path(__file__).resolve().parent
 long_description = (this_directory / 'README.rst').read_text()
 
 
+vis_require = ['matplotlib', 'scipy']
+#docs_require = ['sphinx', 'jupyterlab']
+#tests_require = ['pytest', 'pytest-cov', 'pytest-benchmark', 'pytest-xdist', 'scipy']
+
+
 setup(
     name='pmwd',
     description='particle mesh with derivatives',
@@ -17,6 +22,15 @@ setup(
     use_scm_version=True,
     setup_requires=['setuptools_scm'],
     packages=find_packages(),
-    python_requires='>=3.7',
-    install_requires=['jax'],
+    python_requires='>=3.8',  # importlib.metadata
+    install_requires=[
+        'jax',
+        'numpy>=1.20',  # numpy.typing
+    ],
+    extras_require={
+        'vis': vis_require,
+        #'docs': docs_require,
+        #'tests': tests_require,
+        #'dev': vis_require + docs_require + tests_require,
+    }
 )
