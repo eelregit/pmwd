@@ -11,7 +11,7 @@ ptcl_grid_sizes = [2**n for n in range(5, 10)]
 number = 1
 repeat = 8
 exec_times = np.empty((2 + len(mesh_shapes), len(ptcl_grid_sizes)))
-fname = 'scaling.txt'
+fname = 'perf.txt'
 
 if not os.path.exists(fname):
     import timeit
@@ -83,5 +83,5 @@ ax.set_xlabel('ptcl grid size')
 ax.set_ylabel('wall time [sec]')
 ax.legend()
 
-fig.savefig('scaling.pdf')
+fig.savefig('perf.pdf')
 plt.close(fig)
