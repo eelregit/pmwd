@@ -1,0 +1,273 @@
+\documentclass[usenatbib]{mnras}
+
+% Allow "Thomas van Noord" and "Simon de Laguarde" and alike to be sorted by "N" and "L" etc. in the bibliography.
+% Write the name in the bibliography as "\VAN{Noord}{Van}{van} Noord, Thomas"
+\DeclareRobustCommand{\VAN}[3]{#2}
+\let\VANthebibliography\thebibliography
+\def\thebibliography{\DeclareRobustCommand{\VAN}[3]{##3}\VANthebibliography}
+
+
+\usepackage{microtype}
+\usepackage{newpxtext, eulerpx}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{bm}
+\usepackage{graphicx}
+%\usepackage{booktabs}
+
+
+\newcommand{\pmwd}{{\usefont{T1}{nova}{m}{sl}pmwd}}
+
+\renewcommand{\sectionautorefname}{Sec.}
+\renewcommand{\subsectionautorefname}{Sec.}
+\renewcommand{\appendixautorefname}{App.}
+\renewcommand{\figureautorefname}{Fig.}
+%\newcommand{\subfigureautorefname}{\figureautorefname}
+
+%FIXME copied from ../adjoint/adjoint.tex
+\newcommand{\deltaD}{\delta^\textsc{d}}
+\newcommand{\deltaK}{\delta^\textsc{k}}
+\renewcommand{\d}{d}
+\newcommand{\p}{\partial}
+\newcommand{\cJ}{\mathcal{J}}
+\newcommand{\cR}{\mathcal{R}}
+\newcommand{\cL}{\mathcal{L}}
+\newcommand{\cH}{\mathcal{H}}
+\bmdefine{\vzero}{0}
+\bmdefine{\vI}{I}
+\bmdefine{\vnabla}{\nabla}
+\bmdefine{\vtheta}{\theta}  % parameters
+\bmdefine{\vomega}{\omega}  % white noise modes
+\bmdefine{\vk}{k}  % wavevectors
+\bmdefine{\vx}{x}  % comoving and canonical coordinates
+\bmdefine{\vq}{q}  % Lagrangian coordinates
+\bmdefine{\vs}{s}  % displacements
+\bmdefine{\vp}{p}  % canonical momenta
+\bmdefine{\va}{a}  % accelerations
+\bmdefine{\vz}{z}  % states
+\bmdefine{\vf}{f}
+\bmdefine{\vF}{F}
+\bmdefine{\vDelta}{\Delta}
+\bmdefine{\vLambda}{\Lambda}
+\bmdefine{\vlambda}{\lambda}
+\bmdefine{\vvarphi}{\varphi}
+\bmdefine{\vxi}{\xi}  % x adjoint
+\bmdefine{\vpi}{\pi}  % p adjoint
+\bmdefine{\valpha}{\alpha}  % force vjp x gradient
+\bmdefine{\vzeta}{\zeta}  % force vjp theta gradient
+\newcommand{\half}{\nicefrac12}
+\newcommand{\As}{A_\mathrm{s}}
+\newcommand{\ns}{n_\mathrm{s}}
+\newcommand{\Omegam}{\Omega_\mathrm{m}}
+\newcommand{\Omegab}{\Omega_\mathrm{b}}
+\newcommand{\Mpc}{\mathrm{Mpc}}
+\newcommand{\ic}{\mathrm{i}}
+\newcommand{\Plin}{P_\mathrm{lin}}
+
+\newcommand{\YL}[1]{\textcolor{Bittersweet}{#1}}
+
+
+
+\title[Spatiotemporally Optimized Simulation]
+{Spatiotemporal Optimization of Cosmological Particel-Mesh Simulation}
+
+
+\author[Zhang, Li, Jamieson, et al.]{
+%
+Yucheng Zhang,$^{1, 2}$
+%
+Yin Li,$^{1, 3}$\thanks{Email: XYZ, eelregit@gmail.com, and XYZ}
+%
+and Drew Jamieson$^{4}$
+%
+\\$^1$Department of Mathematics and Theory, Peng Cheng Laboratory,
+Shenzhen, Guangdong 518066, China
+%
+\\$^2$Center for Cosmology and Particle Physics, Department of Physics,
+New York University, New York, NY 10003, USA
+%
+\\$^3$Center for Computational Astrophysics \& Center for Computational
+Mathematics, Flatiron Institute, New York, NY 10010, USA
+%
+\\$^4$Max Planck Institute for Astrophysics, 85748 Garching bei
+M\"unchen, Germany
+}
+
+
+\date{Accepted XXX. Received YYY; in original form ZZZ}
+\pubyear{2023}
+
+
+
+\begin{document}
+\label{firstpage}
+\pagerange{\pageref{firstpage}--\pageref{lastpage}}
+\maketitle
+
+
+
+\begin{abstract}
+We sharpen PM force and optimize integration time steps.
+\end{abstract}
+
+\begin{keywords}
+cosmology: large-scale structure of Universe
+-- methods: numerical
+-- software: development
+\end{keywords}
+
+
+
+\section{Introduction}
+
+
+\section{Methods}
+
+
+\subsection{Spatial Optimization}
+
+
+\subsection{Temporal Optimization}
+
+
+
+\begin{table*}
+  \centering
+  \caption{Ranges of GADGET-4 and \pmwd\ configuration and cosmological
+    parameters.
+    Note that the grid ratio need next fast len to determine the mesh
+    shape for fast FFT.
+    Given the box size, the mesh shape determines the cell size.
+    The softening parameter gives the ratio of the comving softening
+    length to the mean particle spacing.
+    The curvature $\Omega_k$ is related to the separate universe
+    simulation.
+    We sample parameters applicable to GADGET-4 during data generation,
+    and those applicable to \pmwd\ during training.
+    \textsuperscript\dag The box size is determined jointly by the
+    \pmwd\ mesh shape and mesh cell size below, which are assumed to be
+    sampled independently.
+    In practice, we sample one conditioned on the other and the box
+    size.
+    * Number of time steps from beginning to end ...
+  }
+  \label{tab:param}
+  \begin{tabular}{lcccr}
+    \toprule
+    applicability & parameter & distribution & range & sampling \\
+    \midrule
+    & $128^3$ white noise & $\mathcal{N}(\vzero, \vI)$ & 512 realizations & MC \\
+    \cmidrule(lr){2-5}
+    & 121 snapshots, $a$ & uniform & [1/16, 1] & deterministic \\
+    \cmidrule(lr){2-5}
+    & box size in Mpc\textsuperscript\dag & log-trapezoidal & [25.6, 2560) \\
+    \cmidrule(lr){2-4}
+    & snapshot offset, $\Delta\!a$ & uniform & [0, 1/128) \\
+    \cmidrule(lr){2-4}
+    GADGET-4 & $A_\mathrm{s} \times 10^9$ & log-uniform & [1, 4) \\
+    \cmidrule(lr){2-4}
+    \& \pmwd\ & $n_\mathrm{s}$ & log-uniform & [0.75, 1.25) & RQMC \\
+    \cmidrule(lr){2-4}
+    & $\Omega_\mathrm{m}$ & log-uniform & [1/5, 1/2) & see \autoref{fig:sobol} \\
+    \cmidrule(lr){2-4}
+    & $\Omega_\mathrm{b} / \Omega_\mathrm{m}$ & log-uniform & [1/16, 1/2) \\
+    \cmidrule(lr){2-4}
+    & $\Omega_k / (1 - \Omega_k)$ & uniform & [-0.5, 0.5) \\
+    \cmidrule(lr){2-4}
+    & $h$ & log-uniform & [0.5, 1) \\
+    \cmidrule(lr){1-4}
+    GADGET-4 & softening ratio & log-uniform & [1/50, 1/20) \\
+    \cmidrule(lr){1-5}
+    & mesh shape & log-uniform & [128, 512] \\
+    \cmidrule(lr){2-4}
+    \pmwd\ & mesh cell size in Mpc & log-uniform & [0.2, 5] & MC \\
+    \cmidrule(lr){2-4}
+    & number of time steps* & log-uniform & [10, 1000] \\
+    \bottomrule
+  \end{tabular}
+\end{table*}
+
+
+\subsection{Parameters and Configurations}
+
+We run 512 GADGET-4 simulations that cover a wide range of
+configurations and cosmological parameters, as listed in
+\autoref{tab:param}.
+Each simulation has $128^3$ particles and writes 121 snapshots linearly
+spaced in scale factor from $1/16 + \Delta a$ to $1 + \Delta a$, with
+spacing $1/128$.
+$\Delta a$ is an offset, common for all snapshots in each simulation,
+that varies as in \autoref{tab:param} and helps to sample different
+alignment between snapshot and start/stop times.
+
+The curvature $\Omega_k$ is related to the separate universe simulation
+\citep{LiEtAl2014a, WagnerEtAl2015}.
+
+
+\begin{figure*}
+  \centering
+  \includegraphics[width=0.9\linewidth]{sobol.pdf}
+  \caption{Randomized Quasi-Monte Carlo (RQMC) configuration with
+    scrambled Sobol sequence of 512 points in 9D.
+    Lower triangular panels show the 2D projections and the diagonal
+    panels are the 1D cumulative histograms.
+    From left to right (top to bottom), we use each dimension of the
+    sample to scale the parameters as ordered in \autoref{tab:param}.
+    We use the \texttt{scipy.stats.qmc} package \citep{SciPy} to
+    generate the Sobol sequence \citep{Sobol1967}, which uses the
+    direction number from \citet{JoeKuo2008} and the Owen scrambling
+    \citep{Owen1998}.
+    We search among 65536 scrambling seeds to minimize the mixture
+    discrepancy (a uniformity measure) proposed in \citet{Zhou2013MD}.
+  }
+  \label{fig:sobol}
+\end{figure*}
+
+\begin{figure*}
+  \centering
+  %\includegraphics[width=0.8\linewidth]{name.ext}
+  \caption{1D histogram of the parameters sampled with RQMC and scaled
+  as in \autoref{tab:param}}.
+  \label{fig:hist}
+\end{figure*}
+
+
+\subsection{Simulations}
+
+\citet{GADGET-4}
+
+We configure GADGET-4 with high force and time integration accuracy
+settings.
+For gravitational force, we choose pure FMM with $p=5$ and opening angle
+0.4.
+%FIXME list other from Config.sh and param.txt
+
+
+\section{Results}
+
+
+\section{Conclusions}
+
+
+\section*{Acknowledgements}
+
+The Flatiron Institute is supported by the Simons Foundation.
+
+
+\section*{Code Availability}
+
+\pmwd\ is open-source on
+\href{https://github.com/eelregit/pmwd}{GitHub}, including the
+\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/sto}{source
+and scripts of this paper}.
+
+
+
+\bibliographystyle{mnras}
+\bibliography{sto}
+
+
+
+\bsp  % typesetting comment
+\label{lastpage}
+\end{document}
