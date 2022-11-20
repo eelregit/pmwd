@@ -2,6 +2,8 @@ from jax import jit, custom_vjp, ensure_compile_time_eval
 import jax.numpy as jnp
 from jax.experimental.ode import odeint
 
+from jax_cosmo.scipy.integrate import romb
+
 from pmwd.cosmology import H_deriv, Omega_m_a
 from pmwd.growth_integrals import growth_integ, growth_integ_rk4, growth_integ_mlp, Growth_MLP
 growth_fn = Growth_MLP()
@@ -260,7 +262,9 @@ def linear_power(k, a, cosmo, conf):
     """
     if conf.dim != 3:
         raise ValueError(f'dim={conf.dim} not supported')
-
+    if conf.amp_mode == 'sigma_8':
+        return linear_power_sigma8(k, a, cosmo, conf)
+    
     k = jnp.asarray(k, dtype=conf.float_dtype)
     T = transfer(k, cosmo, conf)
 
@@ -276,3 +280,75 @@ def linear_power(k, a, cosmo, conf):
     )
 
     return Plin
+
+
+
+
+def linear_power_sigma8(k, a, cosmo, conf):
+    r"""Linear matter power spectrum in [L^3] at given wavenumbers and scale factors.
+
+    Parameters
+    ----------
+    k : array_like
+        Wavenumbers in [1/L].
+    a : array_like or None
+        Scale factors. If None, output is not scaled by growth.
+    cosmo : Cosmology
+    conf : Configuration
+
+    Returns
+    -------
+    Plin : jax.numpy.ndarray of conf.float_dtype
+        Linear matter power spectrum in [L^3].
+
+    Raises
+    ------
+    ValueError
+        If not in 3D.
+
+    """
+    if conf.dim != 3:
+        raise ValueError(f'dim={conf.dim} not supported')
+
+    k = jnp.asarray(k, dtype=conf.float_dtype)
+    T = transfer(k, cosmo, conf)
+
+    D = 1
+    if a is not None:
+        D = growth(a, cosmo, conf)
+        D1 = growth(1.0, cosmo, conf)
+        D = D.astype(conf.float_dtype)
+        D = D/D1
+
+    primordial_power = _safe_power(k, cosmo.n_s)
+    Plin = primordial_power * T ** 2 * D ** 2
+    
+    pknorm = cosmo.sigma_8 ** 2 / sigmasqr(8.0, transfer, cosmo, conf)
+    Plin = Plin * pknorm
+    
+    return Plin
+
+
+
+def sigmasqr(R, transfer_fn, cosmo, conf, kmin=0.00001, kmax=1000.0, ksteps=5, **kwargs):
+    """Computes the energy of the fluctuations within a sphere of R h^{-1} Mpc
+    .. math::
+       \\sigma^2(R)= \\frac{1}{2 \\pi^2} \\int_0^\\infty \\frac{dk}{k} k^3 P(k,z) W^2(kR)
+    where
+    .. math::
+       W(kR) = \\frac{3j_1(kR)}{kR}
+
+    Code taken from jax-cosmo: https://github.com/DifferentiableUniverseInitiative/jax_cosmo/blob/master/jax_cosmo/power.py
+    """
+
+    def int_sigma(logk):
+        k = jnp.exp(logk)
+        x = k * R
+        w = 3.0 * (jnp.sin(x) - x * jnp.cos(x)) / (x * x * x)
+        primordial_power = _safe_power(k, cosmo.n_s)
+        pk = transfer_fn(k, cosmo, conf) ** 2 * primordial_power
+        return k * (k * w) ** 2 * pk
+
+    y = romb(int_sigma, jnp.log10(kmin), jnp.log10(kmax), divmax=7)
+    return 1.0 / (2.0 * jnp.pi ** 2.0) * y
+

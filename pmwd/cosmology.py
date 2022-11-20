@@ -11,8 +11,146 @@ from jax.tree_util import tree_map
 from pmwd.tree_util import pytree_dataclass
 from pmwd.configuration import Configuration
 
+import warnings
 
 FloatParam = Union[float, jnp.ndarray]
+
+
+# @partial(pytree_dataclass, aux_fields="conf", frozen=True)
+# class Cosmology:
+#     """Cosmological and configuration parameters, "immutable" as a frozen dataclass.
+
+#     Cosmological parameters with trailing underscores ("foo_") can be set to None, in
+#     which case they take some fixed values (set by "foo_fixed") and will not receive
+#     gradients. They should be accessed through corresponding properties named without
+#     the trailing underscores ("foo").
+
+#     Linear operators (addition, subtraction, and scalar multiplication) are defined for
+#     Cosmology tangent and cotangent vectors.
+
+#     Float parameters are converted to JAX arrays of conf.cosmo_dtype at instantiation,
+#     to avoid possible JAX weak type problems.
+
+#     Parameters
+#     ----------
+#     conf : Configuration
+#         Configuration parameters.
+#     A_s_1e9 : float or jax.numpy.ndarray
+#         Primordial scalar power spectrum amplitude, multiplied by 1e9.
+#     n_s : float or jax.numpy.ndarray
+#         Primordial scalar power spectrum spectral index.
+#     Omega_m : float or jax.numpy.ndarray
+#         Total matter density parameter today.
+#     Omega_b : float or jax.numpy.ndarray
+#         Baryonic matter density parameter today.
+#     Omega_k_ : None, float, or jax.numpy.ndarray, optional
+#         Spatial curvature density parameter today. Default is None.
+#     w_0_ : None, float, or jax.numpy.ndarray, optional
+#         Dark energy equation of state constant parameter. Default is None.
+#     w_a_ : None, float, or jax.numpy.ndarray, optional
+#         Dark energy equation of state linear parameter. Default is None.
+#     h : float or jax.numpy.ndarray
+#         Hubble constant in unit of 100 [km/s/Mpc].
+
+#     """
+
+#     conf: Configuration = field(repr=False)
+
+#     A_s_1e9: FloatParam
+#     n_s: FloatParam
+#     Omega_m: FloatParam
+#     Omega_b: FloatParam
+#     h: FloatParam
+
+#     Omega_k_: Optional[FloatParam] = None
+#     Omega_k_fixed: InitVar[float] = 0.
+#     w_0_: Optional[FloatParam] = None
+#     w_0_fixed: InitVar[float] = -1.
+#     w_a_: Optional[FloatParam] = None
+#     w_a_fixed: InitVar[float] = 0.
+
+#     transfer: Optional[jnp.ndarray] = field(default=None, compare=False)
+
+#     growth: Optional[jnp.ndarray] = field(default=None, compare=False)
+
+#     def __post_init__(self, Omega_k_fixed, w_0_fixed, w_a_fixed):
+#         if self._is_transforming():
+#             return
+
+#         dtype = self.conf.cosmo_dtype
+#         for name, value in self.named_children():
+#             value = tree_map(lambda x: jnp.asarray(x, dtype=dtype), value)
+#             object.__setattr__(self, name, value)
+
+#         if self.Omega_k_ is None:
+#             object.__setattr__(self, 'Omega_k_fixed', Omega_k_fixed)
+#         if self.w_0_ is None:
+#             object.__setattr__(self, 'w_0_fixed', w_0_fixed)
+#         if self.w_a_ is None:
+#             object.__setattr__(self, 'w_a_fixed', w_a_fixed)
+
+#     def __add__(self, other):
+#         return tree_map(add, self, other)
+
+#     def __sub__(self, other):
+#         return tree_map(sub, self, other)
+
+#     def __mul__(self, other):
+#         return tree_map(lambda x: x * other, self)
+
+#     def __rmul__(self, other):
+#         return self.__mul__(other)
+
+#     def astype(self, dtype):
+#         """Cast parameters to dtype by changing conf.cosmo_dtype."""
+#         conf = self.conf.replace(cosmo_dtype=dtype)
+#         return self.replace(conf=conf)  # calls __post_init__
+
+#     @property
+#     def k_pivot(self):
+#         """Primordial scalar power spectrum pivot scale in [1/L].
+
+#         Pivot scale is defined h-less unit, so needs h to convert its unit to [1/L].
+
+#         """
+#         return self.conf.k_pivot_Mpc / (self.h * self.conf.Mpc_SI) * self.conf.L
+
+#     @property
+#     def A_s(self):
+#         """Primordial scalar power spectrum amplitude."""
+#         return self.A_s_1e9 * 1e-9
+
+#     @property
+#     def Omega_c(self):
+#         """Cold dark matter density parameter today."""
+#         return self.Omega_m - self.Omega_b
+
+#     @property
+#     def Omega_k(self):
+#         """Spatial curvature density parameter today."""
+#         return self.Omega_k_fixed if self.Omega_k_ is None else self.Omega_k_
+
+#     @property
+#     def Omega_de(self):
+#         """Dark energy density parameter today."""
+#         return 1 - (self.Omega_m + self.Omega_k)
+
+#     @property
+#     def w_0(self):
+#         """Dark energy equation of state constant parameter."""
+#         return self.w_0_fixed if self.w_0_ is None else self.w_0_
+
+#     @property
+#     def w_a(self):
+#         """Dark energy equation of state linear parameter."""
+#         return self.w_a_fixed if self.w_a_ is None else self.w_a_
+
+#     @property
+#     def ptcl_mass(self):
+#         """Particle mass in [M]."""
+#         return self.conf.rho_crit * self.Omega_m * self.conf.ptcl_cell_vol
+
+
 
 
 @partial(pytree_dataclass, aux_fields="conf", frozen=True)
@@ -36,6 +174,8 @@ class Cosmology:
         Configuration parameters.
     A_s_1e9 : float or jax.numpy.ndarray
         Primordial scalar power spectrum amplitude, multiplied by 1e9.
+    sigma_8 : float or jax.numpy.ndarray
+        Matter power spectrum amplitude at z=0
     n_s : float or jax.numpy.ndarray
         Primordial scalar power spectrum spectral index.
     Omega_m : float or jax.numpy.ndarray
@@ -55,11 +195,12 @@ class Cosmology:
 
     conf: Configuration = field(repr=False)
 
-    A_s_1e9: FloatParam
     n_s: FloatParam
     Omega_m: FloatParam
     Omega_b: FloatParam
     h: FloatParam
+    A_s_1e9: Optional[FloatParam] = None
+    sigma_8: Optional[FloatParam] = None
 
     Omega_k_: Optional[FloatParam] = None
     Omega_k_fixed: InitVar[float] = 0.
@@ -87,6 +228,8 @@ class Cosmology:
             object.__setattr__(self, 'w_0_fixed', w_0_fixed)
         if self.w_a_ is None:
             object.__setattr__(self, 'w_a_fixed', w_a_fixed)
+        #Check A_s vs sigma_8 initialization
+        self.consistent_amplitude()
 
     def __add__(self, other):
         return tree_map(add, self, other)
@@ -105,6 +248,25 @@ class Cosmology:
         conf = self.conf.replace(cosmo_dtype=dtype)
         return self.replace(conf=conf)  # calls __post_init__
 
+
+    def consistent_amplitude(self):
+        """Primordial scalar power spectrum amplitude."""
+        if (self.conf.amp_mode == 'A_s') & (self.A_s_1e9 == None):
+            print("A_s parameter needs to be specified")
+            raise Exception
+        elif (self.conf.amp_mode == 'sigma_8') & (self.sigma_8 == None):
+            print("sigma_8 parameter needs to be specified")
+            raise Exception
+        elif (self.A_s_1e9 != None) & (self.sigma_8 != None):
+            print("Both A_s and sigma_8 parameters are specified")
+            #warnings.warn("Warning : Both A_s and sigma_8 are specified")
+            if self.conf.amp_mode == 'A_s':
+                print("sigma_8 value will be ignored. If you wish to use sigma_8, set amp_mode='sigma_8'")
+            elif self.conf.amp_mode == 'sigma_8':
+                print("A_s value will be ignored. If you wish to use A_s, set amp_mode='A_s'")
+
+
+            
     @property
     def k_pivot(self):
         """Primordial scalar power spectrum pivot scale in [1/L].
@@ -113,11 +275,12 @@ class Cosmology:
 
         """
         return self.conf.k_pivot_Mpc / (self.h * self.conf.Mpc_SI) * self.conf.L
-
+        
     @property
     def A_s(self):
         """Primordial scalar power spectrum amplitude."""
-        return self.A_s_1e9 * 1e-9
+        if self.conf.amp_mode == 'A_s': return self.A_s_1e9 * 1e-9
+        else: return None
 
     @property
     def Omega_c(self):
@@ -148,8 +311,9 @@ class Cosmology:
     def ptcl_mass(self):
         """Particle mass in [M]."""
         return self.conf.rho_crit * self.Omega_m * self.conf.ptcl_cell_vol
+    
 
-
+    
 SimpleLCDM = partial(
     Cosmology,
     A_s_1e9=2.0,
@@ -167,8 +331,20 @@ Planck18 = partial(
     Omega_m=0.3111,
     Omega_b=0.04897,
     h=0.6766,
+    sigma_8=0.8102,
 )
 Planck18.__doc__ = "Planck 2018 cosmology, arXiv:1807.06209 Table 2 last column."
+
+SimpleLCDM_s8 = partial(
+    Cosmology,
+    sigma_8=0.8,
+    n_s=0.96,
+    Omega_m=0.3,
+    Omega_b=0.05,
+    h=0.7,
+)
+SimpleLCDM_s8.__doc__ = "Simple ΛCDM cosmology in sigma_8 parameterization, for convenience and subject to change."
+
 
 
 def E2(a, cosmo):

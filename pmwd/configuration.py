@@ -49,6 +49,8 @@ class Configuration:
     T : float, optional
         Time unit defined in s/h. Default is Hubble time 1/H_0 ~ 1e10 years/h ~ age of
         the Universe.
+    amp_mode : str, optional
+        "A_s" (default), "sigma_8" for whether to use A_s or sigma8 parameterization
     transfer_fit : bool, optional
         Whether to use Eisenstein & Hu fit to transfer function. Default is True
         (subject to change when False is implemented).
@@ -118,6 +120,7 @@ class Configuration:
     transfer_fit_nowiggle: bool = False
     transfer_size: int = 1024
 
+    amp_mode: Optional[str] = "sigma_8"
     growth_rtol: Optional[float] = None
     growth_atol: Optional[float] = None
     growth_anum: Optional[int] = None
