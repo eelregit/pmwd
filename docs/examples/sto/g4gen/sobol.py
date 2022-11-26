@@ -5,8 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def plt_proj(filename='sobol.txt'):
-    sample = np.loadtxt(filename)
+def plt_proj(filename='sobol.txt', max_rows=None):
+    sample = np.loadtxt(filename, max_rows=max_rows)
 
     n, d = sample.shape
 
@@ -46,10 +46,12 @@ def plt_proj(filename='sobol.txt'):
         for j in range(i+1, d):
             axes[i, j].remove()
 
-    filename = os.path.splitext(filename)[0] + '.pdf'
+    filename = os.path.splitext(filename)[0] + str(n) + '.pdf'
     fig.savefig(filename, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 
 
 if __name__ == '__main__':
-    plt_proj(* sys.argv[1:])
+    plt_proj(max_rows=8)
+    plt_proj(max_rows=64)
+    plt_proj(max_rows=512)
