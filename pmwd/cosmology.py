@@ -1,7 +1,7 @@
-from dataclasses import field, InitVar
+from dataclasses import field
 from functools import partial
 from operator import add, sub
-from typing import Optional, Union
+from typing import ClassVar, Optional, Union
 
 import numpy as np
 from jax import value_and_grad
@@ -20,9 +20,9 @@ class Cosmology:
     """Cosmological and configuration parameters, "immutable" as a frozen dataclass.
 
     Cosmological parameters with trailing underscores ("foo_") can be set to None, in
-    which case they take some fixed values (set by "foo_fixed") and will not receive
-    gradients. They should be accessed through corresponding properties named without
-    the trailing underscores ("foo").
+    which case they take some fixed values (set by class variable "foo_fixed") and will
+    not receive gradients. They should be accessed through corresponding properties
+    named without the trailing underscores ("foo").
 
     Linear operators (addition, subtraction, and scalar multiplication) are defined for
     Cosmology tangent and cotangent vectors.
@@ -62,17 +62,17 @@ class Cosmology:
     h: FloatParam
 
     Omega_k_: Optional[FloatParam] = None
-    Omega_k_fixed: InitVar[float] = 0.
+    Omega_k_fixed: ClassVar[float] = 0.
     w_0_: Optional[FloatParam] = None
-    w_0_fixed: InitVar[float] = -1.
+    w_0_fixed: ClassVar[float] = -1.
     w_a_: Optional[FloatParam] = None
-    w_a_fixed: InitVar[float] = 0.
+    w_a_fixed: ClassVar[float] = 0.
 
     transfer: Optional[jnp.ndarray] = field(default=None, compare=False)
 
     growth: Optional[jnp.ndarray] = field(default=None, compare=False)
 
-    def __post_init__(self, Omega_k_fixed, w_0_fixed, w_a_fixed):
+    def __post_init__(self):
         if self._is_transforming():
             return
 
@@ -80,13 +80,6 @@ class Cosmology:
         for name, value in self.named_children():
             value = tree_map(lambda x: jnp.asarray(x, dtype=dtype), value)
             object.__setattr__(self, name, value)
-
-        if self.Omega_k_ is None:
-            object.__setattr__(self, 'Omega_k_fixed', Omega_k_fixed)
-        if self.w_0_ is None:
-            object.__setattr__(self, 'w_0_fixed', w_0_fixed)
-        if self.w_a_ is None:
-            object.__setattr__(self, 'w_a_fixed', w_a_fixed)
 
     def __add__(self, other):
         return tree_map(add, self, other)
