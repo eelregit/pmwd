@@ -18,8 +18,8 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
         Pytree aux_data fields. Default is none; unrecognized ones are ignored;
         ``Ellipsis`` uses all.
     aux_invert : bool, optional
-        Whether to invert ``aux_fields`` selections, convenient when most fields are not
-        aux_data.
+        Whether to invert ``aux_fields`` selections, convenient when most but not all
+        fields are aux_data.
     **kwargs
         Keyword arguments to be passed to python dataclass decorator.
 
