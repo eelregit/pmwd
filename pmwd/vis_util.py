@@ -253,6 +253,10 @@ class CosmicWebNorm(FuncNorm):
         i = np.append(i, i[-1] + 1)
         ticks = x[i]
 
-        ticklabels = [str(x).lstrip('0').removesuffix('.0') for x in ticks]
+        ticklabels = [str(x) for x in ticks]
+        try:
+            ticklabels = [s.lstrip('0').removesuffix('.0') for s in ticklabels]
+        except AttributeError:
+            pass  # python < 3.9
 
         return ticks, ticklabels
