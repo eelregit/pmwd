@@ -19,10 +19,10 @@ setup(
     url='https://github.com/eelregit/pmwd',
     author='Yin Li and pmwd developers',
     author_email='eelregit@gmail.com',
-    use_scm_version=True,
+    use_scm_version={'write_to': 'pmwd/_version.py'},
     setup_requires=['setuptools_scm'],
     packages=find_packages(),
-    python_requires='>=3.8',  # importlib.metadata
+    python_requires='>=3.7',
     install_requires=[
         'jax',
         'numpy>=1.20',  # numpy.typing
