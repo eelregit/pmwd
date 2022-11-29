@@ -145,6 +145,8 @@ class Configuration:
 
     chunk_size: int = 2**24
 
+    so_nodes: Optional[list] = None
+
     def __post_init__(self):
         if self._is_transforming():
             return
