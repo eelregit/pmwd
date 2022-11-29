@@ -4,6 +4,7 @@ from jax import custom_vjp
 from pmwd.scatter import scatter
 from pmwd.gather import gather
 from pmwd.pm_util import fftfreq, fftfwd, fftinv
+from pmwd.sto_util import sharpening
 
 
 @custom_vjp
@@ -56,6 +57,9 @@ def gravity(a, ptcl, cosmo, conf):
     dens = fftfwd(dens)  # normalization canceled by that of irfftn below
 
     pot = laplace(kvec, dens, cosmo)
+
+    if conf.so_nodes is not None:
+        pot = sharpening(pot, cosmo, conf, a)  # spatial sharpening
 
     acc = []
     for k in kvec:
