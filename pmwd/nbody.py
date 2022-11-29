@@ -1,6 +1,7 @@
 from functools import partial
 
 import numpy as np
+import jax
 from jax import value_and_grad, jit, vjp, custom_vjp
 import jax.numpy as jnp
 from jax.tree_util import tree_map
@@ -139,7 +140,6 @@ def observe_init(a, ptcl, obsvbl, cosmo, conf):
     pass
 
 
-@jit
 def nbody_init(a, ptcl, obsvbl, cosmo, conf):
     ptcl = force(a, ptcl, cosmo, conf)
 
@@ -150,8 +150,9 @@ def nbody_init(a, ptcl, obsvbl, cosmo, conf):
     return ptcl, obsvbl
 
 
-@jit
-def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
+def nbody_step(carry, a_next):
+    a_prev, ptcl, obsvbl, cosmo, conf = carry
+
     # leapfrog
     a_half = 0.5 * (a_prev + a_next)
     ptcl = kick(a_prev, a_prev, a_half, ptcl, cosmo, conf)
@@ -163,7 +164,7 @@ def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
 
     obsvbl = observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
 
-    return ptcl, obsvbl
+    return (a_next, ptcl, obsvbl, cosmo, conf), None
 
 
 @partial(custom_vjp, nondiff_argnums=(4,))
@@ -172,12 +173,14 @@ def nbody(ptcl, obsvbl, cosmo, conf, reverse=False):
     a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
 
     ptcl, obsvbl = nbody_init(a_nbody[0], ptcl, obsvbl, cosmo, conf)
-    for a_prev, a_next in zip(a_nbody[:-1], a_nbody[1:]):
-        ptcl, obsvbl = nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
+
+    results, intermediate_results = jax.lax.scan(nbody_step, 
+                                             (a_nbody[0], ptcl, obsvbl, cosmo, conf),
+                                             a_nbody[1:])
+    _, ptcl, obsvbl, __, ___ = results
     return ptcl, obsvbl
 
 
-@jit
 def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl_cot, cosmo, conf):
     #ptcl_cot = observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo)
 
@@ -191,8 +194,6 @@ def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl_cot, cosmo, conf):
 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
-
-@jit
 def nbody_adj_step(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
     #ptcl_cot = observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, conf)
 
