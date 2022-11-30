@@ -4,7 +4,7 @@ from jax import random
 from jax.tree_util import tree_map
 import flax.linen as nn
 from flax.core.frozen_dict import unfreeze, freeze
-from typing import Sequence
+from typing import Sequence, Callable
 import math
 
 from pmwd.pm_util import rfftnfreq
@@ -12,6 +12,7 @@ from pmwd.pm_util import rfftnfreq
 
 class MLP(nn.Module):
     features: Sequence[int]
+    activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
 
     def setup(self):
         self.layers = [nn.Dense(f) for f in self.features]
@@ -21,7 +22,7 @@ class MLP(nn.Module):
         for i, lyr in enumerate(self.layers):
             x = lyr(x)
             if i != len(self.layers)-1:
-                x = nn.softplus(x)
+                x = self.activator(x)
         return x
 
 
