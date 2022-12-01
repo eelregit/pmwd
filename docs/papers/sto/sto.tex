@@ -43,6 +43,7 @@
 \bmdefine{\vq}{q}  % Lagrangian coordinates
 \bmdefine{\vs}{s}  % displacements
 \bmdefine{\vp}{p}  % canonical momenta
+\bmdefine{\vv}{v}  % FIXME some velocities
 \bmdefine{\va}{a}  % accelerations
 \bmdefine{\vz}{z}  % states
 \bmdefine{\vf}{f}
@@ -127,8 +128,8 @@ cosmology: large-scale structure of Universe
 Given two snapshots at $a_i$ and $a_{i+1}$, we get the particle displacements
 in between at $a$ using interpolation with the cubic Hermite spline,
 \begin{align}
-  \bm{x}(a) =\ &h_{00}(\alpha)\bm{x}_i + h_{10}(\alpha)(a_{i+1} - a_i)\bm{v}_i + \nonumber\\
-           &h_{01}(\alpha)\bm{x}_{i+1} + h_{11}(\alpha)(a_{i+1} - a_i)\bm{v}_{i+1} \,,
+  \vx(a) =\ &h_{00}(\alpha)\vx_i + h_{10}(\alpha)(a_{i+1} - a_i)\vv_i + \nonumber\\
+           &h_{01}(\alpha)\vx_{i+1} + h_{11}(\alpha)(a_{i+1} - a_i)\vv_{i+1} \,,
 \end{align}
 where $\alpha := (a - a_i)/(a_{i+1} - a_i)$ and the Hermite basis functions read
 \begin{align}
@@ -137,7 +138,21 @@ where $\alpha := (a - a_i)/(a_{i+1} - a_i)$ and the Hermite basis functions read
   h_{01}(\alpha) &= -2\alpha^3 + 3\alpha^2 \,,\nonumber\\
   h_{11}(\alpha) &= \alpha^3 - \alpha^2 \,.
 \end{align}
-The particle velocity is then given by the derivative $d\bm{x}/da$.
+The particle velocity is then given by the derivative $\d\vx / \d a$.
+
+
+\subsection{Objective Function}
+
+Again combine Lagrangian and Eulernian fields.
+
+A mean squared error (MSE) loss on the fields would focus too much on
+the small scales. In this work we choose uniform weights in the scale
+space, by weighing each mode of wavenumber $k$ by $k^{-3}$ in the MSE
+loss
+\begin{equation}
+  \cJ = \mathbb{E} \sum_\vk k^{-3}
+    \bigl| \hat f(\vk) - f(\vk) \bigr|^2.
+\end{equation}
 
 
 \subsection{Spatial Optimization}
