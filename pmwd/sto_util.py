@@ -13,6 +13,7 @@ from pmwd.pm_util import rfftnfreq
 class MLP(nn.Module):
     features: Sequence[int]
     activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
+    outivator: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
 
     def setup(self):
         self.layers = [nn.Dense(f) for f in self.features]
@@ -23,6 +24,10 @@ class MLP(nn.Module):
             x = lyr(x)
             if i != len(self.layers)-1:
                 x = self.activator(x)
+            else:
+                if self.outivator is not None:
+                    x = self.outivator(x)
+
         return x
 
 
@@ -100,9 +105,9 @@ def sharpening(pot, cosmo, conf, a):
     # neural nets
     nets = [MLP(features=n) for n in conf.so_nodes]
     # modification factors to the laplace potential
-    g_k = 1 + nets[0].apply(cosmo.so_params[0], fts[0])
+    g_k = nets[0].apply(cosmo.so_params[0], fts[0])
     g_k = g_k.reshape(g_k.shape[:-1])  # remove the trailing axis of dim one
-    f_kvec = [1 + nets[1].apply(cosmo.so_params[1], ft) for ft in fts[1]]
+    f_kvec = [nets[1].apply(cosmo.so_params[1], ft) for ft in fts[1]]
     f_kvec = [f.reshape(f.shape[:-1]) for f in f_kvec]
     pot *= g_k * math.prod(f_kvec)
     return pot
