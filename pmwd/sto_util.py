@@ -45,7 +45,7 @@ def init_mlp_params(n_input, nodes, zero_params=None):
         params = tree_map(lambda x: jnp.zeros_like(x), params)
 
     # set the params of the last layer to zero, bias = zero by default
-    if zero_params == 'last':  
+    if zero_params == 'last':
         for i, p in enumerate(params):
             p = unfreeze(p)
             p['params'][f'layers_{len(nodes)-1}']['kernel'] = (
@@ -55,8 +55,15 @@ def init_mlp_params(n_input, nodes, zero_params=None):
     return params
 
 
-def sofea_k(k, P):
-    """Input features for g(k) net, with k being 3D wavenumber."""
+def soft_3d(k, P):
+    """Input SO features for g(k) net, with k being 3D wavenumber.
+
+    Paramters
+    ---------
+        k: float
+            3D wavenumber
+        P: (cosmo, conf, a)
+    """
     cosmo, conf, a = P
     fts = jnp.array([
         k * conf.cell_size,
@@ -65,8 +72,15 @@ def sofea_k(k, P):
     return fts
 
 
-def sofea_kvec(k, P):
-    """Input features for f(k) net, with k being 1D wavenumber."""
+def soft_1d(k, P):
+    """Input SO features for f(k) net, with k being 1D wavenumber.
+
+    Paramters
+    ---------
+        k: float
+            1D wavenumber
+        P: (cosmo, conf, a)
+    """
     cosmo, conf, a = P
     fts = jnp.array([
         k * conf.cell_size,
@@ -85,13 +99,11 @@ def sofeatures(kvec, cosmo, conf, a):
         ft_kvec: list
             list of feature arrays for kvec
     """
-    k = jnp.sqrt(sum(k**2 for k in kvec))
+    k = jnp.sqrt(sum(kv**2 for kv in kvec))
     P = (cosmo, conf, a)
-    ft_k = jax.vmap(sofea_k, (0, None), 0)(
-        k.ravel(), P).reshape(k.shape+(-1,))
-    ft_kvec = [jax.vmap(sofea_kvec, (0, None), 0)(
-        kv.ravel(), P).reshape(kv.shape+(-1,))
-        for kv in kvec]
+    ft_k = jax.vmap(soft_3d, (0, None), 0)(k.ravel(), P).reshape(k.shape+(-1,))
+    ft_kvec = [jax.vmap(soft_1d, (0, None), 0)(kv.ravel(), P).reshape(
+        kv.shape+(-1,)) for kv in kvec]
     return ft_k, ft_kvec
 
 
@@ -111,3 +123,23 @@ def sharpening(pot, cosmo, conf, a):
     f_kvec = [f.reshape(f.shape[:-1]) for f in f_kvec]
     pot *= g_k * math.prod(f_kvec)
     return pot
+
+
+def gnet(k, params, cosmo, conf, a):
+    """Function g(k) neural net, where k is 3D wavenumber."""
+    if k == 'rfftn':
+        kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
+        k = jnp.sort(jnp.sqrt(sum(kv**2 for kv in kvec)).ravel())
+    fts = jax.vmap(soft_3d, (0, None), 0)(k, (cosmo, conf, a))
+    net = MLP(features=conf.so_nodes[0])
+    return net.apply(params, fts), k
+
+
+def fnet(k, params, cosmo, conf, a):
+    """Function f(k) neural net, where k is 1D wavenumber."""
+    if k == 'rfftn':
+        kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
+        k = jnp.sort(kvec[0].ravel())
+    fts = jax.vmap(soft_1d, (0, None), 0)(k, (cosmo, conf, a))
+    net = MLP(features=conf.so_nodes[1])
+    return net.apply(params, fts), k
