@@ -37,6 +37,7 @@
 \bmdefine{\vI}{I}
 \bmdefine{\vnabla}{\nabla}
 \bmdefine{\vtheta}{\theta}  % parameters
+\bmdefine{\vvartheta}{\vartheta}  % NN parameters
 \bmdefine{\vomega}{\omega}  % white noise modes
 \bmdefine{\vk}{k}  % wavevectors
 \bmdefine{\vx}{x}  % comoving and canonical coordinates
@@ -63,7 +64,9 @@
 \newcommand{\Omegab}{\Omega_\mathrm{b}}
 \newcommand{\Mpc}{\mathrm{Mpc}}
 \newcommand{\ic}{\mathrm{i}}
-\newcommand{\Plin}{P_\mathrm{lin}}
+\newcommand{\linear}{\mathrm{lin}}
+\newcommand{\tophat}{\mathrm{TH}}
+\newcommand{\gauss}{\mathrm{G}}
 
 \newcommand{\YL}[1]{\textcolor{Bittersweet}{#1}}
 
@@ -143,7 +146,7 @@ The particle velocity is then given by the derivative $\d\vx / \d a$.
 
 \subsection{Objective Function}
 
-Again combine Lagrangian and Eulernian fields.
+Again combine Lagrangian and Eulerian fields.
 
 A mean squared error (MSE) loss on the fields would focus too much on
 the small scales. In this work we choose uniform weights in the scale
@@ -154,8 +157,74 @@ loss
     \bigl| \hat f(\vk) - f(\vk) \bigr|^2.
 \end{equation}
 
+An alternative loss function can be the Eulernian density weighted
+particle displacement MSE.
+
 
 \subsection{Spatial Optimization}
+
+The dimensionless power spectrum
+%
+\begin{equation}
+\Delta^2(k) \triangleq \frac{k^3 P(k)}{2 \pi^2}.
+\end{equation}
+
+Variance of linear matter overdensity in a top-hat window
+%
+\begin{equation}
+\sigma_\tophat^2(R) = \int_0^\infty \frac{\d k}k
+  \Delta_\linear^2(k) W_\tophat^2(kR),
+\end{equation}
+where $W_\tophat(kR) = \cdots$ is the Fourier transform of the top-hat
+window.
+Likewise $\sigma_\gauss^2(R)$ is defined with a Gaussian window
+$W_\gauss(kR) = \cdots$.
+
+
+Various nonlinear scales are
+\begin{itemize}
+\item $k_P^{-1}$: determined by $\Delta_\linear^2(k_P) \triangleq 1$;
+\item $R_\tophat$: determined by $\sigma_\tophat^2(R_\tophat) \triangleq
+  1$;
+\item $R_\gauss$: determined by $\sigma_\gauss^2(R_\tophat) \triangleq
+  1$;
+\item $R_\mathrm{d}$: rms linear theory displacement;
+\item $\d R / \d\ln a$: time derivatives of the above scales.
+\end{itemize}
+
+Other relevant scales are
+\begin{itemize}
+\item $l_\mathrm{cell}$: PM cell size.
+\item particle spacing;
+\item softening length.
+\end{itemize}
+
+Relevant scale-independent dimensionless factors are
+\begin{itemize}
+\item $D(a)$: linear growth factor;
+\item $f(a)$: linear growth rate $f \triangleq \d\ln D / \d\ln a$;
+\item $\Omegam(a)$: matter density parameter at $a$;
+\item $\d\ln H / \d\ln a$: time derivative of Hubble expansion;
+\item $a$: scale factor;
+\item $\Delta a$: time step size in $a$.
+\end{itemize}
+
+We combine the above list of parameters in $\vvartheta$.
+
+
+Force sharpening
+%
+\begin{equation}
+\frac{k_i}{k^2} \to \frac{k_i}{k^2}
+  h(k_i; \vvartheta) g(k; \vvartheta) \prod_{j=1}^3 f(k_j; \vvartheta),
+\end{equation}
+%
+where $f$, $g$, $h$ are neural networks, each approximating a nonlinear
+function of the dimensionless features, e.g.,
+%
+\begin{equation}
+g(k; \vvartheta) = g(k/k_P, kR_\tophat, \cdots, D, f, \cdots).
+\end{equation}
 
 
 \subsection{Temporal Optimization}
@@ -163,59 +232,57 @@ loss
 
 
 \begin{table*}
-  \centering
-  \caption{Ranges of GADGET-4 and \pmwd\ configuration and cosmological
-    parameters.
-    Note that the grid ratio need next fast len to determine the mesh
-    shape for fast FFT.
-    Given the box size, the mesh shape determines the cell size.
-    The softening parameter gives the ratio of the comving softening
-    length to the mean particle spacing.
-    The curvature $\Omega_k$ is related to the separate universe
-    simulation.
-    We sample parameters applicable to GADGET-4 during data generation,
-    and those applicable to \pmwd\ during training.
-    \textsuperscript\dag The box size is determined jointly by the
-    \pmwd\ mesh shape and mesh cell size below, which are assumed to be
-    sampled independently.
-    In practice, we sample one conditioned on the other and the box
-    size.
-    * Number of time steps from beginning to end ...
-  }
-  \label{tab:param}
-  \begin{tabular}{lcccr}
-    \toprule
-    applicability & parameter & distribution & range & sampling \\
-    \midrule
-    & $128^3$ white noise & $\mathcal{N}(\vzero, \vI)$ & 512 realizations & MC \\
-    \cmidrule(lr){2-5}
-    & 121 snapshots, $a$ & uniform & [1/16, 1] & deterministic \\
-    \cmidrule(lr){2-5}
-    & box size in Mpc\textsuperscript\dag & log-trapezoidal & [25.6, 2560) \\
-    \cmidrule(lr){2-4}
-    & snapshot offset, $\Delta\!a$ & uniform & [0, 1/128) \\
-    \cmidrule(lr){2-4}
-    GADGET-4 & $A_\mathrm{s} \times 10^9$ & log-uniform & [1, 4) \\
-    \cmidrule(lr){2-4}
-    \& \pmwd\ & $n_\mathrm{s}$ & log-uniform & [0.75, 1.25) & RQMC \\
-    \cmidrule(lr){2-4}
-    & $\Omega_\mathrm{m}$ & log-uniform & [1/5, 1/2) & see \autoref{fig:sobol} \\
-    \cmidrule(lr){2-4}
-    & $\Omega_\mathrm{b} / \Omega_\mathrm{m}$ & log-uniform & [1/16, 1/2) \\
-    \cmidrule(lr){2-4}
-    & $\Omega_k / (1 - \Omega_k)$ & uniform & [-0.5, 0.5) \\
-    \cmidrule(lr){2-4}
-    & $h$ & log-uniform & [0.5, 1) \\
-    \cmidrule(lr){1-4}
-    GADGET-4 & softening ratio & log-uniform & [1/50, 1/20) \\
-    \cmidrule(lr){1-5}
-    & mesh shape & log-uniform & [128, 512] \\
-    \cmidrule(lr){2-4}
-    \pmwd\ & mesh cell size in Mpc & log-uniform & [0.2, 5] & MC \\
-    \cmidrule(lr){2-4}
-    & number of time steps* & log-uniform & [10, 1000] \\
-    \bottomrule
-  \end{tabular}
+\centering
+\caption{Ranges of GADGET-4 and \pmwd\ configuration and cosmological
+parameters.
+Note that the grid ratio need next fast len to determine the mesh shape
+for fast FFT.
+Given the box size, the mesh shape determines the cell size.
+The softening parameter gives the ratio of the comving softening length
+to the mean particle spacing.
+The curvature $\Omega_k$ is related to the separate universe simulation.
+We sample parameters applicable to GADGET-4 during data generation, and
+those applicable to \pmwd\ during training.
+\textsuperscript\dag The box size is determined jointly by the \pmwd\
+mesh shape and mesh cell size below, which are assumed to be sampled
+independently.
+In practice, we sample one conditioned on the other and the box size.
+* Number of time steps from $a=1/16$ to $a=1$.
+}
+\label{tab:param}
+\begin{tabular}{lcccr}
+  \toprule
+  applicability & parameter & distribution & range & sampling \\
+  \midrule
+  & $128^3$ white noise & $\mathcal{N}(\vzero, \vI)$ & 512 realizations & MC \\
+  \cmidrule(lr){2-5}
+  & 121 snapshots, $a$ & uniform & [1/16, 1] & deterministic \\
+  \cmidrule(lr){2-5}
+  & box size in Mpc\textsuperscript\dag & log-trapezoidal & [25.6, 2560) \\
+  \cmidrule(lr){2-4}
+  & snapshot offset, $\Delta\!a$ & uniform & [0, 1/128) \\
+  \cmidrule(lr){2-4}
+  GADGET-4 & $\As \times 10^9$ & log-uniform & [1, 4) \\
+  \cmidrule(lr){2-4}
+  \& \pmwd\ & $\ns$ & log-uniform & [0.75, 1.25) & RQMC \\
+  \cmidrule(lr){2-4}
+  & $\Omegam$ & log-uniform & [1/5, 1/2) & see \autoref{fig:sobol} \\
+  \cmidrule(lr){2-4}
+  & $\Omegab / \Omegam$ & log-uniform & [1/16, 1/2) \\
+  \cmidrule(lr){2-4}
+  & $\Omega_k / (1 - \Omega_k)$ & uniform & [-0.5, 0.5) \\
+  \cmidrule(lr){2-4}
+  & $h$ & log-uniform & [0.5, 1) \\
+  \cmidrule(lr){1-4}
+  GADGET-4 & softening ratio & log-uniform & [1/50, 1/20) \\
+  \cmidrule(lr){1-5}
+  & mesh shape & log-uniform & [128, 512] \\
+  \cmidrule(lr){2-4}
+  \pmwd\ & mesh cell size in Mpc & log-uniform & [0.2, 5] & MC \\
+  \cmidrule(lr){2-4}
+  & number of time steps* & log-uniform & [10, 1000] \\
+  \bottomrule
+\end{tabular}
 \end{table*}
 
 
