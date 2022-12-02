@@ -16,6 +16,6 @@ from pmwd.lpt import lpt
 from pmwd.nbody import nbody
 from pmwd.pm_util import enmesh, rfftnfreq
 try:
-    from pmwd.version import __version__
-except ImportError:
+    from pmwd._version import __version__
+except ModuleNotFoundError:
     pass  # not installed

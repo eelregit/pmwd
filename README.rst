@@ -1,4 +1,6 @@
 .. image:: assets/logo.svg?raw=true
+   :width: 42 em
+   :align: center
    :alt: logo
 
 
