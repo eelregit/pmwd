@@ -1,0 +1,285 @@
+\documentclass[a4paper]{article}
+
+
+\usepackage{CJK}
+\usepackage{microtype}
+%\usepackage{savesym}
+%  \savesymbol{lambdabar}
+\usepackage{newpxtext,eulerpx}
+%  \restoresymbol{newpx}{lambdabar}
+\usepackage[T1]{fontenc}
+\usepackage[margin=3cm]{geometry}
+%\usepackage{setspace}
+\usepackage{amsmath}
+%  \allowdisplaybreaks
+\usepackage{bm}
+%\usepackage{mathrsfs}
+%\usepackage{soul}
+%\usepackage{tensor}
+\usepackage{graphicx}
+%\usepackage{booktabs}
+%\usepackage{placeins}
+%\usepackage{subcaption}
+%\usepackage[caption=false]{subfig}  % revtex hates caption
+\usepackage{hyperref}
+  \hypersetup{
+    colorlinks=true,
+    linkcolor=BrickRed,
+    filecolor=BrickRed,
+    citecolor=LimeGreen,
+    urlcolor=Cerulean,
+  }
+\usepackage{natbib}
+\usepackage[dvipsnames,svgnames,x11names]{xcolor}
+\usepackage{comment}
+  \newif\ifshow
+  %\showtrue  % show
+  \showfalse  % hide
+  %
+  \ifshow
+    \includecomment{hide}
+  \else
+    \excludecomment{hide}
+  \fi
+\usepackage{tikz}
+  \usetikzlibrary{positioning, fit, calc, arrows.meta}
+
+
+\newcommand{\pmwd}{{\usefont{T1}{nova}{m}{sl}pmwd}}
+
+\newcommand{\gkai}[1]{\begin{CJK*}{UTF8}{gkai}\raisebox{.1em}{(}#1\raisebox{.1em}{)}\end{CJK*}}
+
+\renewcommand{\sectionautorefname}{Sec.}
+\renewcommand{\subsectionautorefname}{Sec.}
+\renewcommand{\appendixautorefname}{App.}
+\renewcommand{\figureautorefname}{Fig.}
+\newcommand{\subfigureautorefname}{\figureautorefname}
+
+\newcommand{\order}{\mathcal{O}}
+\newcommand{\deltaD}{\delta^\textsc{d}}
+\newcommand{\deltaK}{\delta^\textsc{k}}
+\renewcommand{\d}{d}
+\newcommand{\p}{\partial}
+\newcommand{\cJ}{\mathcal{J}}
+\newcommand{\cR}{\mathcal{R}}
+\newcommand{\cL}{\mathcal{L}}
+\newcommand{\cH}{\mathcal{H}}
+\bmdefine{\vzero}{0}
+\bmdefine{\vI}{I}
+\bmdefine{\vnabla}{\nabla}
+\bmdefine{\vtheta}{\theta}  % parameters
+\bmdefine{\vomega}{\omega}  % white noise modes
+\bmdefine{\vk}{k}  % wavevectors
+\bmdefine{\vn}{n}  % wavevector indices
+\bmdefine{\vx}{x}  % comoving and canonical coordinates
+\bmdefine{\vq}{q}  % Lagrangian coordinates
+\bmdefine{\vs}{s}  % displacements
+\bmdefine{\vp}{p}  % canonical momenta
+\bmdefine{\va}{a}  % accelerations
+\bmdefine{\vz}{z}  % states
+\bmdefine{\vf}{f}
+\bmdefine{\vF}{F}
+\bmdefine{\vvarphi}{\varphi}
+\newcommand{\As}{A_\mathrm{s}}
+\newcommand{\ns}{n_\mathrm{s}}
+\newcommand{\Omegam}{\Omega_\mathrm{m}}
+\newcommand{\Omegab}{\Omega_\mathrm{b}}
+\newcommand{\Mpc}{\mathrm{Mpc}}
+\newcommand{\ic}{\mathrm{i}}
+\newcommand{\knyq}{k_\mathrm{Nyq}}
+\newcommand{\kfun}{k_\mathrm{fun}}
+
+\newcommand{\GPU}{NVIDIA A100 80GB SXM4}
+
+\newcommand{\YL}[1]{\textcolor{Bittersweet}{#1}}
+
+
+
+\begin{document}
+
+
+
+\title{Patching Particle-Particle Particle-Mesh Method}
+
+
+\author{Yin Li \gkai{李寅}}
+
+
+\date{2022-12}
+
+
+\maketitle
+
+
+
+\begin{abstract}
+Adding the PP compensation to the PM force.
+\end{abstract}
+
+
+
+\section{Introduction}
+
+
+\section{Methods}
+
+
+\subsection{Particle-Mesh Force}
+
+
+\YL{Alex suggested starting from 1D.}
+
+\YL{Describe briefly normal PM here. Also introduce possible filter
+below. Explain that we are not doing splitting the usual way.}
+
+
+\subsubsection{Partial Sum}
+
+In a periodic box of size $L_1 \times \cdots \times L_d$ in
+$\mathbb{R}^d$, Poisson's equation,
+%
+\begin{equation}
+\nabla^2 u = f,
+\end{equation}
+%
+becomes
+%
+\begin{equation}
+- k_\vn^2 u(\vk_\vn) = f(\vk_\vn),
+\end{equation}
+%
+in Fourier space, with discretized wavevectors $\vk_\vn \triangleq (2\pi
+n_1 / L_1, \cdots, 2\pi n_d / L_d )^\intercal$ and integrer $n_i \in
+\mathbb{Z}/N_i\mathbb{Z}$.
+And the force $- \vnabla u$ becomes $i \vk_\vn f / k_\vn^2$.
+
+At finite resolution of the mesh cell size $l$, the bandwidth is
+truncated at the Nyquist frequency $\knyq = \pi / l$.
+In a 1D periodic length $L$ with a mesh of size $N = L / l$, the
+partial sum is equivalent to a convolution by (the Dirichlet kernel)
+%
+\begin{align}
+\frac1{2 L} \Bigg(
+  \sum_{n=-\lfloor \frac{N}2\rfloor}^{\lfloor \frac{N}2\rfloor}
+  + \sum_{n=-\lfloor \frac{N-1}2\rfloor}^{\lfloor \frac{N-1}2\rfloor}
+\Bigg)
+\exp\bigl( i n\kfun x \bigr)
+%
+&= \frac{
+  \sin \bigl[
+    \bigl( \bigl\lfloor\frac{N}2\bigr\rfloor + \frac12 \bigr) \kfun x
+  \bigr]
+  + \sin \bigl[
+    \bigl( \bigl\lfloor\frac{N-1}2\bigr\rfloor + \frac12 \bigr) \kfun x
+  \bigr]
+}{2 \sin \bigl( \frac12 \kfun x \bigr) L} \nonumber\\
+%
+&= \frac{\sin \bigl( \knyq x \bigr)}
+        {\sin \bigl( \frac12 \kfun x \bigr) L}
+  \cdot \begin{cases}
+    \cos \bigl( \frac12 \kfun x \bigr) & \text{if } N \text{ is even}, \\
+    1 & \text{if } N \text{ is odd}.
+  \end{cases}
+\end{align}
+%
+$\kfun = 2\pi / L$ is the fundamental frequency, and the first sum
+includes the symmetrized Nyquist mode for even $N$.
+
+To preserve Hermiticity, for even $N$ we truncate the force even before
+$\kfun$, due to the sign ambiguity of the wavevector at the Nyquist
+frequency.
+%
+\begin{equation}
+\frac1L
+  \sum_{n=-\lfloor \frac{N-1}2\rfloor}^{\lfloor \frac{N-1}2\rfloor}
+  \exp\bigl( i n\kfun x \bigr)
+%
+= \frac{\sin \bigl[
+    \bigl( \bigl\lfloor\frac{N-1}2\bigr\rfloor + \frac12 \bigr) \kfun x
+  \bigr]
+}{\sin \bigl( \frac12 \kfun x \bigr) L}
+\end{equation}
+
+
+\YL{TODO: verify that in 1D the partial sum explains the force error.}
+
+
+\YL{Minimize force error above a certain radius, e.g. beyond 27 cells,
+(in a way similar to choosing NUFFT kernel?):
+\begin{itemize}
+\item \url{https://arxiv.org/abs/1712.04732},
+\item \url{https://www.frontiersin.org/articles/10.3389/fphy.2016.00028/full},
+\item \url{https://journals.aps.org/pre/pdf/10.1103/PhysRevE.95.063303}.
+\end{itemize}
+}
+
+
+\YL{Filter/window design: Jupyter notebook with interactive sliders,
+\href{https://docs.scipy.org/doc/scipy/reference/signal.windows.html}{scipy.signal.windows},
+\href{https://docs.scipy.org/doc/scipy/reference/signal.html}{scipy.signal}.
+}
+
+
+\YL{2 possible ways to optimize:
+suppress the oscillation outside of the PP patch size;
+shift the phase of the oscillation so that there are both positive and
+negative parts between two nearby mesh points.
+}
+
+
+\subsubsection{Equivalent Point Source}
+
+simple cubic (CIC), bcc, interlocking/interlacing cubic.
+\YL{See \citet{HockneyEastwood1988} for the interlacing one.
+Other references:
+\begin{itemize}
+\item \url{https://aip.scitation.org/doi/10.1063/1.3430521},
+\item \url{https://aip.scitation.org/doi/pdf/10.1063/1.3430521},
+\item \url{https://aip.scitation.org/doi/pdf/10.1063/1.3657407}.
+\end{itemize}
+}
+
+%* Suppose the two interlacing meshes are A and B, is the following a way
+%  to have 16 equivalent grid points (up to octopole)?
+%  1. src: (A + shifted B) at A, tgt: A
+%  2. src: (B + shifted A) at B, tgt: B
+
+
+\subsection{Particle-Particle Force}
+
+
+
+\subsection{Force Patching}
+
+
+\YL{Quantify force error including (position-dependent) magnitude and
+volume.}
+
+
+For cosmological applications, we want to optimize for point clouds that
+are uniform (and Gaussian with known power spectrum) on large scales.
+\YL{Complexity analysis given variance of particle density.}
+
+
+\YL{Optimal mesh cell size given variance of particle density for fixed
+error budget, cosmology and time dependence.}
+
+
+
+
+\section{Results}
+
+
+\section{Conclusions}
+
+
+
+
+
+
+\bibliographystyle{plainnat}
+\bibliography{pp}
+
+
+
+\end{document}
