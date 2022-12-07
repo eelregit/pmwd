@@ -37,7 +37,8 @@
 \bmdefine{\vI}{I}
 \bmdefine{\vnabla}{\nabla}
 \bmdefine{\vtheta}{\theta}  % parameters
-\bmdefine{\vvartheta}{\vartheta}  % NN parameters
+\bmdefine{\vvartheta}{\vartheta}  % relevant scales and factors to form
+                                  % dimensionless features as NN inputs
 \bmdefine{\vomega}{\omega}  % white noise modes
 \bmdefine{\vk}{k}  % wavevectors
 \bmdefine{\vx}{x}  % comoving and canonical coordinates
@@ -223,7 +224,7 @@ where $f$, $g$, $h$ are neural networks, each approximating a nonlinear
 function of the dimensionless features, e.g.,
 %
 \begin{equation}
-g(k; \vvartheta) = g(k/k_P, kR_\tophat, \cdots, D, f, \cdots).
+g(k; \vvartheta) = g(k/k_P, kR_\tophat, \cdots; D, f, \cdots).
 \end{equation}
 
 
