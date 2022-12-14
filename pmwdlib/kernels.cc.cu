@@ -311,13 +311,130 @@ gather_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride,
     }
 }
 
+template <typename T>
+void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    // inputs/outputs
+    const PmwdDescriptor<T> *descriptor = unpack_descriptor<PmwdDescriptor<T>>(opaque, opaque_len);
+    T cell_size = descriptor->cell_size;
+    int64_t n_particle = descriptor->n_particle;
+    int64_t stride[3]  = {descriptor->stride[0], descriptor->stride[1], descriptor->stride[2]};
+    uint32_t *pmid = reinterpret_cast<uint32_t *>(buffers[0]);
+    T *disp = reinterpret_cast<T *>(buffers[1]);
+    T *particle_values = reinterpret_cast<T *>(buffers[2]);
+    T *grid_values = reinterpret_cast<T *>(buffers[3]);
+
+    // parameters for shared mem using bins to group cells
+    uint32_t bin_size = 16;
+    uint32_t nbinx = stride[0]/bin_size;
+    uint32_t nbiny = stride[1]/bin_size;
+    uint32_t nbinz = stride[2]/bin_size;
+
+    uint32_t* d_bin_count;
+    uint32_t* d_sortidx;
+    uint32_t* d_bin_start;
+    uint32_t* d_index;
+    uint32_t* d_stride;
+
+    // Allocate cuda mem
+    CUDA_SAFE_CALL(
+        cudaMalloc((void**)&d_bin_count, sizeof(uint32_t) * nbinx*nbiny*nbinz));
+    CUDA_SAFE_CALL(
+        cudaMalloc((void**)&d_sortidx, sizeof(uint32_t) * n_particle));
+    CUDA_SAFE_CALL(
+        cudaMalloc((void**)&d_bin_start, sizeof(uint32_t) * nbin*nbin*nbin));
+    CUDA_SAFE_CALL(
+        cudaMalloc((void**)&d_index, sizeof(uint32_t) * n_particle));
+    CUDA_SAFE_CALL(cudaMalloc((void**)&d_stride, sizeof(uint32_t) * DIM));
+
+    // set device array values
+    cudaMemset(d_bin_count, 0, nbinx*nbiny*nbinz*sizeof(uint32_t));
+    cudaMemcpy(d_stride, stride, sizeof(uint32_t) * DIM,
+               cudaMemcpyHostToDevice);
+
+    int block_size = 1024;
+    int grid_size = ((n_particle + block_size) / block_size);
+    // count number of points in each bin
+    cal_bin_size<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, d_stride, d_sortidx, d_bin_count);
+    // start points of each bin
+    thrust::device_ptr<uint32_t> d_ptr(d_bin_count);
+    thrust::device_ptr<uint32_t> d_result(d_bin_start);
+    thrust::exclusive_scan(d_ptr, d_ptr+nbin*nbin*nbin, d_result);
+    // calculate the index of sorted points
+    cal_sortidx<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, d_stride, d_sortidx, d_bin_start, d_index);
+    // scatter using shared memory
+    cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,float,float>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
+    scatter_kernel_sm<<<nbin*nbin*nbin, 512, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(d_pos, d_disp, cell_size, d_stride, d_value, d_grid_val, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_index);
+}
+
+template <typename T>
+void gather_sm(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    // inputs/outputs
+    const PmwdDescriptor<T> *descriptor = unpack_descriptor<PmwdDescriptor<T>>(opaque, opaque_len);
+    T cell_size = descriptor->cell_size;
+    int64_t n_particle = descriptor->n_particle;
+    int64_t stride[3]  = {descriptor->stride[0], descriptor->stride[1], descriptor->stride[2]};
+    uint32_t *pmid = reinterpret_cast<uint32_t *>(buffers[0]);
+    T *disp = reinterpret_cast<T *>(buffers[1]);
+    T *particle_values = reinterpret_cast<T *>(buffers[2]);
+    T *grid_values = reinterpret_cast<T *>(buffers[3]);
+
+    // parameters for shared mem using bins to group cells
+    uint32_t bin_size = 16;
+    uint32_t nbinx = stride[0]/bin_size;
+    uint32_t nbiny = stride[1]/bin_size;
+    uint32_t nbinz = stride[2]/bin_size;
+
+    uint32_t* d_bin_count;
+    uint32_t* d_sortidx;
+    uint32_t* d_bin_start;
+    uint32_t* d_index;
+    uint32_t* d_stride;
+
+    // Allocate cuda mem
+    CUDA_SAFE_CALL(
+        cudaMalloc((void**)&d_bin_count, sizeof(uint32_t) * nbinx*nbiny*nbinz));
+    CUDA_SAFE_CALL(
+        cudaMalloc((void**)&d_sortidx, sizeof(uint32_t) * n_particle));
+    CUDA_SAFE_CALL(
+        cudaMalloc((void**)&d_bin_start, sizeof(uint32_t) * nbin*nbin*nbin));
+    CUDA_SAFE_CALL(
+        cudaMalloc((void**)&d_index, sizeof(uint32_t) * n_particle));
+    CUDA_SAFE_CALL(cudaMalloc((void**)&d_stride, sizeof(uint32_t) * DIM));
+
+    // set device array values
+    cudaMemset(d_bin_count, 0, nbinx*nbiny*nbinz*sizeof(uint32_t));
+    cudaMemcpy(d_stride, stride, sizeof(uint32_t) * DIM,
+               cudaMemcpyHostToDevice);
+
+    int block_size = 1024;
+    int grid_size = ((n_particle + block_size) / block_size);
+    // count number of points in each bin
+    cal_bin_size<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, d_stride, d_sortidx, d_bin_count);
+    // start points of each bin
+    thrust::device_ptr<uint32_t> d_ptr(d_bin_count);
+    thrust::device_ptr<uint32_t> d_result(d_bin_start);
+    thrust::exclusive_scan(d_ptr, d_ptr+nbin*nbin*nbin, d_result);
+    // calculate the index of sorted points
+    cal_sortidx<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, d_stride, d_sortidx, d_bin_start, d_index);
+    // gather using shared memory
+    cudaFuncSetAttribute(gather_kernel_sm<uint32_t,uint32_t,float,float>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
+    gather_kernel_sm<<<nbin*nbin*nbin, 512, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(d_pos, d_disp, cell_size, d_stride, d_value, d_grid_val, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_index);
+}
+
 void scatter(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    scatter_sm<double>(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
 }
-void gather(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
-}
+
 void scatterf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    scatter_sm<float>(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
 }
+
+void gather(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    gather_sm<double>(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
+}
+
 void gatherf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    gather_sm<float>(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
 }
 
 int test()

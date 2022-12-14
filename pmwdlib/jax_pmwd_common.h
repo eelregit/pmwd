@@ -10,9 +10,9 @@ template <typename T>
 struct PmwdDescriptor {
   T cell_size;
   int64_t n_particle;
-  int64_t stride[3];
+  int32_t stride[3];
 };
-    
+
 }
 
 #endif
