@@ -19,7 +19,8 @@ def itp_prev(ptcl0, a0, a1, a, cosmo):
     vel = h00 / Da * ptcl0.disp + h10 / a3E0 * ptcl0.vel
     vel *= a**3 * jnp.sqrt(E2(a, cosmo))
 
-    return disp, vel
+    dtype = ptcl0.conf.float_dtype
+    return disp.astype(dtype), vel.astype(dtype)
 
 
 def itp_next(ptcl1, a0, a1, a, cosmo):
@@ -37,7 +38,8 @@ def itp_next(ptcl1, a0, a1, a, cosmo):
     vel = h01 / Da * ptcl1.disp + h11 / a3E1 * ptcl1.vel
     vel *= a**3 * jnp.sqrt(E2(a, cosmo))
 
-    return disp, vel
+    dtype = ptcl1.conf.float_dtype
+    return disp.astype(dtype), vel.astype(dtype)
 
 
 def interptcl(ptcl0, ptcl1, a0, a1, a, cosmo):
