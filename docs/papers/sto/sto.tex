@@ -129,6 +129,8 @@ cosmology: large-scale structure of Universe
 \section{Methods}
 
 
+\subsection{Observable}
+
 Given two snapshots at $a_i$ and $a_{i+1}$, we get the particle displacements
 in between at $a$ using interpolation with the cubic Hermite spline,
 \begin{align}
@@ -143,6 +145,25 @@ where $\alpha := (a - a_i)/(a_{i+1} - a_i)$ and the Hermite basis functions read
   h_{11}(\alpha) &= \alpha^3 - \alpha^2 \,.
 \end{align}
 The particle velocity is then given by the derivative $\d\vx / \d a$.
+
+Our observable is a snapshot $\hat \vz = (\hat\vx, \hat\vp)^\intercal$ at any
+given $a$, which in general can be given by the interpolation of two snapshots
+$\vz_{k-1}$ and $\vz_k$.
+Following the discussion in \citet{Li2022a}, the observe operator in the adjoint
+equation time stepping from $a_i$ to $a_{i-1}$ now reads
+\begin{align}
+  O_i^{i-1}: \qquad \vxi_{i-1} :\:\!\!\!&= \vxi_{i-1}
+  + \frac{\p\cJ}{\p\hat\vx}\frac{\p\hat\vx}{\p\vx_{i-1}} \,, \nonumber\\
+                    \vpi_{i-1} :\:\!\!\!&= \vpi_{i-1}
+  + \frac{\p\cJ}{\p\hat\vp}\frac{\p\hat\vp}{\p\vp_{i-1}} \,,
+\end{align}
+where $(\vxi, \vpi)$ are the adjoint variables of $(\vx, \vp)$, and
+${\p\hat\vz}/{\p\vz_i}$ is zero except for the relevant $\vz_{k-1}$ and $\vz_k$.
+Similarly we have in the initial conditions of the adjoint equations
+\begin{align}
+  \vxi_n &= \frac{\p\cJ}{\p\hat\vx}\frac{\p\hat\vx}{\p\vx_n} \,, \nonumber\\
+  \vpi_n &= \frac{\p\cJ}{\p\hat\vp}\frac{\p\hat\vp}{\p\vp_n} \,.
+\end{align}
 
 
 \subsection{Objective Function}
