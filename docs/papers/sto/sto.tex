@@ -14,6 +14,7 @@
 \usepackage{bm}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{nicefrac}
 
 
 \newcommand{\pmwd}{{\usefont{T1}{nova}{m}{sl}pmwd}}
@@ -153,17 +154,20 @@ Following the discussion in \citet{Li2022a}, the observe operator in the adjoint
 equation time stepping from $a_i$ to $a_{i-1}$ now reads
 \begin{align}
   O_i^{i-1}: \qquad \vxi_{i-1} :\:\!\!\!&= \vxi_{i-1}
-  + \frac{\p\cJ}{\p\hat\vx}\frac{\p\hat\vx}{\p\vx_{i-1}} \,, \nonumber\\
+  + \frac{\p\cJ}{\p\hat\vx} \cdot \frac{\p\hat\vx}{\p\vx_{i-1}} \,, \nonumber\\
                     \vpi_{i-1} :\:\!\!\!&= \vpi_{i-1}
-  + \frac{\p\cJ}{\p\hat\vp}\frac{\p\hat\vp}{\p\vp_{i-1}} \,,
+  + \frac{\p\cJ}{\p\hat\vp} \cdot \frac{\p\hat\vp}{\p\vp_{i-1}} \,,
 \end{align}
-where $(\vxi, \vpi)$ are the adjoint variables of $(\vx, \vp)$, and
-${\p\hat\vz}/{\p\vz_i}$ is zero except for the relevant $\vz_{k-1}$ and $\vz_k$.
+where $\vlambda = (\vxi, \vpi)$ are the adjoint variables of $\vz = (\vx,
+\vp)^\intercal$, and ${\p\hat\vz}/{\p\vz_i}$ is zero except for the relevant
+$\vz_{k-1}$ and $\vz_k$.
 Similarly we have in the initial conditions of the adjoint equations
 \begin{align}
-  \vxi_n &= \frac{\p\cJ}{\p\hat\vx}\frac{\p\hat\vx}{\p\vx_n} \,, \nonumber\\
-  \vpi_n &= \frac{\p\cJ}{\p\hat\vp}\frac{\p\hat\vp}{\p\vp_n} \,.
+  \vxi_n &= \frac{\p\cJ}{\p\hat\vx} \cdot \frac{\p\hat\vx}{\p\vx_n} \,, \nonumber\\
+  \vpi_n &= \frac{\p\cJ}{\p\hat\vp} \cdot \frac{\p\hat\vp}{\p\vp_n} \,.
 \end{align}
+In the reverse time evolution of the adjoint equations, these adjoint varibales
+remain zero until the time stepping from $a_{k+1}$ to $a_k$.
 
 
 \subsection{Objective Function}
@@ -181,6 +185,30 @@ loss
 
 An alternative loss function can be the Eulernian density weighted
 particle displacement MSE.
+
+As derived in \citet{Li2022a}, the gradient of the objective function
+$\cJ(\hat\vz(\vz_{k-1}, \vz_k, \vtheta), \theta)$ is accumulated through
+\begin{multline}
+  \frac{\d\cJ}{\d\vtheta} = \frac{\p\cJ}{\p\vtheta}
+  %
+  + \frac{\p\cJ}{\p\hat\vx} \cdot \frac{\p\hat\vx}{\p\vtheta}
+  + \frac{\p\cJ}{\p\hat\vp} \cdot \frac{\p\hat\vp}{\p\vtheta}
+  %
+  + \vxi_0 \cdot \frac{\p\vx_0}{\p\vtheta}
+  + \vpi_0 \cdot \frac{\p\vp_0}{\p\vtheta} \\
+  %
+  - \sum_{i=1}^n \Bigl[
+    \bigl( \vpi_i \cdot\va_i \frac\p{\p\vtheta} + \vzeta_i
+      \bigr) K(t_i, t_i, t_{i-\half}) \\
+    + \vxi_i \cdot \vp_{i-\half}
+      \frac{\p D(t_{i-\half}, t_i, t_{i-1})}{\p\vtheta} \\
+    + \bigl( \vpi_{i-1} \cdot \va_{i-1} \frac\p{\p\vtheta} + \vzeta_{i-1}
+      \bigr) K(t_{i-1}, t_{i-\half}, t_{i-1})
+    \Bigr],
+\label{KDFKO_grad}
+\end{multline}
+where $\vtheta$ could include cosmological parameters, initial conditions, as
+well as STO parameters in this work.
 
 
 \subsection{Spatial Optimization}
@@ -250,6 +278,11 @@ g(k; \vvartheta) = g(k/k_P, kR_\tophat, \cdots; D, f, \cdots).
 
 
 \subsection{Temporal Optimization}
+
+We use a B-spline to model the function $a(t)$ that maps uniformly sampled $t$
+values to optimally distributed $a$ time steps.
+The spline is parameterized with a few control points that are updated during
+training.
 
 
 
@@ -376,7 +409,7 @@ The Flatiron Institute is supported by the Simons Foundation.
 
 \section*{Code Availability}
 
-\pmwd\ is open-source on
+\pmwd\ \citep{Li2022b} is open-source on
 \href{https://github.com/eelregit/pmwd}{GitHub}, including the
 \href{https://github.com/eelregit/pmwd/tree/master/docs/papers/sto}{source
 and scripts of this paper}.
