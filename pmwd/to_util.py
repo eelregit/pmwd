@@ -65,7 +65,7 @@ def bspline_params(conf):
 
 
 @custom_vjp
-def to_a_nbody(conf):
+def a_nbody_to(conf):
     """Replace a_nbody with the TO a_nbody from the B-spline function."""
     c = conf.a_bsp_controls
     p, t, t_nbody = bspline_params(conf)
@@ -74,11 +74,11 @@ def to_a_nbody(conf):
     return conf
 
 
-def to_a_nbody_fwd(conf):
-    conf = to_a_nbody(conf)
+def a_nbody_to_fwd(conf):
+    conf = a_nbody_to(conf)
     return conf, conf
 
-def to_a_nbody_bwd(conf, conf_cot):
+def a_nbody_to_bwd(conf, conf_cot):
     c = conf.a_bsp_controls
     p, t, t_nbody = bspline_params(conf)
     a_nbody, bspline_vjp = vjp(bspline, t_nbody, t, c, p)
@@ -86,4 +86,4 @@ def to_a_nbody_bwd(conf, conf_cot):
     conf_cot = conf_cot.replace(a_bsp_controls=c_cot)
     return conf_cot
 
-to_a_nbody.defvjp(to_a_nbody_fwd, to_a_nbody_bwd)
+a_nbody_to.defvjp(a_nbody_to_fwd, a_nbody_to_bwd)
