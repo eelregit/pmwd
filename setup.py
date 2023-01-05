@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 from pathlib import Path
-
+from skbuild import setup
 
 this_directory = Path(__file__).resolve().parent
 long_description = (this_directory / 'README.rst').read_text()
@@ -26,11 +26,13 @@ setup(
     install_requires=[
         'jax',
         'numpy>=1.20',  # numpy.typing
+        'jaxlib'
     ],
     extras_require={
         'vis': vis_require,
         #'docs': docs_require,
         #'tests': tests_require,
         #'dev': vis_require + docs_require + tests_require,
-    }
+    },
+    cmake_install_dir="pmwd",
 )
