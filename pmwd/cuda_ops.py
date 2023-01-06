@@ -68,13 +68,13 @@ def _scatter_lowering(ctx, x, y, *, platform="gpu"):
         )
 
     elif platform == "gpu":
-        if gpu_ops is None:
+        if _jaxpmwd is None:
             raise ValueError(
-                "The 'kepler_jax' module was not compiled with CUDA support"
+                "The 'pmwd_jax' module was not compiled with CUDA support"
             )
         # On the GPU, we do things a little differently and encapsulate the
         # dimension using the 'opaque' parameter
-        opaque = gpu_ops.build_kepler_descriptor(size)
+        opaque = _jaxpmwd.build_pmwd_descriptor(size)
 
         return custom_call(
             op_name,
