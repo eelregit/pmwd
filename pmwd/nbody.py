@@ -141,27 +141,29 @@ def observe_init(a, ptcl, obsvbl, cosmo, conf):
 
 @jit
 def nbody_init(a, ptcl, obsvbl, cosmo, conf):
-    ptcl = force(a, ptcl, cosmo, conf)
+    # ptcl = force(a, ptcl, cosmo, conf)
 
-    ptcl = coevolve_init(a, ptcl, cosmo, conf)
+    # ptcl = coevolve_init(a, ptcl, cosmo, conf)
 
-    obsvbl = observe_init(a, ptcl, obsvbl, cosmo, conf)
+    # obsvbl = observe_init(a, ptcl, obsvbl, cosmo, conf)
 
     return ptcl, obsvbl
 
 
 @jit
-def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
-    # leapfrog
-    a_half = 0.5 * (a_prev + a_next)
-    ptcl = kick(a_prev, a_prev, a_half, ptcl, cosmo, conf)
-    ptcl = drift(a_half, a_prev, a_next, ptcl, cosmo, conf)
-    ptcl = force(a_next, ptcl, cosmo, conf)
-    ptcl = kick(a_next, a_half, a_next, ptcl, cosmo, conf)
+def nbody_step(i, C, D, a_nbody, ptcl, obsvbl, cosmo, conf):
+    # symplectic integrator
+    # TODO speed up by skipping nothing-happens operations
+    for j in range(conf.symp_order):
+        ax0, ax1, ap0, ap1 = (a_nbody[i] * (1 - x) + a_nbody[i+1] * x for x in
+                              (C[j], C[j+1], D[j], D[j+1]))
+        ptcl = drift(ap0, ax0, ax1, ptcl, cosmo, conf)
+        ptcl = force(ax1, ptcl, cosmo, conf)
+        ptcl = kick(ax1, ap0, ap1, ptcl, cosmo, conf)
 
-    ptcl = coevolve(a_prev, a_next, ptcl, cosmo, conf)
+    # ptcl = coevolve(i, a_nbody, ptcl, cosmo, conf)
 
-    obsvbl = observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
+    # obsvbl = observe(i, a_nbody, ptcl, obsvbl, cosmo, conf)
 
     return ptcl, obsvbl
 
@@ -170,10 +172,11 @@ def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
 def nbody(ptcl, obsvbl, cosmo, conf, reverse=False):
     """N-body time integration."""
     a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
+    C, D = conf.symp_cd
 
     ptcl, obsvbl = nbody_init(a_nbody[0], ptcl, obsvbl, cosmo, conf)
-    for a_prev, a_next in zip(a_nbody[:-1], a_nbody[1:]):
-        ptcl, obsvbl = nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
+    for i, a in enumerate(a_nbody[:-1]):  # i denotes ptcl before the step
+        ptcl, obsvbl = nbody_step(i, C, D, a_nbody, ptcl, obsvbl, cosmo, conf)
     return ptcl, obsvbl
 
 
@@ -193,17 +196,18 @@ def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl_cot, cosmo, conf):
 
 
 @jit
-def nbody_adj_step(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
+def nbody_adj_step(i, C, D, a_nbody, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
     #ptcl_cot = observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, conf)
 
     #ptcl, ptcl_cot = coevolve_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, conf)
 
-    # leapfrog and its adjoint
-    a_half = 0.5 * (a_prev + a_next)
-    ptcl, ptcl_cot, cosmo_cot = kick_adj(a_prev, a_prev, a_half, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
-    ptcl, ptcl_cot, cosmo_cot = drift_adj(a_half, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf)
-    ptcl, ptcl_cot, cosmo_cot_force = force_adj(a_next, ptcl, ptcl_cot, cosmo, conf)
-    ptcl, ptcl_cot, cosmo_cot = kick_adj(a_next, a_half, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+    # symplectic integrator and its adjoint
+    for j in range(conf.symp_order-1, -1, -1):
+        ax0, ax1, ap0, ap1 = (a_nbody[i-1] * (1 - x) + a_nbody[i] * x for x in
+                              (C[j], C[j+1], D[j], D[j+1]))
+        ptcl, ptcl_cot, cosmo_cot = kick_adj(ax1, ap1, ap0, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+        ptcl, ptcl_cot, cosmo_cot = drift_adj(ap0, ax1, ax0, ptcl, ptcl_cot, cosmo, cosmo_cot, conf)
+        ptcl, ptcl_cot, cosmo_cot_force = force_adj(ax0, ptcl, ptcl_cot, cosmo, conf)
 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
@@ -211,12 +215,13 @@ def nbody_adj_step(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot,
 def nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf, reverse=False):
     """N-body time integration with adjoint equation."""
     a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
+    C, D = conf.symp_cd
 
     ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_init(
         a_nbody[-1], ptcl, ptcl_cot, obsvbl_cot, cosmo, conf)
-    for a_prev, a_next in zip(a_nbody[:0:-1], a_nbody[-2::-1]):
+    for i in range(len(a_nbody)-1, 0, -1):  # i denotes ptcl before the step
         ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_step(
-            a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+            i, C, D, a_nbody, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
     return ptcl, ptcl_cot, cosmo_cot
 
 

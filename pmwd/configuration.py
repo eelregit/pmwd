@@ -126,6 +126,10 @@ class Configuration:
 
     chunk_size: int = 2**24
 
+    # padded and cumsumed symplectic coefs
+    symp_cd: jnp.ndarray = jnp.array([[0, 0, 1], [0, 0.5, 1]], dtype=float_dtype)
+    symp_order: Optional[int] = None
+
     def __post_init__(self):
         if self._is_transforming():
             return
@@ -158,6 +162,9 @@ class Configuration:
             object.__setattr__(self, 'growth_rtol', growth_tol)
         if self.growth_atol is None:
             object.__setattr__(self, 'growth_atol', growth_tol)
+
+        if self.symp_order is None:
+            object.__setattr__(self, 'symp_order', self.symp_cd.shape[1] - 1)
 
         dtype = self.cosmo_dtype
         for name, value in self.named_children():
