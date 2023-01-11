@@ -327,11 +327,18 @@ g(k; \vvartheta) = g(k/k_P, kR_\tophat, \cdots; D, f, \cdots).
 
 We use a spline to model the function $a(t)$ that maps uniformly sampled $t$
 values to optimally distributed $a$ time steps.
-The spline is parameterized with a number of control points that are updated
+The spline is parameterized with a number of control points that are optimized
 during training.
-The gradients (i.e. cotangents) are back propagated from an array of integration
-time steps to the control points through a VJP transformation of $a(t)$.
+The gradients (i.e. cotangents) are back propagated from the array of
+integration time steps to the control points through a VJP transformation of
+$a(t)$.
 
+The time-dependence of the discrete symplectic integrator mainly enters through
+the drift and kick factors in \eqref{DFK}.
+Besides, the input features of the SO NNs could also depend on time.
+Therefore when we perform TO together with SO, the force evaluation in
+\eqref{DFK} which contains SO also becomes time-dependent and needs to be
+optimized.
 
 
 \begin{table*}
