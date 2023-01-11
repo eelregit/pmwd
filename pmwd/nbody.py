@@ -1,6 +1,5 @@
 from functools import partial
 
-import numpy as np
 from jax import value_and_grad, jit, vjp, custom_vjp
 import jax.numpy as jnp
 from jax.tree_util import tree_map
@@ -43,7 +42,6 @@ def drift(a_vel, a_prev, a_next, ptcl, cosmo, conf):
     return ptcl.replace(disp=disp)
 
 
-# TODO deriv wrt a
 def drift_adj(a_vel, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf):
     """Drift, and particle and cosmology adjoints."""
     factor_valgrad = value_and_grad(drift_factor, argnums=3)
@@ -70,7 +68,6 @@ def kick(a_acc, a_prev, a_next, ptcl, cosmo, conf):
     return ptcl.replace(vel=vel)
 
 
-# TODO deriv wrt a
 def kick_adj(a_acc, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
     """Kick, and particle and cosmology adjoints."""
     factor_valgrad = value_and_grad(kick_factor, argnums=3)
@@ -105,7 +102,7 @@ def force_adj(a, ptcl, ptcl_cot, cosmo, conf):
     ptcl = ptcl.replace(acc=acc)
 
     # particle and cosmology vjp
-    a_cot, ptcl_cot_force, cosmo_cot_force, conf_cot = gravity_vjp(ptcl_cot.vel)
+    _, ptcl_cot_force, cosmo_cot_force, _ = gravity_vjp(ptcl_cot.vel)
     ptcl_cot = ptcl_cot.replace(acc=ptcl_cot_force.disp)
 
     return ptcl, ptcl_cot, cosmo_cot_force
@@ -141,29 +138,38 @@ def observe_init(a, ptcl, obsvbl, cosmo, conf):
 
 @jit
 def nbody_init(a, ptcl, obsvbl, cosmo, conf):
-    # ptcl = force(a, ptcl, cosmo, conf)
+    ptcl = force(a, ptcl, cosmo, conf)
 
-    # ptcl = coevolve_init(a, ptcl, cosmo, conf)
+    ptcl = coevolve_init(a, ptcl, cosmo, conf)
 
-    # obsvbl = observe_init(a, ptcl, obsvbl, cosmo, conf)
+    obsvbl = observe_init(a, ptcl, obsvbl, cosmo, conf)
 
     return ptcl, obsvbl
 
 
 @jit
-def nbody_step(i, C, D, a_nbody, ptcl, obsvbl, cosmo, conf):
+def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
     # symplectic integrator
-    # TODO speed up by skipping nothing-happens operations
-    for j in range(conf.symp_order):
-        ax0, ax1, ap0, ap1 = (a_nbody[i] * (1 - x) + a_nbody[i+1] * x for x in
-                              (C[j], C[j+1], D[j], D[j+1]))
-        ptcl = drift(ap0, ax0, ax1, ptcl, cosmo, conf)
-        ptcl = force(ax1, ptcl, cosmo, conf)
-        ptcl = kick(ax1, ap0, ap1, ptcl, cosmo, conf)
+    drift_step = kick_step = 0
+    a_disp = a_vel = a_acc = a_prev
+    for drift_split, kick_split in conf.symp_splits:
+        if drift_split != 0:
+            drift_step += drift_split
+            a_disp_next = a_prev * (1 - drift_step) + a_next * drift_step
+            ptcl = drift(a_vel, a_disp, a_disp_next, ptcl, cosmo, conf)
+            a_disp = a_disp_next
+            ptcl = force(a_disp, ptcl, cosmo, conf)
+            a_acc = a_disp
 
-    # ptcl = coevolve(i, a_nbody, ptcl, cosmo, conf)
+        if kick_split != 0:
+            kick_step += kick_split
+            a_vel_next = a_prev * (1 - kick_step) + a_next * kick_step
+            ptcl = kick(a_acc, a_vel, a_vel_next, ptcl, cosmo, conf)
+            a_vel = a_vel_next
 
-    # obsvbl = observe(i, a_nbody, ptcl, obsvbl, cosmo, conf)
+    ptcl = coevolve(a_prev, a_next, ptcl, cosmo, conf)
+
+    obsvbl = observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
 
     return ptcl, obsvbl
 
@@ -172,11 +178,10 @@ def nbody_step(i, C, D, a_nbody, ptcl, obsvbl, cosmo, conf):
 def nbody(ptcl, obsvbl, cosmo, conf, reverse=False):
     """N-body time integration."""
     a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
-    C, D = conf.symp_cd
 
     ptcl, obsvbl = nbody_init(a_nbody[0], ptcl, obsvbl, cosmo, conf)
-    for i, a in enumerate(a_nbody[:-1]):  # i denotes ptcl before the step
-        ptcl, obsvbl = nbody_step(i, C, D, a_nbody, ptcl, obsvbl, cosmo, conf)
+    for a_prev, a_next in zip(a_nbody[:-1], a_nbody[1:]):
+        ptcl, obsvbl = nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
     return ptcl, obsvbl
 
 
@@ -188,26 +193,34 @@ def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl_cot, cosmo, conf):
 
     ptcl, ptcl_cot, cosmo_cot_force = force_adj(a, ptcl, ptcl_cot, cosmo, conf)
 
-    cosmo_cot = tree_map(lambda x: jnp.zeros_like(x), cosmo)
-
-    # TODO conf_cot
+    cosmo_cot = tree_map(jnp.zeros_like, cosmo)
 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
 
 @jit
-def nbody_adj_step(i, C, D, a_nbody, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
+def nbody_adj_step(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
     #ptcl_cot = observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, conf)
 
     #ptcl, ptcl_cot = coevolve_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, conf)
 
-    # symplectic integrator and its adjoint
-    for j in range(conf.symp_order-1, -1, -1):
-        ax0, ax1, ap0, ap1 = (a_nbody[i-1] * (1 - x) + a_nbody[i] * x for x in
-                              (C[j], C[j+1], D[j], D[j+1]))
-        ptcl, ptcl_cot, cosmo_cot = kick_adj(ax1, ap1, ap0, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
-        ptcl, ptcl_cot, cosmo_cot = drift_adj(ap0, ax1, ax0, ptcl, ptcl_cot, cosmo, cosmo_cot, conf)
-        ptcl, ptcl_cot, cosmo_cot_force = force_adj(ax0, ptcl, ptcl_cot, cosmo, conf)
+    # symplectic integrator adjoint
+    kick_step = drift_step = 0
+    a_disp = a_vel = a_acc = a_prev
+    for drift_split, kick_split in reversed(conf.symp_splits):
+        if kick_split != 0:
+            kick_step += kick_split
+            a_vel_next = a_prev * (1 - kick_step) + a_next * kick_step
+            ptcl, ptcl_cot, cosmo_cot = kick_adj(a_acc, a_vel, a_vel_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+            a_vel = a_vel_next
+
+        if drift_split != 0:
+            drift_step += drift_split
+            a_disp_next = a_prev * (1 - drift_step) + a_next * drift_step
+            ptcl, ptcl_cot, cosmo_cot = drift_adj(a_vel, a_disp, a_disp_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf)
+            a_disp = a_disp_next
+            ptcl, ptcl_cot, cosmo_cot_force = force_adj(a_disp, ptcl, ptcl_cot, cosmo, conf)
+            a_acc = a_disp
 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
@@ -215,13 +228,12 @@ def nbody_adj_step(i, C, D, a_nbody, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_co
 def nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf, reverse=False):
     """N-body time integration with adjoint equation."""
     a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
-    C, D = conf.symp_cd
 
     ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_init(
         a_nbody[-1], ptcl, ptcl_cot, obsvbl_cot, cosmo, conf)
-    for i in range(len(a_nbody)-1, 0, -1):  # i denotes ptcl before the step
+    for a_prev, a_next in zip(a_nbody[:0:-1], a_nbody[-2::-1]):
         ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_step(
-            i, C, D, a_nbody, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+            a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
     return ptcl, ptcl_cot, cosmo_cot
 
 
@@ -236,6 +248,6 @@ def nbody_bwd(reverse, res, cotangents):
     ptcl, ptcl_cot, cosmo_cot = nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf,
                                           reverse=reverse)
 
-    return ptcl_cot, obsvbl_cot, cosmo_cot, None  # FIXME HACK on conf_cot
+    return ptcl_cot, obsvbl_cot, cosmo_cot, None
 
 nbody.defvjp(nbody_fwd, nbody_bwd)

@@ -1,20 +1,20 @@
-import os
 from functools import partial
 from math import ceil
 from typing import ClassVar, Optional, Tuple, Union
 
 from numpy.typing import DTypeLike
 import jax
-jax.config.update("jax_enable_x64", True)
 from jax import ensure_compile_time_eval
 import jax.numpy as jnp
-jnp.set_printoptions(precision=3, edgeitems=2, linewidth=128)
 from jax.tree_util import tree_map
 
 from pmwd.tree_util import pytree_dataclass
 
 
-os.environ['NVIDIA_TF32_OVERRIDE'] = '1'  # enable TF32
+jax.config.update("jax_enable_x64", True)
+
+
+jnp.set_printoptions(precision=3, edgeitems=2, linewidth=128)
 
 
 @partial(pytree_dataclass, aux_fields=Ellipsis, frozen=True)
@@ -75,6 +75,10 @@ class Configuration:
         Maximum scale factor N-body time integration step size. It determines the
         number of steps ``a_nbody_num``, the actual step size ``a_nbody_step``, and the
         steps ``a_nbody``.
+    symp_splits : tuple of float 2-tuples, optional
+        Symplectic splitting method composition, with each 2-tuples being drift and then
+        kick coefficients. Its adjoint has the same splits in reverse nested orders,
+        i.e., kick and then drift. Default is the Newton-Störmer-Verlet-leapfrog method.
     chunk_size : int, optional
         Chunk size to split particles in batches in scatter and gather to save memory.
 
@@ -124,11 +128,9 @@ class Configuration:
     a_lpt_maxstep: float = 1/128
     a_nbody_maxstep: float = 1/64
 
-    chunk_size: int = 2**24
+    symp_splits: Tuple[Tuple[float, float], ...] = ((0, 0.5), (1, 0.5))
 
-    # padded and cumsumed symplectic coefs
-    symp_cd: jnp.ndarray = jnp.array([[0, 0, 1], [0, 0.5, 1]], dtype=float_dtype)
-    symp_order: Optional[int] = None
+    chunk_size: int = 2**24
 
     def __post_init__(self):
         if self._is_transforming():
@@ -163,8 +165,11 @@ class Configuration:
         if self.growth_atol is None:
             object.__setattr__(self, 'growth_atol', growth_tol)
 
-        if self.symp_order is None:
-            object.__setattr__(self, 'symp_order', self.symp_cd.shape[1] - 1)
+        if any(len(s) != 2 for s in self.symp_splits):
+            raise ValueError(f'symp_splits={self.symp_splits} not supported')
+        symp_splits_sum = tuple(sum(s) for s in zip(*self.symp_splits))
+        if symp_splits_sum != (1, 1):
+            raise ValueError(f'sum of symplectic splits = {symp_splits_sum} != (1, 1)')
 
         dtype = self.cosmo_dtype
         for name, value in self.named_children():
@@ -251,8 +256,7 @@ class Configuration:
 
     @property
     def a_nbody_num(self):
-        """Number of N-body time integration scale factor steps, excluding """
-        """``a_start``."""
+        """Number of N-body time integration scale factor steps, excluding ``a_start``."""
         return ceil((self.a_stop - self.a_start) / self.a_nbody_maxstep)
 
     @property
