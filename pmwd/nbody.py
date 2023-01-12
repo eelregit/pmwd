@@ -108,6 +108,50 @@ def force_adj(a, ptcl, ptcl_cot, cosmo, conf):
     return ptcl, ptcl_cot, cosmo_cot_force
 
 
+def integrate(a_prev, a_next, ptcl, cosmo, conf):
+    """Symplectic integration for one step."""
+    D = K = 0
+    a_disp = a_vel = a_acc = a_prev
+    for d, k in conf.symp_splits:
+        if d != 0:
+            D += d
+            a_disp_next = a_prev * (1 - D) + a_next * D
+            ptcl = drift(a_vel, a_disp, a_disp_next, ptcl, cosmo, conf)
+            a_disp = a_disp_next
+            ptcl = force(a_disp, ptcl, cosmo, conf)
+            a_acc = a_disp
+
+        if k != 0:
+            K += k
+            a_vel_next = a_prev * (1 - K) + a_next * K
+            ptcl = kick(a_acc, a_vel, a_vel_next, ptcl, cosmo, conf)
+            a_vel = a_vel_next
+
+    return ptcl
+
+
+def integrate_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
+    """Symplectic integration adjoint for one step."""
+    K = D = 0
+    a_disp = a_vel = a_acc = a_prev
+    for d, k in reversed(conf.symp_splits):
+        if k != 0:
+            K += k
+            a_vel_next = a_prev * (1 - K) + a_next * K
+            ptcl, ptcl_cot, cosmo_cot = kick_adj(a_acc, a_vel, a_vel_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+            a_vel = a_vel_next
+
+        if d != 0:
+            D += d
+            a_disp_next = a_prev * (1 - D) + a_next * D
+            ptcl, ptcl_cot, cosmo_cot = drift_adj(a_vel, a_disp, a_disp_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf)
+            a_disp = a_disp_next
+            ptcl, ptcl_cot, cosmo_cot_force = force_adj(a_disp, ptcl, ptcl_cot, cosmo, conf)
+            a_acc = a_disp
+
+    return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
+
+
 def form(a_prev, a_next, ptcl, cosmo, conf):
     pass
 
@@ -149,23 +193,7 @@ def nbody_init(a, ptcl, obsvbl, cosmo, conf):
 
 @jit
 def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
-    # symplectic integrator
-    drift_step = kick_step = 0
-    a_disp = a_vel = a_acc = a_prev
-    for drift_split, kick_split in conf.symp_splits:
-        if drift_split != 0:
-            drift_step += drift_split
-            a_disp_next = a_prev * (1 - drift_step) + a_next * drift_step
-            ptcl = drift(a_vel, a_disp, a_disp_next, ptcl, cosmo, conf)
-            a_disp = a_disp_next
-            ptcl = force(a_disp, ptcl, cosmo, conf)
-            a_acc = a_disp
-
-        if kick_split != 0:
-            kick_step += kick_split
-            a_vel_next = a_prev * (1 - kick_step) + a_next * kick_step
-            ptcl = kick(a_acc, a_vel, a_vel_next, ptcl, cosmo, conf)
-            a_vel = a_vel_next
+    ptcl = integrate(a_prev, a_next, ptcl, cosmo, conf)
 
     ptcl = coevolve(a_prev, a_next, ptcl, cosmo, conf)
 
@@ -204,23 +232,8 @@ def nbody_adj_step(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot,
 
     #ptcl, ptcl_cot = coevolve_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, conf)
 
-    # symplectic integrator adjoint
-    kick_step = drift_step = 0
-    a_disp = a_vel = a_acc = a_prev
-    for drift_split, kick_split in reversed(conf.symp_splits):
-        if kick_split != 0:
-            kick_step += kick_split
-            a_vel_next = a_prev * (1 - kick_step) + a_next * kick_step
-            ptcl, ptcl_cot, cosmo_cot = kick_adj(a_acc, a_vel, a_vel_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
-            a_vel = a_vel_next
-
-        if drift_split != 0:
-            drift_step += drift_split
-            a_disp_next = a_prev * (1 - drift_step) + a_next * drift_step
-            ptcl, ptcl_cot, cosmo_cot = drift_adj(a_vel, a_disp, a_disp_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf)
-            a_disp = a_disp_next
-            ptcl, ptcl_cot, cosmo_cot_force = force_adj(a_disp, ptcl, ptcl_cot, cosmo, conf)
-            a_acc = a_disp
+    ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = integrate_adj(
+        a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
