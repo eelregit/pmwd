@@ -209,6 +209,7 @@ The observe operator from $a_i$ to $a_{i-1}$ reads
 
 
 \subsection{Snapshot Observable}
+\label{sec:snapobs}
 
 Given two snapshots at $a_i$ and $a_{i+1}$, we get the particle displacements
 in between at $a$ using interpolation with the cubic Hermite spline,
@@ -258,6 +259,7 @@ particle displacement MSE.
 
 
 \subsection{Spatial Optimization}
+\label{sec:so}
 
 The dimensionless power spectrum
 %
@@ -308,6 +310,10 @@ Relevant scale-independent dimensionless factors are
 We combine the above list of parameters in $\vvartheta$.
 
 
+In Fourier space, the gravitational force field reads
+\begin{equation}
+- i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
+\end{equation}
 Force sharpening
 %
 \begin{equation}
@@ -322,8 +328,11 @@ function of the dimensionless features, e.g.,
 g(k; \vvartheta) = g(k/k_P, kR_\tophat, \cdots; D, f, \cdots).
 \end{equation}
 
+Parameters in these neural networks are optimized during training.
+
 
 \subsection{Temporal Optimization}
+\label{sec:to}
 
 We use a spline to model the function $a(t)$ that maps uniformly sampled $t$
 values to optimally distributed $a$ time steps.
@@ -335,7 +344,8 @@ $a(t)$.
 
 The time-dependence of the discrete symplectic integrator mainly enters through
 the drift and kick factors in \eqref{DFK}.
-Besides, the input features of the SO NNs could also depend on time.
+Besides, the input features of the SO NNs introduced in \autoref{sec:so} could
+also depend on time.
 Therefore when we perform TO together with SO, the force evaluation in
 \eqref{DFK} which contains SO also becomes time-dependent and needs to be
 optimized.
@@ -348,7 +358,7 @@ parameters.
 Note that the grid ratio need next fast len to determine the mesh shape
 for fast FFT.
 Given the box size, the mesh shape determines the cell size.
-The softening parameter gives the ratio of the comving softening length
+The softening parameter gives the ratio of the comoving softening length
 to the mean particle spacing.
 The curvature $\Omega_k$ is related to the separate universe simulation.
 We sample parameters applicable to GADGET-4 during data generation, and
@@ -449,6 +459,17 @@ settings.
 For gravitational force, we choose pure FMM with $p=5$ and opening angle
 0.4.
 %FIXME list other from Config.sh and param.txt
+
+
+\subsection{Training}
+
+Given 512 Gadget simulations and 121 output snapshots each, in total we have
+61952 snapshots for training.
+Following \autoref{tab:param}, given a snapshot from Gadget simulations, we
+configure \pmwd\ with the same initial coniditions and cosmological parameters,
+and randomly sample the mesh shape (or the mesh cell size) and the number of
+time steps.
+
 
 
 \section{Results}
