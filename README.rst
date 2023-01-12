@@ -14,6 +14,20 @@ the adjoint method.
 Based on ``JAX``, pmwd is fully differentiable, and is highly performant
 on GPUs.
 
+Particles align on the initial grid after evolving forward and then
+backward in time.
+
+.. raw:: html
+
+  <video src="https://user-images.githubusercontent.com/7311098/212061133-a848247e-5a27-49a5-8846-28a7b4a7e4b4.mp4"></video>
+
+Optimizing the initial conditions by gradient descent to make some
+interesting projected patterns.
+
+.. raw:: html
+
+  <video src="https://user-images.githubusercontent.com/7311098/212061152-2b1be0ac-bfc4-4b57-87fe-d5b9b5c38e8c.mp4"></video>
+
 
 Installation
 ------------
