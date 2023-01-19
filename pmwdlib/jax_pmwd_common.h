@@ -8,10 +8,10 @@ namespace jax_pmwd {
 
 template <typename T>
 struct PmwdDescriptor {
+  int64_t n_particle;
   T ptcl_spacing;
   T cell_size;
   T offset[3];
-  int64_t n_particle;
   int64_t stride[3];
 };
 
