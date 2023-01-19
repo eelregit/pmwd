@@ -40,8 +40,12 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, offset, ptcl_spacing, cell_siz
     # We dispatch a different call depending on the dtype
     if np_dtype == np.float32:
         op_name = platform + "_scatter_f32"
+        # dimension using the 'opaque' parameter
+        opaque = _jaxpmwd.build_pmwd_descriptor_f32(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
     elif np_dtype == np.float64:
         op_name = platform + "_scatter_f64"
+        # dimension using the 'opaque' parameter
+        opaque = _jaxpmwd.build_pmwd_descriptor_f64(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
     else:
         raise NotImplementedError(f"Unsupported dtype {np_dtype}")
 
@@ -54,10 +58,6 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, offset, ptcl_spacing, cell_siz
                 "The 'pmwd_jax' module was not compiled with CUDA support"
             )
 
-        # dimension using the 'opaque' parameter
-        opaque = _jaxpmwd.build_pmwd_descriptor(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
-
-        opaque = _jaxpmwd.build_pmwd_descriptor(np.prod(in_type2.shape).astype(np.int64), cell_size, out_type.shape)
         # TODO: if we use shared mem with bin sort, bin sort work mem allocate by XLA here and pass to cuda
         return custom_call(
             op_name,
@@ -109,8 +109,12 @@ def _gather_lowering(ctx, pmid, disp, val, mesh, offset, ptcl_spacing, cell_size
     # We dispatch a different call depending on the dtype
     if np_dtype == np.float32:
         op_name = platform + "_gather_f32"
+        # dimension using the 'opaque' parameter
+        opaque = _jaxpmwd.build_pmwd_descriptor_f32(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
     elif np_dtype == np.float64:
         op_name = platform + "_gather_f64"
+        # dimension using the 'opaque' parameter
+        opaque = _jaxpmwd.build_pmwd_descriptor_f32(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
     else:
         raise NotImplementedError(f"Unsupported dtype {np_dtype}")
 
@@ -122,9 +126,6 @@ def _gather_lowering(ctx, pmid, disp, val, mesh, offset, ptcl_spacing, cell_size
             raise ValueError(
                 "The 'pmwd_jax' module was not compiled with CUDA support"
             )
-
-        # dimension using the 'opaque' parameter
-        opaque = _jaxpmwd.build_pmwd_descriptor(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
 
         # TODO: if we use shared mem with bin sort, bin sort work mem allocate by XLA here and pass to cuda
         return custom_call(
