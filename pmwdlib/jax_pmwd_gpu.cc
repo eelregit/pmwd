@@ -13,17 +13,19 @@ namespace {
 pybind11::dict Registrations() {
   pybind11::dict dict;
 
-  dict["scatterf"] = encapsulate_function(scatterf);
-  dict["gatherf"] = encapsulate_function(gatherf);
+  dict["gpu_scatter_f32"] = encapsulate_function(scatterf);
+  dict["gpu_gather_f32"] = encapsulate_function(gatherf);
 
-  dict["scatter"] = encapsulate_function(scatter);
-  dict["gather"] = encapsulate_function(gather);
+  dict["gpu_scatter_f64"] = encapsulate_function(scatter);
+  dict["gpu_gather_f64"] = encapsulate_function(gather);
 
   return dict;
 }
 
 PYBIND11_MODULE(jax_pmwd_gpu, m) {
   m.def("registrations", &Registrations);
+  m.def("build_pmwd_descriptor_f32", &build_descriptor<float>);
+  m.def("build_pmwd_descriptor_f64", &build_descriptor<double>);
 }
 
 }  // namespace
