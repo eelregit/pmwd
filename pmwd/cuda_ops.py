@@ -27,7 +27,7 @@ def _scatter_abstract_eval(pmid, disp, val, mesh, offset, ptcl_spacing, cell_siz
     shape = mesh.shape
     dtype = dtypes.canonicalize_dtype(val.dtype)
     assert dtypes.canonicalize_dtype(disp.dtype) == dtype
-    return ShapedArray(shape, dtype)
+    return mesh.update()
 
 def _scatter_lowering(ctx, pmid, disp, val, mesh, offset, ptcl_spacing, cell_size, *, platform="gpu"):
 
@@ -96,7 +96,7 @@ def _gather_abstract_eval(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size
     shape = val.shape
     dtype = dtypes.canonicalize_dtype(disp.dtype)
     assert dtypes.canonicalize_dtype(val.dtype) == dtype
-    return ShapedArray(shape, dtype)
+    return val.update()
 
 def _gather_lowering(ctx, pmid, disp, val, mesh, offset, ptcl_spacing, cell_size, *, platform="gpu"):
 
