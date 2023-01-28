@@ -437,6 +437,113 @@ void gatherf(cudaStream_t stream, void** buffers, const char* opaque, std::size_
     gather_sm<float>(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
 }
 
+__global__ void
+pp_gm(uint32_t* cell_ids, uint32_t n_cell, uint32_t* pos,
+                     float* disp, uint32_t* particle_ids, uint32_t n_particle,
+                     int32_t* neighcell_offset, uint32_t n_neigh,
+                     uint32_t* stride, float cell_size, float box_size,
+                     float* force)
+{
+    // target particle id
+    uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+    // source particle id
+    uint32_t sid = 0;
+    if (tid < n_particle)
+    {
+        // source - target
+        float dx[3];
+        // target original postion in multiple of cell_size
+        uint32_t tpos[3] = {pos[tid * DIM + 0], pos[tid * DIM + 1],
+                            pos[tid * DIM + 2]};
+        // displacement
+        float tdisp[3] = {disp[tid * DIM + 0], disp[tid * DIM + 1],
+                          disp[tid * DIM + 2]};
+        // force on target due to all near source particles
+        float t_force[3] = {0.0f, 0.0f, 0.0f};
+        // target particle cell id
+        uint32_t tcell_id = particle_ids[tid];
+        // given cell index (ix, iy, iz), cell id is ix + iy*hstride[1] +
+        // iz*hstride[0] stride[i]: dimention i number of cells
+        uint32_t hstride[2] = {stride[0] * stride[1], stride[0]};
+        // compute target cell index
+        uint32_t tc_index[3] = {tcell_id % hstride[1], 0,
+                                tcell_id / hstride[0]};
+        tc_index[1] = (tcell_id - tc_index[2] * hstride[0]) / hstride[1];
+        // loop over neighbor cells
+        // uint32_t s_cnt = 0;
+        for (uint32_t i_sc = 0; i_sc < n_neigh; i_sc++)
+        {
+            // compute neighbor cell index
+            uint32_t sc_index[3];
+            for (uint32_t idim = 0; idim < DIM; idim++)
+            {
+                // periodic mod by stride[idim]
+                sc_index[idim] =
+                    (tc_index[idim] + neighcell_offset[i_sc * DIM + idim] +
+                     stride[idim]) %
+                    stride[idim];
+            }
+            // compute neighbor cell id
+            uint32_t scell_id = sc_index[2] * hstride[0] +
+                                sc_index[1] * hstride[1] + sc_index[0];
+            // loop over all source particle in cell scell_id
+            for (sid = cell_ids[2 * scell_id]; sid < cell_ids[2 * scell_id + 1];
+                 sid++)
+            {
+                if (sid != tid)
+                {
+                    // printf("sid: %u, tid: %u\n",sid,tid);
+                    // s_cnt += 1;
+                    // compute dx, abs(source - target)
+                    for (uint32_t idim = 0; idim < DIM; idim++)
+                    {
+                        dx[idim] =
+                            fabsf((int32_t(pos[sid * DIM + idim]) -
+                                   int32_t(tpos[idim])) *
+                                      cell_size +
+                                  (disp[sid * DIM + idim] - tdisp[idim]));
+                        // printf("dx: %f\n",dx[idim]);
+                        // periodic test
+                        while (dx[idim] > box_size * 0.5)
+                        {
+                            // printf("dx: %f\n",dx[idim]);
+                            dx[idim] -= box_size;
+                        }
+                    }
+                    // distance square
+                    float r2 = dx[0] * dx[0] + dx[1] * dx[1] * dx[2] * dx[2];
+                    // accumulate force from source particle sid
+                    for (uint32_t idim = 0; idim < DIM; idim++)
+                    {
+                        t_force[idim] += r2 + sqrtf(r2) + rsqrtf(r2 * 1000.0);
+                    }
+                }
+            }
+        }
+        // set force on target due to all neighbor source particles
+        for (uint32_t idim = 0; idim < DIM; idim++)
+        {
+            // todo which faster
+            // 1.
+            force[tid * DIM + idim] += t_force[idim];
+            // 2.
+            // t_force read from force at the begin
+            // then
+            // force[tid * DIM + idim] = t_force[idim];
+        }
+        // printf("tid %u, total source particle %u\n",tid,s_cnt);
+    }
+}
+
+__global__ void
+pp_sm(uint32_t* cell_ids, uint32_t n_cell, uint32_t* pos,
+                     float* disp, uint32_t* particle_ids, uint32_t n_particle,
+                     int32_t* neighcell_offset, uint32_t n_neigh,
+                     uint32_t* stride, float cell_size, float box_size,
+                     float* force)
+{
+}
+
 int test()
 {
     float* force;
