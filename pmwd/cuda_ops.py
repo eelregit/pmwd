@@ -34,12 +34,16 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, offset, ptcl_spacing, cell_siz
     # Extract the numpy type of the inputs
     pmid_aval, disp_aval, _ = ctx.avals_in
     np_dtype = np.dtype(disp_aval.dtype)
+    np_pmidtype = np.dtype(pmid_aval.dtype)
     in_type1 = ir.RankedTensorType(pmid.type)
     in_type2 = ir.RankedTensorType(val.type)
     in_layout1 = tuple(range(len(in_type1.shape) - 1, -1, -1))
     in_layout2 = tuple(range(len(in_type2.shape) - 1, -1, -1))
     out_type = ir.RankedTensorType(mesh.type)
     out_layout = tuple(range(len(out_type.shape) - 1, -1, -1))
+
+    # todo pmid int type should be uint16, uint8 or uint32?
+    assert np_pmidtype == np.uint32
 
     # We dispatch a different call depending on the dtype
     if np_dtype == np.float32:
@@ -103,12 +107,16 @@ def _gather_lowering(ctx, pmid, disp, val, mesh, offset, ptcl_spacing, cell_size
     # Extract the numpy type of the inputs
     pmid_aval, disp_aval, _ = ctx.avals_in
     np_dtype = np.dtype(disp_aval.dtype)
+    np_pmidtype = np.dtype(pmid_aval.dtype)
     in_type1 = ir.RankedTensorType(pmid.type)
     in_type2 = ir.RankedTensorType(val.type)
     in_layout1 = tuple(range(len(in_type1.shape) - 1, -1, -1))
     in_layout2 = tuple(range(len(in_type2.shape) - 1, -1, -1))
     out_type = ir.RankedTensorType(mesh.type)
     out_layout = tuple(range(len(out_type.shape) - 1, -1, -1))
+
+    # todo pmid int type should be uint16, uint8 or uint32?
+    assert np_pmidtype == np.uint32
 
     # We dispatch a different call depending on the dtype
     if np_dtype == np.float32:
