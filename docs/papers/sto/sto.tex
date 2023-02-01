@@ -470,9 +470,21 @@ configure \pmwd\ with the same initial coniditions and cosmological parameters,
 and randomly sample the mesh shape (or the mesh cell size) and the number of
 time steps.
 
+We perform parallel training using a number of nodes that each hosts multiple
+GPU devices.
+The training on a given snapshot is performed on a single GPU device.
+The gradients are collected and averaged to update the STO parameters.
+To make sure that each individual training in a parallel run finishes in similar
+time, they share the same number of time steps.
 
 
 \section{Results}
+
+\subsection{SO function}
+
+We use the \texttt{PySR} \citep{PySR, Cranmer2020} symbolic regression code to
+fit for an analytic function expression of the SO neural network.
+
 
 
 \section{Conclusions}
