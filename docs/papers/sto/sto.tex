@@ -142,8 +142,9 @@ cosmology: large-scale structure of Universe
     generation during training.
   \item Generating ICs and then train on GPUs with double precision and
     then compute the loss at single precision (Gadget4 should be run at
-    double precision) should work, and mostly likely be the simplest
-    solution.
+    double precision) should work, and likely be the simplest solution.
+    But for this to work the final training loss should be much larger
+    than the level of reproducibility.
   \end{enumerate}
 \item Non-integer multiple mesh shapes: for uniform particle grid, test
   (with double precision on CPUs) whether they start moving by artifact
