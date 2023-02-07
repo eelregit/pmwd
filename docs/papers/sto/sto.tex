@@ -140,6 +140,10 @@ cosmology: large-scale structure of Universe
     deterministic but slow on GPUs, but those are enviroment variables
     that function globally and cannot be applied locally only on the IC
     generation during training.
+  \item Generating ICs and then train on GPUs with double precision and
+    then compute the loss at single precision (Gadget4 should be run at
+    double precision) should work, and mostly likely be the simplest
+    solution.
   \end{enumerate}
 \item Non-integer multiple mesh shapes: for uniform particle grid, test
   (with double precision on CPUs) whether they start moving by artifact
