@@ -76,7 +76,8 @@
 
 
 \title[Spatiotemporally Optimized Simulation]
-{Spatiotemporal Optimization of Cosmological Particel-Mesh Simulation}
+{Neural and Symbolic Spatiotemporal Optimization of Cosmological
+Particel-Mesh Simulation}
 
 
 \author[Zhang, Li, Jamieson, et al.]{
@@ -123,6 +124,17 @@ cosmology: large-scale structure of Universe
 -- software: development
 \end{keywords}
 
+
+
+\section*{TODO}
+\begin{itemize}
+\item Non-integer multiple mesh shapes: for uniform particle grid, test
+  (with double precision on CPUs) whether they start moving by artifact
+  forces on cell scales, in 3 cases: no deconvolution, with CIC
+  deconvolution, with SO.
+\item For TO, probably necessary to first incorporate Oliver Hahn's
+  recent improvement on FastPM integrator arXiv:2301:09655.
+\end{itemize}
 
 
 \section{Introduction}
