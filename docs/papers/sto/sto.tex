@@ -128,6 +128,19 @@ cosmology: large-scale structure of Universe
 
 \section*{TODO}
 \begin{itemize}
+\item Be careful with the non-deterministic ICs generated on GPUs.
+  \begin{enumerate}
+  \item Saving them on disks and loading them during training solves
+    this but may introduce IO or memory problem;
+  \item Generating them on CPUs for training data and also training
+    might suffice while requireing such data loader implementation;
+  \item Generating them on GPUs for training data and training will
+    introduce additional source of initial deviations to be nonlinearly
+    amplified. There are flags that makes certain operations
+    deterministic but slow on GPUs, but those are enviroment variables
+    that function globally and cannot be applied locally only on the IC
+    generation during training.
+  \end{enumerate}
 \item Non-integer multiple mesh shapes: for uniform particle grid, test
   (with double precision on CPUs) whether they start moving by artifact
   forces on cell scales, in 3 cases: no deconvolution, with CIC
