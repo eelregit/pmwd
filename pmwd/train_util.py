@@ -40,9 +40,11 @@ def scale_Sobol(fn='sobol.txt'):
     # 4: Omega_m, log-uniform
     sobol[4] = f_log_uni(sobol[4], 1/5, 1/2)
     # 5: Omega_b / Omega_m, log-uniform
-    sobol[5] = f_log_uni(sobol[5], 1/16, 1/2)
+    sobol[5] = f_log_uni(sobol[5], 1/8, 1/4)
+    sobol[5] *= sobol[4]  # get Omega_b
     # 6: Omega_k / (1 - Omega_k), uniform
-    sobol[6] = f_uni(sobol[6], -0.5, 0.5)
+    sobol[6] = f_uni(sobol[6], -1/3, 1/3)
+    sobol[6] = sobol[6] / (1 + sobol[6])  # get Omega_k
     # 7: h, log-uniform
     sobol[7] = f_log_uni(sobol[7], 0.5, 1)
     # 8: softening ratio
