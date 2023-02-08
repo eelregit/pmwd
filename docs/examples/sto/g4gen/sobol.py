@@ -1,11 +1,32 @@
 import os
-import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
 
+from pmwd.train_util import scale_Sobol
 
-def plt_proj(filename='sobol.txt', max_rows=None):
+
+def gen_sobol(filename, d=9, m=9):
+    from scipy.stats.qmc import Sobol, discrepancy
+
+    disc_min = np.inf
+    for seed in range(65536):
+        sampler = Sobol(d, scramble=True, seed=seed)  # d is the dimensionality
+        sample = sampler.random_base2(m)  # m is the log2 of the number of samples
+        disc = discrepancy(sample, method='MD')
+        if disc < disc_min:
+            seed_min = seed
+            disc_min = disc
+    print(f'0 <= seed = {seed_min} < 65536, minimizes mixture discrepancy = '
+            f'{disc_min}')
+    # seed_min = 55868, mixture discrepancy = 0.016109347957680598
+
+    sampler = Sobol(d, scramble=True, seed=seed_min)
+    sample = sampler.random_base2(m)
+    np.savetxt(filename, sample)
+
+
+def plt_proj(filename, max_rows=None):
     sample = np.loadtxt(filename, max_rows=max_rows)
 
     n, d = sample.shape
@@ -40,7 +61,7 @@ def plt_proj(filename='sobol.txt', max_rows=None):
             axes[i, j].scatter(* sample.T[[j, i]],
                                s=2, marker='o', alpha=0.75, linewidth=0)
 
-        axes[i, i].hist(sample[:, i], bins='sqrt',
+        axes[i, i].hist(sample[:, i], bins='sqrt', range=(0, 1),
                         density=True, cumulative=True, histtype='step')
 
         for j in range(i+1, d):
@@ -51,7 +72,58 @@ def plt_proj(filename='sobol.txt', max_rows=None):
     plt.close(fig)
 
 
+def plt_scaled(filename):
+    sample = scale_Sobol(filename).T
+    assert sample.shape[0] == 9
+
+    fig, axes = plt.subplots(nrows=3, ncols=3, sharey=True, figsize=(9, 9),
+                             subplot_kw={'box_aspect': 1})
+
+    params = np.array([
+        ('box size in Mpc', 'log', 25.6, 2560),
+        ('snapshot offset $\Delta a$', 'linear', 0, 1/128),
+        (r'$A_\mathrm{s} \times 10^9$', 'log', 1, 4),
+        ('$n_\mathrm{s}$', 'log', 0.75, 1.25),
+        ('$\Omega_\mathrm{m}$', 'log', 1/5, 1/2),
+        ('$\Omega_\mathrm{b}$', 'log', 1/40, 1/8),
+        ('$\Omega_k$', 'linear', -1/2, 1/4),
+        ('$h$', 'log', 0.5, 1),
+        ('softening ratio', 'log', 1/50, 1/20),
+    ], dtype=[('xlabel', '<U39'), ('xscale', '<U6'), ('xmin', 'f8'), ('xmax', 'f8')])
+
+    sample = sample.reshape(3, 3, -1)
+    params = params.reshape(3, 3)
+
+    for i in range(3):
+        for j in range(3):
+            xlabel, xscale, xmin, xmax = params[i, j]
+
+            if xscale == 'log':
+                bins = np.logspace(np.log10(xmin), np.log10(xmax), num=17)
+            elif xscale == 'linear':
+                bins = np.linspace(xmin, xmax, num=17)
+            else:
+                raise ValueError
+
+            axes[i, j].hist(sample[i, j], bins=bins, histtype='step')
+            axes[i, j].set_xlabel(xlabel)
+            axes[i, j].set_xscale(xscale)
+
+    filename = os.path.splitext(filename)[0] + '_scaled.pdf'
+    fig.savefig(filename, bbox_inches='tight')
+    plt.close(fig)
+
+
 if __name__ == '__main__':
-    plt_proj(max_rows=8)
-    plt_proj(max_rows=64)
-    plt_proj(max_rows=512)
+    filename = 'sobol.txt'
+
+    if not os.path.exists(filename):
+        gen_sobol(filename)
+
+    plt.style.use('font.mplstyle')
+
+    plt_proj(filename, max_rows=8)
+    plt_proj(filename, max_rows=64)
+    plt_proj(filename, max_rows=512)
+
+    plt_scaled(filename)
