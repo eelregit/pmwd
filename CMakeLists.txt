@@ -33,9 +33,7 @@ check_language(CUDA)
 if (CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-        set(CMAKE_CUDA_ARCHITECTURES "80")
-    endif()
+    set(CMAKE_CUDA_ARCHITECTURES "80")
     add_compile_options(-Wall -Wno-unknown-pragmas -O3 -funroll-loops)
 
     # Find cufft

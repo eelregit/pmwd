@@ -168,7 +168,8 @@ template <typename T_int1, typename T_int2, typename T_float, typename T_value>
 __global__ void
 scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride, T_value* values, T_value* grid_vals,
                   T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int2* bin_start, T_int2* bin_count, T_int2* index){
-    extern __shared__ T_value gval_shared[];
+    extern __shared__ char shared_char[];
+    T_value* gval_shared = (T_value*)&shared_char[0];
     T_int1 N = (bin_size_x+1)*(bin_size_y+1)*(bin_size_z+1);
     for(int i=threadIdx.x; i<N; i+=blockDim.x){
         gval_shared[i] = 0.0;
@@ -243,8 +244,8 @@ __global__ void
 gather_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride, T_value* values, T_value* grid_vals,
                   T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int2* bin_start, T_int2* bin_count, T_int2* index){
     // shared mem to read in grid vals
-    extern __shared__ T_value gval_shared[];
-
+    extern __shared__ char shared_char[];
+    T_value* gval_shared = (T_value*)&shared_char[0];
     // number of cells in shared mem
     T_int1 N = (bin_size_x+1)*(bin_size_y+1)*(bin_size_z+1);
     // each block represents a bin
@@ -362,7 +363,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     // calculate the index of sorted points
     cal_sortidx<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, d_stride, d_sortidx, d_bin_start, d_index);
     // scatter using shared memory
-    cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,float,float>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
+    cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
     scatter_kernel_sm<<<nbinx*nbiny*nbinz, 512, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, d_stride, particle_values, grid_values, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_index);
 }
 
@@ -417,22 +418,20 @@ void gather_sm(cudaStream_t stream, void** buffers, const char* opaque, std::siz
     // calculate the index of sorted points
     cal_sortidx<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, d_stride, d_sortidx, d_bin_start, d_index);
     // gather using shared memory
-    //cudaFuncSetAttribute(gather_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
+    cudaFuncSetAttribute(gather_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
     gather_kernel_sm<<<nbinx*nbiny*nbinz, 512, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, d_stride, particle_values, grid_values, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_index);
 }
 
 void scatter(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
-    cudaFuncSetAttribute(gather_kernel_sm<uint32_t,uint32_t,double,double>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
     scatter_sm<double>(stream, buffers, opaque, opaque_len);
 }
 
 void scatterf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
-    cudaFuncSetAttribute(gather_kernel_sm<uint32_t,uint32_t,float,float>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
     scatter_sm<float>(stream, buffers, opaque, opaque_len);
 }
 
 void gather(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
-    //gather_sm<double>(stream, buffers, opaque, opaque_len);
+    gather_sm<double>(stream, buffers, opaque, opaque_len);
 }
 
 void gatherf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
