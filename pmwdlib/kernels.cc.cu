@@ -30,7 +30,7 @@
 #include <map>
 #include <string>
 
-#include "cnpy.h"
+//#include "cnpy.h"
 #include "kernels.h"
 #include "kernel_helpers.h"
 
@@ -544,6 +544,7 @@ pp_sm(uint32_t* cell_ids, uint32_t n_cell, uint32_t* pos,
 {
 }
 
+/*
 int test()
 {
     float* force;
@@ -778,5 +779,6 @@ int test()
     free(stride);
     free(neighcell_offset);
 }
+*/
 
 }
