@@ -422,7 +422,8 @@ void gather_sm(cudaStream_t stream, void** buffers, const char* opaque, std::siz
 }
 
 void scatter(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
-    //scatter_sm<double>(stream, buffers, opaque, opaque_len);
+    cudaFuncSetAttribute(gather_kernel_sm<uint32_t,uint32_t,double,double>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
+    scatter_sm<double>(stream, buffers, opaque, opaque_len);
 }
 
 void scatterf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
