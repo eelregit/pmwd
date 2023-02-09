@@ -73,6 +73,7 @@ def gen_ic(i, fn_sobol='sobol.txt'):
     conf = Configuration(
         ptcl_spacing = sp[0] / 128,
         ptcl_grid_shape = (128,) * 3,
+        a_start = 1 / 16,
     )
 
     cosmo = Cosmology(
