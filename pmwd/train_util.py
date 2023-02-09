@@ -1,10 +1,19 @@
 import jax
+from jax import random
 import jax.numpy as jnp
 import numpy as np
 import optax
 from functools import partial
 
-from pmwd import Configuration, Cosmology, nbody
+from pmwd import (
+    Configuration,
+    Cosmology,
+    boltzmann,
+    white_noise,
+    linear_modes,
+    lpt,
+    nbody
+)
 
 
 def scale_Sobol(fn='sobol.txt'):
@@ -29,8 +38,7 @@ def scale_Sobol(fn='sobol.txt'):
 
     # 0: box size, log-trapezoidal
     sobol[0] = f_log_trap(sobol[0], np.log(128)+np.log(0.2),
-                          np.log(512)+np.log(0.2), np.log(128)+np.log(5)
-                          )
+                          np.log(512)+np.log(0.2), np.log(128)+np.log(5))
     # 1: snapshot offset, uniform
     sobol[1] = f_uni(sobol[1], 0, 1/128)
     # 2: A_s_1e9, log-uniform
@@ -47,7 +55,41 @@ def scale_Sobol(fn='sobol.txt'):
     sobol[6] = sobol[6] / (1 + sobol[6])  # get Omega_k
     # 7: h, log-uniform
     sobol[7] = f_log_uni(sobol[7], 0.5, 1)
-    # 8: softening ratio
+    # 8: softening ratio, log-uniform
     sobol[8] = f_log_uni(sobol[8], 1/50, 1/20)
 
     return sobol.T
+
+
+def gen_ic(i, fn_sobol='sobol.txt'):
+    """Generate the initial condition for nbody.
+    The seed for white noise is simply the Sobol index i.
+    """
+    sp = scale_Sobol(fn_sobol)[i]  # scaled Sobol parameters
+
+    # initialize cosmo and conf based on the Sobol parameters
+    # Fields related to mesh shape and number of time steps in conf
+    # need to be further sampled and replaced for pmwd during training.
+    conf = Configuration(
+        ptcl_spacing = sp[0] / 128,
+        ptcl_grid_shape = (128,) * 3,
+    )
+
+    cosmo = Cosmology(
+        conf = conf,
+        A_s_1e9 = sp[2],
+        n_s = sp[3],
+        Omega_m = sp[4],
+        Omega_b = sp[5],
+        Omega_k_ = sp[6],
+        h = sp[7],
+    )
+
+    seed = i
+    modes = white_noise(seed, conf)
+
+    cosmo = boltzmann(cosmo, conf)
+    modes = linear_modes(modes, cosmo, conf)
+    ptcl, obsvbl = lpt(modes, cosmo, conf)
+
+    return ptcl, cosmo, conf
