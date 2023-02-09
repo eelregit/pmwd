@@ -422,19 +422,19 @@ void gather_sm(cudaStream_t stream, void** buffers, const char* opaque, std::siz
 }
 
 void scatter(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
-    scatter_sm<double>(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
+    scatter_sm<double>(stream, buffers, opaque, opaque_len);
 }
 
 void scatterf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
-    scatter_sm<float>(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
+    scatter_sm<float>(stream, buffers, opaque, opaque_len);
 }
 
 void gather(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
-    gather_sm<double>(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
+    gather_sm<double>(stream, buffers, opaque, opaque_len);
 }
 
 void gatherf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
-    gather_sm<float>(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
+    gather_sm<float>(stream, buffers, opaque, opaque_len);
 }
 
 __global__ void
