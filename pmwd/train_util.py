@@ -57,33 +57,34 @@ def scale_Sobol(fn='sobol.txt'):
     sobol[7] = f_log_uni(sobol[7], 0.5, 1)
     # 8: softening ratio, log-uniform
     sobol[8] = f_log_uni(sobol[8], 1/50, 1/20)
+    sobol[8] *= sobol[0] / 128  # * ptcl_spacing = softening length
 
     return sobol.T
 
 
-def gen_ic(i, fn_sobol='sobol.txt'):
+def gen_ic(i, fn_sobol='sobol.txt', re_sobol=False):
     """Generate the initial condition for nbody.
     The seed for white noise is simply the Sobol index i.
     """
-    sp = scale_Sobol(fn_sobol)[i]  # scaled Sobol parameters
+    sobol = scale_Sobol(fn_sobol)[i]  # scaled Sobol parameters at i
 
     # initialize cosmo and conf based on the Sobol parameters
     # Fields related to mesh shape and number of time steps in conf
     # need to be further sampled and replaced for pmwd during training.
     conf = Configuration(
-        ptcl_spacing = sp[0] / 128,
+        ptcl_spacing = sobol[0] / 128,
         ptcl_grid_shape = (128,) * 3,
         a_start = 1 / 16,
     )
 
     cosmo = Cosmology(
         conf = conf,
-        A_s_1e9 = sp[2],
-        n_s = sp[3],
-        Omega_m = sp[4],
-        Omega_b = sp[5],
-        Omega_k_ = sp[6],
-        h = sp[7],
+        A_s_1e9 = sobol[2],
+        n_s = sobol[3],
+        Omega_m = sobol[4],
+        Omega_b = sobol[5],
+        Omega_k_ = sobol[6],
+        h = sobol[7],
     )
 
     seed = i
@@ -93,4 +94,7 @@ def gen_ic(i, fn_sobol='sobol.txt'):
     modes = linear_modes(modes, cosmo, conf)
     ptcl, obsvbl = lpt(modes, cosmo, conf)
 
-    return ptcl, cosmo, conf
+    ret = (ptcl, cosmo, conf)
+    if re_sobol: ret += (sobol,)
+
+    return ret
