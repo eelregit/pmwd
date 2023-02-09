@@ -16,3 +16,5 @@ void scatterf(cudaStream_t stream, void** buffers, const char* opaque, std::size
 void gatherf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
 
 }  // namespace jax_pmwd
+
+#endif

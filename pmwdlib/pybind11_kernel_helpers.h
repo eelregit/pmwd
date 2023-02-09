@@ -32,3 +32,5 @@ pybind11::bytes build_descriptor(int64_t n_particle, T ptcl_spacing, T cell_size
 }
 
 }  // namespace jax_pmwd
+
+#endif
