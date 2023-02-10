@@ -22,7 +22,7 @@ pybind11::dict Registrations() {
   return dict;
 }
 
-PYBIND11_MODULE(jax_pmwd_gpu, m) {
+PYBIND11_MODULE(_jaxpmwd, m) {
   m.def("registrations", &Registrations);
   m.def("build_pmwd_descriptor_f32", &build_descriptor<float>);
   m.def("build_pmwd_descriptor_f64", &build_descriptor<double>);

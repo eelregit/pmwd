@@ -24,21 +24,13 @@ endif()
 # Find and link pybind11
 find_package(pybind11 CONFIG REQUIRED)
 
-# Work out compiler flags
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-add_compile_options(-Wall -Wno-unknown-pragmas -O3 -funroll-loops)
 
 include(CheckLanguage)
 check_language(CUDA)
 if (CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
-    set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
     set(CMAKE_CUDA_ARCHITECTURES "80")
     add_compile_options(-Wall -Wno-unknown-pragmas -O3 -funroll-loops)
-
-    # Find cufft
-    find_package(CUDAToolkit)
-
 
     pybind11_add_module(_jaxpmwd ${CMAKE_CURRENT_LIST_DIR}/pmwdlib/jax_pmwd_gpu.cc ${CMAKE_CURRENT_LIST_DIR}/pmwdlib/kernels.cc.cu)
     target_link_libraries(_jaxpmwd PRIVATE ${CUDA_nvToolsExt_LIBRARY})
