@@ -10,7 +10,7 @@ from jax.abstract_arrays import ShapedArray
 from jax.interpreters import ad, batching, mlir, xla
 from jax import jit
 from jax.lib import xla_client
-from jaxlib.mhlo_helpers import custom_call
+from jaxlib.hlo_helpers import custom_call
 from . import _jaxpmwd
 
 # Registering ops for XLA
