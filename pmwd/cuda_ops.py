@@ -19,7 +19,7 @@ for name, fn in _jaxpmwd.registrations().items():
 
 ### define scatter op
 @partial(jit, static_argnums=(0,1,2,3,4,5,6))
-def scatter(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size):
+def scatter_cuda(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size):
 
     return _scatter_prim.bind(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size)
 
@@ -85,14 +85,14 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, offset, ptcl_spacing, cell_siz
         "Unsupported platform; this must be 'gpu'"
     )
 
-_scatter_prim = Primitive("scatter")
+_scatter_prim = Primitive("scatter_cuda")
 _scatter_prim.def_impl(partial(xla.apply_primitive, _scatter_prim))
 _scatter_prim.def_abstract_eval(_scatter_abstract_eval)
 mlir.register_lowering(_scatter_prim, _scatter_lowering, platform="gpu")
 
 ### define gather op
 @partial(jit, static_argnums=(0,1,2,3,4,5,6))
-def gather(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size):
+def gather_cuda(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size):
 
     return _gather_prim.bind(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size)
 
@@ -158,7 +158,7 @@ def _gather_lowering(ctx, pmid, disp, val, mesh, offset, ptcl_spacing, cell_size
         "Unsupported platform; this must be 'gpu'"
     )
 
-_gather_prim = Primitive("gather")
+_gather_prim = Primitive("gather_cuda")
 _gather_prim.def_impl(partial(xla.apply_primitive, _gather_prim))
 _gather_prim.def_abstract_eval(_gather_abstract_eval)
 mlir.register_lowering(_gather_prim, _gather_lowering, platform="gpu")
