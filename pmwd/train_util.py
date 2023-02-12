@@ -16,9 +16,9 @@ from pmwd import (
 )
 
 
-def scale_Sobol(fn='sobol.txt'):
+def scale_Sobol(fn='sobol.txt', ind=slice(None)):
     """Scale the Sobol sequence samples, refer to the Table in the paper."""
-    sobol = np.loadtxt(fn).T
+    sobol = np.loadtxt(fn)[ind].T
     # functions mapping uniform random samples in [0, 1] to a desired one
     f_uni = lambda x, a, b : a + x * (b - a)
     f_log_uni = lambda x, a, b : np.exp(f_uni(x, np.log(a), np.log(b)))
@@ -66,7 +66,7 @@ def gen_ic(i, fn_sobol='sobol.txt', re_sobol=False):
     """Generate the initial condition for nbody.
     The seed for white noise is simply the Sobol index i.
     """
-    sobol = scale_Sobol(fn_sobol)[i]  # scaled Sobol parameters at i
+    sobol = scale_Sobol(fn_sobol, i)  # scaled Sobol parameters at i
 
     # initialize cosmo and conf based on the Sobol parameters
     # Fields related to mesh shape and number of time steps in conf
