@@ -18,7 +18,6 @@ for name, fn in _jaxpmwd.registrations().items():
   xla_client.register_custom_call_target(name, fn, platform="gpu")
 
 ### define scatter op
-@partial(jit, static_argnums=(0,1,2,3,4,5,6))
 def scatter_cuda(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size):
 
     return _scatter_prim.bind(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size)
@@ -91,7 +90,6 @@ _scatter_prim.def_abstract_eval(_scatter_abstract_eval)
 mlir.register_lowering(_scatter_prim, _scatter_lowering, platform="gpu")
 
 ### define gather op
-@partial(jit, static_argnums=(0,1,2,3,4,5,6))
 def gather_cuda(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size):
 
     return _gather_prim.bind(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size)
