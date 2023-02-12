@@ -1,4 +1,4 @@
-__all__ = ["scatter", "gather"]
+__all__ = ["scatter_cuda", "gather_cuda"]
 
 from functools import partial
 import numpy as np

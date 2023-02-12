@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.4...3.18)
+cmake_minimum_required(VERSION 3.12)
 
 project(jaxpmwd LANGUAGES CXX CUDA)
 
@@ -31,7 +31,7 @@ include(CheckLanguage)
 check_language(CUDA)
 if (CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
-    #set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+    set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
     set(CMAKE_CUDA_ARCHITECTURES "80")
     add_compile_options(-Wall -Wno-unknown-pragmas -O3 -funroll-loops)
 
