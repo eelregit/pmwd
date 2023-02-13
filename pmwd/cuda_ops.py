@@ -11,6 +11,7 @@ from jax.interpreters import ad, batching, mlir, xla
 from jax import jit
 from jax.lib import xla_client
 from jaxlib.hlo_helpers import custom_call
+from jax._src.lib.mlir.dialects import hlo
 from . import _jaxpmwd
 
 # Registering ops for XLA
@@ -18,7 +19,7 @@ for name, fn in _jaxpmwd.registrations().items():
   xla_client.register_custom_call_target(name, fn, platform="gpu")
 
 ### define scatter op
-@partial(jit, static_argnums=(4,5,6))
+#@partial(jit, static_argnums=(4,5,6))
 def scatter_cuda(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size):
 
     return _scatter_prim.bind(pmid, disp, val, mesh, offset=offset, ptcl_spacing=ptcl_spacing, cell_size=cell_size)
@@ -30,9 +31,9 @@ def _scatter_abstract_eval(pmid, disp, val, mesh, offset, ptcl_spacing, cell_siz
     return mesh.update()
 
 def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_size, platform="gpu"):
-
     # Extract the numpy type of the inputs
     pmid_aval, disp_aval, *_ = ctx.avals_in
+    out_aval, *_ = ctx.avals_out
     np_dtype = np.dtype(disp_aval.dtype)
     np_pmidtype = np.dtype(pmid_aval.dtype)
     in_type1 = ir.RankedTensorType(pmid.type)
@@ -67,7 +68,7 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_
             )
 
         # TODO: if we use shared mem with bin sort, bin sort work mem allocate by XLA here and pass to cuda
-        return custom_call(
+        result = custom_call(
             op_name,
             # Output types
             out_types=[out_type],
@@ -78,8 +79,9 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_
             result_layouts=[out_layout],
             operand_output_aliases={3:0},
             # GPU specific additional data
-            backend_config=opaque
+            backend_config=opaque,
         )
+        return hlo.ReshapeOp(mlir.aval_to_ir_type(out_aval), result).results
 
     raise ValueError(
         "Unsupported platform; this must be 'gpu'"
@@ -91,7 +93,7 @@ _scatter_prim.def_abstract_eval(_scatter_abstract_eval)
 mlir.register_lowering(_scatter_prim, _scatter_lowering, platform="gpu")
 
 ### define gather op
-@partial(jit, static_argnums=(4,5,6))
+#@partial(jit, static_argnums=(4,5,6))
 def gather_cuda(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size):
 
     return _gather_prim.bind(pmid, disp, val, mesh, offset=offset, ptcl_spacing=ptcl_spacing, cell_size=cell_size)
@@ -106,6 +108,7 @@ def _gather_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_s
 
     # Extract the numpy type of the inputs
     pmid_aval, disp_aval, *_ = ctx.avals_in
+    out_aval, *_ = ctx.avals_out
     np_dtype = np.dtype(disp_aval.dtype)
     np_pmidtype = np.dtype(pmid_aval.dtype)
     in_type1 = ir.RankedTensorType(pmid.type)
@@ -140,7 +143,7 @@ def _gather_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_s
             )
 
         # TODO: if we use shared mem with bin sort, bin sort work mem allocate by XLA here and pass to cuda
-        return custom_call(
+        result = custom_call(
             op_name,
             # Output types
             out_types=[out_type],
@@ -151,8 +154,10 @@ def _gather_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_s
             result_layouts=[in_layout2],
             operand_output_aliases={2:0},
             # GPU specific additional data
-            backend_config=opaque
+            backend_config=opaque,
         )
+
+        return hlo.ReshapeOp(mlir.aval_to_ir_type(out_aval), result).results
 
     raise ValueError(
         "Unsupported platform; this must be 'gpu'"
