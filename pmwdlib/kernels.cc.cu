@@ -322,7 +322,35 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     uint32_t *pmid = reinterpret_cast<uint32_t *>(buffers[0]);
     T *disp = reinterpret_cast<T *>(buffers[1]);
     T *particle_values = reinterpret_cast<T *>(buffers[2]);
-    T *grid_values = reinterpret_cast<T *>(buffers[3]);
+    T *grid_values = reinterpret_cast<T *>(buffers[4]);
+    printf("n_particle %d\n",n_particle);
+    printf("cell_size %f\n",cell_size);
+    printf("mesh shape %d, %d, %d\n",stride[0], stride[1], stride[2]);
+
+    int n_elm = 10;
+    thrust::device_ptr<uint32_t> dev_ptr_key = thrust::device_pointer_cast(pmid);
+    for(int i=0; i<n_elm; i++){
+      printf("pmid Element number %d is equal to %d\n",i,(uint32_t)*(dev_ptr_key+i));
+    }
+
+    thrust::device_ptr<T> dev_ptr_keyt1 = thrust::device_pointer_cast(disp);
+    for(int i=0; i<n_elm; i++){
+      printf("disp Element number %d is equal to %f\n",i,(T)*(dev_ptr_keyt1+i));
+    }
+
+    thrust::device_ptr<T> dev_ptr_keyt2 = thrust::device_pointer_cast(particle_values);
+    for(int i=0; i<n_elm; i++){
+      printf("val Element number %d is equal to %f\n",i,(T)*(dev_ptr_keyt2+i));
+    }
+
+    thrust::device_ptr<T> dev_ptr_keyt3 = thrust::device_pointer_cast(grid_values);
+    for(int i=0; i<n_elm; i++){
+      printf("mesh Element number %d is equal to %f\n",i,(T)*(dev_ptr_keyt3+i));
+    }
+
+    //printf("disp %f, %f, %f, %f, %f, %f\n",disp[0], disp[1], disp[2], disp[3], disp[4], disp[5]);
+    //printf("vals %f, %f, %f, %f, %f, %f\n",particle_values[0], particle_values[1], particle_values[2], particle_values[3], particle_values[4], particle_values[5]);
+    //printf("mesh %f, %f, %f, %f, %f, %f\n",grid_values[0], grid_values[1], grid_values[2], grid_values[3], grid_values[4], grid_values[5]);
 
     // parameters for shared mem using bins to group cells
     uint32_t bin_size = 16;
@@ -365,6 +393,11 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     // scatter using shared memory
     cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
     scatter_kernel_sm<<<nbinx*nbiny*nbinz, 512, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, d_stride, particle_values, grid_values, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_index);
+    thrust::device_ptr<T> dev_ptr_keyt4 = thrust::device_pointer_cast(grid_values);
+    for(int i=0; i<n_elm; i++){
+      printf("mesh Element number %d is equal to %f\n",i,(T)*(dev_ptr_keyt4+i));
+    }
+
 }
 
 template <typename T>
@@ -376,7 +409,7 @@ void gather_sm(cudaStream_t stream, void** buffers, const char* opaque, std::siz
     uint32_t stride[3]  = {descriptor->stride[0], descriptor->stride[1], descriptor->stride[2]};
     uint32_t *pmid = reinterpret_cast<uint32_t *>(buffers[0]);
     T *disp = reinterpret_cast<T *>(buffers[1]);
-    T *particle_values = reinterpret_cast<T *>(buffers[2]);
+    T *particle_values = reinterpret_cast<T *>(buffers[4]);
     T *grid_values = reinterpret_cast<T *>(buffers[3]);
 
     // parameters for shared mem using bins to group cells
