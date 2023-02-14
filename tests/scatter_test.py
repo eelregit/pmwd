@@ -20,12 +20,14 @@ ptcl_spacing = 1.0
 offset = tuple((0.0,0.0,0.))
 
 mesh0 = mesh*0;
-print(mesh0)
+#print(mesh0)
+print(mesh0.unsafe_buffer_pointer())
 start = time.time()
-mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_spacing, cell_size).block_until_ready()
-mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_spacing, cell_size).block_until_ready()
+for ii in range(1):
+    mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_spacing, cell_size).block_until_ready()
 print(time.time() - start)
+print(mesh0.unsafe_buffer_pointer())
 
 print("called")
 
-print(mesh0)
+#print(mesh0)
