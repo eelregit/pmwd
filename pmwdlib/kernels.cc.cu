@@ -83,7 +83,7 @@ cal_bin_size(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbi
         c_index[2] = c_index[2]/bin_size_z;
 
         T_int1 bin_id;
-        bin_id = c_index[2] * nbinx*nbiny + c_index[1] * nbiny + c_index[0];
+        bin_id = c_index[0]*nbiny*nbinz + c_index[1]*nbinz + c_index[2];
         T_int1 oldidx = atomicAdd(&bin_count[bin_id], 1);
         sortidx[tid] = oldidx;
     }
@@ -111,7 +111,7 @@ cal_sortidx(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbin
         c_index[2] = c_index[2]/bin_size_z;
 
         T_int1 bin_id;
-        bin_id = c_index[2] * nbinx*nbiny + c_index[1] * nbiny + c_index[0];
+        bin_id = c_index[0]*nbiny*nbinz + c_index[1]*nbinz + c_index[2];
         index[bin_start[bin_id]+sortidx[tid]] = tid;
     }
 }
@@ -130,7 +130,7 @@ scatter_kernel_gm(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_s
 
         // strides
         T_int2 g_stride[3] = {stride[0], stride[1], stride[2]};
-        T_int2 hstride[2] = {g_stride[0] * g_stride[1], g_stride[0]};
+        T_int2 hstride[2] = {g_stride[1] * g_stride[2], g_stride[2]};
 
         // displacement with in a cell for cell (i,j,k)==(0,0,0)
         T_float t_disp[DIM];
@@ -156,8 +156,8 @@ scatter_kernel_gm(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_s
             // grid value
             t_val = p_val*(1-std::abs(t_disp[0]-i))*(1-std::abs(t_disp[1]-j))*(1-std::abs(t_disp[2]-k));
             // cell_id
-            cell_id = (c_index[2]+k)%g_stride[2] * hstride[0] +
-                      (c_index[1]+j)%g_stride[1] * hstride[1] + (c_index[0]+i)%g_stride[0];
+            cell_id = ((c_index[0]+i)%g_stride[0]) * hstride[0] +
+                      ((c_index[1]+j)%g_stride[1]) * hstride[1] + (c_index[2]+k)%g_stride[2];
             // atomic write to grid values global memory
             atomicAdd(&grid_vals[cell_id], t_val);
         }
@@ -180,7 +180,7 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride
     T_int2 bid = blockIdx.x;
     // strides
     T_int2 g_stride[3] = {stride[0], stride[1], stride[2]};
-    T_int2 hstride[2] = {(bin_size_x+1)*(bin_size_y+1), bin_size_x+1};
+    T_int2 hstride[2] = {(bin_size_z+1)*(bin_size_y+1), bin_size_z+1};
     int idx;
 
     int pstart = bin_start[bid];
@@ -216,23 +216,23 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride
             // grid value
             t_val = p_val*(1-std::abs(t_disp[0]-i))*(1-std::abs(t_disp[1]-j))*(1-std::abs(t_disp[2]-k));
             // cell_id
-            cell_id = (c_index[2]%bin_size_z+k) * hstride[0] +
-                      (c_index[1]%bin_size_y+j) * hstride[1] + (c_index[0]%bin_size_x+i);
+            cell_id = (c_index[0]%bin_size_x+i) * hstride[0] +
+                      (c_index[1]%bin_size_y+j) * hstride[1] + (c_index[2]%bin_size_z+k);
             // atomic write to grid values shared memory
             atomicAdd(&gval_shared[cell_id], t_val);
         }
     }
     __syncthreads();
     for(int i=threadIdx.x; i<N; i+=blockDim.x){
-        int ix = i%(bin_size_x+1);
-        int iy = (i/(bin_size_x+1)) % (bin_size_y+1);
-        int iz = i/((bin_size_x+1)*(bin_size_y+1));
+        int ix = i/((bin_size_y+1)*(bin_size_z+1));
+        int iy = (i/(bin_size_z+1)) % (bin_size_y+1);
+        int iz = i%(bin_size_z+1);
         int icx = bid*bin_size_x + ix;
         int icy = bid*bin_size_y + iy;
         int icz = bid*bin_size_z + iz;
 
         if(icx<(g_stride[0]+1) && icy<(g_stride[1]+1) && icz<(g_stride[2]+1)){
-            int outidx = icx%g_stride[0] + (icy%g_stride[1])*g_stride[0] + (icz%g_stride[2])*g_stride[0]*g_stride[1];
+            int outidx = icz%g_stride[2] + (icy%g_stride[1])*g_stride[2] + (icx%g_stride[0])*g_stride[2]*g_stride[1];
             atomicAdd(&grid_vals[outidx], gval_shared[i]);
         }
     }
@@ -323,6 +323,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     T *disp = reinterpret_cast<T *>(buffers[1]);
     T *particle_values = reinterpret_cast<T *>(buffers[2]);
     T *grid_values = reinterpret_cast<T *>(buffers[4]);
+
     /*
     printf("n_particle %d\n",n_particle);
     printf("cell_size %f\n",cell_size);
@@ -356,9 +357,9 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
 
     // parameters for shared mem using bins to group cells
     uint32_t bin_size = 16;
-    uint32_t nbinx = stride[0]/bin_size;
-    uint32_t nbiny = stride[1]/bin_size;
-    uint32_t nbinz = stride[2]/bin_size;
+    uint32_t nbinx = stride[0]/bin_size+1;
+    uint32_t nbiny = stride[1]/bin_size+1;
+    uint32_t nbinz = stride[2]/bin_size+1;
 
     uint32_t* d_bin_count;
     uint32_t* d_sortidx;
@@ -384,6 +385,8 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
 
     int block_size = 1024;
     int grid_size = ((n_particle + block_size) / block_size);
+    scatter_kernel_gm<<<grid_size, block_size>>>(n_particle, pmid, disp, cell_size, d_stride, particle_values, grid_values);
+    /*
     // count number of points in each bin
     cal_bin_size<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, d_stride, d_sortidx, d_bin_count);
     // start points of each bin
@@ -395,6 +398,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     // scatter using shared memory
     cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
     scatter_kernel_sm<<<nbinx*nbiny*nbinz, 512, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, d_stride, particle_values, grid_values, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_index);
+    */
     /*
     thrust::device_ptr<T> dev_ptr_keyt4 = thrust::device_pointer_cast(grid_values);
     for(int i=0; i<n_elm; i++){
