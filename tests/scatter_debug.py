@@ -4,16 +4,17 @@ from jax import device_put
 import pmwd
 import time
 
-print("loading")
-pmid = jnp.zeros([1,3],dtype=jnp.uint32)
+np = 1000
+pmid = 10*jnp.ones([np,3],dtype=jnp.uint32)
 mesh = jnp.zeros([2,2,2],dtype=jnp.float32)
-val = jnp.ones([1,],dtype=jnp.float32)
-disp = 0.0*jnp.ones([1,3],dtype=jnp.float32)
-disp = disp.at[0,0].set(0.0)
-disp = disp.at[0,1].set(0.0)
-disp = disp.at[0,2].set(1.0)
+val = jnp.ones([np,],dtype=jnp.float32)
+disp = 0.0*jnp.ones([np,3],dtype=jnp.float32)
+
+disp = disp.at[:,0].set(0.7)
+disp = disp.at[:,1].set(0.2)
+disp = disp.at[:,2].set(0.4)
+print("disp:")
 print(disp)
-print("finish loading")
 
 print(pmid.shape)
 print(disp.shape)
@@ -31,7 +32,3 @@ for ii in range(1):
 print(time.time() - start)
 
 print(mesh0.flatten())
-print(mesh0[0,0,1])
-print("called")
-
-#print(mesh0)

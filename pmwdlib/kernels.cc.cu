@@ -385,8 +385,6 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
 
     int block_size = 1024;
     int grid_size = ((n_particle + block_size) / block_size);
-    scatter_kernel_gm<<<grid_size, block_size>>>(n_particle, pmid, disp, cell_size, d_stride, particle_values, grid_values);
-    /*
     // count number of points in each bin
     cal_bin_size<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, d_stride, d_sortidx, d_bin_count);
     // start points of each bin
@@ -398,7 +396,6 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     // scatter using shared memory
     cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
     scatter_kernel_sm<<<nbinx*nbiny*nbinz, 512, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, d_stride, particle_values, grid_values, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_index);
-    */
     /*
     thrust::device_ptr<T> dev_ptr_keyt4 = thrust::device_pointer_cast(grid_values);
     for(int i=0; i<n_elm; i++){
