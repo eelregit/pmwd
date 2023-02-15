@@ -42,25 +42,26 @@ ptcl_spacing = 1.0
 offset = tuple((0.0,0.0,0.))
 
 mesh0 = mesh*0;
-#print(mesh0)
 print(mesh0.unsafe_buffer_pointer())
 start = time.time()
-for ii in range(1):
+for ii in range(10000):
     mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_spacing, cell_size).block_until_ready()
+print("time:")
 print(time.time() - start)
-
-print("called")
-
 print(mesh0.sum())
 print(mesh0.max())
 print(mesh0.min())
-#print(mesh0)
 
 ptcl_spacing = 1.  # Lagrangian space Cartesian particle grid spacing, in Mpc/h by default
 ptcl_grid_shape = (64,) * 3
 conf = Configuration(ptcl_spacing, ptcl_grid_shape, mesh_shape=1)  # 1x mesh shape
+mesh_val = mesh0*0
 
-mesh_val = _scatter(pmid, disp, conf, None, val, 0, cell_size)
+start = time.time()
+for ii in range(10000):
+    mesh_val = _scatter(pmid, disp, conf, mesh_val, val, 0, cell_size).block_until_ready()
+print("time:")
+print(time.time() - start)
 print(mesh_val.sum())
 print(mesh_val.max())
 print(mesh_val.min())
