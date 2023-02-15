@@ -49,16 +49,8 @@ for ii in range(1):
     mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_spacing, cell_size).block_until_ready()
 print(time.time() - start)
 
-print(mesh.max())
-print(mesh0.max())
-print(mesh.min())
-print(mesh0.min())
 print("called")
 
-print(pmid.max())
-print(pmid.min())
-print(disp.min())
-print(disp.max())
 print(mesh0.sum())
 print(mesh0.max())
 print(mesh0.min())
