@@ -14,6 +14,7 @@ def _chunk_split(ptcl_num, chunk_size, *arrays):
         remainder = [x[:remainder_size] if x.ndim != 0 else x for x in arrays]
         chunks = [x[remainder_size:] if x.ndim != 0 else x for x in arrays]
 
+    # `scan` triggers errors in scatter and gather without the `full`
     chunks = [x.reshape(chunk_num, chunk_size, *x.shape[1:]) if x.ndim != 0
               else jnp.full(chunk_num, x) for x in chunks]
 
