@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from jax import custom_vjp,jit
+from jax import custom_vjp
 from jax.lax import scan
 
 from pmwd.pm_util import _chunk_split, _chunk_cat, enmesh
@@ -31,7 +31,6 @@ def scatter(ptcl, conf, mesh=None, val=None, offset=0, cell_size=None):
 
 
 @custom_vjp
-@jit
 def _scatter(pmid, disp, conf, mesh, val, offset, cell_size):
     ptcl_num, spatial_ndim = pmid.shape
 
