@@ -70,7 +70,7 @@ def gen_g4files(sim_dir, i, fn_sobol='sobol.txt',
 
 
 if __name__ == "__main__":
-    i_start, i_stop = sys.argv[1], sys.argv[2]
+    i_start, i_stop = int(sys.argv[1]), int(sys.argv[2])
     base_dir = 'g4sims'
 
     for i in range(i_start, i_stop):  # not including i_stop
@@ -82,4 +82,4 @@ if __name__ == "__main__":
         gen_g4files(sim_dir, i)
 
         # submit the job (compile + run)
-        # os.system(f'cd {sim_dir} && sbatch job.sh')
+        os.system(f'cd {sim_dir} && sbatch job.sh')
