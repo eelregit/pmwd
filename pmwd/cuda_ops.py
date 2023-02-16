@@ -49,7 +49,7 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_
     npts = np.prod(in_type2.shape).astype(np.uint32)
     ncells = np.prod(out_type.shape).astype(np.uint32)
     nbins = np.uint32(32*32*32)
-    workspace_size = np.uint32(4*npts*4 + 4*nbins*2+1)
+    workspace_size = np.uint32(4*npts*4 + 4*(nbins*2+1) + 17049087)
     workspace = mlir.full_like_aval(ctx,
                   0, core.ShapedArray(shape=[workspace_size], dtype=np.byte))
     # We dispatch a different call depending on the dtype
