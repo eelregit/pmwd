@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-#SBATCH --job-name=g4sto-{job_index}
+#SBATCH --job-name=g4sim-{job_index}
 #SBATCH --output=%x-%j.out
 #SBATCH --partition=ccm
 #SBATCH --constraint=rome
@@ -9,7 +9,8 @@
 #SBATCH --time=7-00:00:00
 
 
-module purge
+module --force purge
+module load modules/2.0-20220630
 module load slurm
 module load gcc/11.2.0 openmpi/4.0.7
 module load gsl/2.7
