@@ -15,7 +15,8 @@ from pmwd import (
 )
 from pmwd.scatter import _scatter
 from jax import random
-
+import os
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.8'
 key = random.PRNGKey(0)
 ngrid = 512
 print("loading")
@@ -37,7 +38,7 @@ print(mesh0.unsafe_buffer_pointer())
 
 mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_spacing, cell_size).block_until_ready()
 start = time.time()
-for ii in range(10):
+for ii in range(100):
     mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_spacing, cell_size).block_until_ready()
 print("time:")
 print(time.time() - start)
@@ -45,7 +46,7 @@ print(time.time() - start)
 mesh_val = mesh0*0
 mesh_val = _scatter(pmid, disp, conf, mesh_val, val, 0, None).block_until_ready()
 start = time.time()
-for ii in range(10):
+for ii in range(100):
     mesh_val = _scatter(pmid, disp, conf, mesh_val, val, 0, None).block_until_ready()
 print("time:")
 print(time.time() - start)

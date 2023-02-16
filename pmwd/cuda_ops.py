@@ -46,6 +46,12 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_
     # todo pmid int type should be uint16, uint8 or uint32?
     assert np_pmidtype == np.uint32
 
+    npts = np.prod(in_type2.shape).astype(np.uint32)
+    ncells = np.prod(out_type.shape).astype(np.uint32)
+    nbins = np.uint32(32*32*32)
+    workspace_size = np.uint32(4*npts*4 + 4*nbins*2+1)
+    workspace = mlir.full_like_aval(ctx,
+                  0, core.ShapedArray(shape=[workspace_size], dtype=np.byte))
     # We dispatch a different call depending on the dtype
     if np_dtype == np.float32:
         op_name = platform + "_scatter_f32"
@@ -73,9 +79,9 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_
             # Output types
             out_types=[out_type],
             # The inputs:
-            operands=[pmid,disp,val,mesh],
+            operands=[pmid,disp,val,mesh,workspace],
             # Layout specification:
-            operand_layouts=[in_layout1, in_layout1, in_layout2, out_layout],
+            operand_layouts=[in_layout1, in_layout1, in_layout2, out_layout, (0,)],
             result_layouts=[out_layout],
             operand_output_aliases={3:0},
             # GPU specific additional data
