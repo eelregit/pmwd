@@ -131,7 +131,7 @@ def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf, ids_dtype=np.uint32
         raise ValueError('noncubic box not supported')
 
     ids = np.arange(1, 1+conf.ptcl_num, dtype=ids_dtype)
-    pos = ptcl_pos(ptcl, conf).astype(conf.float_dtype)
+    pos = ptcl_pos(ptcl, conf, dtype=conf.float_dtype)
     vel = ptcl.vel.astype(conf.float_dtype) / a**1.5
     pos, vel = device_get([pos, vel])
 
