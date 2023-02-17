@@ -46,23 +46,19 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_
     # todo pmid int type should be uint16, uint8 or uint32?
     assert np_pmidtype == np.uint32
 
-    npts = np.prod(in_type2.shape).astype(np.uint32)
-    ncells = np.prod(out_type.shape).astype(np.uint32)
-    nbins = np.uint32(32*32*32)
-    workspace_size = np.uint32(4*npts*4 + 4*(nbins*2+1) + 17049087)
-    workspace = mlir.full_like_aval(ctx,
-                  0, core.ShapedArray(shape=[workspace_size], dtype=np.byte))
     # We dispatch a different call depending on the dtype
     if np_dtype == np.float32:
         op_name = platform + "_scatter_f32"
         # dimension using the 'opaque' parameter
-        opaque = _jaxpmwd.build_pmwd_descriptor_f32(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
+        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f32(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
     elif np_dtype == np.float64:
         op_name = platform + "_scatter_f64"
         # dimension using the 'opaque' parameter
-        opaque = _jaxpmwd.build_pmwd_descriptor_f64(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
+        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f64(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
     else:
         raise NotImplementedError(f"Unsupported dtype {np_dtype}")
+
+    workspace = mlir.full_like_aval(ctx, 0, core.ShapedArray(shape=[workspace_size], dtype=np.byte))
 
     # And then the following is what changes between the GPU and CPU
     if platform == "cpu":

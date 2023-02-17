@@ -24,7 +24,15 @@ pybind11::dict Registrations() {
 
 PYBIND11_MODULE(_jaxpmwd, m) {
   m.def("registrations", &Registrations);
-  m.def("build_pmwd_descriptor_f32", &build_descriptor<float>);
+  m.def("build_pmwd_descriptor_f32",
+      [](int64_t n_particle, float ptcl_spacing, float cell_size,
+         float offset_1, float offset_2, float offset_3,
+         uint32_t stride_1, uint32_t stride_2, uint32_t stride_3)
+      {
+          size_t tmp_space_size = 0;
+          int64_t workspace_size = get_workspace_size(n_particle, stride_1, stride_2, stride_3, tmp_space_size);
+          return std::pair<int64_t, pybind11::bytes>(workspace_size, build_descriptor<float>(n_particle, ptcl_spacing, cell_size, offset_1, offset_2, offset_3, stride_1, stride_2, stride_3, tmp_space_size));
+      });
   m.def("build_pmwd_descriptor_f64", &build_descriptor<double>);
 }
 

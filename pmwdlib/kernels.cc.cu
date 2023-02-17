@@ -38,6 +38,7 @@ namespace jax_pmwd {
 
 #define DIM 3
 #define blk 1
+#define BINSIZE 16
 
 // Macro to catch CUDA errors in CUDA runtime calls
 #define CUDA_SAFE_CALL(call)                                                   \
@@ -361,6 +362,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     T cell_size = descriptor->cell_size;
     int64_t n_particle = descriptor->n_particle;
     uint32_t stride[3]  = {descriptor->stride[0], descriptor->stride[1], descriptor->stride[2]};
+    size_t   temp_storage_bytes = descriptor->tmp_storage_size;
     uint32_t *pmid = reinterpret_cast<uint32_t *>(buffers[0]);
     T *disp = reinterpret_cast<T *>(buffers[1]);
     T *particle_values = reinterpret_cast<T *>(buffers[2]);
@@ -369,7 +371,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     uint32_t *work_i_d = static_cast<uint32_t *>(work_d);
 
     // parameters for shared mem using bins to group cells
-    uint32_t bin_size = 16;
+    uint32_t bin_size = BINSIZE;
     uint32_t nbinx = stride[0]/bin_size+1;
     uint32_t nbiny = stride[1]/bin_size+1;
     uint32_t nbinz = stride[2]/bin_size+1;
@@ -383,7 +385,6 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     uint32_t* d_bin_count = &work_i_d[4*npts_mem_size];
     uint32_t* d_bin_start = &work_i_d[4*npts_mem_size + nbins_mem_size];
     void     *d_temp_storage = (void*)&work_i_d[4*npts_mem_size + 2*nbins_mem_size + sizeof(uint32_t)];
-    size_t   temp_storage_bytes = 17049087;
     int block_size = 1024;
     int grid_size = ((n_particle + block_size) / block_size);
 
@@ -429,10 +430,10 @@ void gather_sm(cudaStream_t stream, void** buffers, const char* opaque, std::siz
     T *grid_values = reinterpret_cast<T *>(buffers[3]);
 
     // parameters for shared mem using bins to group cells
-    uint32_t bin_size = 16;
-    uint32_t nbinx = stride[0]/bin_size;
-    uint32_t nbiny = stride[1]/bin_size;
-    uint32_t nbinz = stride[2]/bin_size;
+    uint32_t bin_size = BINSIZE;
+    uint32_t nbinx = stride[0]/bin_size+1;
+    uint32_t nbiny = stride[1]/bin_size+1;
+    uint32_t nbinz = stride[2]/bin_size+1;
 
     uint32_t* d_bin_count;
     uint32_t* d_sortidx;
@@ -490,6 +491,25 @@ void gather(cudaStream_t stream, void** buffers, const char* opaque, std::size_t
 
 void gatherf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
     gather_sm<float>(stream, buffers, opaque, opaque_len);
+}
+
+int64_t get_workspace_size(int64_t n_ptcls, uint32_t stride_x, uint32_t stride_y, uint32_t stride_z, size_t& temp_storage_bytes){
+    // get arrays storages
+    // 4 arrays of n_ptcls of uint32_t
+    // 1 array of nbins of uint32_t
+    // 1 array of (nbins+1) of uint32_t
+    int64_t bin_size = BINSIZE;
+    int64_t nbins = (stride_x/bin_size+1)*(stride_y/bin_size+1)*(stride_z/bin_size+1);
+    uint32_t npts_mem_size = sizeof(uint32_t) * n_ptcls * 4;
+    uint32_t nbins_mem_size = sizeof(uint32_t) * (2*nbins+1);
+
+    // get sort workspace size
+    void *d_temp_storage = NULL;
+    temp_storage_bytes=0;
+    cub::DoubleBuffer<uint32_t> d_keys(NULL, NULL);
+    cub::DoubleBuffer<uint32_t> d_values(NULL, NULL);
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, d_keys, d_values, n_ptcls);
+    return temp_storage_bytes + npts_mem_size + nbins_mem_size;
 }
 
 __global__ void
