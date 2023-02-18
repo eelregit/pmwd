@@ -500,8 +500,8 @@ int64_t get_workspace_size(int64_t n_ptcls, uint32_t stride_x, uint32_t stride_y
     // 1 array of (nbins+1) of uint32_t
     int64_t bin_size = BINSIZE;
     int64_t nbins = (stride_x/bin_size+1)*(stride_y/bin_size+1)*(stride_z/bin_size+1);
-    uint32_t npts_mem_size = sizeof(uint32_t) * n_ptcls * 4;
-    uint32_t nbins_mem_size = sizeof(uint32_t) * (2*nbins+1);
+    int64_t npts_mem_size = sizeof(uint32_t) * n_ptcls * 4;
+    int64_t nbins_mem_size = sizeof(uint32_t) * (2*nbins+1);
 
     // get sort workspace size
     void *d_temp_storage = NULL;
