@@ -413,6 +413,9 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     int grid_size = ((n_particle + block_size) / block_size);
 
 #ifdef SCATTER_DEV_TIME
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
     for(int ii=0; ii<1024; ii++){
     cudaEventRecord(start);
     cal_cellid<<<grid_size, block_size>>>(n_particle, pmid, disp, cell_size, stride[0], stride[1], stride[2], d_index, d_sortidx);
