@@ -38,7 +38,8 @@ namespace jax_pmwd {
 
 #define DIM 3
 #define blk 1
-#define BINSIZE 16
+#define BINSIZE 1
+#define SCATTER_DEV_TIME
 
 // Macro to catch CUDA errors in CUDA runtime calls
 #define CUDA_SAFE_CALL(call)                                                   \
@@ -63,7 +64,7 @@ typedef data_elm<char,8> char_8;
 
 template <typename T_int1, typename T_int2, typename T_float>
 __global__ void
-cal_cellid(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_int1 stridex, T_int1 stridey, T_int1 stridez, T_int1* cellid){
+cal_cellid(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_int1 stridex, T_int1 stridey, T_int1 stridez, T_int1* cellid, T_int1* sortidx){
 
     for(uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_particle; tid+=gridDim.x*blockDim.x){
         // read particle data from global memory
@@ -80,6 +81,7 @@ cal_cellid(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_
         }
 
         T_int1 cell_id = c_index[0]*g_stride[2]*g_stride[1] + c_index[1]*g_stride[1] + c_index[2];
+        sortidx[tid] = tid;
         cellid[tid] = cell_id;
     }
 }
@@ -409,6 +411,42 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     void     *d_temp_storage = (void*)&work_i_d[4*npts_mem_size + 2*nbins_mem_size + sizeof(uint32_t)];
     int block_size = 1024;
     int grid_size = ((n_particle + block_size) / block_size);
+
+#ifdef SCATTER_DEV_TIME
+    for(int ii=0; ii<1024; ii++){
+    cudaEventRecord(start);
+    cal_cellid<<<grid_size, block_size>>>(n_particle, pmid, disp, cell_size, stride[0], stride[1], stride[2], d_index, d_sortidx);
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("cuda kernel cal_cellid: %f milliseconds\n", milliseconds);
+
+    cudaEventRecord(start);
+    cub::DoubleBuffer<uint32_t> d_keys(d_index, d_index_buff);
+    cub::DoubleBuffer<uint32_t> d_values(d_sortidx, d_sortidx_buff);
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, d_keys, d_values, n_particle);
+    d_index = d_keys.Current();
+    d_sortidx = d_values.Current();
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("cuda kernel SortPairs cellids: %f milliseconds\n", milliseconds);
+
+    cudaEventRecord(start);
+    thrust::counting_iterator<uint32_t> search_begin(0);
+    thrust::upper_bound(thrust::device_ptr<uint32_t>(d_index), thrust::device_ptr<uint32_t>(d_index)+uint32_t(n_particle),
+                        search_begin, search_begin+n_particle,
+                        thrust::device_ptr<uint32_t>(d_bin_start)+1);
+    thrust::adjacent_difference(thrust::device_ptr<uint32_t>(d_bin_start)+1, thrust::device_ptr<uint32_t>(d_bin_start)+1+n_particle, thrust::device_ptr<uint32_t>(d_bin_count));
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("cuda kernel cell count: %f milliseconds\n", milliseconds);
+    }
+#endif
 
 #ifdef SCATTER_TIME
     cudaEventRecord(start);
