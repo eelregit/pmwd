@@ -38,8 +38,8 @@ namespace jax_pmwd {
 
 #define DIM 3
 #define blk 1
-#define BINSIZE 1
-#define SCATTER_DEV_TIME
+#define BINSIZE 16
+//#define SCATTER_DEV_TIME
 
 // Macro to catch CUDA errors in CUDA runtime calls
 #define CUDA_SAFE_CALL(call)                                                   \
@@ -396,9 +396,9 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
 
     // parameters for shared mem using bins to group cells
     uint32_t bin_size = BINSIZE;
-    uint32_t nbinx = stride[0]/bin_size+1;
-    uint32_t nbiny = stride[1]/bin_size+1;
-    uint32_t nbinz = stride[2]/bin_size+1;
+    uint32_t nbinx = static_cast<uint32_t>(std::ceil(1.0*stride[0]/bin_size));
+    uint32_t nbiny = static_cast<uint32_t>(std::ceil(1.0*stride[1]/bin_size));
+    uint32_t nbinz = static_cast<uint32_t>(std::ceil(1.0*stride[2]/bin_size));
 
     uint32_t npts_mem_size = sizeof(uint32_t) * n_particle;
     uint32_t nbins_mem_size = sizeof(uint32_t) * nbinx*nbiny*nbinz;
