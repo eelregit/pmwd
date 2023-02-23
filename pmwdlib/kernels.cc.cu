@@ -88,7 +88,7 @@ cal_cellid(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_
 
 template <typename T_int1, typename T_int2, typename T_float>
 __global__ void
-cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx, T_int1 nbiny, T_int1 nbinz, T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_int1 stridex, T_int1 stridey, T_int1 stridez, T_int1* binid, T_int1* sortidx){
+cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx, T_int1 nbiny, T_int1 nbinz, T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_spacing, T_int1 stridex, T_int1 stridey, T_int1 stridez, T_float offsetx, T_float offsety, T_float offsetz, T_int1* binid, T_int1* sortidx){
 
     for(uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_particle; tid+=gridDim.x*blockDim.x){
         // read particle data from global memory
@@ -97,11 +97,14 @@ cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx,
 
         // strides
         T_int1 g_stride[3] = {stridex, stridey, stridez};
+        //double g_offset[3] = {offsetx, offsety, offsetz};
+        T_float g_offset[3] = {offsetx, offsety, offsetz};
 
         // cell index for each dimension
         T_int1  c_index[DIM];
         for(int idim=0; idim<3; idim++){
-            c_index[idim] = (static_cast<int>(std::floor(p_disp[idim]/cell_size)+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
+            c_index[idim] = (static_cast<int>(std::floor((p_disp[idim]+g_offset[idim])/cell_size)+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
+            //c_index[idim] = (static_cast<int>(std::floor(p_disp[idim]/cell_size)+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
         }
         c_index[0] = c_index[0]/bin_size_x;
         c_index[1] = c_index[1]/bin_size_y;
@@ -384,8 +387,10 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     // inputs/outputs
     const PmwdDescriptor<T> *descriptor = unpack_descriptor<PmwdDescriptor<T>>(opaque, opaque_len);
     T cell_size = descriptor->cell_size;
+    T ptcl_spacing = descriptor->ptcl_spacing;
     int64_t n_particle = descriptor->n_particle;
     uint32_t stride[3]  = {descriptor->stride[0], descriptor->stride[1], descriptor->stride[2]};
+    T offset[3]  = {descriptor->offset[0], descriptor->offset[1], descriptor->offset[2]};
     size_t   temp_storage_bytes = descriptor->tmp_storage_size;
     uint32_t *pmid = reinterpret_cast<uint32_t *>(buffers[0]);
     T *disp = reinterpret_cast<T *>(buffers[1]);
@@ -454,7 +459,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
 #ifdef SCATTER_TIME
     cudaEventRecord(start);
 #endif
-    cal_binid<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, stride[0], stride[1], stride[2], d_index, d_sortidx);
+    cal_binid<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, ptcl_spacing, stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], d_index, d_sortidx);
 #ifdef SCATTER_TIME
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
