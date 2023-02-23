@@ -1,6 +1,7 @@
 """A script to setup directories and files etc for Gadget-4 simulations."""
 import os
 import sys
+import jax
 
 import numpy as np
 
@@ -25,8 +26,9 @@ def gen_g4files(sim_dir, i, fn_sobol='sobol.txt',
     tpl_job : str
         The template for generating the job.sh file.
     """
-    # initial condition
-    ptcl, cosmo, conf, sobol = gen_ic(i, fn_sobol, re_sobol=True)
+    # generate initial condition on GPU, to be consistent with training
+    with jax.default_device(jax.devices('gpu')[0]):
+        ptcl, cosmo, conf, sobol = gen_ic(i, fn_sobol, re_sobol=True)
     write_gadget_hdf5(os.path.join(sim_dir, 'ic'), 1, conf.a_start, ptcl, cosmo, conf)
 
     with (open(tpl_config, 'r') as f,
