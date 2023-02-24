@@ -61,6 +61,8 @@ class Configuration:
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
         Absolute tolerance for solving the growth ODEs.
+    growth_dt0: float, optional
+        The initial step size for solving the growth ODEs.
     lpt_order : int, optional
         LPT order, with 1 for Zel'dovich approximation, 2 for 2LPT, and 3 for 3LPT.
     a_start : float, optional
@@ -120,6 +122,7 @@ class Configuration:
 
     growth_rtol: Optional[float] = None
     growth_atol: Optional[float] = None
+    growth_dt0: Optional[float] = None
 
     lpt_order: int = 2
 

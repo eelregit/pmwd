@@ -1,8 +1,8 @@
 from jax import jit, custom_vjp, ensure_compile_time_eval
 import jax.numpy as jnp
-from diffrax import diffeqsolve, ODETerm, SaveAt, PIDController, Dopri5
 
 from pmwd.cosmology import H_deriv, Omega_m_a
+from pmwd.ode_util import odeint
 
 
 @jit
@@ -132,7 +132,7 @@ def transfer(k, cosmo, conf):
         raise NotImplementedError('TODO')
 
 
-@jit  # TODO ConcretizationTypeError arises with jit
+@jit
 def growth_integ(cosmo, conf):
     """Integrate and tabulate (LPT) growth functions and derivatives at given scale
     factors.
@@ -168,7 +168,7 @@ def growth_integ(cosmo, conf):
 
     # TODO necessary to add lpt_order support?
     # G and lna can either be at a single time, or have leading time axes
-    def ode(lna, G, cosmo):
+    def ode(G, lna, cosmo):
         a = jnp.exp(lna)
         dlnH_dlna = H_deriv(a, cosmo)
         Omega_fac = 1.5 * Omega_m_a(a, cosmo)
@@ -179,12 +179,10 @@ def growth_integ(cosmo, conf):
 
     G_ic = jnp.array((1, 0, 3/7, 0), dtype=conf.cosmo_dtype)
 
-    G = diffeqsolve(ODETerm(ode), Dopri5(), t0=lna[0], t1=lna[-1], dt0=0.1,
-                    y0=G_ic, args=cosmo, saveat=SaveAt(ts=lna),
-                    stepsize_controller=PIDController(
-                        rtol=conf.growth_rtol, atol=conf.growth_atol)).ys
+    G = odeint(ode, G_ic, lna, cosmo, dt0=conf.growth_dt0,
+               rtol=conf.growth_rtol, atol=conf.growth_atol)
 
-    G_deriv = ode(lna[:, jnp.newaxis], G, cosmo)
+    G_deriv = ode(G, lna[:, jnp.newaxis], cosmo)
 
     G = G.reshape(num_a, num_order, num_deriv-1)
     G_deriv = G_deriv.reshape(num_a, num_order, num_deriv-1)
