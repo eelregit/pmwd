@@ -12,6 +12,7 @@
 module --force purge
 module load modules/2.0-20220630
 module load slurm
+module load openblas
 module load gcc/11.2.0 openmpi/4.0.7
 module load gsl/2.7
 module load fftw/3.3.10
