@@ -11,7 +11,7 @@ from pmwd.particles import Particles, ptcl_pos
 
 
 def read_gadget_hdf5(base, pmid_dtype=jnp.int16, verbose=False):
-    """Read dark-matter-only Gadget HDF5 snapshot or initial condition files.
+    """Read dark matter only Gadget HDF5 snapshot or initial condition files.
 
     Parameters
     ----------
@@ -100,7 +100,8 @@ def read_gadget_hdf5(base, pmid_dtype=jnp.int16, verbose=False):
     return a, ptcl, conf
 
 
-def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf, ids_dtype=np.uint32):
+def write_gadget_hdf5(base, a, ptcl, cosmo, conf, num_files=1,
+                      ids_dtype=np.uint64, float_dtype=np.float64):
     """Write minimal Gadget HDF5 snapshot or initial condition files for dark matter
     only simulations.
 
@@ -109,15 +110,17 @@ def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf, ids_dtype=np.uint32
     base : str
         Base of output path. Single file output is written to base.hdf5, and multiple
         ones to base.0.hdf5, base.1.hdf5, etc.
-    num_files : int
-        Number of output files.
     a : float
         Scale factor.
     ptcl : Particles
     cosmo : Cosmology
     conf : Configuration
+    num_files : int, optional
+        Number of output files.
     ids_dtype : dtype_like, optional
-        Particle ID precision for Gadget.
+        Particle ID dtype for Gadget.
+    float_dtype : dtype_like, optional
+        Particle float dtype for Gadget.
 
     Raises
     ------
@@ -130,14 +133,14 @@ def write_gadget_hdf5(base, num_files, a, ptcl, cosmo, conf, ids_dtype=np.uint32
     if len(set(conf.box_size)) != 1:
         raise ValueError('noncubic box not supported')
 
-    ids = np.arange(1, 1+conf.ptcl_num, dtype=ids_dtype)
-    pos = ptcl_pos(ptcl, conf, dtype=conf.float_dtype)
-    vel = ptcl.vel.astype(conf.float_dtype) / a**1.5
+    ids = 1 + ptcl.raveled_id(dtype=ids_dtype)
+    pos = ptcl.pos(dtype=float_dtype)
+    vel = ptcl.vel.astype(float_dtype) / a**1.5
     pos, vel = device_get([pos, vel])
 
     # PartType0 is reserved for gas particles in Gadget
     ptcl_num = np.array([0, conf.ptcl_num], dtype=ids_dtype)
-    ptcl_mass = np.array([0, cosmo.ptcl_mass], dtype=conf.float_dtype)
+    ptcl_mass = np.array([0, cosmo.ptcl_mass], dtype=float_dtype)
 
     header = {
         'BoxSize': conf.box_size[0],
