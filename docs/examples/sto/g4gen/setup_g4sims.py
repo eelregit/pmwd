@@ -29,7 +29,7 @@ def gen_g4files(sim_dir, i, fn_sobol='sobol.txt',
     # generate initial condition on GPU, to be consistent with training
     with jax.default_device(jax.devices('gpu')[0]):
         ptcl, cosmo, conf, sobol = gen_ic(i, fn_sobol, re_sobol=True)
-    write_gadget_hdf5(os.path.join(sim_dir, 'ic'), 1, conf.a_start, ptcl, cosmo, conf)
+    write_gadget_hdf5(os.path.join(sim_dir, 'ic'), conf.a_start, ptcl, cosmo, conf)
 
     with (open(tpl_config, 'r') as f,
           open(os.path.join(sim_dir, 'Config.sh'), 'w') as fo):
