@@ -155,7 +155,8 @@ def optimal_step_size(last_step, mean_error_ratio, safety=0.9, ifactor=10.0,
     return jnp.where(mean_error_ratio == 0, last_step * ifactor, last_step * factor)
 
 
-def odeint(func, y0, t, *args, rtol=1.4e-8, atol=1.4e-8, mxstep=jnp.inf, hmax=jnp.inf):
+def odeint(func, y0, t, *args, rtol=1.4e-8, atol=1.4e-8, mxstep=jnp.inf, hmax=jnp.inf,
+           dt0=None):
     """Adaptive stepsize (Dormand-Prince) Runge-Kutta odeint implementation.
 
     Args:
@@ -171,6 +172,8 @@ def odeint(func, y0, t, *args, rtol=1.4e-8, atol=1.4e-8, mxstep=jnp.inf, hmax=jn
       atol: float, absolute local error tolerance for solver (optional).
       mxstep: int, maximum number of steps to take for each timepoint (optional).
       hmax: float, maximum step size allowed (optional).
+      dt0: float, None, or 2-tuple of float or None, initial step size for forward and
+        reverse integration (optional)
 
     Returns:
       Values of the solution `y` (i.e. integrated system values) at each time
@@ -186,19 +189,19 @@ def odeint(func, y0, t, *args, rtol=1.4e-8, atol=1.4e-8, mxstep=jnp.inf, hmax=jn
 
     converted, consts = custom_derivatives.closure_convert(
         func, y0, t[0], *args)
-    return _odeint_wrapper(converted, rtol, atol, mxstep, hmax, y0, t, *args, *consts)
+    return _odeint_wrapper(converted, rtol, atol, mxstep, hmax, dt0, y0, t, *args, *consts)
 
 
-@partial(jax.jit, static_argnums=(0, 1, 2, 3, 4))
-def _odeint_wrapper(func, rtol, atol, mxstep, hmax, y0, ts, *args):
+@partial(jax.jit, static_argnums=(0, 1, 2, 3, 4, 5))
+def _odeint_wrapper(func, rtol, atol, mxstep, hmax, dt0, y0, ts, *args):
     y0, unravel = ravel_pytree(y0)
     func = ravel_first_arg(func, unravel)
-    out = _odeint(func, rtol, atol, mxstep, hmax, y0, ts, *args)
+    out = _odeint(func, rtol, atol, mxstep, hmax, dt0, y0, ts, *args)
     return jax.vmap(unravel)(out)
 
 
-@partial(jax.custom_vjp, nondiff_argnums=(0, 1, 2, 3, 4))
-def _odeint(func, rtol, atol, mxstep, hmax, y0, ts, *args):
+@partial(jax.custom_vjp, nondiff_argnums=(0, 1, 2, 3, 4, 5))
+def _odeint(func, rtol, atol, mxstep, hmax, dt0, y0, ts, *args):
     def func_(y, t): return func(y, t, *args)
 
     def scan_fun(carry, target_t):
@@ -229,20 +232,23 @@ def _odeint(func, rtol, atol, mxstep, hmax, y0, ts, *args):
         return carry, y_target
 
     f0 = func_(y0, ts[0])
-    dt = jnp.clip(initial_step_size(
-        func_, ts[0], y0, 4, rtol, atol, f0), a_min=0., a_max=hmax)
+    dt = dt0[0] if isinstance(dt0, tuple) else dt0
+    if dt is None:
+        dt = initial_step_size(func_, ts[0], y0, 4, rtol, atol, f0)
+    dt = jnp.clip(dt, a_min=0., a_max=hmax)
     interp_coeff = jnp.array([y0] * 5)
     init_carry = [y0, f0, ts[0], dt, ts[0], interp_coeff]
     _, ys = lax.scan(scan_fun, init_carry, ts[1:])
     return jnp.concatenate((y0[None], ys))
 
 
-def _odeint_fwd(func, rtol, atol, mxstep, hmax, y0, ts, *args):
-    ys = _odeint(func, rtol, atol, mxstep, hmax, y0, ts, *args)
+def _odeint_fwd(func, rtol, atol, mxstep, hmax, dt0, y0, ts, *args):
+    ys = _odeint(func, rtol, atol, mxstep, hmax, dt0, y0, ts, *args)
     return ys, (ys, ts, args)
 
 
-def _odeint_rev(func, rtol, atol, mxstep, hmax, res, g):
+def _odeint_rev(func, rtol, atol, mxstep, hmax, dt0, res, g):
+    dt = dt0[1] if isinstance(dt0, tuple) else dt0
     ys, ts, args = res
 
     def aug_dynamics(augmented_state, t, *args):
@@ -267,7 +273,7 @@ def _odeint_rev(func, rtol, atol, mxstep, hmax, res, g):
         _, y_bar, t0_bar, args_bar = odeint(
             aug_dynamics, (ys[i], y_bar, t0_bar, args_bar),
             jnp.array([-ts[i], -ts[i - 1]]),
-            *args, rtol=rtol, atol=atol, mxstep=mxstep, hmax=hmax)
+            *args, rtol=rtol, atol=atol, mxstep=mxstep, hmax=hmax, dt0=dt)
         y_bar, t0_bar, args_bar = tree_map(
             op.itemgetter(1), (y_bar, t0_bar, args_bar))
         # Add gradient from current output

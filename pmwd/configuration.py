@@ -61,6 +61,10 @@ class Configuration:
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
         Absolute tolerance for solving the growth ODEs.
+    growth_inistep: float, None, or 2-tuple of float or None, optional
+        The initial step size for solving the growth ODEs. If None, use estimation. If a
+        tuple, use the two step sizes for forward and reverse integrations,
+        respectively.
     lpt_order : int, optional
         LPT order, with 1 for Zel'dovich approximation, 2 for 2LPT, and 3 for 3LPT.
     a_start : float, optional
@@ -120,6 +124,8 @@ class Configuration:
 
     growth_rtol: Optional[float] = None
     growth_atol: Optional[float] = None
+    growth_inistep: Union[float, None,
+                          Tuple[Optional[float], Optional[float]]] = (1, None)
 
     lpt_order: int = 2
 
