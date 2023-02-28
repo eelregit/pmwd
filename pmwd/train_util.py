@@ -62,21 +62,20 @@ def scale_Sobol(fn='sobol.txt', ind=slice(None)):
     return sobol.T
 
 
-def gen_ic(i, fn_sobol='sobol.txt', re_sobol=False):
-    """Generate the initial condition for nbody.
+def gen_ic(i, fn_sobol='sobol.txt', re_sobol=False, mesh_shape=1):
+    """Generate the initial condition with lpt for nbody.
     The seed for white noise is simply the Sobol index i.
     """
     sobol = scale_Sobol(fn_sobol, i)  # scaled Sobol parameters at i
 
-    # initialize cosmo and conf based on the Sobol parameters
-    # Fields related to mesh shape and number of time steps in conf
-    # need to be further sampled and replaced for pmwd during training.
     conf = Configuration(
         ptcl_spacing = sobol[0] / 128,
         ptcl_grid_shape = (128,) * 3,
         a_start = 1 / 16,
         float_dtype = jnp.float64,
         growth_dt0 = 1,
+        mesh_shape = mesh_shape,
+        # TODO number of time steps
     )
 
     cosmo = Cosmology(
