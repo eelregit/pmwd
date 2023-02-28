@@ -72,6 +72,7 @@ def gen_ic(i, fn_sobol='sobol.txt', re_sobol=False, mesh_shape=1):
         ptcl_spacing = sobol[0] / 128,
         ptcl_grid_shape = (128,) * 3,
         a_start = 1 / 16,
+        a_stop = 1 + 1 / 128,
         float_dtype = jnp.float64,
         growth_dt0 = 1,
         mesh_shape = mesh_shape,
