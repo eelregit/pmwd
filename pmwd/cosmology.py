@@ -73,6 +73,7 @@ class Cosmology:
 
     varlin: Optional[Array] = field(default=None, compare=False)
 
+    # list of parameters of SO neural nets, order: f, g, h
     so_params: Optional[list[FrozenDict]] = None
 
     def __post_init__(self):
