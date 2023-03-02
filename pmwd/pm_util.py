@@ -157,15 +157,15 @@ def enmesh(i1, d1, a1, s1, b12, a2, s2, grad):
         return i2, f2
 
 
-def rfftnfreq(shape, spacing, dtype=float):
+def rfftnfreq(shape, spacing, dtype=jnp.float64):
     """Broadcastable "``sparse``" wavevectors for ``numpy.fft.rfftn``.
 
     Parameters
     ----------
     shape : tuple of int
         Shape of ``rfftn`` input.
-    spacing : float
-        Grid spacing.
+    spacing : float or None, optional
+        Grid spacing. None is equivalent to a 2π spacing, with a wavevector period of 1.
     dtype : dtype_like
 
     Returns
@@ -174,7 +174,9 @@ def rfftnfreq(shape, spacing, dtype=float):
         Wavevectors.
 
     """
-    freq_period = 2. * jnp.pi / spacing
+    freq_period = 1
+    if spacing is not None:
+        freq_period = 2 * jnp.pi / spacing
 
     kvec = []
     for axis, s in enumerate(shape[:-1]):
