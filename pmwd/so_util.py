@@ -7,7 +7,7 @@ from flax.core.frozen_dict import unfreeze, freeze
 from typing import Sequence, Callable
 import math
 
-from pmwd.pm_util import rfftnfreq
+from pmwd import H_deriv, Omega_m_a, growth
 
 
 class MLP(nn.Module):
@@ -32,7 +32,7 @@ class MLP(nn.Module):
 
 
 def init_mlp_params(n_input, nodes, zero_params=None):
-    """Initialized MLP parameters."""
+    """Initialize MLP parameters."""
     nets = [MLP(features=n) for n in nodes]
     xs = [jnp.ones(n) for n in n_input]  # dummy inputs
     keys = random.split(random.PRNGKey(0), len(n_input))
@@ -55,91 +55,57 @@ def init_mlp_params(n_input, nodes, zero_params=None):
     return params
 
 
-def soft_3d(k, P):
-    """Input SO features for g(k) net, with k being 3D wavenumber.
-
-    Paramters
-    ---------
-        k: float
-            3D wavenumber
-        P: (cosmo, conf, a)
-    """
-    cosmo, conf, a = P
-    fts = jnp.array([
-        k * conf.cell_size,
-        k * conf.box_size[0],  # TODO more features
+# TODO add more relevant factors
+def sotheta(cosmo, conf, a):
+    theta_l = jnp.asarray([  # quantities of dim L
+        conf.ptcl_spacing,
+        conf.cell_size,
     ])
-    return fts
-
-
-def soft_1d(k, P):
-    """Input SO features for f(k) net, with k being 1D wavenumber.
-
-    Paramters
-    ---------
-        k: float
-            1D wavenumber
-        P: (cosmo, conf, a)
-    """
-    cosmo, conf, a = P
-    fts = jnp.array([
-        k * conf.cell_size,
-        k * conf.box_size[0],  # TODO more features
+    theta_o = jnp.asarray([  # dimensionless quantities
+        a,
+        Omega_m_a(a, cosmo),
+        growth(a, cosmo, conf),
+        growth(a, cosmo, conf, deriv=1),
+        H_deriv(a, cosmo),
     ])
-    return fts
+    return (theta_l, theta_o)
 
 
-def sofeatures(kvec, cosmo, conf, a):
-    """Input spatial optim features for the neural nets.
-
-    Returns
-    -------
-        ft_k: array
-            features for k
-        ft_kvec: list
-            list of feature arrays for kvec
-    """
-    k = jnp.sqrt(sum(kv**2 for kv in kvec))
-    P = (cosmo, conf, a)
-    ft_k = jax.vmap(soft_3d, (0, None), 0)(k.ravel(), P).reshape(k.shape+(-1,))
-    ft_kvec = [jax.vmap(soft_1d, (0, None), 0)(kv.ravel(), P).reshape(
-        kv.shape+(-1,)) for kv in kvec]
-    return ft_k, ft_kvec
+def soft_len(cosmo, conf):
+    tl, to = sotheta(cosmo, conf, conf.a_start)
+    return len(tl) + len(to)
 
 
-def sharpening(pot, cosmo, conf, a):
-    """Apply the spatial optimization to the laplace potential.
-    """
-    kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
-    # input features of the neural nets
-    # 0 for k and 1 for kvec
-    fts = sofeatures(kvec, cosmo, conf, a)
-    # neural nets
-    nets = [MLP(features=n) for n in conf.so_nodes]
-    # modification factors to the laplace potential
-    g_k = nets[0].apply(cosmo.so_params[0], fts[0])
-    g_k = g_k.reshape(g_k.shape[:-1])  # remove the trailing axis of dim one
-    f_kvec = [nets[1].apply(cosmo.so_params[1], ft) for ft in fts[1]]
-    f_kvec = [f.reshape(f.shape[:-1]) for f in f_kvec]
-    pot *= g_k * math.prod(f_kvec)
+def soft(k, theta):
+    """SO features for neural nets input."""
+    # multiply each element of k with theta_l, and append theta_o
+    # return is of shape k.shape + (len(theta_l) + len(theta_o),)
+    theta_l, theta_o = theta
+    k_shape = k.shape
+    f = k.reshape(k_shape+(1,)) * theta_l.reshape((1,)*len(k_shape)+theta_l.shape)
+    f = jnp.concatenate((f, jnp.broadcast_to(theta_o, k_shape+theta_o.shape)), axis=-1)
+    return f
+
+
+def sonn(k, theta, cosmo, conf, nid):
+    """Evaluate the neural net."""
+    ft = soft(k, theta)
+    net = MLP(features=conf.so_nodes[nid])
+    return net.apply(cosmo.so_params[nid], ft)[..., 0]  # rm the trailing axis of dim one
+
+
+def pot_sharp(kvec, theta, pot, cosmo, conf, a):
+    """Spatial optimization of the laplace potential."""
+    f = [sonn(k_, theta, cosmo, conf, 0) for k_ in kvec]
+
+    k = jnp.sqrt(sum(k_**2 for k_ in kvec))
+    g = sonn(k, theta, cosmo, conf, 1)
+
+    pot *= g * math.prod(f)
     return pot
 
 
-def gnet(k, params, cosmo, conf, a):
-    """Function g(k) neural net, where k is 3D wavenumber."""
-    if k == 'rfftn':
-        kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
-        k = jnp.sort(jnp.sqrt(sum(kv**2 for kv in kvec)).ravel())
-    fts = jax.vmap(soft_3d, (0, None), 0)(k, (cosmo, conf, a))
-    net = MLP(features=conf.so_nodes[0])
-    return net.apply(params, fts), k
-
-
-def fnet(k, params, cosmo, conf, a):
-    """Function f(k) neural net, where k is 1D wavenumber."""
-    if k == 'rfftn':
-        kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
-        k = jnp.sort(kvec[0].ravel())
-    fts = jax.vmap(soft_1d, (0, None), 0)(k, (cosmo, conf, a))
-    net = MLP(features=conf.so_nodes[1])
-    return net.apply(params, fts), k
+def grad_sharp(k, theta, grad, cosmo, conf, a):
+    """Spatial optimization of the gradient."""
+    grad *= sonn(k, theta, cosmo, conf, 2)
+    return grad
