@@ -1,9 +1,12 @@
+from functools import reduce
+from operator import mul
+
 import jax.numpy as jnp
 
 from pmwd.pm_util import rfftnfreq
 
 
-def powspec(f, spacing, dk=None, g=None, int_dtype=jnp.uint32):
+def powspec(f, spacing, dk=None, g=None, deconv=0, int_dtype=jnp.uint32):
     """Compute auto or cross power spectrum in 3D in spherical bins.
 
     Parameters
@@ -16,6 +19,8 @@ def powspec(f, spacing, dk=None, g=None, int_dtype=jnp.uint32):
         Wavenumber bin width. Default is the largest fundamental frequency.
     g : array_like, optional
         Another field of the same shape for cross correlation.
+    deconv : int, optional
+        Power of sinc factors to deconvolve in the power spectrum.
     int_dtype : dtype_like, optional
         Integer dtype for the number of modes.
 
@@ -54,6 +59,9 @@ def powspec(f, spacing, dk=None, g=None, int_dtype=jnp.uint32):
 
     kvec = rfftnfreq(grid_shape, None, dtype=P.real.dtype)
     k = jnp.sqrt(sum(k**2 for k in kvec))
+
+    if deconv != 0:
+        P = reduce(mul, (jnp.sinc(k) ** -deconv for k in kvec), P)
 
     N = jnp.full_like(P, 2, dtype=int_dtype)
     N = N.at[..., 0].set(1)
