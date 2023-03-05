@@ -62,7 +62,8 @@ def scale_Sobol(fn='sobol.txt', ind=slice(None)):
     return sobol.T
 
 
-def gen_ic(i, fn_sobol='sobol.txt', re_sobol=False, mesh_shape=1):
+def gen_ic(i, fn_sobol='sobol.txt', re_sobol=False,
+           a_start=1/16, a_stop=1+1/128, a_nbody_maxstep=1/64, mesh_shape=1):
     """Generate the initial condition with lpt for nbody.
     The seed for white noise is simply the Sobol index i.
     """
@@ -71,12 +72,13 @@ def gen_ic(i, fn_sobol='sobol.txt', re_sobol=False, mesh_shape=1):
     conf = Configuration(
         ptcl_spacing = sobol[0] / 128,
         ptcl_grid_shape = (128,) * 3,
-        a_start = 1 / 16,
-        a_stop = 1 + 1 / 128,
+        a_start = a_start,
+        a_stop = a_stop,
         float_dtype = jnp.float64,
         growth_dt0 = 1,
         mesh_shape = mesh_shape,
         # TODO number of time steps
+        a_nbody_maxstep=a_nbody_maxstep,
     )
 
     cosmo = Cosmology(
