@@ -103,7 +103,7 @@ cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx,
         // cell index for each dimension
         T_int1  c_index[DIM];
         for(int idim=0; idim<3; idim++){
-            c_index[idim] = (static_cast<int>(std::floor((p_disp[idim]+g_offset[idim])/cell_size)+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
+            c_index[idim] = ((static_cast<int>(std::floor((p_disp[idim]+g_offset[idim])/cell_size))+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
             //c_index[idim] = (static_cast<int>(std::floor(p_disp[idim]/cell_size)+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
         }
         c_index[0] = c_index[0]/bin_size_x;
