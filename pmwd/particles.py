@@ -185,7 +185,7 @@ class Particles:
         return raveled_id
 
     def pos(self, dtype=jnp.float64, wrap=True):
-        """Particle positions in [L].
+        """Particle positions.
 
         Parameters
         ----------
@@ -197,7 +197,7 @@ class Particles:
         Returns
         -------
         pos : jax.numpy.ndarray
-            Particle positions.
+            Particle positions in [L].
 
         """
         conf = self.conf
@@ -262,7 +262,7 @@ def ptcl_pos(ptcl, conf, dtype=float, wrap=True):
 
 
 def ptcl_rpos(ptcl, ref, conf, wrap=True):
-    """Positions of Particles ptcl relative to references in [L].
+    """Particle positions relative to references.
 
     Parameters
     ----------
@@ -276,7 +276,7 @@ def ptcl_rpos(ptcl, ref, conf, wrap=True):
     Returns
     -------
     rpos : jax.numpy.ndarray of conf.float_dtype
-        Particle relative positions.
+        Particle relative positions in [L].
 
     """
     if not isinstance(ref, Particles):
@@ -295,7 +295,7 @@ def ptcl_rpos(ptcl, ref, conf, wrap=True):
 
 
 def ptcl_rsd(ptcl, los, a, cosmo):
-    """Particle redshift-space distortion displacements in [L].
+    """Particle redshift-space distortion displacements.
 
     Parameters
     ----------
@@ -310,7 +310,7 @@ def ptcl_rsd(ptcl, los, a, cosmo):
     Returns
     -------
     rsd : jax.numpy.ndarray of cosmo.conf.float_dtype
-        Particle redshift-space distortion displacements.
+        Particle redshift-space distortion displacements in [L].
 
     """
     conf = cosmo.conf

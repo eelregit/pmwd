@@ -284,7 +284,7 @@ _safe_power.defvjp(_safe_power_fwd, _safe_power_bwd)
 
 
 def linear_power(k, a, cosmo, conf):
-    r"""Linear matter power spectrum in [L^3] at given wavenumbers and scale factors.
+    r"""Linear matter power spectrum at given wavenumbers and scale factors.
 
     Parameters
     ----------
