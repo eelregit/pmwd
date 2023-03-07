@@ -1,5 +1,5 @@
 from functools import partial
-from math import ceil
+import math
 from typing import ClassVar, Optional, Tuple, Union
 
 from numpy.typing import DTypeLike
@@ -54,9 +54,14 @@ class Configuration:
         (subject to change when False is implemented).
     transfer_fit_nowiggle : bool, optional
         Whether to use non-oscillatory transfer function fit.
-    transfer_size : int, optional
-        Transfer function table size. Its wavenumbers ``transfer_k`` are log spaced
-        spanning the full range of particle grid scales.
+    transfer_lgk_min : float, optional
+        Minimum transfer function wavenumber in [1/L] in log10.
+    transfer_lgk_max : float, optional
+        Maximum transfer function wavenumber in [1/L] in log10.
+    transfer_lgk_maxstep : float, optional
+        Maximum transfer function wavenumber step size in [1/L] in log10. It determines
+        the number of wavenumbers ``transfer_k_num``, the actual step size
+        ``transfer_lgk_step``, and the wavenumbers ``transfer_k``.
     growth_rtol : float, optional
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
@@ -72,13 +77,12 @@ class Configuration:
     a_stop : float, optional
         N-body stopping time (scale factor).
     a_lpt_maxstep : float, optional
-        Maximum scale factor LPT light cone step size. It determines the number of
-        steps ``a_lpt_num``, the actual step size ``a_lpt_step``, and the steps
-        ``a_lpt``.
+        Maximum LPT light cone scale factor step size. It determines the number of steps
+        ``a_lpt_num``, the actual step size ``a_lpt_step``, and the steps ``a_lpt``.
     a_nbody_maxstep : float, optional
-        Maximum scale factor N-body time integration step size. It determines the
-        number of steps ``a_nbody_num``, the actual step size ``a_nbody_step``, and the
-        steps ``a_nbody``.
+        Maximum N-body time integration scale factor step size. It determines the number
+        of steps ``a_nbody_num``, the actual step size ``a_nbody_step``, and the steps
+        ``a_nbody``.
     symp_splits : tuple of float 2-tuples, optional
         Symplectic splitting method composition, with each 2-tuples being drift and then
         kick coefficients. Its adjoint has the same splits in reverse nested orders,
@@ -120,7 +124,9 @@ class Configuration:
 
     transfer_fit: bool = True
     transfer_fit_nowiggle: bool = False
-    transfer_size: int = 1024
+    transfer_lgk_min: float = -4
+    transfer_lgk_max: float = 3
+    transfer_lgk_maxstep: float = 1/128
 
     growth_rtol: Optional[float] = None
     growth_atol: Optional[float] = None
@@ -164,8 +170,7 @@ class Configuration:
             raise ValueError('float_dtype must be floating point numbers')
 
         # ~ 1.5e-8 for float64, 3.5e-4 for float32
-        with ensure_compile_time_eval():
-            growth_tol = jnp.sqrt(jnp.finfo(self.cosmo_dtype).eps).item()
+        growth_tol = math.sqrt(jnp.finfo(self.cosmo_dtype).eps)
         if self.growth_rtol is None:
             object.__setattr__(self, 'growth_rtol', growth_tol)
         if self.growth_atol is None:
@@ -251,9 +256,28 @@ class Configuration:
         return 3. * self.H_0**2 / (8. * jnp.pi * self.G)
 
     @property
+    def transfer_k_num(self):
+        """Number of transfer function wavenumbers, with leading 0."""
+        return 1 + math.ceil((self.transfer_lgk_max - self.transfer_lgk_min)
+                             / self.transfer_lgk_maxstep) + 1
+
+    @property
+    def transfer_lgk_step(self):
+        """Transfer function wavenumber step size in [1/L] in log10."""
+        return ((self.transfer_lgk_max - self.transfer_lgk_min)
+                / (self.transfer_k_num - 2))
+
+    @property
+    def transfer_k(self):
+        """Transfer function wavenumbers in [1/L]."""
+        k = jnp.logspace(self.transfer_lgk_min, self.transfer_lgk_max,
+                         num=self.transfer_k_num - 1, dtype=self.float_dtype)
+        return jnp.concatenate((jnp.array([0]), k))
+
+    @property
     def a_lpt_num(self):
         """Number of LPT light cone scale factor steps, excluding ``a_start``."""
-        return ceil(self.a_start / self.a_lpt_maxstep)
+        return math.ceil(self.a_start / self.a_lpt_maxstep)
 
     @property
     def a_lpt_step(self):
@@ -263,7 +287,7 @@ class Configuration:
     @property
     def a_nbody_num(self):
         """Number of N-body time integration scale factor steps, excluding ``a_start``."""
-        return ceil((self.a_stop - self.a_start) / self.a_nbody_maxstep)
+        return math.ceil((self.a_stop - self.a_start) / self.a_nbody_maxstep)
 
     @property
     def a_nbody_step(self):
@@ -286,13 +310,3 @@ class Configuration:
     def growth_a(self):
         """Growth function scale factors, for both LPT and N-body."""
         return jnp.concatenate((self.a_lpt, self.a_nbody[1:]))
-
-    #TODO transfer_size -> transfer_lgk_maxstep
-    @property
-    def transfer_k(self):
-        """Transfer function wavenumbers in [1/L], from the minimum fundamental """
-        """wavenumber to the space diagonal Nyquist wavenumber of the particle grid."""
-        log10_k_min = jnp.log10(2. * jnp.pi / self.box_size.max())
-        log10_k_max = jnp.log10(jnp.sqrt(self.dim) * jnp.pi / self.ptcl_spacing)
-        return jnp.logspace(log10_k_min, log10_k_max, num=self.transfer_size,
-                            dtype=self.float_dtype)

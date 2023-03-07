@@ -7,8 +7,23 @@ from pmwd.ode_util import odeint
 
 @jit
 def transfer_integ(cosmo, conf):
+    """Compute and tabulate the transfer function at given scales.
+
+    Parameters
+    ----------
+    cosmo : Cosmology
+    conf : Configuration
+
+    Returns
+    -------
+    cosmo : Cosmology
+        A new instance containing a transfer table. The transfer table has the shape
+        ``(num_scales,)`` and ``conf.float_dtype``.
+
+    """
     if conf.transfer_fit:
-        return cosmo
+        transfer = transfer_fit(conf.transfer_k, cosmo, conf)
+        return cosmo.replace(transfer=transfer)
     else:
         raise NotImplementedError('TODO')
 
@@ -125,11 +140,23 @@ def transfer(k, cosmo, conf):
     T : jax.numpy.ndarray
         Matter transfer function.
 
+    Raises
+    ------
+    ValueError
+        If ``cosmo.transfer`` table is empty.
+
     """
+    if cosmo.transfer is None:
+        raise ValueError('Transfer table is empty. Call transfer_integ or boltzmann first.')
+
+    k = jnp.asarray(k, dtype=conf.float_dtype)
+
     if conf.transfer_fit:
-        return transfer_fit(k, cosmo, conf)
+        T = jnp.interp(k, conf.transfer_k, cosmo.transfer)
     else:
         raise NotImplementedError('TODO')
+
+    return T
 
 
 @jit
@@ -145,9 +172,9 @@ def growth_integ(cosmo, conf):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing a growth table, or the input one if it already exists.
-        The growth table has the shape ``(num_lpt_order, num_derivatives,
-        num_scale_factors)`` and ``conf.cosmo_dtype``.
+        A new instance containing a growth table. The growth table has the shape
+        ``(num_lpt_order, num_derivatives, num_scale_factors)`` and
+        ``conf.cosmo_dtype``.
 
     Notes
     -----
@@ -241,23 +268,34 @@ def growth(a, cosmo, conf, order=1, deriv=0):
     return D
 
 
-def boltzmann(cosmo, conf):
+def boltzmann(cosmo, conf, transfer=True, growth=True):
     """Solve Einstein-Boltzmann equations and precompute transfer and growth functions.
 
     Parameters
     ----------
     cosmo : Cosmology
     conf : Configuration
+    transfer : bool, optional
+        Whether to compute the transfer function, or to set it to None.
+    growth : bool, optional
+        Whether to compute the growth functions, or to set it to None.
 
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing transfer and growth tables, or the input one if they
-        already exists.
+        A new instance containing transfer and growth tables.
 
     """
-    cosmo = transfer_integ(cosmo, conf)
-    cosmo = growth_integ(cosmo, conf)
+    if transfer:
+        cosmo = transfer_integ(cosmo, conf)
+    else:
+        cosmo = cosmo.replace(transfer=None)
+
+    if growth:
+        cosmo = growth_integ(cosmo, conf)
+    else:
+        cosmo = cosmo.replace(growth=None)
+
     return cosmo
 
 
