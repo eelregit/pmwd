@@ -12,7 +12,8 @@ struct PmwdDescriptor {
   T ptcl_spacing;
   T cell_size;
   T offset[3];
-  uint32_t stride[3];
+  int16_t ptcl_grid[3];
+  int16_t stride[3];
   size_t tmp_storage_size;
 };
 

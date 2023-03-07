@@ -20,17 +20,17 @@ for name, fn in _jaxpmwd.registrations().items():
 
 ### define scatter op
 @partial(jit, static_argnums=(4,5,6))
-def scatter_cuda(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size):
+def scatter_cuda(pmid, disp, val, mesh, offset, ptcl_grid, ptcl_spacing, cell_size):
 
-    return _scatter_prim.bind(pmid, disp, val, mesh, offset=offset, ptcl_spacing=ptcl_spacing, cell_size=cell_size)
+    return _scatter_prim.bind(pmid, disp, val, mesh, offset=offset, ptcl_grid=ptcl_grid, ptcl_spacing=ptcl_spacing, cell_size=cell_size)
 
-def _scatter_abstract_eval(pmid, disp, val, mesh, offset, ptcl_spacing, cell_size):
+def _scatter_abstract_eval(pmid, disp, val, mesh, offset, ptcl_grid, ptcl_spacing, cell_size):
     shape = mesh.shape
     dtype = dtypes.canonicalize_dtype(val.dtype)
     assert dtypes.canonicalize_dtype(disp.dtype) == dtype
     return mesh.update()
 
-def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_size, platform="gpu"):
+def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_grid, ptcl_spacing, cell_size, platform="gpu"):
     # Extract the numpy type of the inputs
     pmid_aval, disp_aval, *_ = ctx.avals_in
     out_aval, *_ = ctx.avals_out
@@ -50,11 +50,11 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_
     if np_dtype == np.float32:
         op_name = platform + "_scatter_f32"
         # dimension using the 'opaque' parameter
-        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f32(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
+        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f32(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *ptcl_grid, *out_type.shape)
     elif np_dtype == np.float64:
         op_name = platform + "_scatter_f64"
         # dimension using the 'opaque' parameter
-        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f64(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *out_type.shape)
+        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f64(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *ptcl_grid, *out_type.shape)
     else:
         raise NotImplementedError(f"Unsupported dtype {np_dtype}")
 
