@@ -7,7 +7,7 @@ from pmwd.ode_util import odeint
 
 @jit
 def transfer_integ(cosmo, conf):
-    """Compute and tabulate the transfer function at given scales.
+    """Compute and tabulate the transfer function at ``conf.transfer_k``.
 
     Parameters
     ----------
@@ -17,8 +17,8 @@ def transfer_integ(cosmo, conf):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing a transfer table. The transfer table has the shape
-        ``(num_scales,)`` and ``conf.float_dtype``.
+        A new instance containing a transfer table, that has the shape
+        ``(conf.transfer_k_num,)`` and ``conf.cosmo_dtype``.
 
     """
     if conf.transfer_fit:
@@ -28,7 +28,6 @@ def transfer_integ(cosmo, conf):
         raise NotImplementedError('TODO')
 
 
-# TODO maybe need to checkpoint EH for memory?
 # TODO Wayne's website: neutrino no wiggle case
 def transfer_fit(k, cosmo, conf):
     """Eisenstein & Hu fit of matter transfer function at given wavenumbers.
@@ -42,15 +41,15 @@ def transfer_fit(k, cosmo, conf):
 
     Returns
     -------
-    T : jax.numpy.ndarray of conf.float_dtype
+    T : jax.numpy.ndarray of (k * 1.).dtype
         Matter transfer function.
 
     .. _Transfer Function:
         http://background.uchicago.edu/~whu/transfer/transferpage.html
 
     """
-    k = jnp.asarray(k, dtype=conf.float_dtype)
-    cosmo = cosmo.astype(conf.float_dtype)
+    k = jnp.asarray(k)
+    float_dtype = jnp.promote_types(k.dtype, float)
 
     k = k * cosmo.h / conf.L * conf.Mpc_SI  # unit conversion to [1/Mpc]
 
@@ -121,7 +120,7 @@ def transfer_fit(k, cosmo, conf):
 
     T = f_c * T_c + f_b * T_b
 
-    return T
+    return T.astype(float_dtype)
 
 
 def transfer(k, cosmo, conf):
@@ -137,7 +136,7 @@ def transfer(k, cosmo, conf):
 
     Returns
     -------
-    T : jax.numpy.ndarray
+    T : jax.numpy.ndarray of (k * 1.).dtype
         Matter transfer function.
 
     Raises
@@ -149,20 +148,21 @@ def transfer(k, cosmo, conf):
     if cosmo.transfer is None:
         raise ValueError('Transfer table is empty. Call transfer_integ or boltzmann first.')
 
-    k = jnp.asarray(k, dtype=conf.float_dtype)
+    k = jnp.asarray(k)
+    float_dtype = jnp.promote_types(k.dtype, float)
 
     if conf.transfer_fit:
         T = jnp.interp(k, conf.transfer_k, cosmo.transfer)
     else:
         raise NotImplementedError('TODO')
 
-    return T
+    return T.astype(float_dtype)
 
 
 @jit
 def growth_integ(cosmo, conf):
-    """Integrate and tabulate (LPT) growth functions and derivatives at given scale
-    factors.
+    """Integrate and tabulate (LPT) growth functions and derivatives at
+    ``conf.growth_a``.
 
     Parameters
     ----------
@@ -172,9 +172,8 @@ def growth_integ(cosmo, conf):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing a growth table. The growth table has the shape
-        ``(num_lpt_order, num_derivatives, num_scale_factors)`` and
-        ``conf.cosmo_dtype``.
+        A new instance containing a growth table, that has the shape ``(num_lpt_order,
+        num_derivatives, len(conf.growth_a))`` and ``conf.cosmo_dtype``.
 
     Notes
     -----
@@ -249,7 +248,7 @@ def growth(a, cosmo, conf, order=1, deriv=0):
 
     Returns
     -------
-    D : jax.numpy.ndarray of conf.cosmo_dtype
+    D : jax.numpy.ndarray of (a * 1.).dtype
         Growth functions or derivatives.
 
     Raises
@@ -261,11 +260,12 @@ def growth(a, cosmo, conf, order=1, deriv=0):
     if cosmo.growth is None:
         raise ValueError('Growth table is empty. Call growth_integ or boltzmann first.')
 
-    a = jnp.asarray(a, dtype=conf.cosmo_dtype)
+    a = jnp.asarray(a)
+    float_dtype = jnp.promote_types(a.dtype, float)
 
     D = a**order * jnp.interp(a, conf.growth_a, cosmo.growth[order-1][deriv])
 
-    return D
+    return D.astype(float_dtype)
 
 
 def boltzmann(cosmo, conf, transfer=True, growth=True):
@@ -335,7 +335,7 @@ def linear_power(k, a, cosmo, conf):
 
     Returns
     -------
-    Plin : jax.numpy.ndarray of conf.float_dtype
+    Plin : jax.numpy.ndarray of (k * a * 1.).dtype
         Linear matter power spectrum in [L^3].
 
     Raises
@@ -359,13 +359,17 @@ def linear_power(k, a, cosmo, conf):
     if conf.dim != 3:
         raise ValueError(f'dim={conf.dim} not supported')
 
-    k = jnp.asarray(k, dtype=conf.float_dtype)
+    k = jnp.asarray(k)
+    float_dtype = jnp.promote_types(k.dtype, float)
+
     T = transfer(k, cosmo, conf)
 
     D = 1
     if a is not None:
+        a = jnp.asarray(a)
+        float_dtype = jnp.promote_types(float_dtype, a.dtype)
+
         D = growth(a, cosmo, conf)
-        D = D.astype(conf.float_dtype)
 
     Plin = (
         0.32 * cosmo.A_s * cosmo.k_pivot * _safe_power(k / cosmo.k_pivot, cosmo.n_s)
@@ -373,4 +377,4 @@ def linear_power(k, a, cosmo, conf):
         * D**2
     )
 
-    return Plin
+    return Plin.astype(float_dtype)

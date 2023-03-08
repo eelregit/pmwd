@@ -79,7 +79,7 @@ def linear_modes(modes, cosmo, conf, a=None):
         Fourier or real modes with white noise prior.
     cosmo : Cosmology
     conf : Configuration
-    a : float, optional
+    a : float or None, optional
         Scale factors. Default (None) is to not scale the output modes by growth.
 
     Returns
@@ -97,6 +97,9 @@ def linear_modes(modes, cosmo, conf, a=None):
     """
     kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
     k = jnp.sqrt(sum(k**2 for k in kvec))
+
+    if a is not None:
+        a = jnp.asarray(a, dtype=conf.float_dtype)
 
     Plin = linear_power(k, a, cosmo, conf)
 

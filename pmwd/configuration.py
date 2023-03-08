@@ -100,7 +100,7 @@ class Configuration:
     ptcl_spacing: float
     ptcl_grid_shape: Tuple[int, ...]  # tuple[int, ...] for python >= 3.9 (PEP 585)
 
-    mesh_shape: Union[int, float, Tuple[int, ...]] = 1
+    mesh_shape: Union[float, Tuple[int, ...]] = 1
 
     cosmo_dtype: DTypeLike = jnp.float64
     pmid_dtype: DTypeLike = jnp.int16
@@ -136,7 +136,7 @@ class Configuration:
     lpt_order: int = 2
 
     a_start: float = 1/64
-    a_stop: float = 1.
+    a_stop: float = 1
     a_lpt_maxstep: float = 1/128
     a_nbody_maxstep: float = 1/64
 
@@ -253,11 +253,11 @@ class Configuration:
     @property
     def rho_crit(self):
         """Critical density in [M / L^3]."""
-        return 3. * self.H_0**2 / (8. * jnp.pi * self.G)
+        return 3 * self.H_0**2 / (8 * jnp.pi * self.G)
 
     @property
     def transfer_k_num(self):
-        """Number of transfer function wavenumbers, with leading 0."""
+        """Number of transfer function wavenumbers, including a leading 0."""
         return 1 + math.ceil((self.transfer_lgk_max - self.transfer_lgk_min)
                              / self.transfer_lgk_maxstep) + 1
 
@@ -269,9 +269,9 @@ class Configuration:
 
     @property
     def transfer_k(self):
-        """Transfer function wavenumbers in [1/L]."""
+        """Transfer function wavenumbers in [1/L], of ``cosmo_dtype``."""
         k = jnp.logspace(self.transfer_lgk_min, self.transfer_lgk_max,
-                         num=self.transfer_k_num - 1, dtype=self.float_dtype)
+                         num=self.transfer_k_num - 1, dtype=self.cosmo_dtype)
         return jnp.concatenate((jnp.array([0]), k))
 
     @property
@@ -296,17 +296,17 @@ class Configuration:
 
     @property
     def a_lpt(self):
-        """LPT light cone scale factor steps, including ``a_start``."""
+        """LPT light cone scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
         return jnp.linspace(0, self.a_start, num=self.a_lpt_num+1,
                             dtype=self.cosmo_dtype)
 
     @property
     def a_nbody(self):
-        """N-body time integration scale factor steps, including ``a_start``."""
+        """N-body time integration scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
         return jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
                             dtype=self.cosmo_dtype)
 
     @property
     def growth_a(self):
-        """Growth function scale factors, for both LPT and N-body."""
+        """Growth function scale factors, for both LPT and N-body, of ``cosmo_dtype``."""
         return jnp.concatenate((self.a_lpt, self.a_nbody[1:]))

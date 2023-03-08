@@ -26,19 +26,23 @@ def drift_factor(a_vel, a_prev, a_next, cosmo, conf):
     """Drift time step factor of conf.float_dtype in [1/H_0]."""
     factor = growth(a_next, cosmo, conf) - growth(a_prev, cosmo, conf)
     factor /= _G_D(a_vel, cosmo, conf)
-    return factor.astype(conf.float_dtype)
+    return factor
 
 
 def kick_factor(a_acc, a_prev, a_next, cosmo, conf):
     """Kick time step factor of conf.float_dtype in [1/H_0]."""
     factor = _G_D(a_next, cosmo, conf) - _G_D(a_prev, cosmo, conf)
     factor /= _G_K(a_acc, cosmo, conf)
-    return factor.astype(conf.float_dtype)
+    return factor
 
 
 def drift(a_vel, a_prev, a_next, ptcl, cosmo, conf):
     """Drift."""
-    disp = ptcl.disp + ptcl.vel * drift_factor(a_vel, a_prev, a_next, cosmo, conf)
+    factor = drift_factor(a_vel, a_prev, a_next, cosmo, conf)
+    factor = factor.astype(conf.float_dtype)
+
+    disp = ptcl.disp + ptcl.vel * factor
+
     return ptcl.replace(disp=disp)
 
 
@@ -46,6 +50,7 @@ def drift_adj(a_vel, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf):
     """Drift, and particle and cosmology adjoints."""
     factor_valgrad = value_and_grad(drift_factor, argnums=3)
     factor, cosmo_cot_drift = factor_valgrad(a_vel, a_prev, a_next, cosmo, conf)
+    factor = factor.astype(conf.float_dtype)
 
     # drift
     disp = ptcl.disp + ptcl.vel * factor
@@ -64,7 +69,11 @@ def drift_adj(a_vel, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf):
 
 def kick(a_acc, a_prev, a_next, ptcl, cosmo, conf):
     """Kick."""
-    vel = ptcl.vel + ptcl.acc * kick_factor(a_acc, a_prev, a_next, cosmo, conf)
+    factor = kick_factor(a_acc, a_prev, a_next, cosmo, conf)
+    factor = factor.astype(conf.float_dtype)
+
+    vel = ptcl.vel + ptcl.acc * factor
+
     return ptcl.replace(vel=vel)
 
 
@@ -72,6 +81,7 @@ def kick_adj(a_acc, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_
     """Kick, and particle and cosmology adjoints."""
     factor_valgrad = value_and_grad(kick_factor, argnums=3)
     factor, cosmo_cot_kick = factor_valgrad(a_acc, a_prev, a_next, cosmo, conf)
+    factor = factor.astype(conf.float_dtype)
 
     # kick
     vel = ptcl.vel + ptcl.acc * factor
