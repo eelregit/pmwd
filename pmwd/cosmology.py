@@ -62,15 +62,17 @@ class Cosmology:
     h: FloatParam
 
     Omega_k_: Optional[FloatParam] = None
-    Omega_k_fixed: ClassVar[float] = 0.
+    Omega_k_fixed: ClassVar[float] = 0
     w_0_: Optional[FloatParam] = None
-    w_0_fixed: ClassVar[float] = -1.
+    w_0_fixed: ClassVar[float] = -1
     w_a_: Optional[FloatParam] = None
-    w_a_fixed: ClassVar[float] = 0.
+    w_a_fixed: ClassVar[float] = 0
 
     transfer: Optional[jnp.ndarray] = field(default=None, compare=False)
 
     growth: Optional[jnp.ndarray] = field(default=None, compare=False)
+
+    varlin: Optional[jnp.ndarray] = field(default=None, compare=False)
 
     def __post_init__(self):
         if self._is_transforming():

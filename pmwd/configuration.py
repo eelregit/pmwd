@@ -7,6 +7,7 @@ import jax
 from jax import ensure_compile_time_eval
 import jax.numpy as jnp
 from jax.tree_util import tree_map
+from mcfit import TophatVar
 
 from pmwd.tree_util import pytree_dataclass
 
@@ -169,6 +170,13 @@ class Configuration:
         if not jnp.issubdtype(self.float_dtype, jnp.floating):
             raise ValueError('float_dtype must be floating point numbers')
 
+        with jax.ensure_compile_time_eval():
+            object.__setattr__(
+                self,
+                'var_tophat',
+                TophatVar(self.transfer_k[1:], lowring=True, backend='jax'),
+            )
+
         # ~ 1.5e-8 for float64, 3.5e-4 for float32
         growth_tol = math.sqrt(jnp.finfo(self.cosmo_dtype).eps)
         if self.growth_rtol is None:
@@ -310,3 +318,8 @@ class Configuration:
     def growth_a(self):
         """Growth function scale factors, for both LPT and N-body, of ``cosmo_dtype``."""
         return jnp.concatenate((self.a_lpt, self.a_nbody[1:]))
+
+    @property
+    def varlin_R(self):
+        """Linear matter overdensity variance in a top-hat window of radius R in [L], of ``cosmo_dtype``."""
+        return self.var_tophat.y

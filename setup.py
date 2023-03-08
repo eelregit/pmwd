@@ -26,6 +26,7 @@ setup(
     install_requires=[
         'jax',
         'numpy>=1.20',  # numpy.typing
+        'mcfit',
     ],
     extras_require={
         'vis': vis_require,

@@ -146,7 +146,8 @@ def transfer(k, cosmo, conf):
 
     """
     if cosmo.transfer is None:
-        raise ValueError('Transfer table is empty. Call transfer_integ or boltzmann first.')
+        raise ValueError('Transfer table is empty. '
+                         'Call transfer_integ or boltzmann first.')
 
     k = jnp.asarray(k)
     float_dtype = jnp.promote_types(k.dtype, float)
@@ -268,8 +269,75 @@ def growth(a, cosmo, conf, order=1, deriv=0):
     return D.astype(float_dtype)
 
 
-def boltzmann(cosmo, conf, transfer=True, growth=True):
-    """Solve Einstein-Boltzmann equations and precompute transfer and growth functions.
+def varlin_integ(cosmo, conf):
+    """Compute and tabulate the linear matter overdensity variance at ``conf.varlin_R``.
+
+    Parameters
+    ----------
+    cosmo : Cosmology
+    conf : Configuration
+
+    Returns
+    -------
+    cosmo : Cosmology
+        A new instance containing a linear variance table, that has the shape
+        ``(len(conf.varlin_R),)`` and ``conf.cosmo_dtype``.
+
+    """
+    Plin = linear_power(conf.var_tophat.x, None, cosmo, conf)
+
+    _, varlin = conf.var_tophat(Plin, extrap=True)
+
+    return cosmo.replace(varlin=varlin)
+
+
+def varlin(R, a, cosmo, conf):
+    """Evaluate interpolation of linear matter overdensity variance at given scales and
+    scale factors.
+
+    Parameters
+    ----------
+    R : array_like
+        Scales in [L].
+    a : array_like or None
+        Scale factors. If None, output is not scaled by growth.
+    cosmo : Cosmology
+    conf : Configuration
+
+    Returns
+    -------
+    sigma2 : jax.numpy.ndarray of (k * a * 1.).dtype
+        Linear matter overdensity variance.
+
+    Raises
+    ------
+    ValueError
+        If ``cosmo.varlin`` table is empty.
+
+    """
+    if cosmo.varlin is None:
+        raise ValueError('Linear matter overdensity variance table is empty. '
+                         'Call varlin_integ or boltzmann first.')
+
+    R = jnp.asarray(R)
+    float_dtype = jnp.promote_types(R.dtype, float)
+
+    sigma2 = jnp.interp(R, conf.varlin_R, cosmo.varlin)
+
+    if a is not None:
+        a = jnp.asarray(a)
+        float_dtype = jnp.promote_types(float_dtype, a.dtype)
+
+        D = growth(a, cosmo, conf)
+
+        sigma2 *= D**2
+
+    return sigma2.astype(float_dtype)
+
+
+def boltzmann(cosmo, conf, transfer=True, growth=True, varlin=True):
+    """Solve Einstein-Boltzmann equations and precompute transfer and growth functions,
+    etc.
 
     Parameters
     ----------
@@ -279,11 +347,13 @@ def boltzmann(cosmo, conf, transfer=True, growth=True):
         Whether to compute the transfer function, or to set it to None.
     growth : bool, optional
         Whether to compute the growth functions, or to set it to None.
+    varlin : bool, optional
+        Whether to compute the linear matter overdensity variance, or to set it to None.
 
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing transfer and growth tables.
+        A new instance containing transfer and growth tables, etc.
 
     """
     if transfer:
@@ -295,6 +365,11 @@ def boltzmann(cosmo, conf, transfer=True, growth=True):
         cosmo = growth_integ(cosmo, conf)
     else:
         cosmo = cosmo.replace(growth=None)
+
+    if varlin:
+        cosmo = varlin_integ(cosmo, conf)
+    else:
+        cosmo = cosmo.replace(varlin=None)
 
     return cosmo
 
@@ -364,17 +439,17 @@ def linear_power(k, a, cosmo, conf):
 
     T = transfer(k, cosmo, conf)
 
-    D = 1
+    Plin = (
+        0.32 * cosmo.A_s * cosmo.k_pivot * _safe_power(k / cosmo.k_pivot, cosmo.n_s)
+        * (jnp.pi * (conf.c / conf.H_0)**2 / cosmo.Omega_m * T)**2
+    )
+
     if a is not None:
         a = jnp.asarray(a)
         float_dtype = jnp.promote_types(float_dtype, a.dtype)
 
         D = growth(a, cosmo, conf)
 
-    Plin = (
-        0.32 * cosmo.A_s * cosmo.k_pivot * _safe_power(k / cosmo.k_pivot, cosmo.n_s)
-        * (jnp.pi * (conf.c / conf.H_0)**2 / cosmo.Omega_m * T)**2
-        * D**2
-    )
+        Plin *= D**2
 
     return Plin.astype(float_dtype)
