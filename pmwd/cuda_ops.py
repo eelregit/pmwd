@@ -19,7 +19,7 @@ for name, fn in _jaxpmwd.registrations().items():
   xla_client.register_custom_call_target(name, fn, platform="gpu")
 
 ### define scatter op
-@partial(jit, static_argnums=(4,5,6))
+@partial(jit, static_argnums=(4,5,6,7))
 def scatter_cuda(pmid, disp, val, mesh, offset, ptcl_grid, ptcl_spacing, cell_size):
 
     return _scatter_prim.bind(pmid, disp, val, mesh, offset=offset, ptcl_grid=ptcl_grid, ptcl_spacing=ptcl_spacing, cell_size=cell_size)

@@ -34,18 +34,18 @@ ptcl_spacing = 1.0
 offset = tuple((0.0,0.0,0.0))
 
 mesh0 = mesh*0;
-mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_spacing, cell_size).block_until_ready()
+mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_grid_shape, ptcl_spacing, cell_size).block_until_ready()
 print("cuda")
 start = time.time()
-for ii in range(1000):
-    mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_spacing, cell_size).block_until_ready()
+for ii in range(100):
+    mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_grid_shape, ptcl_spacing, cell_size).block_until_ready()
 print(time.time() - start)
 
 mesh_val = mesh0*0
 mesh_val = _scatter(pmid, disp, conf, mesh_val, val, 0, None).block_until_ready()
 print("jax")
 start = time.time()
-for ii in range(1000):
+for ii in range(100):
     mesh_val = _scatter(pmid, disp, conf, mesh_val, val, 0, None).block_until_ready()
 print(time.time() - start)
 
