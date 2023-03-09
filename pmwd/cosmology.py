@@ -140,6 +140,13 @@ class Cosmology:
         return self.w_a_fixed if self.w_a_ is None else self.w_a_
 
     @property
+    def sigma8(self):
+        """Linear matter rms overdensity within a tophat sphere of 8 Mpc/h radius at a=1."""
+        from pmwd.boltzmann import varlin
+        R = 8 * self.conf.Mpc_SI / self.conf.L
+        return jnp.sqrt(varlin(R, 1, self, self.conf))
+
+    @property
     def ptcl_mass(self):
         """Particle mass in [M]."""
         return self.conf.rho_crit * self.Omega_m * self.conf.ptcl_cell_vol
