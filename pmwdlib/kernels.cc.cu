@@ -96,7 +96,7 @@ cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx,
         T_float p_disp[DIM] = {disp[tid*DIM + 0], disp[tid*DIM + 1], disp[tid*DIM + 2]};
 
         // strides
-        T_int1 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
+        //T_int1 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
         T_int1 g_stride[3] = {stridex, stridey, stridez};
         //double g_offset[3] = {offsetx, offsety, offsetz};
         T_float g_offset[3] = {offsetx, offsety, offsetz};
@@ -104,8 +104,11 @@ cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx,
         // cell index for each dimension
         T_int1  c_index[DIM];
         double g_disp[DIM];
+        double ptcl_spacing_d = static_cast<double>(ptcl_spacing);
+        double L1[DIM] = {ptcl_spacing_d*ptcl_gridx, ptcl_spacing_d*ptcl_gridy, ptcl_spacing_d*ptcl_gridz};
         for(int idim=0; idim<3; idim++){
-            g_disp[idim] = static_cast<double>(ptcl_spacing)*p_pmid[idim]+p_disp[idim]-g_offset[idim];
+            g_disp[idim] = ptcl_spacing_d*p_pmid[idim]+p_disp[idim]-g_offset[idim];
+            g_disp[idim] = g_disp[idim] - floor(g_disp[idim]/L1[idim])*L1[idim];
             c_index[idim] = (static_cast<int>(std::floor(g_disp[idim]/cell_size))%g_stride[idim]+g_stride[idim]) % g_stride[idim];
             //c_index[idim] = ((static_cast<int>(std::floor((p_disp[idim]+g_offset[idim])/cell_size))+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
             //c_index[idim] = (static_cast<int>(std::floor(p_disp[idim]/cell_size)+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
@@ -245,7 +248,9 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
     T_int2 bidz = bid%nbinz;
 
     // strides
-    T_int2 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
+    double ptcl_spacing_d = static_cast<double>(ptcl_spacing);
+    double L1[DIM] = {ptcl_spacing_d*ptcl_gridx, ptcl_spacing_d*ptcl_gridy, ptcl_spacing_d*ptcl_gridz};
+    //T_int2 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
     T_int2 g_stride[3] = {stridex, stridey, stridez};
     T_float g_offset[3] = {offsetx, offsety, offsetz};
     T_int2 hstride[2] = {(bin_size_z+1)*(bin_size_y+1), bin_size_z+1};
@@ -264,7 +269,8 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
         //T_float t_disp[DIM];
         double t_disp[DIM];
         for(int idim=0; idim<3; idim++){
-            g_disp[idim] = static_cast<double>(ptcl_spacing)*p_pmid[idim]+p_disp[idim]-g_offset[idim];
+            g_disp[idim] = ptcl_spacing_d*p_pmid[idim]+p_disp[idim]-g_offset[idim];
+            g_disp[idim] = g_disp[idim] - floor(g_disp[idim]/L1[idim])*L1[idim];
             t_disp[idim] = g_disp[idim]/cell_size;
             //t_disp[idim] = p_disp[idim]/cell_size;
             t_disp[idim] -= std::floor(t_disp[idim]);
