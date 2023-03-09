@@ -93,8 +93,7 @@ def levi_civita(indices):
 
     dim = len(indices)
     lohi = tuple(combinations(range(dim), r=2))
-    lohi = jnp.array(lohi).T
-    lo, hi = lohi[0], lohi[1]  # https://github.com/google/jax/issues/1583
+    lo, hi = jnp.array(lohi).T
 
     epsilon = jnp.sign(indices[hi] - indices[lo]).prod()
 

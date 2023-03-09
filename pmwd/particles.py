@@ -1,6 +1,7 @@
 from dataclasses import field
 from functools import partial
-from operator import itemgetter
+from itertools import accumulate
+from operator import itemgetter, mul
 from typing import Optional, Any, Union
 
 from numpy.typing import ArrayLike
@@ -32,11 +33,16 @@ class Particles:
         Configuration parameters.
     pmid : array_like
         Particle IDs by mesh indices, of signed int dtype. They are the nearest mesh
-        grid points from particles' Lagrangian positions.
+        grid points from particles' Lagrangian positions. It can save memory compared to
+        the raveled particle IDs, e.g., 6 bytes for 3 times int16 versus 8 bytes for
+        uint64. Call ``raveled_id`` for the raveled IDs.
     disp : array_like
+        # FIXME after adding the CUDA scatter and gather ops
         Particle comoving displacements from pmid in [L]. For displacements from
         particles' grid Lagrangian positions, use ``ptcl_rpos(ptcl,
-        Particles.gen_grid(ptcl.conf), ptcl.conf)``.  # TODO maybe a real_disp property
+        Particles.gen_grid(ptcl.conf), ptcl.conf)``. It can save the particle locations
+        with much more uniform precision than positions, whereever they are. Call
+        ``pos`` for the positions.
     vel : array_like, optional
         Particle canonical velocities in [H_0 L].
     acc : array_like, optional
@@ -150,6 +156,61 @@ class Particles:
 
         #return cls(conf, pid, dis, vel=vel, acc=acc)
 
+    def raveled_id(self, dtype=jnp.uint64, wrap=False):
+        """Particle raveled IDs, flattened from ``pmid``.
+
+        Parameters
+        ----------
+        dtype : dtype_like, optional
+            Output int dtype.
+        wrap : bool, optional
+            Whether to wrap around the periodic boundaries.
+
+        Returns
+        -------
+        raveled_id : jax.numpy.ndarray
+            Particle raveled IDs.
+
+        """
+        conf = self.conf
+
+        pmid = self.pmid
+        if wrap:
+            pmid = pmid % jnp.array(conf.mesh_shape, dtype=conf.pmid_dtype)
+
+        strides = tuple(accumulate((1,) + conf.mesh_shape[:0:-1], mul))[::-1]
+
+        raveled_id = sum(i.astype(dtype) * s for i, s in zip(pmid.T, strides))
+
+        return raveled_id
+
+    def pos(self, dtype=jnp.float64, wrap=True):
+        """Particle positions.
+
+        Parameters
+        ----------
+        dtype : dtype_like, optional
+            Output float dtype.
+        wrap : bool, optional
+            Whether to wrap around the periodic boundaries.
+
+        Returns
+        -------
+        pos : jax.numpy.ndarray
+            Particle positions in [L].
+
+        """
+        conf = self.conf
+
+        pos = self.pmid.astype(dtype)
+        pos *= conf.cell_size
+        pos += self.disp.astype(dtype)
+
+        if wrap:
+            pos %= jnp.array(conf.box_size, dtype=dtype)
+
+        return pos
+
 
 def ptcl_enmesh(ptcl, conf, offset=0, cell_size=None, mesh_shape=None,
                 wrap=True, drop=True, grad=False):
@@ -197,35 +258,11 @@ def ptcl_enmesh(ptcl, conf, offset=0, cell_size=None, mesh_shape=None,
 
 
 def ptcl_pos(ptcl, conf, dtype=float, wrap=True):
-    """Particle positions in [L].
-
-    Parameters
-    ----------
-    ptcl : Particles
-    conf : Configuration
-    dtype : dtype_like, optional
-        Output float dtype.
-    wrap : bool, optional
-        Whether to wrap around the periodic boundaries.
-
-    Returns
-    -------
-    pos : jax.numpy.ndarray
-        Particle positions.
-
-    """
-    pos = ptcl.pmid.astype(dtype)
-    pos *= conf.cell_size
-    pos += ptcl.disp.astype(dtype)
-
-    if wrap:
-        pos %= jnp.array(conf.box_size, dtype=dtype)
-
-    return pos
+    raise RuntimeError('Deprecated and replaced by ptcl.pos')
 
 
 def ptcl_rpos(ptcl, ref, conf, wrap=True):
-    """Positions of Particles ptcl relative to references in [L].
+    """Particle positions relative to references.
 
     Parameters
     ----------
@@ -239,7 +276,7 @@ def ptcl_rpos(ptcl, ref, conf, wrap=True):
     Returns
     -------
     rpos : jax.numpy.ndarray of conf.float_dtype
-        Particle relative positions.
+        Particle relative positions in [L].
 
     """
     if not isinstance(ref, Particles):
@@ -258,7 +295,7 @@ def ptcl_rpos(ptcl, ref, conf, wrap=True):
 
 
 def ptcl_rsd(ptcl, los, a, cosmo):
-    """Particle redshift-space distortion displacements in [L].
+    """Particle redshift-space distortion displacements.
 
     Parameters
     ----------
@@ -273,7 +310,7 @@ def ptcl_rsd(ptcl, los, a, cosmo):
     Returns
     -------
     rsd : jax.numpy.ndarray of cosmo.conf.float_dtype
-        Particle redshift-space distortion displacements.
+        Particle redshift-space distortion displacements in [L].
 
     """
     conf = cosmo.conf

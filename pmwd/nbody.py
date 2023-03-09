@@ -1,6 +1,5 @@
 from functools import partial
 
-import numpy as np
 from jax import value_and_grad, jit, vjp, custom_vjp
 import jax.numpy as jnp
 from jax.tree_util import tree_map
@@ -27,27 +26,31 @@ def drift_factor(a_vel, a_prev, a_next, cosmo, conf):
     """Drift time step factor of conf.float_dtype in [1/H_0]."""
     factor = growth(a_next, cosmo, conf) - growth(a_prev, cosmo, conf)
     factor /= _G_D(a_vel, cosmo, conf)
-    return factor.astype(conf.float_dtype)
+    return factor
 
 
 def kick_factor(a_acc, a_prev, a_next, cosmo, conf):
     """Kick time step factor of conf.float_dtype in [1/H_0]."""
     factor = _G_D(a_next, cosmo, conf) - _G_D(a_prev, cosmo, conf)
     factor /= _G_K(a_acc, cosmo, conf)
-    return factor.astype(conf.float_dtype)
+    return factor
 
 
 def drift(a_vel, a_prev, a_next, ptcl, cosmo, conf):
     """Drift."""
-    disp = ptcl.disp + ptcl.vel * drift_factor(a_vel, a_prev, a_next, cosmo, conf)
+    factor = drift_factor(a_vel, a_prev, a_next, cosmo, conf)
+    factor = factor.astype(conf.float_dtype)
+
+    disp = ptcl.disp + ptcl.vel * factor
+
     return ptcl.replace(disp=disp)
 
 
-# TODO deriv wrt a
 def drift_adj(a_vel, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf):
     """Drift, and particle and cosmology adjoints."""
     factor_valgrad = value_and_grad(drift_factor, argnums=3)
     factor, cosmo_cot_drift = factor_valgrad(a_vel, a_prev, a_next, cosmo, conf)
+    factor = factor.astype(conf.float_dtype)
 
     # drift
     disp = ptcl.disp + ptcl.vel * factor
@@ -66,15 +69,19 @@ def drift_adj(a_vel, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf):
 
 def kick(a_acc, a_prev, a_next, ptcl, cosmo, conf):
     """Kick."""
-    vel = ptcl.vel + ptcl.acc * kick_factor(a_acc, a_prev, a_next, cosmo, conf)
+    factor = kick_factor(a_acc, a_prev, a_next, cosmo, conf)
+    factor = factor.astype(conf.float_dtype)
+
+    vel = ptcl.vel + ptcl.acc * factor
+
     return ptcl.replace(vel=vel)
 
 
-# TODO deriv wrt a
 def kick_adj(a_acc, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
     """Kick, and particle and cosmology adjoints."""
     factor_valgrad = value_and_grad(kick_factor, argnums=3)
     factor, cosmo_cot_kick = factor_valgrad(a_acc, a_prev, a_next, cosmo, conf)
+    factor = factor.astype(conf.float_dtype)
 
     # kick
     vel = ptcl.vel + ptcl.acc * factor
@@ -105,10 +112,54 @@ def force_adj(a, ptcl, ptcl_cot, cosmo, conf):
     ptcl = ptcl.replace(acc=acc)
 
     # particle and cosmology vjp
-    a_cot, ptcl_cot_force, cosmo_cot_force, conf_cot = gravity_vjp(ptcl_cot.vel)
+    _, ptcl_cot_force, cosmo_cot_force, _ = gravity_vjp(ptcl_cot.vel)
     ptcl_cot = ptcl_cot.replace(acc=ptcl_cot_force.disp)
 
     return ptcl, ptcl_cot, cosmo_cot_force
+
+
+def integrate(a_prev, a_next, ptcl, cosmo, conf):
+    """Symplectic integration for one step."""
+    D = K = 0
+    a_disp = a_vel = a_acc = a_prev
+    for d, k in conf.symp_splits:
+        if d != 0:
+            D += d
+            a_disp_next = a_prev * (1 - D) + a_next * D
+            ptcl = drift(a_vel, a_disp, a_disp_next, ptcl, cosmo, conf)
+            a_disp = a_disp_next
+            ptcl = force(a_disp, ptcl, cosmo, conf)
+            a_acc = a_disp
+
+        if k != 0:
+            K += k
+            a_vel_next = a_prev * (1 - K) + a_next * K
+            ptcl = kick(a_acc, a_vel, a_vel_next, ptcl, cosmo, conf)
+            a_vel = a_vel_next
+
+    return ptcl
+
+
+def integrate_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
+    """Symplectic integration adjoint for one step."""
+    K = D = 0
+    a_disp = a_vel = a_acc = a_prev
+    for d, k in reversed(conf.symp_splits):
+        if k != 0:
+            K += k
+            a_vel_next = a_prev * (1 - K) + a_next * K
+            ptcl, ptcl_cot, cosmo_cot = kick_adj(a_acc, a_vel, a_vel_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+            a_vel = a_vel_next
+
+        if d != 0:
+            D += d
+            a_disp_next = a_prev * (1 - D) + a_next * D
+            ptcl, ptcl_cot, cosmo_cot = drift_adj(a_vel, a_disp, a_disp_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf)
+            a_disp = a_disp_next
+            ptcl, ptcl_cot, cosmo_cot_force = force_adj(a_disp, ptcl, ptcl_cot, cosmo, conf)
+            a_acc = a_disp
+
+    return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
 
 def form(a_prev, a_next, ptcl, cosmo, conf):
@@ -152,12 +203,7 @@ def nbody_init(a, ptcl, obsvbl, cosmo, conf):
 
 @jit
 def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
-    # leapfrog
-    a_half = 0.5 * (a_prev + a_next)
-    ptcl = kick(a_prev, a_prev, a_half, ptcl, cosmo, conf)
-    ptcl = drift(a_half, a_prev, a_next, ptcl, cosmo, conf)
-    ptcl = force(a_next, ptcl, cosmo, conf)
-    ptcl = kick(a_next, a_half, a_next, ptcl, cosmo, conf)
+    ptcl = integrate(a_prev, a_next, ptcl, cosmo, conf)
 
     ptcl = coevolve(a_prev, a_next, ptcl, cosmo, conf)
 
@@ -185,9 +231,7 @@ def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl_cot, cosmo, conf):
 
     ptcl, ptcl_cot, cosmo_cot_force = force_adj(a, ptcl, ptcl_cot, cosmo, conf)
 
-    cosmo_cot = tree_map(lambda x: jnp.zeros_like(x), cosmo)
-
-    # TODO conf_cot
+    cosmo_cot = tree_map(jnp.zeros_like, cosmo)
 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
@@ -198,12 +242,8 @@ def nbody_adj_step(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot,
 
     #ptcl, ptcl_cot = coevolve_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, conf)
 
-    # leapfrog and its adjoint
-    a_half = 0.5 * (a_prev + a_next)
-    ptcl, ptcl_cot, cosmo_cot = kick_adj(a_prev, a_prev, a_half, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
-    ptcl, ptcl_cot, cosmo_cot = drift_adj(a_half, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf)
-    ptcl, ptcl_cot, cosmo_cot_force = force_adj(a_next, ptcl, ptcl_cot, cosmo, conf)
-    ptcl, ptcl_cot, cosmo_cot = kick_adj(a_next, a_half, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+    ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = integrate_adj(
+        a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
@@ -231,6 +271,6 @@ def nbody_bwd(reverse, res, cotangents):
     ptcl, ptcl_cot, cosmo_cot = nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf,
                                           reverse=reverse)
 
-    return ptcl_cot, obsvbl_cot, cosmo_cot, None  # FIXME HACK on conf_cot
+    return ptcl_cot, obsvbl_cot, cosmo_cot, None
 
 nbody.defvjp(nbody_fwd, nbody_bwd)

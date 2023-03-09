@@ -9,11 +9,13 @@
 \usepackage{newpxtext, eulerpx}
   \restoresymbol{newpx}{lambdabar}
 \usepackage[T1]{fontenc}
+\usepackage{fontawesome}
 \usepackage{amsmath}
-  %\allowdisplaybreaks
+%  \allowdisplaybreaks
 \usepackage{bm}
 \usepackage{nicefrac}
 \usepackage[caption=false]{subfig}
+\usepackage[figure,figure*]{hypcap}
 \usepackage{tikz}
   \usetikzlibrary{positioning, fit, calc, arrows.meta}
 \usepackage{booktabs}
@@ -78,7 +80,7 @@
 
 
 
-\title{\large Differentiable Cosmological Simulation with Adjoint Method
+\title{\large Differentiable Cosmological Simulation with the Adjoint Method
 \vspace{0.3em}}
 
 
@@ -103,8 +105,8 @@ M\"unchen, Germany}
 \author[0000-0002-9300-2632]{\normalsize Yucheng Zhang \gkai{张宇澄}}
 \affiliation{Department of Mathematics and Theory, Peng Cheng
 Laboratory, Shenzhen, Guangdong 518066, China}
-\affiliation{Department of Physics, New York University, New York, New
-York 10003, USA}
+\affiliation{Center for Cosmology and Particle Physics, Department of
+Physics, New York University, New York, New York 10003, USA}
 
 \author[0000-0003-0745-9431]{\normalsize Libin Lu \gkai{陆利彬}}
 \affiliation{Center for Computational Mathematics, Flatiron Institute,
@@ -185,10 +187,10 @@ A differentiable field-level forward model combining these two features
 is able to constrain physical parameters together with the initial
 conditions of the Universe.
 
-The first differentiable cosmological simulations, such as BORG and
-ELUCID \citep{BORG, ELUCID}, were developed before the advent of modern
-AD systems, and were based on implementations of analytic derivatives
-\citep[see e.g.,][App.~D]{SeljakEtAl2017}).
+The first differentiable cosmological simulations, such as BORG, ELUCID,
+and BORG-PM \citep{BORG, ELUCID, BORG-PM}, were developed before the
+advent of modern AD systems, and were based on implementations of
+analytic derivatives \citep[see e.g.,][App.~D]{SeljakEtAl2017}).
 Later codes including \texttt{FastPM} and \texttt{FlowPM} \citep{FastPM,
 vmad, SeljakEtAl2017, FlowPM} compute gradients using AD engines, namely
 \texttt{vmad} (written by the same authors) and \texttt{TensorFlow},
@@ -365,15 +367,15 @@ The expansion rate is described by the Hubble parameter $H \triangleq \d
 \ln a / \d t$.
 
 The initial conditions of particles can be set perturbatively when
-$|\vnabla \cdot \vs|$, linear approximation of the density fluctuation,
-is much smaller than 1.
+$|\vnabla \cdot \vs|$, the linear approximation of the density
+fluctuation, is much smaller than 1.
 We compute the initial displacements and momenta using the second order
 Lagrangian perturbation theory \citep[2LPT,][]{BouchetEtAl1995}:
 %
 \begin{align}
 \vs &= D_1 \vs^{(1)} + D_2 \vs^{(2)}, \nonumber\\
 \vp &= a^2 \dot\vx = a^2 \dot\vs
-  = a^3 H \bigl( D_1' \vs^{(1)} + D_2' \vs^{(2)} \bigr),
+  = a^2 H \bigl( D_1' \vs^{(1)} + D_2' \vs^{(2)} \bigr),
 \label{ic}
 \end{align}
 %
@@ -503,7 +505,7 @@ These form the upper right square of \autoref{fig:model}.
 
 The core of gravitational $N$-body simulation is the gravity solver.
 The gravitational potential sourced by matter density fluctuation
-follows the Poisson equation
+satisfies the Poisson equation
 %
 \begin{equation}
 \nabla^2 \phi(\vx) = \frac32 \frac{\Omegam H_0^2}{a} \delta(\vx),
@@ -544,9 +546,9 @@ partial differential equation becomes an algebraic one in Fourier space:
 - k^2 \varphi(\vk) = \frac32 \Omegam H_0^2 \, \delta(\vk).
 \end{equation}
 %
-And in Fourier space, $- \vnabla \varphi(\vx)$ is just $- i \vk
-\varphi(\vk)$, each component of which can be transformed back and
-combined into the force field.
+In Fourier space, $- \vnabla \varphi(\vx)$ is just $- i \vk
+\varphi(\vk)$, each component of which can be transformed back to obtain
+the force field.
 With 4 (1 forward and 3 inverse) FFTs, we can obtain $- \vnabla
 \varphi(\vx)$ from $\delta(\vx)$, with both on the mesh, efficiently.
 
@@ -674,11 +676,13 @@ $\hat t_j$.
 Given $\vz = (\vx, \vp)$ at $t_{i-1}$ and $t_i$, we can parametrize
 intermediate particle trajectories with cubic Hermite splines.
 Combined with the $\vtheta$-dependent propagation of the light front, we
-can solve for the intersections\footnote{Even analytically if the light
-propagation is also approximated cubically.}, at which we can record the
-observed\footnote{Note that we focus on the dark matter phase space
-here, and leave more generic observable modeling to a future work.}
+can solve for the intersections, at which we can record the observed
 $\hat\vz$.
+The solution can even be analytic if the light propagation is also
+approximated cubically.
+Note that we only ``observe'' the dark matter phase space here, and
+leave more realistic observables to a future work, including the forward
+modeling of real observational effects.
 \autoref{fig:step} illustrates the observation operator $O$ and its
 dependencies on the previous and the current time step.
 
@@ -1135,6 +1139,10 @@ We validate this by demonstrating that the particles evolve backward to
 align on the initial grid.
 The optimized initial conditions successfully evolve into the target
 pattern, which improves with more iterations.
+Also see the animated reverse time evolution
+\href{https://youtu.be/Epsgh6vr0qs}{\faYoutubePlay} and initial
+condition optimization
+\href{https://youtu.be/vD6lbjHP3SY}{\faYoutubePlay} on YouTube.
 }
 \label{fig:optim}
 \end{figure*}
@@ -1145,9 +1153,9 @@ pattern, which improves with more iterations.
 
 \pmwd\ benefits from GPU accelerations and efficient CUDA
 implementations of scatter and gather operations.
-In \autoref{fig:scaling}, we present weak scaling test of \pmwd, and
-find both the LPT and the $N$-body parts scale well except for very
-small problems.
+In \autoref{fig:perf}, we present performance test of \pmwd, and find
+both the LPT and the $N$-body parts scale well except for very small
+problems.
 The growth function solution has a constant cost, and generally does not
 affect problem of moderate sizes.
 However, for a small number of particles and few time steps, it can
@@ -1157,15 +1165,15 @@ computation with an emulator \citep{KwanModiEtAl2022}.
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.7\linewidth]{scaling.pdf}
-\caption{Weak scaling of \pmwd. Both the 2LPT and $N$-body components
+\includegraphics[width=0.7\linewidth]{perf.pdf}
+\caption{Performance of \pmwd. Both the 2LPT and $N$-body components
 scale well from $512^3$ particles to $64^3$ particles, below which they
 become overhead dominated.
 Solving the growth ODEs takes a constant time, and can dominate the cost
 for small numbers of particles and few time steps, but generally does
 not affect problems with more than $128^3$ particles.
 }
-\label{fig:scaling}
+\label{fig:perf}
 \end{figure*}
 
 
@@ -1219,18 +1227,18 @@ Akitsu, Lehman Garrison, Manas Rachh, Ra\'ul Angulo, Shirley Ho, Simon
 White, Teppei Okumura, Tomomi Sunayama, Ulrich Steinwandel, Uro\v{s}
 Seljak, Wen Yan, Wenda Zhou, William Coulton, Xiangchong Li, and Yueying
 Ni for interesting discussions.
+YL and YZ were supported by The Major Key Project of PCL.
 The Flatiron Institute is supported by the Simons Foundation.
 
 
 \vspace{1em}
 \textit{\large Code Availability:}
-\pmwd\ is open-source on
-\href{https://github.com/eelregit/pmwd}{GitHub}, including the
-\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/adjoint}{source
-and scripts of this paper}.
-Also see the companion code paper on
-\href{https://arxiv.org/abs/2211.THIS+1}{arXiv} and
-\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/pmwd}{GitHub}.
+\pmwd\ is open-source on GitHub
+\href{https://github.com/eelregit/pmwd}{\faGithub}, including the source
+files and scripts of this paper
+\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/adjoint}{\faFile}.
+Also see the companion code paper \citep{pmwd}
+\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/pmwd}{\faFile}.
 
 
 \vspace{1em}
@@ -1275,7 +1283,7 @@ The above growth equations can be written in such suppression factors,
 \begin{equation}
   G_m \triangleq D_m / a^m,
 \end{equation}
-as
+for $m \in \{1, 2\}$, as
 \begin{align}
   G_1'' + \Bigl( 4 + \frac{H'}H \Bigr) G_1'
   + \Bigl( 3 + \frac{H'}H - \frac32 \Omegam(a) \Bigr) G_1
@@ -1291,11 +1299,12 @@ with initial conditions
     G_2(a_\ic) &= \frac37, \nonumber\\
     G_2'(a_\ic) &= 0.
 \end{align}
-We solve the growth equations in $G_n$ instead of $D_n$, with the
+We solve the growth equations in $G_m$ instead of $D_m$, with the
 \texttt{JAX} adaptive ODE integrator implementing the adjoint
 method\footnote{The growth equation adjoint method aims to solve the
-ODEs in their continuous limit, this is different from our
-discretize-then-optimize $N$-body adjoint method.}.
+ODEs in their continuous limit, i.e., with the optimize-then-discretize
+approach, this is different from our discretize-then-optimize $N$-body
+adjoint method.}.
 This is because the former can be integrated backward in time more
 accurately for early times, which can improve the adjoint gradients.
 
@@ -1369,7 +1378,7 @@ The backward version of $\vDelta$,
 \vLambda = \frac{\p\vz_1}{\p\vz},
 \end{equation}
 %
-evolves towards identity $\vLambda_1 = \vI$ by
+evolves backward in time from identity $\vLambda_1 = \vI$ by
 %
 \begin{equation}
 \dot\vLambda = - \vLambda \cdot \frac{\p\vf}{\p\vz}.
@@ -1607,7 +1616,7 @@ equation similarly.
 
 We denote the observables by $\hat\vz$, with different components $\hat
 z_j$ affecting the objective $\cJ(\hat\vz, \vtheta)$ at different times
-$\hat t_j$, i.e., $\hat z_i \triangleq z_i(\hat t_i)$.
+$\hat t_j$, i.e., $\hat z_j \triangleq z_j(\hat t_j)$.
 The Lagrangian becomes
 %
 \begin{equation}
@@ -1629,7 +1638,7 @@ Its gradient is
     - \lambda_j \frac{\p f_j}{\p\vtheta} \Bigr) \, \d t \\
 %
 &= \frac{\p\cJ}{\p\vtheta}
-+ \sum_j \Bigl( \frac{\p\cJ}{\p\hat\vz} - \hat\vlambda \Bigr)
++ \Bigl( \frac{\p\cJ}{\p\hat\vz} - \hat\vlambda \Bigr)
   \cdot \frac{\p\hat\vz}{\p\vtheta}
 + \vlambda_0 \cdot \frac{\p\vz_0}{\p\vtheta}
 + \sum_j \int_{t_0}^{\hat t_j} \Bigl[
@@ -1640,6 +1649,10 @@ Its gradient is
 %
 where we have defined $\hat\vlambda$ similarly with components
 $\hat\lambda_j \triangleq \lambda_j(\hat t_j)$.
+In the first equality, we have also dropped a vanishing term $\sum_j
+\hat\lambda_j \bigl[ \dot z_j - f_j(\hat t_j) \bigr] \p\hat t_j /
+\p\vtheta$, i.e., $\p\hat t_j / \p\vtheta$ does not directly enter the
+gradient.
 
 Now we find the adjoint equation
 %
@@ -1890,10 +1903,6 @@ which the backward evolution can be resumed piecewise.
 %%
 %where $\vI_3$ is the $3\times3$ identity matrix, the sum is the tidal
 %tensor at $\vx_i$, and the second term vanishes when $i=j$.
-
-
-
-
 
 
 

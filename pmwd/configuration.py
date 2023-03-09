@@ -1,20 +1,21 @@
-import os
 from functools import partial
-from math import ceil
+import math
 from typing import ClassVar, Optional, Tuple, Union
 
 from numpy.typing import DTypeLike
 import jax
-jax.config.update("jax_enable_x64", True)
 from jax import ensure_compile_time_eval
 import jax.numpy as jnp
-jnp.set_printoptions(precision=3, edgeitems=2, linewidth=128)
 from jax.tree_util import tree_map
+from mcfit import TophatVar
 
 from pmwd.tree_util import pytree_dataclass
 
 
-os.environ['NVIDIA_TF32_OVERRIDE'] = '1'  # enable TF32
+jax.config.update("jax_enable_x64", True)
+
+
+jnp.set_printoptions(precision=3, edgeitems=2, linewidth=128)
 
 
 @partial(pytree_dataclass, aux_fields=Ellipsis, frozen=True)
@@ -54,13 +55,22 @@ class Configuration:
         (subject to change when False is implemented).
     transfer_fit_nowiggle : bool, optional
         Whether to use non-oscillatory transfer function fit.
-    transfer_size : int, optional
-        Transfer function table size. Its wavenumbers ``transfer_k`` are log spaced
-        spanning the full range of particle grid scales.
+    transfer_lgk_min : float, optional
+        Minimum transfer function wavenumber in [1/L] in log10.
+    transfer_lgk_max : float, optional
+        Maximum transfer function wavenumber in [1/L] in log10.
+    transfer_lgk_maxstep : float, optional
+        Maximum transfer function wavenumber step size in [1/L] in log10. It determines
+        the number of wavenumbers ``transfer_k_num``, the actual step size
+        ``transfer_lgk_step``, and the wavenumbers ``transfer_k``.
     growth_rtol : float, optional
         Relative tolerance for solving the growth ODEs.
     growth_atol : float, optional
         Absolute tolerance for solving the growth ODEs.
+    growth_inistep: float, None, or 2-tuple of float or None, optional
+        The initial step size for solving the growth ODEs. If None, use estimation. If a
+        tuple, use the two step sizes for forward and reverse integrations,
+        respectively.
     lpt_order : int, optional
         LPT order, with 1 for Zel'dovich approximation, 2 for 2LPT, and 3 for 3LPT.
     a_start : float, optional
@@ -68,13 +78,16 @@ class Configuration:
     a_stop : float, optional
         N-body stopping time (scale factor).
     a_lpt_maxstep : float, optional
-        Maximum scale factor LPT light cone step size. It determines the number of
-        steps ``a_lpt_num``, the actual step size ``a_lpt_step``, and the steps
-        ``a_lpt``.
+        Maximum LPT light cone scale factor step size. It determines the number of steps
+        ``a_lpt_num``, the actual step size ``a_lpt_step``, and the steps ``a_lpt``.
     a_nbody_maxstep : float, optional
-        Maximum scale factor N-body time integration step size. It determines the
-        number of steps ``a_nbody_num``, the actual step size ``a_nbody_step``, and the
-        steps ``a_nbody``.
+        Maximum N-body time integration scale factor step size. It determines the number
+        of steps ``a_nbody_num``, the actual step size ``a_nbody_step``, and the steps
+        ``a_nbody``.
+    symp_splits : tuple of float 2-tuples, optional
+        Symplectic splitting method composition, with each 2-tuples being drift and then
+        kick coefficients. Its adjoint has the same splits in reverse nested orders,
+        i.e., kick and then drift. Default is the Newton-Störmer-Verlet-leapfrog method.
     chunk_size : int, optional
         Chunk size to split particles in batches in scatter and gather to save memory.
 
@@ -88,7 +101,7 @@ class Configuration:
     ptcl_spacing: float
     ptcl_grid_shape: Tuple[int, ...]  # tuple[int, ...] for python >= 3.9 (PEP 585)
 
-    mesh_shape: Union[int, float, Tuple[int, ...]] = 1
+    mesh_shape: Union[float, Tuple[int, ...]] = 1
 
     cosmo_dtype: DTypeLike = jnp.float64
     pmid_dtype: DTypeLike = jnp.int16
@@ -112,17 +125,23 @@ class Configuration:
 
     transfer_fit: bool = True
     transfer_fit_nowiggle: bool = False
-    transfer_size: int = 1024
+    transfer_lgk_min: float = -4
+    transfer_lgk_max: float = 3
+    transfer_lgk_maxstep: float = 1/128
 
     growth_rtol: Optional[float] = None
     growth_atol: Optional[float] = None
+    growth_inistep: Union[float, None,
+                          Tuple[Optional[float], Optional[float]]] = (1, None)
 
     lpt_order: int = 2
 
     a_start: float = 1/64
-    a_stop: float = 1.
+    a_stop: float = 1
     a_lpt_maxstep: float = 1/128
     a_nbody_maxstep: float = 1/64
+
+    symp_splits: Tuple[Tuple[float, float], ...] = ((0, 0.5), (1, 0.5))
 
     chunk_size: int = 2**24
 
@@ -151,13 +170,25 @@ class Configuration:
         if not jnp.issubdtype(self.float_dtype, jnp.floating):
             raise ValueError('float_dtype must be floating point numbers')
 
+        with jax.ensure_compile_time_eval():
+            object.__setattr__(
+                self,
+                'var_tophat',
+                TophatVar(self.transfer_k[1:], lowring=True, backend='jax'),
+            )
+
         # ~ 1.5e-8 for float64, 3.5e-4 for float32
-        with ensure_compile_time_eval():
-            growth_tol = jnp.sqrt(jnp.finfo(self.cosmo_dtype).eps).item()
+        growth_tol = math.sqrt(jnp.finfo(self.cosmo_dtype).eps)
         if self.growth_rtol is None:
             object.__setattr__(self, 'growth_rtol', growth_tol)
         if self.growth_atol is None:
             object.__setattr__(self, 'growth_atol', growth_tol)
+
+        if any(len(s) != 2 for s in self.symp_splits):
+            raise ValueError(f'symp_splits={self.symp_splits} not supported')
+        symp_splits_sum = tuple(sum(s) for s in zip(*self.symp_splits))
+        if symp_splits_sum != (1, 1):
+            raise ValueError(f'sum of symplectic splits = {symp_splits_sum} != (1, 1)')
 
         dtype = self.cosmo_dtype
         for name, value in self.named_children():
@@ -230,12 +261,31 @@ class Configuration:
     @property
     def rho_crit(self):
         """Critical density in [M / L^3]."""
-        return 3. * self.H_0**2 / (8. * jnp.pi * self.G)
+        return 3 * self.H_0**2 / (8 * jnp.pi * self.G)
+
+    @property
+    def transfer_k_num(self):
+        """Number of transfer function wavenumbers, including a leading 0."""
+        return 1 + math.ceil((self.transfer_lgk_max - self.transfer_lgk_min)
+                             / self.transfer_lgk_maxstep) + 1
+
+    @property
+    def transfer_lgk_step(self):
+        """Transfer function wavenumber step size in [1/L] in log10."""
+        return ((self.transfer_lgk_max - self.transfer_lgk_min)
+                / (self.transfer_k_num - 2))
+
+    @property
+    def transfer_k(self):
+        """Transfer function wavenumbers in [1/L], of ``cosmo_dtype``."""
+        k = jnp.logspace(self.transfer_lgk_min, self.transfer_lgk_max,
+                         num=self.transfer_k_num - 1, dtype=self.cosmo_dtype)
+        return jnp.concatenate((jnp.array([0]), k))
 
     @property
     def a_lpt_num(self):
         """Number of LPT light cone scale factor steps, excluding ``a_start``."""
-        return ceil(self.a_start / self.a_lpt_maxstep)
+        return math.ceil(self.a_start / self.a_lpt_maxstep)
 
     @property
     def a_lpt_step(self):
@@ -244,9 +294,8 @@ class Configuration:
 
     @property
     def a_nbody_num(self):
-        """Number of N-body time integration scale factor steps, excluding """
-        """``a_start``."""
-        return ceil((self.a_stop - self.a_start) / self.a_nbody_maxstep)
+        """Number of N-body time integration scale factor steps, excluding ``a_start``."""
+        return math.ceil((self.a_stop - self.a_start) / self.a_nbody_maxstep)
 
     @property
     def a_nbody_step(self):
@@ -255,27 +304,22 @@ class Configuration:
 
     @property
     def a_lpt(self):
-        """LPT light cone scale factor steps, including ``a_start``."""
+        """LPT light cone scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
         return jnp.linspace(0, self.a_start, num=self.a_lpt_num+1,
                             dtype=self.cosmo_dtype)
 
     @property
     def a_nbody(self):
-        """N-body time integration scale factor steps, including ``a_start``."""
+        """N-body time integration scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
         return jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
                             dtype=self.cosmo_dtype)
 
     @property
     def growth_a(self):
-        """Growth function scale factors, for both LPT and N-body."""
+        """Growth function scale factors, for both LPT and N-body, of ``cosmo_dtype``."""
         return jnp.concatenate((self.a_lpt, self.a_nbody[1:]))
 
-    #TODO transfer_size -> transfer_lgk_maxstep
     @property
-    def transfer_k(self):
-        """Transfer function wavenumbers in [1/L], from the minimum fundamental """
-        """wavenumber to the space diagonal Nyquist wavenumber of the particle grid."""
-        log10_k_min = jnp.log10(2. * jnp.pi / self.box_size.max())
-        log10_k_max = jnp.log10(jnp.sqrt(self.dim) * jnp.pi / self.ptcl_spacing)
-        return jnp.logspace(log10_k_min, log10_k_max, num=self.transfer_size,
-                            dtype=self.float_dtype)
+    def varlin_R(self):
+        """Linear matter overdensity variance in a top-hat window of radius R in [L], of ``cosmo_dtype``."""
+        return self.var_tophat.y

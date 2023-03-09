@@ -62,15 +62,17 @@ class Cosmology:
     h: FloatParam
 
     Omega_k_: Optional[FloatParam] = None
-    Omega_k_fixed: ClassVar[float] = 0.
+    Omega_k_fixed: ClassVar[float] = 0
     w_0_: Optional[FloatParam] = None
-    w_0_fixed: ClassVar[float] = -1.
+    w_0_fixed: ClassVar[float] = -1
     w_a_: Optional[FloatParam] = None
-    w_a_fixed: ClassVar[float] = 0.
+    w_a_fixed: ClassVar[float] = 0
 
     transfer: Optional[jnp.ndarray] = field(default=None, compare=False)
 
     growth: Optional[jnp.ndarray] = field(default=None, compare=False)
+
+    varlin: Optional[jnp.ndarray] = field(default=None, compare=False)
 
     def __post_init__(self):
         if self._is_transforming():
@@ -136,6 +138,13 @@ class Cosmology:
     def w_a(self):
         """Dark energy equation of state linear parameter."""
         return self.w_a_fixed if self.w_a_ is None else self.w_a_
+
+    @property
+    def sigma8(self):
+        """Linear matter rms overdensity within a tophat sphere of 8 Mpc/h radius at a=1."""
+        from pmwd.boltzmann import varlin
+        R = 8 * self.conf.Mpc_SI / self.conf.L
+        return jnp.sqrt(varlin(R, 1, self, self.conf))
 
     @property
     def ptcl_mass(self):
