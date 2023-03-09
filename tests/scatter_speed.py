@@ -31,7 +31,7 @@ val = random.uniform(key, shape=(ngrid*ngrid*ngrid,),dtype=jnp.float32,minval=0.
 disp = random.uniform(key, shape=(ngrid*ngrid*ngrid,3),dtype=jnp.float32,minval=0.0,maxval=2.0)
 cell_size = 1.0
 ptcl_spacing = 1.0
-offset = tuple((0.0,0.0,0.0))
+offset = tuple((0.1,0.1,0.1))
 
 mesh0 = mesh*0;
 mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_grid_shape, ptcl_spacing, cell_size).block_until_ready()
@@ -42,11 +42,11 @@ for ii in range(100):
 print(time.time() - start)
 
 mesh_val = mesh0*0
-mesh_val = _scatter(pmid, disp, conf, mesh_val, val, 0, None).block_until_ready()
+mesh_val = _scatter(pmid, disp, conf, mesh_val, val, offset, cell_size).block_until_ready()
 print("jax")
 start = time.time()
 for ii in range(100):
-    mesh_val = _scatter(pmid, disp, conf, mesh_val, val, 0, None).block_until_ready()
+    mesh_val = _scatter(pmid, disp, conf, mesh_val, val, offset, cell_size).block_until_ready()
 print(time.time() - start)
 
 print("max:",mesh_val.max())
