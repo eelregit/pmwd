@@ -48,6 +48,8 @@ for ii in range(10):
     mesh1 = _scatter(pmid, disp, conf, mesh1, val, offset, cell_size).block_until_ready()
 print(time.time() - start)
 
+print("mesh0 max:",mesh0.max())
+print("mesh0 min:",mesh0.min())
 print("mesh1 max:",mesh1.max())
 print("mesh1 min:",mesh1.min())
 print("diff abs max:", jnp.abs(mesh0-mesh1).max())
