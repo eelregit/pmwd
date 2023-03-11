@@ -128,6 +128,11 @@ cosmology: large-scale structure of Universe
 
 \section*{TODO}
 \begin{itemize}
+\item Moving some of the following ongoing and completed tasks to the
+    main text and add preliminary figures.
+\item Implement the rest of the nonlinear scales, including the rms
+    displacement with np.trapz of $P$ over $\ln k$, the $\ln a$ time
+    derivatives, etc.
 \item Compare one pair of Gadget4 and \pmwd\ (with say 100 to 1000 time
     steps) results and make sure that they agree perfectly on the large
     scales. For this purpose the box size should be large enough (in
@@ -138,23 +143,6 @@ cosmology: large-scale structure of Universe
       \textbf{Update: we have shown that ICs generated on GPUs are deterministic
       (but different from those on CPUs), generating ICs for both training data
       and training on GPUs might be the simplest solution.}
-  \begin{enumerate}
-  \item Saving them on disks and loading them during training solves
-    this but may introduce IO or memory problem;
-  \item Generating them on CPUs for training data and also training
-    might suffice while requireing such data loader implementation;
-  \item Generating them on GPUs for training data and training will
-    introduce additional source of initial deviations to be nonlinearly
-    amplified. There are flags that makes certain operations
-    deterministic but slow on GPUs, but those are enviroment variables
-    that function globally and cannot be applied locally only on the IC
-    generation during training.
-  \item Generating ICs and then train on GPUs with double precision and
-    then compute the loss at single precision (Gadget4 should be run at
-    double precision) should work, and likely be the simplest solution.
-    But for this to work the final training loss should be much larger
-    than the level of reproducibility.
-  \end{enumerate}
 \item Non-integer multiple mesh shapes: for uniform particle grid, test
   (with double precision on CPUs) whether they start moving by artifact
   forces on cell scales, in 3 cases: no deconvolution, with CIC
