@@ -272,42 +272,43 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
         T_int2 p_pmid[DIM] = {pmid[idx*DIM + 0], pmid[idx*DIM + 1], pmid[idx*DIM + 2]};
         T_float p_disp[DIM] = {disp[idx*DIM + 0], disp[idx*DIM + 1], disp[idx*DIM + 2]};
         T_float p_val = values[idx];
-        double g_disp[DIM];
 
-        // displacement with in a cell for cell (i,j,k)==(0,0,0)
-        //T_float t_disp[DIM];
-        double t_disp[DIM];
+        double g_disp[DIM];
         for(int idim=0; idim<3; idim++){
             g_disp[idim] = ptcl_spacing_d*p_pmid[idim]+p_disp[idim]-g_offset[idim];
             g_disp[idim] = g_disp[idim] - floor(g_disp[idim]/L1[idim])*L1[idim];
-            t_disp[idim] = g_disp[idim]/cell_size;
-            //t_disp[idim] = p_disp[idim]/cell_size;
-            t_disp[idim] -= std::floor(t_disp[idim]);
-        }
-
-        // cell index for each dimension
-        T_int2  c_index[DIM];
-        for(int idim=0; idim<3; idim++){
-            c_index[idim] = static_cast<T_int2>(std::floor(g_disp[idim]/cell_size));
-            //c_index[idim] = (static_cast<int>(std::floor(p_disp[idim]/cell_size)+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
-        }
-        if(c_index[0]>=g_stride[0] ||  c_index[1]>=g_stride[1] || c_index[2]>=g_stride[2]){ // CHECK condition
-            p_val = 0.0;
         }
 
         // grid value to calculate
         T_float t_val;
+        T_float w_val;
         T_int2 cell_id;
 
+        T_int2 c_index[DIM];
+        T_int1 neighbor[DIM];
+        double t_disp[DIM];
         // loop over all 8 vertice(cells) 
-        for(int i=0; i<2; i++)
-        for(int j=0; j<2; j++)
-        for(int k=0; k<2; k++){
+        for(neighbor[0]=0; neighbor[0]<2; neighbor[0]++)
+        for(neighbor[1]=0; neighbor[1]<2; neighbor[1]++)
+        for(neighbor[2]=0; neighbor[2]<2; neighbor[2]++){
+            for(int idim=0; idim<3; idim++){
+                t_disp[idim] = g_disp[idim] + neighbor[idim]*cell_size;
+                t_disp[idim] -= floor(t_disp[idim]/L1[idim])*L1[idim];
+                c_index[idim] = static_cast<T_int1>(std::floor(t_disp[idim]/cell_size));
+                t_disp[idim] -= c_index[idim]*cell_size;
+            }
+
+            w_val = 1.0;
+            if(c_index[0]>=g_stride[0] ||  c_index[1]>=g_stride[1] || c_index[2]>=g_stride[2])
+                w_val = 0.0;
+
             // grid value
-            t_val = p_val*(1-std::abs(t_disp[0]-i))*(1-std::abs(t_disp[1]-j))*(1-std::abs(t_disp[2]-k));
-            // cell_id
-            cell_id = (c_index[0]%bin_size_x+i) * hstride[0] +
-                      (c_index[1]%bin_size_y+j) * hstride[1] + (c_index[2]%bin_size_z+k);
+            t_val = w_val*p_val*(1-std::abs(t_disp[0]))*(1-std::abs(t_disp[1]))*(1-std::abs(t_disp[2]));
+
+            // vertex_id
+            cell_id = (c_index[0]%(bin_size_x+1)) * hstride[0] +
+                      (c_index[1]%(bin_size_y+1)) * hstride[1] + (c_index[2]%(bin_size_z+1));
+
             // atomic write to grid values shared memory
             atomicAdd(&gval_shared[cell_id], t_val);
         }
@@ -321,6 +322,7 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
         int icy = bidy*bin_size_y + iy;
         int icz = bidz*bin_size_z + iz;
 
+        // TODO: check condition
         if(icx<(g_stride[0]+1) && icy<(g_stride[1]+1) && icz<(g_stride[2]+1)){ // CHECK condition
             int outidx = icz%g_stride[2] + (icy%g_stride[1])*g_stride[2] + (icx%g_stride[0])*g_stride[2]*g_stride[1];
             atomicAdd(&grid_vals[outidx], gval_shared[i]);
@@ -537,7 +539,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     cudaEventRecord(start);
 #endif
     // scatter using shared memory
-    cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
+    cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
     scatter_kernel_sm<<<nbinx*nbiny*nbinz, 1024, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx);
 #ifdef SCATTER_TIME
     cudaEventRecord(stop);
