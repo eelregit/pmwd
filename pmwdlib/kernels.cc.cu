@@ -96,23 +96,32 @@ cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx,
         T_float p_disp[DIM] = {disp[tid*DIM + 0], disp[tid*DIM + 1], disp[tid*DIM + 2]};
 
         // strides
-        //T_int1 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
+        T_int1 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
         T_int1 g_stride[3] = {stridex, stridey, stridez};
-        //double g_offset[3] = {offsetx, offsety, offsetz};
         T_float g_offset[3] = {offsetx, offsety, offsetz};
 
         // cell index for each dimension
-        T_int1  c_index[DIM];
-        double g_disp[DIM];
+        T_int1 c_index[DIM];
+        T_int1 c_index2;
+        double g_disp;
+        double g_disp2;
         double ptcl_spacing_d = static_cast<double>(ptcl_spacing);
         double L1[DIM] = {ptcl_spacing_d*ptcl_gridx, ptcl_spacing_d*ptcl_gridy, ptcl_spacing_d*ptcl_gridz};
         for(int idim=0; idim<3; idim++){
-            g_disp[idim] = ptcl_spacing_d*p_pmid[idim]+p_disp[idim]-g_offset[idim];
-            g_disp[idim] = g_disp[idim] - floor(g_disp[idim]/L1[idim])*L1[idim];
-            c_index[idim] = (static_cast<int>(std::floor(g_disp[idim]/cell_size))%g_stride[idim]+g_stride[idim]) % g_stride[idim];
-            //c_index[idim] = ((static_cast<int>(std::floor((p_disp[idim]+g_offset[idim])/cell_size))+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
-            //c_index[idim] = (static_cast<int>(std::floor(p_disp[idim]/cell_size)+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
+            g_disp = ptcl_spacing_d*p_pmid[idim]+p_disp[idim]-g_offset[idim];
+            g_disp = g_disp - floor(g_disp/L1[idim])*L1[idim];
+            g_disp2 = g_disp + cell_size;
+            g_disp2 = g_disp2 - floor(g_disp2/L1[idim])*L1[idim];
+            c_index[idim] = static_cast<T_int1>(std::floor(g_disp/cell_size));
+            c_index2 = static_cast<T_int1>(std::floor(g_disp2/cell_size));
+            // for ghost particles not in grid2 but will contribute to some vertices in grid2
+            if(c_index[idim] >= g_stride[idim] && c_index2 < g_stride[idim])
+                c_index[idim] = c_index2;
+            // for out of grid2 particles assign random cell in grid2
+            c_index[idim] = c_index[idim] % g_stride[idim];
         }
+
+        // calculate binid for this particle, tricky boundary condition: particle may not belong to any of grid2's cells but will contribute to the grid vertics.
         c_index[0] = c_index[0]/bin_size_x;
         c_index[1] = c_index[1]/bin_size_y;
         c_index[2] = c_index[2]/bin_size_z;
@@ -279,8 +288,11 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
         // cell index for each dimension
         T_int2  c_index[DIM];
         for(int idim=0; idim<3; idim++){
-            c_index[idim] = (static_cast<int>(std::floor(g_disp[idim]/cell_size))%g_stride[idim]+g_stride[idim]) % g_stride[idim];
+            c_index[idim] = static_cast<T_int2>(std::floor(g_disp[idim]/cell_size));
             //c_index[idim] = (static_cast<int>(std::floor(p_disp[idim]/cell_size)+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
+        }
+        if(c_index[0]>=g_stride[0] ||  c_index[1]>=g_stride[1] || c_index[2]>=g_stride[2]){ // CHECK condition
+            p_val = 0.0;
         }
 
         // grid value to calculate
