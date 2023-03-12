@@ -276,7 +276,6 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
         double g_disp[DIM];
         for(int idim=0; idim<3; idim++){
             g_disp[idim] = ptcl_spacing_d*p_pmid[idim]+p_disp[idim]-g_offset[idim];
-            g_disp[idim] = g_disp[idim] - floor(g_disp[idim]/L1[idim])*L1[idim];
         }
 
         // grid value to calculate
@@ -294,9 +293,10 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
             for(int idim=0; idim<3; idim++){
                 t_disp[idim] = g_disp[idim] + neighbor[idim]*cell_size;
                 t_disp[idim] -= floor(t_disp[idim]/L1[idim])*L1[idim];
+                c_index[idim] = static_cast<T_int1>(std::floor(t_disp[idim]/cell_size));
+                t_disp[idim]  = g_disp[idim] - c_index[idim]*cell_size;
+                t_disp[idim] -= round(t_disp[idim]/L1)*L1;
                 t_disp[idim] /= cell_size;
-                c_index[idim] = static_cast<T_int1>(std::floor(t_disp[idim]));
-                t_disp[idim] -= c_index[idim]*cell_size;
             }
 
             w_val = 1.0;
