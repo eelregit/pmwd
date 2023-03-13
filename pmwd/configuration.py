@@ -7,7 +7,7 @@ from jax import ensure_compile_time_eval
 from jax.typing import DTypeLike
 import jax.numpy as jnp
 from jax.tree_util import tree_map
-from mcfit import TophatVar
+from mcfit import TophatVar, GaussVar
 
 from pmwd.tree_util import pytree_dataclass
 
@@ -179,6 +179,11 @@ class Configuration:
                 self,
                 'var_tophat',
                 TophatVar(self.transfer_k[1:], lowring=True, backend='jax'),
+            )
+            object.__setattr__(
+                self,
+                'var_gauss',
+                GaussVar(self.transfer_k[1:], lowring=True, backend='jax'),
             )
 
         # ~ 1.5e-8 for float64, 3.5e-4 for float32
