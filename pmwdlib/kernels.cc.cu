@@ -96,7 +96,7 @@ cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx,
         T_float p_disp[DIM] = {disp[tid*DIM + 0], disp[tid*DIM + 1], disp[tid*DIM + 2]};
 
         // strides
-        T_int1 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
+        //T_int1 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
         T_int1 g_stride[3] = {stridex, stridey, stridez};
         T_float g_offset[3] = {offsetx, offsety, offsetz};
 
@@ -477,6 +477,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("cuda kernel SortPairs cellids: %f milliseconds\n", milliseconds);
 
+    // TODO: change to sparse histogram, upper_bound is slow
     cudaEventRecord(start);
     thrust::counting_iterator<uint32_t> search_begin(0);
     thrust::upper_bound(thrust::device_ptr<uint32_t>(d_index), thrust::device_ptr<uint32_t>(d_index)+uint32_t(n_particle),
