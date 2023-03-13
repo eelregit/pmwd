@@ -95,6 +95,18 @@ class Cosmology:
     def __rmul__(self, other):
         return self.__mul__(other)
 
+    @classmethod
+    def from_sigma8(cls, conf, sigma8, *args, **kwargs):
+        """Construct cosmology with sigma8 instead of A_s."""
+        from pmwd.boltzmann import boltzmann
+
+        cosmo = cls(conf, 1, *args, **kwargs)
+        cosmo = boltzmann(cosmo, conf)
+
+        A_s_1e9 = (sigma8 / cosmo.sigma8)**2
+
+        return cls(conf, A_s_1e9, *args, **kwargs)
+
     def astype(self, dtype):
         """Cast parameters to dtype by changing conf.cosmo_dtype."""
         conf = self.conf.replace(cosmo_dtype=dtype)
