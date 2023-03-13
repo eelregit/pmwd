@@ -63,20 +63,25 @@ def init_mlp_params(n_input, nodes, zero_params=None):
 def nonlinear_scales(cosmo, conf, a):
     k = conf.transfer_k[1:]
     D = growth(a, cosmo, conf)
+    Dfac = -2 * D**(-3) * growth(a, cosmo, conf, deriv=1)  # d(1/D^2) / dlna
+    interp_valgrad = jax.value_and_grad(jnp.interp, argnums=0)
 
     # dimensionless linear power
     Plin = linear_power(k, None, cosmo, conf)  # no a dependence
-    k_P = jnp.interp(1, k**3 * Plin / (2 * jnp.pi**2) * D**2, k)
+    k_P, dk_P = interp_valgrad(1 / D**2, k**3 * Plin / (2 * jnp.pi**2), k)
+    dk_P *= Dfac
 
     # TopHat variance, var is decreasing with R
     # but for jnp.interp, xp must be increasing, thus the reverse [::-1]
-    R_TH = jnp.interp(1, cosmo.varlin[::-1] * D**2, conf.varlin_R[::-1])
+    R_TH, dR_TH = interp_valgrad(1 / D**2, cosmo.varlin[::-1], conf.varlin_R[::-1])
+    dR_TH *= Dfac
 
     # Gaussian variance
     R, varlin_G = conf.var_gauss(Plin, extrap=True)
-    R_G = jnp.interp(1, varlin_G[::-1] * D**2, R[::-1])
+    R_G, dR_G = interp_valgrad(1 / D**2, varlin_G[::-1], R[::-1])
+    dR_G *= Dfac
 
-    return (1/k_P, R_TH, R_G)
+    return (1/k_P, R_TH, R_G, -dk_P/k_P**2, dR_TH, dR_G)
 
 
 # TODO add more relevant factors
