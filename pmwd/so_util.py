@@ -7,7 +7,12 @@ from flax.core.frozen_dict import unfreeze, freeze
 from typing import Sequence, Callable
 import math
 
-from pmwd import H_deriv, Omega_m_a, growth
+from pmwd import (
+    H_deriv,
+    Omega_m_a,
+    growth,
+    linear_power,
+)
 
 
 class MLP(nn.Module):
@@ -55,11 +60,32 @@ def init_mlp_params(n_input, nodes, zero_params=None):
     return params
 
 
+def nonlinear_scales(cosmo, conf, a):
+    k = conf.transfer_k[1:]
+    D = growth(a, cosmo, conf)
+
+    # dimensionless linear power
+    Plin = linear_power(k, None, cosmo, conf)  # no a dependence
+    k_P = jnp.interp(1, k**3 * Plin / (2 * jnp.pi**2) * D**2, k)
+
+    # TopHat variance, var is decreasing with R
+    # but for jnp.interp, xp must be increasing, thus the reverse [::-1]
+    R_TH = jnp.interp(1, cosmo.varlin[::-1] * D**2, conf.varlin_R[::-1])
+
+    # Gaussian variance
+    R, varlin_G = conf.var_gauss(Plin, extrap=True)
+    R_G = jnp.interp(1, varlin_G[::-1] * D**2, R[::-1])
+
+    return (1/k_P, R_TH, R_G)
+
+
 # TODO add more relevant factors
+@jax.jit
 def sotheta(cosmo, conf, a):
     theta_l = jnp.asarray([  # quantities of dim L
         conf.ptcl_spacing,
         conf.cell_size,
+        *nonlinear_scales(cosmo, conf, a),
     ])
     theta_o = jnp.asarray([  # dimensionless quantities
         a,
