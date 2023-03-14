@@ -132,20 +132,21 @@ cosmology: large-scale structure of Universe
     main text and add preliminary figures.
 \item Implement the rest of the nonlinear scales, including the rms
     displacement with np.trapz of $P$ over $\ln k$, the $\ln a$ time
-    derivatives, etc.
+    derivatives, etc.\newline
+    \textbf{Update}: code has been added.
 \item Compare one pair of Gadget4 and \pmwd\ (with say 100 to 1000 time
     steps) results and make sure that they agree perfectly on the large
     scales. For this purpose the box size should be large enough (in
     linear regime), say 1 Gpc/$h$.\newline
-    Update: for Sobol=6, boxsize=983Mpc, Gadget4 and \pmwd\ are visually
+    \textbf{Update}: for Sobol=6, boxsize=983Mpc, Gadget4 and \pmwd\ are visually
     consistent at the field level. To further check power spectrum. For odd mesh
     shapes (e.g. 1, 3, 5), pmwd and Gadget are perfectly consistent on large
     scales. \textbf{While for even mesh shapes (e.g. 2, 4), the powers look
     slightly different. To figure out this weird issue.}
 \item Be careful with the non-deterministic ICs generated on GPUs.\newline
-      Update: we have shown that ICs generated on GPUs are deterministic (but
-      different from those on CPUs), generating ICs for both training data and
-      training on GPUs might be the simplest solution.
+      \textbf{Update}: we have shown that ICs generated on GPUs are
+      deterministic (but different from those on CPUs), generating ICs for both
+      training data and training on GPUs might be the simplest solution.
 \item Incorporate 3lpt branch; testing; find a\_start for different mass
   resolutions
 \item For TO, probably necessary to first incorporate Oliver Hahn's
