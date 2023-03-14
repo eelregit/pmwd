@@ -337,3 +337,8 @@ class Configuration:
     def varlin_R(self):
         """Linear matter overdensity variance in a top-hat window of radius R in [L], of ``cosmo_dtype``."""
         return self.var_tophat.y
+
+    @property
+    def varlin_R_g(self):
+        """Linear matter overdensity variance in a Gauss window of radius R in [L], of ``cosmo_dtype``."""
+        return self.var_gauss.y

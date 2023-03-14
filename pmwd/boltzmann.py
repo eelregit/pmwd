@@ -287,8 +287,9 @@ def varlin_integ(cosmo, conf):
     Plin = linear_power(conf.var_tophat.x, None, cosmo, conf)
 
     _, varlin = conf.var_tophat(Plin, extrap=True)
+    _, varlin_g = conf.var_gauss(Plin, extrap=True)
 
-    return cosmo.replace(varlin=varlin)
+    return cosmo.replace(varlin=varlin, varlin_g=varlin_g)
 
 
 def varlin(R, a, cosmo, conf):

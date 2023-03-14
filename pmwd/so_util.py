@@ -78,8 +78,7 @@ def nonlinear_scales(cosmo, conf, a):
     dR_TH *= dD2i
 
     # Gaussian variance
-    R, varlin_G = conf.var_gauss(Plin, extrap=True)
-    R_G, dR_G = interp_valgrad(1 / D**2, varlin_G[::-1], R[::-1])
+    R_G, dR_G = interp_valgrad(1 / D**2, cosmo.varlin_g[::-1], conf.varlin_R_g[::-1])
     dR_G *= dD2i
 
     # rms linear theory displacement
