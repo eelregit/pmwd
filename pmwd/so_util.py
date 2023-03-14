@@ -63,25 +63,31 @@ def init_mlp_params(n_input, nodes, zero_params=None):
 def nonlinear_scales(cosmo, conf, a):
     k = conf.transfer_k[1:]
     D = growth(a, cosmo, conf)
-    Dfac = -2 * D**(-3) * growth(a, cosmo, conf, deriv=1)  # d(1/D^2) / dlna
+    dD = growth(a, cosmo, conf, deriv=1)
+    dD2i = -2 * D**(-3) * dD  # d(1/D^2) / dlna
     interp_valgrad = jax.value_and_grad(jnp.interp, argnums=0)
 
     # dimensionless linear power
     Plin = linear_power(k, None, cosmo, conf)  # no a dependence
     k_P, dk_P = interp_valgrad(1 / D**2, k**3 * Plin / (2 * jnp.pi**2), k)
-    dk_P *= Dfac
+    dk_P *= dD2i
 
     # TopHat variance, var is decreasing with R
     # but for jnp.interp, xp must be increasing, thus the reverse [::-1]
     R_TH, dR_TH = interp_valgrad(1 / D**2, cosmo.varlin[::-1], conf.varlin_R[::-1])
-    dR_TH *= Dfac
+    dR_TH *= dD2i
 
     # Gaussian variance
     R, varlin_G = conf.var_gauss(Plin, extrap=True)
     R_G, dR_G = interp_valgrad(1 / D**2, varlin_G[::-1], R[::-1])
-    dR_G *= Dfac
+    dR_G *= dD2i
 
-    return (1/k_P, R_TH, R_G, -dk_P/k_P**2, dR_TH, dR_G)
+    # rms linear theory displacement
+    Rd = jnp.sqrt(jnp.trapz(k * Plin, x=jnp.log(k)) / (2 * jnp.pi**2))
+    dRd = Rd * dD
+    Rd *= D
+
+    return (1/k_P, R_TH, R_G, Rd, -dk_P/k_P**2, dR_TH, dR_G, dRd)
 
 
 # TODO add more relevant factors
