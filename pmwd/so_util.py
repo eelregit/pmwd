@@ -94,9 +94,10 @@ def nonlinear_scales(cosmo, conf, a):
 @jax.jit
 def sotheta(cosmo, conf, a):
     theta_l = jnp.asarray([  # quantities of dim L
+        *nonlinear_scales(cosmo, conf, a),
         conf.ptcl_spacing,
         conf.cell_size,
-        *nonlinear_scales(cosmo, conf, a),
+        # softening length?
     ])
     theta_o = jnp.asarray([  # dimensionless quantities
         a,
@@ -104,6 +105,7 @@ def sotheta(cosmo, conf, a):
         growth(a, cosmo, conf),
         growth(a, cosmo, conf, deriv=1),
         H_deriv(a, cosmo),
+        # time step size?
     ])
     return (theta_l, theta_o)
 
