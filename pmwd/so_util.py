@@ -82,7 +82,8 @@ def nonlinear_scales(cosmo, conf, a):
     dR_G *= dD2i
 
     # rms linear theory displacement
-    Rd = jnp.sqrt(jnp.trapz(k * Plin, x=jnp.log(k)) / (2 * jnp.pi**2))
+    Rd = (jnp.trapz(k * Plin, x=jnp.log(k)) + k[0] * Plin[0] / 2) / (6 * jnp.pi**2)
+    Rd = jnp.sqrt(Rd)
     dRd = Rd * dD
     Rd *= D
 
