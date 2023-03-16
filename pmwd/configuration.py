@@ -145,9 +145,11 @@ class Configuration:
 
     chunk_size: int = 2**24
 
+    # SO related
     # list of the number of nodes (no input layer) of so nn, order: f, g, h
     so_nodes: Optional[list] = None
     a_out: float = a_stop
+    softening_length: Optional[float] = None
 
     def __post_init__(self):
         if self._is_transforming():
