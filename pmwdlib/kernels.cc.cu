@@ -221,7 +221,7 @@ scatter_kernel_gm(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_s
         T_float t_val;
         T_int2 cell_id;
 
-        // loop over all 8 vertice(cells) 
+        // loop over all 8 vertice(cells)
         for(int i=0; i<2; i++)
         for(int j=0; j<2; j++)
         for(int k=0; k<2; k++){
@@ -255,61 +255,75 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
     T_int2 bidx = bid/(nbiny*nbinz);
     T_int2 bidy = (bid/nbinz)%nbiny;
     T_int2 bidz = bid%nbinz;
+    T_int2 bids[3] = {bidx,bidy,bidz};
+    T_int2 nbins[3] = {nbinx,nbiny,nbinz};
 
     // strides
     double ptcl_spacing_d = static_cast<double>(ptcl_spacing);
     double L1[DIM] = {ptcl_spacing_d*ptcl_gridx, ptcl_spacing_d*ptcl_gridy, ptcl_spacing_d*ptcl_gridz};
     //T_int2 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
-    T_int2 g_stride[3] = {stridex, stridey, stridez};
+    int g_stride[3] = {stridex, stridey, stridez};
     T_float g_offset[3] = {offsetx, offsety, offsetz};
-    T_int2 hstride[2] = {(bin_size_z+1)*(bin_size_y+1), bin_size_z+1};
+    int hstride[2] = {(bin_size_z+1)*(bin_size_y+1), bin_size_z+1};
     int idx;
-
     int pstart = bin_start[bid];
     int npts = bin_count[bid];
+    double g_disp[DIM];
+    double t_disp[DIM];
+    int v_index[DIM];
+    int  c_index[DIM];
+    int  p_index[DIM];
+    double t_val;
+    double w_val;
+    int cell_id;
     for(int i=threadIdx.x; i<npts; i+=blockDim.x){
         idx = index[pstart + i];
         T_int2 p_pmid[DIM] = {pmid[idx*DIM + 0], pmid[idx*DIM + 1], pmid[idx*DIM + 2]};
         T_float p_disp[DIM] = {disp[idx*DIM + 0], disp[idx*DIM + 1], disp[idx*DIM + 2]};
         T_float p_val = values[idx];
 
-        double g_disp[DIM];
+        // displacement with in a cell for cell (i,j,k)==(0,0,0)
         for(int idim=0; idim<3; idim++){
             g_disp[idim] = ptcl_spacing_d*p_pmid[idim]+p_disp[idim]-g_offset[idim];
+            g_disp[idim] -= floor(g_disp[idim]/L1[idim])*L1[idim];
+            p_index[idim] = static_cast<int>(std::floor(g_disp[idim]/cell_size));
         }
 
         // grid value to calculate
-        T_float t_val;
-        T_float w_val;
-        T_int2 cell_id;
-
-        T_int2 c_index[DIM];
-        T_int1 neighbor[DIM];
-        double t_disp[DIM];
         // loop over all 8 vertice(cells) 
-        for(neighbor[0]=0; neighbor[0]<2; neighbor[0]++)
-        for(neighbor[1]=0; neighbor[1]<2; neighbor[1]++)
-        for(neighbor[2]=0; neighbor[2]<2; neighbor[2]++){
+        for(int ii=0; ii<2; ii++)
+        for(int jj=0; jj<2; jj++)
+        for(int kk=0; kk<2; kk++){
+            t_disp[0] = g_disp[0] + ii*cell_size;
+            t_disp[1] = g_disp[1] + jj*cell_size;
+            t_disp[2] = g_disp[2] + kk*cell_size;
+            int neighbor[3] = {ii,jj,kk};
+
             for(int idim=0; idim<3; idim++){
-                t_disp[idim] = g_disp[idim] + neighbor[idim]*cell_size;
                 t_disp[idim] -= floor(t_disp[idim]/L1[idim])*L1[idim];
-                c_index[idim] = static_cast<T_int1>(std::floor(t_disp[idim]/cell_size));
-                t_disp[idim]  = g_disp[idim] - c_index[idim]*cell_size;
-                //t_disp[idim] -= round(t_disp[idim]/L1[idim])*L1[idim];
+                v_index[idim] = static_cast<int>(std::floor(t_disp[idim]/cell_size));
+                c_index[idim] = p_index[idim];
+                if(c_index[idim] >= g_stride[idim] && v_index[idim] < g_stride[idim])
+                {
+                  c_index[idim] = v_index[idim];
+                  neighbor[idim] = 0;
+                }
+
+                t_disp[idim]  = g_disp[idim] - v_index[idim]*cell_size;
                 t_disp[idim] -= floor(t_disp[idim]/L1[idim]+0.5)*L1[idim];
                 t_disp[idim] /= cell_size;
             }
 
             w_val = 1.0;
-            if(c_index[0]>=g_stride[0] ||  c_index[1]>=g_stride[1] || c_index[2]>=g_stride[2])
+            if(v_index[0]>=g_stride[0] ||  v_index[1]>=g_stride[1] || v_index[2]>=g_stride[2])
                 w_val = 0.0;
 
             // grid value
             t_val = w_val*p_val*(1-std::abs(t_disp[0]))*(1-std::abs(t_disp[1]))*(1-std::abs(t_disp[2]));
 
             // vertex_id
-            cell_id = (c_index[0]%(bin_size_x+1)) * hstride[0] +
-                      (c_index[1]%(bin_size_y+1)) * hstride[1] + (c_index[2]%(bin_size_z+1));
+            cell_id = (c_index[0]%bin_size_x+neighbor[0]) * hstride[0] +
+                      (c_index[1]%bin_size_y+neighbor[1]) * hstride[1] + (c_index[2]%bin_size_z+neighbor[2]);
 
             // atomic write to grid values shared memory
             atomicAdd(&gval_shared[cell_id], t_val);
@@ -324,13 +338,11 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
         int icy = bidy*bin_size_y + iy;
         int icz = bidz*bin_size_z + iz;
 
-        // TODO: check condition
         if(icx<(g_stride[0]+1) && icy<(g_stride[1]+1) && icz<(g_stride[2]+1)){ // CHECK condition
             int outidx = icz%g_stride[2] + (icy%g_stride[1])*g_stride[2] + (icx%g_stride[0])*g_stride[2]*g_stride[1];
             atomicAdd(&grid_vals[outidx], gval_shared[i]);
         }
     }
-
 }
 
 template <typename T_int1, typename T_int2, typename T_float, typename T_value>

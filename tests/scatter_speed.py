@@ -22,13 +22,13 @@ ngrid = 512
 print("loading")
 ptcl_spacing = 1.7  # Lagrangian space Cartesian particle grid spacing, in Mpc/h by default
 ptcl_grid_shape = (ngrid,) * 3
-conf = Configuration(ptcl_spacing, ptcl_grid_shape, mesh_shape=1)  # 1x mesh shape
+conf = Configuration(ptcl_spacing, ptcl_grid_shape, mesh_shape=1,float_dtype=jnp.float64)  # 1x mesh shape
 ptcl = Particles.gen_grid(conf)
 pmid = ptcl.pmid.astype(jnp.uint32)
 #pmid = ptcl.pmid
-mesh = random.uniform(key, shape=(ngrid,ngrid,ngrid),dtype=jnp.float32,minval=0.0,maxval=2.0)
-val = random.uniform(key, shape=(ngrid*ngrid*ngrid,),dtype=jnp.float32,minval=0.0,maxval=2.0)
-disp = random.uniform(key, shape=(ngrid*ngrid*ngrid,3),dtype=jnp.float32,minval=0.0,maxval=2.0)
+mesh = random.uniform(key, shape=(ngrid,ngrid,ngrid),dtype=jnp.float64,minval=0.0,maxval=2.0)
+val = random.uniform(key, shape=(ngrid*ngrid*ngrid,),dtype=jnp.float64,minval=0.0,maxval=2.0)
+disp = random.uniform(key, shape=(ngrid*ngrid*ngrid,3),dtype=jnp.float64,minval=0.0,maxval=2.0)
 cell_size = 1.7
 offset = tuple((0.,0.,0.))
 
@@ -48,6 +48,8 @@ for ii in range(10):
     mesh_val = _scatter(pmid, disp, conf, mesh_val, val, offset, cell_size).block_until_ready()
 print(time.time() - start)
 
-print("max:",mesh_val.max())
-print("diff std:")
-print(jnp.std(mesh_val-mesh0))
+print("mesh0 max:",mesh0.max())
+print("mesh_val max:",mesh_val.max())
+print("mesh0 min:",mesh0.min())
+print("mesh_val min:",mesh_val.min())
+print("diff std:", jnp.std(mesh_val-mesh0))
