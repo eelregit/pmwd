@@ -20,16 +20,16 @@ os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.99'
 key = random.PRNGKey(101)
 ngrid = 512
 print("loading")
-ptcl_spacing = 1.7  # Lagrangian space Cartesian particle grid spacing, in Mpc/h by default
+ptcl_spacing = 1.  # Lagrangian space Cartesian particle grid spacing, in Mpc/h by default
 ptcl_grid_shape = (ngrid,) * 3
-conf = Configuration(ptcl_spacing, ptcl_grid_shape, mesh_shape=1,float_dtype=jnp.float64)  # 1x mesh shape
+conf = Configuration(ptcl_spacing, ptcl_grid_shape, mesh_shape=1.,float_dtype=jnp.float32)  # 1x mesh shape
 ptcl = Particles.gen_grid(conf)
 pmid = ptcl.pmid.astype(jnp.uint32)
 #pmid = ptcl.pmid
-mesh = random.uniform(key, shape=(ngrid,ngrid,ngrid),dtype=jnp.float64,minval=0.0,maxval=2.0)
-val = random.uniform(key, shape=(ngrid*ngrid*ngrid,),dtype=jnp.float64,minval=0.0,maxval=2.0)
-disp = random.uniform(key, shape=(ngrid*ngrid*ngrid,3),dtype=jnp.float64,minval=0.0,maxval=2.0)
-cell_size = 1.7
+mesh = random.uniform(key, shape=conf.mesh_shape,dtype=jnp.float32,minval=0.0,maxval=2.0)
+val = random.uniform(key, shape=(ngrid*ngrid*ngrid,),dtype=jnp.float32,minval=0.0,maxval=2.0)
+disp = random.uniform(key, shape=(ngrid*ngrid*ngrid,3),dtype=jnp.float32,minval=0.0,maxval=2.0)
+cell_size = 1.
 offset = tuple((0.,0.,0.))
 
 mesh0 = mesh*0;
