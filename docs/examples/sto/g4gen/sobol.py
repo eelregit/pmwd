@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from pmwd.train_util import scale_Sobol
 
 
-def gen_sobol(filename, d=9, m=9):
+def gen_sobol(filename, d=9, m=9, extra=9):
     from scipy.stats.qmc import Sobol, discrepancy
 
     disc_min = np.inf
@@ -22,7 +22,7 @@ def gen_sobol(filename, d=9, m=9):
     # seed_min = 55868, mixture discrepancy = 0.016109347957680598
 
     sampler = Sobol(d, scramble=True, seed=seed_min)
-    sample = sampler.random_base2(m)
+    sample = sampler.random(n=2**m + extra)
     np.savetxt(filename, sample)
 
 
