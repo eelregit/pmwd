@@ -1,0 +1,3 @@
+font.serif:           Palatino
+text.usetex:          True
+text.latex.preamble:  \usepackage{newpxtext, eulerpx}

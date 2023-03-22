@@ -1,0 +1,185 @@
+\documentclass[modern, trackchanges, dvipsnames]{aastex631}
+  \urlstyle{sf}
+
+
+\usepackage{CJK}
+\usepackage{microtype}
+\usepackage{savesym}
+  \savesymbol{lambdabar}
+\usepackage{newpxtext, eulerpx}
+  \restoresymbol{newpx}{lambdabar}
+\usepackage[T1]{fontenc}
+\usepackage{fontawesome}
+\usepackage{amsmath}
+%  \allowdisplaybreaks
+\usepackage{bm}
+\usepackage{nicefrac}
+\usepackage[caption=false]{subfig}
+\usepackage[figure,figure*]{hypcap}
+\usepackage{tikz}
+  \usetikzlibrary{positioning, fit, calc, arrows.meta}
+\usepackage{booktabs}
+
+
+\newcommand{\pmwd}{{\usefont{T1}{nova}{m}{sl}pmwd}}
+
+\newcommand{\gkai}[1]{\begin{CJK*}{UTF8}{gkai}\raisebox{.1em}{(}#1\raisebox{.1em}{)}\end{CJK*}}
+
+\renewcommand{\sectionautorefname}{Sec.}
+\renewcommand{\subsectionautorefname}{Sec.}
+\renewcommand{\appendixautorefname}{App.}
+\renewcommand{\figureautorefname}{Fig.}
+\newcommand{\subfigureautorefname}{\figureautorefname}
+
+\newcommand{\deltaD}{\delta^\textsc{d}}
+\newcommand{\deltaK}{\delta^\textsc{k}}
+\renewcommand{\d}{d}
+\newcommand{\p}{\partial}
+\newcommand{\cJ}{\mathcal{J}}
+\newcommand{\cR}{\mathcal{R}}
+\newcommand{\cL}{\mathcal{L}}
+\newcommand{\cH}{\mathcal{H}}
+\bmdefine{\vzero}{0}
+\bmdefine{\vI}{I}
+\bmdefine{\vnabla}{\nabla}
+\bmdefine{\vtheta}{\theta}  % parameters
+\bmdefine{\vomega}{\omega}  % white noise modes
+\bmdefine{\vk}{k}  % wavevectors
+\bmdefine{\vx}{x}  % comoving and canonical coordinates
+\bmdefine{\vq}{q}  % Lagrangian coordinates
+\bmdefine{\vs}{s}  % displacements
+\bmdefine{\vp}{p}  % canonical momenta
+\bmdefine{\va}{a}  % accelerations
+\bmdefine{\vz}{z}  % states
+\bmdefine{\vf}{f}
+\bmdefine{\vF}{F}
+\bmdefine{\vDelta}{\Delta}
+\bmdefine{\vLambda}{\Lambda}
+\bmdefine{\vlambda}{\lambda}
+\bmdefine{\vvarphi}{\varphi}
+\bmdefine{\vxi}{\xi}  % x adjoint
+\bmdefine{\vpi}{\pi}  % p adjoint
+\bmdefine{\valpha}{\alpha}  % force vjp x gradient
+\bmdefine{\vzeta}{\zeta}  % force vjp theta gradient
+\newcommand{\half}{\nicefrac12}
+\newcommand{\As}{A_\mathrm{s}}
+\newcommand{\ns}{n_\mathrm{s}}
+\newcommand{\Omegam}{\Omega_\mathrm{m}}
+\newcommand{\Omegab}{\Omega_\mathrm{b}}
+\newcommand{\Mpc}{\mathrm{Mpc}}
+\newcommand{\ic}{\mathrm{i}}
+\newcommand{\Plin}{P_\mathrm{lin}}
+
+\newcommand{\GPU}{NVIDIA A100 80GB SXM4}
+
+\newcommand{\HL}[1]{\textcolor{Bittersweet}{#1}}
+
+
+
+\begin{document}
+
+
+
+\title{\large Perfectly Parallel Cosmological Simulation Embedded in Nested Perturbative Fields
+\vspace{0.3em}}
+
+
+\author[0000-0000-0000-0000]{\normalsize X}
+\affiliation{zzz}
+%
+%\author[0000-0002-0701-1410]{\normalsize Yin Li \gkai{李寅}}
+%\affiliation{Department of Mathematics and Theory, Peng Cheng
+%Laboratory, Shenzhen, Guangdong 518066, China}
+%
+%\author[0000-0001-5044-7204]{\normalsize Drew Jamieson}
+%\affiliation{Max Planck Institute for Astrophysics, 85748 Garching bei
+%M\"unchen, Germany}
+%
+%\author[0000-0002-9300-2632]{\normalsize Yucheng Zhang \gkai{张宇澄}}
+%\affiliation{Department of Mathematics and Theory, Peng Cheng
+%Laboratory, Shenzhen, Guangdong 518066, China}
+
+
+\shorttitle{musicola: N-body in Nested LPTs}
+\shortauthors{X, Y, \& Z et al.}
+
+
+\correspondingauthor{X \& Y}
+\email{eelregit@gmail.com \& X}
+
+
+
+\begin{abstract}
+
+musicola = MUSIC + sCOLA, an approximate perfectly parallel method.
+
+\end{abstract}
+
+
+
+\section*{TODO}
+\begin{itemize}
+\item PDE solver: spectral vs finite difference?
+\item boundary conditions: unbounded, Dirichlet, or?
+\end{itemize}
+
+
+
+\vspace{1em}
+\section{Introduction}
+
+
+\vspace{1em}
+\section{Methods}
+\label{sec:method}
+
+
+\vspace{1em}
+\section{Results}
+
+
+\vspace{1em}
+\section{Conclusions}
+
+
+
+\vspace{1em}
+\textit{\large Acknowledgements:}
+%YL and YZ were supported by The Major Key Project of PCL.
+
+
+\vspace{1em}
+\textit{\large Code Availability:}
+\pmwd\ is open-source on GitHub
+\href{https://github.com/eelregit/pmwd}{\faGithub}, including the source
+files and scripts of this paper
+\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/musicola}{\faFile}.
+
+
+\vspace{1em}
+\textit{\large Software:}
+\texttt{JAX} \citep{JAX}, \texttt{NumPy} \citep{NumPy}, \texttt{SciPy}
+\citep{SciPy}, and \texttt{matplotlib} \citep{matplotlib}.
+
+
+
+\vspace{1em}
+\appendix
+
+
+\vspace{1em}
+\section{XYZ}
+\label{app:xyz}
+
+
+
+\bibliographystyle{aasjournal}
+\bibliography{musicola}
+
+
+
+%\listofchanges
+
+
+
+\end{document}
