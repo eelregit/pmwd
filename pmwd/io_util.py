@@ -5,9 +5,7 @@ import numpy as np
 import jax.numpy as jnp
 from jax import device_get
 
-from pmwd.configuration import Configuration
-from pmwd.cosmology import Cosmology
-from pmwd.particles import Particles, ptcl_pos
+from pmwd import Configuration, Cosmology, Particles
 
 
 def read_gadget_hdf5(base, pmid_dtype=jnp.int16, verbose=False):
@@ -56,7 +54,7 @@ def read_gadget_hdf5(base, pmid_dtype=jnp.int16, verbose=False):
         header = f['Header'].attrs
         a = header['Time']
         box_size = header['BoxSize']
-        num_ptcl = header['NumPart_Total'][1]
+        ptcl_num = header['NumPart_Total'][1]
 
         param = f['Parameters'].attrs
         a_start = param['TimeBegin']
@@ -66,38 +64,56 @@ def read_gadget_hdf5(base, pmid_dtype=jnp.int16, verbose=False):
         V_cm_s = param['UnitVelocity_in_cm_per_s']
         H_0 = param['Hubble']
         G = param['GravityConstantInternal']
+        Omega_m = param['Omega0']
+        Omega_de = param['OmegaLambda']
+        Omega_b = param['OmegaBaryon']
+        h = param['HubbleParam']
 
-        # config = f['Config'].attrs
-
-    ptcl_grid_shape = round(num_ptcl**(1/3))
-    if ptcl_grid_shape**3 != num_ptcl:
-        raise ValueError(f'number of particles {num_ptcl} is not cubic')
+    ptcl_grid_shape = round(ptcl_num**(1/3))
+    if ptcl_grid_shape**3 != ptcl_num:
+        raise ValueError(f'number of particles {ptcl_num} is not cubic')
 
     conf = Configuration(
-        ptcl_spacing=box_size/ptcl_grid_shape,
-        ptcl_grid_shape=(ptcl_grid_shape,)*3,
+        ptcl_spacing=box_size / ptcl_grid_shape,
+        ptcl_grid_shape=(ptcl_grid_shape,) * 3,
         pmid_dtype=pmid_dtype,
         a_start=a_start,
         a_stop=a_stop,
-        M=M_g/1e3,
-        L=L_cm/1e2,
+        M=M_g / 1e3,
+        L=L_cm / 1e2,
+        T=(L_cm / 1e2) / (V_cm_s / 1e2),
     )
-    #TODO convert the constants and units for conf
 
-    pos, vel = [], []
+    # Gadget snapshot has no A_s or n_s information
+    # cosmo = Cosmology(
+    #     conf,
+    #     A_s_1e9 = ,
+    #     n_s = ,
+    #     Omega_m = Omega_m,
+    #     Omgea_b = Omega_b,
+    #     h = h,
+    #     Omega_k_ = 1 - (Omega_m + Omega_de)
+    # )
+
+    pos, vel, ids = [], [], []
     for file in files:
         with h5py.File(file, 'r') as f:
             pos.append(f['PartType1']['Coordinates'][:])
             vel.append(f['PartType1']['Velocities'][:])
+            ids.append(f['PartType1']['ParticleIDs'][:])
     pos = np.vstack(pos)
     vel = np.vstack(vel) * a**1.5
+    ids = np.vstack(ids)
+
+    # the order of Gadget particle ids could change, so need to sort
+    ids = np.argsort(ids)
+    pos = pos[ids]
+    vel = vel[ids]
 
     ptcl = Particles.from_pos(conf, pos)
     ptcl = ptcl.replace(vel=vel)
 
-    #TODO figure out how to add cosmo return? depending on IC of gadget
-
-    return a, ptcl, conf
+    return ptcl, a
 
 
 def write_gadget_hdf5(base, a, ptcl, cosmo, conf, num_files=1,
