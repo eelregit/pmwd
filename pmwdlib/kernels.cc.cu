@@ -540,7 +540,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     T *particle_values = reinterpret_cast<T *>(buffers[2]);
     void *work_d = buffers[4];
     T *grid_values = reinterpret_cast<T *>(buffers[5]);
-    uint32_t *work_i_d = static_cast<uint32_t *>(work_d);
+    char *work_i_d = static_cast<char *>(work_d);
 
     // parameters for shared mem using bins to group cells
     uint32_t bin_size = BINSIZE;
@@ -550,12 +550,12 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
 
     uint32_t npts_mem_size = sizeof(uint32_t) * n_particle;
     uint32_t nbins_mem_size = sizeof(uint32_t) * nbinx*nbiny*nbinz;
-    uint32_t* d_sortidx = work_i_d;
-    uint32_t* d_sortidx_buff = &work_i_d[npts_mem_size];
-    uint32_t* d_index = &work_i_d[2*npts_mem_size];
-    uint32_t* d_index_buff = &work_i_d[3*npts_mem_size];
-    uint32_t* d_bin_count = &work_i_d[4*npts_mem_size];
-    uint32_t* d_bin_start = &work_i_d[4*npts_mem_size + nbins_mem_size];
+    uint32_t* d_sortidx = (uint32_t*)work_i_d;
+    uint32_t* d_sortidx_buff = (uint32_t*)&work_i_d[npts_mem_size];
+    uint32_t* d_index = (uint32_t*)&work_i_d[2*npts_mem_size];
+    uint32_t* d_index_buff = (uint32_t*)&work_i_d[3*npts_mem_size];
+    uint32_t* d_bin_count = (uint32_t*)&work_i_d[4*npts_mem_size];
+    uint32_t* d_bin_start = (uint32_t*)&work_i_d[4*npts_mem_size + nbins_mem_size];
     void     *d_temp_storage = (void*)&work_i_d[4*npts_mem_size + 2*nbins_mem_size + sizeof(uint32_t)];
     int block_size = 1024;
     int grid_size = ((n_particle + block_size) / block_size);
