@@ -792,6 +792,23 @@ int64_t get_workspace_size(int64_t n_ptcls, uint32_t stride_x, uint32_t stride_y
     return temp_storage_bytes + npts_mem_size + nbins_mem_size;
 }
 
+template <typename T>
+int64_t get_sort_keys_workspace_size(int64_t n_keys, size_t& temp_storage_bytes){
+    int64_t nkeys_mem_size = sizeof(T) * n_keys;
+    void *d_temp_storage = NULL;
+    temp_storage_bytes=0;
+    cub::DoubleBuffer<T> d_keys(NULL, NULL);
+    cub::DeviceRadixSort::SortKeys(d_temp_storage, temp_storage_bytes, d_keys, n_keys);
+    return temp_storage_bytes + nkeys_mem_size;
+}
+
+template int64_t get_sort_keys_workspace_size<float>(int64_t n_keys, size_t& temp_storage_bytes);
+template int64_t get_sort_keys_workspace_size<double>(int64_t n_keys, size_t& temp_storage_bytes);
+template int64_t get_sort_keys_workspace_size<int32_t>(int64_t n_keys, size_t& temp_storage_bytes);
+template int64_t get_sort_keys_workspace_size<int64_t>(int64_t n_keys, size_t& temp_storage_bytes);
+template int64_t get_sort_keys_workspace_size<uint32_t>(int64_t n_keys, size_t& temp_storage_bytes);
+template int64_t get_sort_keys_workspace_size<uint64_t>(int64_t n_keys, size_t& temp_storage_bytes);
+
 __global__ void
 pp_gm(uint32_t* cell_ids, uint32_t n_cell, uint32_t* pos,
                      float* disp, uint32_t* particle_ids, uint32_t n_particle,
