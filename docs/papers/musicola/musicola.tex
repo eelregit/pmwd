@@ -121,6 +121,9 @@ musicola = MUSIC + sCOLA, an approximate perfectly parallel method.
 \begin{itemize}
 \item PDE solver: spectral vs finite difference?
 \item boundary conditions: unbounded, Dirichlet, or?
+\item Host memory stores the hi-res ICs, every GPU stores the lowest
+  resolution ICs, and receives nested ICs of other resolutions before
+  every run.
 \end{itemize}
 
 
