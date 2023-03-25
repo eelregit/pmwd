@@ -31,6 +31,10 @@ pybind11::bytes build_descriptor(int64_t n_particle, T ptcl_spacing, T cell_size
       PmwdDescriptor<T>{n_particle, ptcl_spacing, cell_size, {offset_1, offset_2, offset_3}, {ptcl_grid_1, ptcl_grid_2, ptcl_grid_3}, {stride_1, stride_2, stride_3}, tmp_storage_size});
 }
 
+pybind11::bytes build_sort_keys_descriptor(int64_t n_keys, size_t tmp_storage_size) {
+  return pack_descriptor(SortKeysDescriptor{n_keys, tmp_storage_size});
+}
+
 }  // namespace jax_pmwd
 
 #endif

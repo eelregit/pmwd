@@ -17,6 +17,11 @@ struct PmwdDescriptor {
   size_t tmp_storage_size;
 };
 
+struct SortKeysDescriptor {
+    int64_t n_keys;
+    size_t tmp_storage_size;
+};
+
 }
 
 #endif

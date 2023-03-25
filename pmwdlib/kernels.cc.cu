@@ -519,6 +519,41 @@ gather_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride,
 }
 
 template <typename T>
+void sort_keys_kernel(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+#ifdef SCATTER_TIME
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+#endif
+
+    // inputs/outputs
+    const SortKeysDescriptor<T> *descriptor = unpack_descriptor<SortKeysDescriptor>(opaque, opaque_len);
+    int64_t n_keys = descriptor->n_keys;
+    size_t temp_storage_bytes = descriptor->tmp_storage_size;
+    T *d_keys = reinterpret_cast<T *>(buffers[0]);
+    void *work_d = buffers[1];
+    char *work_i_d = static_cast<char *>(work_d);
+
+    uint32_t keys_mem_size = sizeof(T) * n_keys;
+    T* d_keys_buff = (T*)work_i_d;
+    void *d_temp_storage = (void*)&work_i_d[keys_mem_size];
+
+#ifdef SCATTER_TIME
+    cudaEventRecord(start);
+#endif
+    cub::DoubleBuffer<T> d_keys_dbuff(d_keys, d_keys_buff);
+    cub::DeviceRadixSort::SortKeys(d_temp_storage, temp_storage_bytes, d_keys_dbuff, n_keys);
+    d_keys = d_keys_dbuff.Current();
+#ifdef SCATTER_TIME
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("cuda kernel Sort: %f milliseconds\n", milliseconds);
+#endif
+}
+
+template <typename T>
 void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
 #ifdef SCATTER_TIME
     cudaEvent_t start, stop;
