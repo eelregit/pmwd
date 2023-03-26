@@ -9,16 +9,19 @@
 
 namespace jax_pmwd {
 
+int64_t get_workspace_size(int64_t n_ptcls, uint32_t stride_x, uint32_t stride_y, uint32_t stride_z, size_t& temp_storage_bytes);
 void scatter(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
 void gather(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
-
 void scatterf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
 void gatherf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
 
-int64_t get_workspace_size(int64_t n_ptcls, uint32_t stride_x, uint32_t stride_y, uint32_t stride_z, size_t& temp_storage_bytes);
-
 template <typename T>
 int64_t get_sort_keys_workspace_size(int64_t n_keys, size_t& temp_storage_bytes);
+void sort_keys_f32(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
+void sort_keys_f64(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
+void sort_keys_i32(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
+void sort_keys_i64(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
+
 }  // namespace jax_pmwd
 
 #endif

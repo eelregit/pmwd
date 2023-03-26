@@ -530,13 +530,13 @@ void sort_keys_kernel(cudaStream_t stream, void** buffers, const char* opaque, s
     const SortKeysDescriptor<T> *descriptor = unpack_descriptor<SortKeysDescriptor>(opaque, opaque_len);
     int64_t n_keys = descriptor->n_keys;
     size_t temp_storage_bytes = descriptor->tmp_storage_size;
-    T *d_keys = reinterpret_cast<T *>(buffers[0]);
+    T *d_keys = reinterpret_cast<T*>(buffers[0]);
     void *work_d = buffers[1];
-    char *work_i_d = static_cast<char *>(work_d);
+    char *work_i_d = static_cast<char*>(work_d);
 
-    uint32_t keys_mem_size = sizeof(T) * n_keys;
-    T* d_keys_buff = (T*)work_i_d;
-    void *d_temp_storage = (void*)&work_i_d[keys_mem_size];
+    int64_t keys_mem_size = sizeof(T) * n_keys;
+    T* d_keys_buff = static_cast<T*>(&work_i_d[0]);
+    void *d_temp_storage = static_cast<void*>(&work_i_d[keys_mem_size]);
 
 #ifdef SCATTER_TIME
     cudaEventRecord(start);
@@ -771,6 +771,22 @@ void gather(cudaStream_t stream, void** buffers, const char* opaque, std::size_t
 
 void gatherf(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
     gather_sm<float>(stream, buffers, opaque, opaque_len);
+}
+
+void sort_keys_f32(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    sort_keys_kernel<float>(stream, buffers, opaque, opaque_len);
+}
+
+void sort_keys_f64(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    sort_keys_kernel<double>(stream, buffers, opaque, opaque_len);
+}
+
+void sort_keys_i32(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    sort_keys_kernel<int32_t>(stream, buffers, opaque, opaque_len);
+}
+
+void sort_keys_i64(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    sort_keys_kernel<int64_t>(stream, buffers, opaque, opaque_len);
 }
 
 int64_t get_workspace_size(int64_t n_ptcls, uint32_t stride_x, uint32_t stride_y, uint32_t stride_z, size_t& temp_storage_bytes){
