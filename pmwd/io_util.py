@@ -21,13 +21,6 @@ def read_gadget_hdf5(base, pmid_dtype=jnp.int16, verbose=False):
     verbose : bool, optional
         True for printing more information.
 
-    Returns
-    -------
-    a : float
-        Scale factor.
-    ptcl : Particles
-    conf : Configuration
-
     Raises
     ------
     FileNotFoundError
@@ -53,36 +46,36 @@ def read_gadget_hdf5(base, pmid_dtype=jnp.int16, verbose=False):
     with h5py.File(files[0], 'r') as f:
         header = f['Header'].attrs
         a = header['Time']
-        box_size = header['BoxSize']
-        ptcl_num = header['NumPart_Total'][1]
+        # box_size = header['BoxSize']
+        # ptcl_num = header['NumPart_Total'][1]
 
-        param = f['Parameters'].attrs
-        a_start = param['TimeBegin']
-        a_stop = param['TimeMax']
-        L_cm = param['UnitLength_in_cm']
-        M_g = param['UnitMass_in_g']
-        V_cm_s = param['UnitVelocity_in_cm_per_s']
-        H_0 = param['Hubble']
-        G = param['GravityConstantInternal']
-        Omega_m = param['Omega0']
-        Omega_de = param['OmegaLambda']
-        Omega_b = param['OmegaBaryon']
-        h = param['HubbleParam']
+        # param = f['Parameters'].attrs
+        # a_start = param['TimeBegin']
+        # a_stop = param['TimeMax']
+        # L_cm = param['UnitLength_in_cm']
+        # M_g = param['UnitMass_in_g']
+        # V_cm_s = param['UnitVelocity_in_cm_per_s']
+        # H_0 = param['Hubble']
+        # G = param['GravityConstantInternal']
+        # Omega_m = param['Omega0']
+        # Omega_de = param['OmegaLambda']
+        # Omega_b = param['OmegaBaryon']
+        # h = param['HubbleParam']
 
-    ptcl_grid_shape = round(ptcl_num**(1/3))
-    if ptcl_grid_shape**3 != ptcl_num:
-        raise ValueError(f'number of particles {ptcl_num} is not cubic')
+    # ptcl_grid_shape = round(ptcl_num**(1/3))
+    # if ptcl_grid_shape**3 != ptcl_num:
+    #     raise ValueError(f'number of particles {ptcl_num} is not cubic')
 
-    conf = Configuration(
-        ptcl_spacing=box_size / ptcl_grid_shape,
-        ptcl_grid_shape=(ptcl_grid_shape,) * 3,
-        pmid_dtype=pmid_dtype,
-        a_start=a_start,
-        a_stop=a_stop,
-        M=M_g / 1e3,
-        L=L_cm / 1e2,
-        T=(L_cm / 1e2) / (V_cm_s / 1e2),
-    )
+    # conf = Configuration(
+    #     ptcl_spacing=box_size / ptcl_grid_shape,
+    #     ptcl_grid_shape=(ptcl_grid_shape,) * 3,
+    #     pmid_dtype=pmid_dtype,
+    #     a_start=a_start,
+    #     a_stop=a_stop,
+    #     M=M_g / 1e3,
+    #     L=L_cm / 1e2,
+    #     T=(L_cm / 1e2) / (V_cm_s / 1e2),
+    # )
 
     # Gadget snapshot has no A_s or n_s information
     # cosmo = Cosmology(
@@ -106,14 +99,16 @@ def read_gadget_hdf5(base, pmid_dtype=jnp.int16, verbose=False):
     ids = np.vstack(ids)
 
     # the order of Gadget particle ids could change, so need to sort
+    # such that the order of particles match that of the ic, i.e. pmwd
     ids = np.argsort(ids)
     pos = pos[ids]
     vel = vel[ids]
+    # to convert the pos to pmwd disp, we need to know the mesh shape
+    # and the pmid of Lagrangian particle grid;
+    # cannot simply use Particles.from_pos, where disp would be wrong;
+    # thus we will do this during training;
 
-    ptcl = Particles.from_pos(conf, pos)
-    ptcl = ptcl.replace(vel=vel)
-
-    return ptcl, a
+    return pos, vel, a
 
 
 def write_gadget_hdf5(base, a, ptcl, cosmo, conf, num_files=1,
