@@ -4,6 +4,8 @@ import jax.numpy as jnp
 import numpy as np
 import optax
 from functools import partial
+from torch.utils.data import Dataset, DataLoader
+import os
 
 from pmwd import (
     Configuration,
@@ -14,6 +16,7 @@ from pmwd import (
     lpt,
     nbody
 )
+from pmwd.io_util import read_gadget_hdf5
 
 
 def scale_Sobol(fn='sobol.txt', ind=slice(None)):
@@ -102,3 +105,27 @@ def gen_ic(i, fn_sobol='sobol.txt', re_sobol=False,
     if re_sobol: ret += (sobol,)
 
     return ret
+
+
+class G4snapDataset(Dataset):
+
+    def __init__(self, sims_dir, sobols=None, snaps_per_sim=121, sobols_edge=None):
+        self.sims_dir = sims_dir
+        if sobols is None:
+            sobols = np.arange(*sobols_edge)
+        self.sobols = sobols
+        self.num_sims = len(sobols)
+        self.snaps_per_sim = snaps_per_sim
+
+        self.num_snaps = self.num_sims * self.snaps_per_sim
+
+    def __len__(self):
+        return self.num_snaps
+
+    def __getitem__(self, idx):
+        i_sobol = idx // self.snaps_per_sim
+        i_snap = idx % self.snaps_per_sim
+        snap_file = os.path.join(self.sims_dir, f'{self.sobols[i_sobol]:03}',
+                                 'output', f'snapshot_{i_snap:03}')
+        pos, vel, a = read_gadget_hdf5(snap_file)
+        return pos, vel, a
