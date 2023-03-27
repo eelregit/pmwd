@@ -96,7 +96,7 @@ def read_gadget_hdf5(base, pmid_dtype=jnp.int16, verbose=False):
             ids.append(f['PartType1']['ParticleIDs'][:])
     pos = np.vstack(pos)
     vel = np.vstack(vel) * a**1.5
-    ids = np.vstack(ids)
+    ids = np.hstack(ids)
 
     # the order of Gadget particle ids could change, so need to sort
     # such that the order of particles match that of the ic, i.e. pmwd
