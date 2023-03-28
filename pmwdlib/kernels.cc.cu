@@ -527,7 +527,7 @@ void sort_keys_kernel(cudaStream_t stream, void** buffers, const char* opaque, s
 #endif
 
     // inputs/outputs
-    const SortKeysDescriptor<T> *descriptor = unpack_descriptor<SortKeysDescriptor>(opaque, opaque_len);
+    const SortKeysDescriptor *descriptor = unpack_descriptor<SortKeysDescriptor>(opaque, opaque_len);
     int64_t n_keys = descriptor->n_keys;
     size_t temp_storage_bytes = descriptor->tmp_storage_size;
     T *d_keys = reinterpret_cast<T*>(buffers[0]);
@@ -535,8 +535,8 @@ void sort_keys_kernel(cudaStream_t stream, void** buffers, const char* opaque, s
     char *work_i_d = static_cast<char*>(work_d);
 
     int64_t keys_mem_size = sizeof(T) * n_keys;
-    T* d_keys_buff = static_cast<T*>(&work_i_d[0]);
-    void *d_temp_storage = static_cast<void*>(&work_i_d[keys_mem_size]);
+    T* d_keys_buff = (T*)&work_i_d[0];
+    void *d_temp_storage = (void*)&work_i_d[keys_mem_size];
 
 #ifdef SCATTER_TIME
     cudaEventRecord(start);

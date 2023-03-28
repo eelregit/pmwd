@@ -223,7 +223,7 @@ def _sort_keys_lowering(ctx, keys, *, platform="gpu"):
             # Output types
             out_types=[out_type],
             # The inputs:
-            operands=[keys],
+            operands=[keys, workspace],
             # Layout specification:
             operand_layouts=[in_layout, (0,)],
             result_layouts=[out_layout],

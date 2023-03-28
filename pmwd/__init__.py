@@ -14,7 +14,7 @@ from pmwd.modes import white_noise, linear_modes
 from pmwd.lpt import lpt
 from pmwd.nbody import nbody
 from pmwd.pm_util import enmesh, rfftnfreq
-from pmwd.cuda_ops import scatter_cuda, gather_cuda
+from pmwd.cuda_ops import scatter_cuda, gather_cuda, sort_keys_cuda
 try:
     from pmwd._version import __version__
 except ModuleNotFoundError:

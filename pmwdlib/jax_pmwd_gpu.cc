@@ -54,7 +54,7 @@ PYBIND11_MODULE(_jaxpmwd, m) {
       [](int64_t n_keys)
       {
           size_t tmp_space_size = 0;
-          int64_t workspace_size = get_sork_keys_workspace_size<float>(n_keys, tmp_space_size);
+          int64_t workspace_size = get_sort_keys_workspace_size<float>(n_keys, tmp_space_size);
           return std::pair<int64_t, pybind11::bytes>(workspace_size, build_sort_keys_descriptor(n_keys, tmp_space_size));
       });
 
@@ -62,7 +62,7 @@ PYBIND11_MODULE(_jaxpmwd, m) {
       [](int64_t n_keys)
       {
           size_t tmp_space_size = 0;
-          int64_t workspace_size = get_sork_keys_workspace_size<double>(n_keys, tmp_space_size);
+          int64_t workspace_size = get_sort_keys_workspace_size<double>(n_keys, tmp_space_size);
           return std::pair<int64_t, pybind11::bytes>(workspace_size, build_sort_keys_descriptor(n_keys, tmp_space_size));
       });
 
@@ -70,7 +70,7 @@ PYBIND11_MODULE(_jaxpmwd, m) {
       [](int64_t n_keys)
       {
           size_t tmp_space_size = 0;
-          int64_t workspace_size = get_sork_keys_workspace_size<int32_t>(n_keys, tmp_space_size);
+          int64_t workspace_size = get_sort_keys_workspace_size<int32_t>(n_keys, tmp_space_size);
           return std::pair<int64_t, pybind11::bytes>(workspace_size, build_sort_keys_descriptor(n_keys, tmp_space_size));
       });
 
@@ -78,7 +78,7 @@ PYBIND11_MODULE(_jaxpmwd, m) {
       [](int64_t n_keys)
       {
           size_t tmp_space_size = 0;
-          int64_t workspace_size = get_sork_keys_workspace_size<int64_t>(n_keys, tmp_space_size);
+          int64_t workspace_size = get_sort_keys_workspace_size<int64_t>(n_keys, tmp_space_size);
           return std::pair<int64_t, pybind11::bytes>(workspace_size, build_sort_keys_descriptor(n_keys, tmp_space_size));
       });
 }
