@@ -64,7 +64,7 @@ typedef data_elm<char,8> char_8;
 
 template <typename T_int1, typename T_int2, typename T_float>
 __global__ void
-cal_cellid(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_int1 stridex, T_int1 stridey, T_int1 stridez, T_int1* cellid, T_int1* sortidx){
+cal_cellid(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_spacing, T_int1 ptcl_gridx, T_int1 ptcl_gridy, T_int1 ptcl_gridz, T_int1 stridex, T_int1 stridey, T_int1 stridez, T_float offsetx, T_float offsety, T_float offsetz, T_int1* cellid, T_int1* sortidx){
 
     for(uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_particle; tid+=gridDim.x*blockDim.x){
         // read particle data from global memory
@@ -72,18 +72,37 @@ cal_cellid(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_
         T_float p_disp[DIM] = {disp[tid*DIM + 0], disp[tid*DIM + 1], disp[tid*DIM + 2]};
 
         // strides
+        //T_int1 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
         T_int1 g_stride[3] = {stridex, stridey, stridez};
+        T_float g_offset[3] = {offsetx, offsety, offsetz};
 
         // cell index for each dimension
-        T_int1  c_index[DIM];
+        T_int1 c_index[DIM];
+        T_int1 c_index2;
+        T_float g_disp;
+        T_float g_disp2;
+        T_float ptcl_spacing_d = static_cast<T_float>(ptcl_spacing);
+        T_float cell_size_d = static_cast<T_float>(cell_size);
+        T_float L1[DIM] = {ptcl_spacing_d*ptcl_gridx, ptcl_spacing_d*ptcl_gridy, ptcl_spacing_d*ptcl_gridz};
         for(int idim=0; idim<3; idim++){
-            c_index[idim] = (static_cast<int>(floor(p_disp[idim]/cell_size)+p_pmid[idim])%g_stride[idim]+g_stride[idim]) % g_stride[idim];
+            g_disp = ptcl_spacing_d*p_pmid[idim]+p_disp[idim]-g_offset[idim];
+            g_disp = g_disp - floor(g_disp/L1[idim])*L1[idim];
+            g_disp2 = g_disp + cell_size_d;
+            g_disp2 = g_disp2 - floor(g_disp2/L1[idim])*L1[idim];
+            c_index[idim] = static_cast<T_int1>(floor(g_disp/cell_size_d));
+            c_index2 = static_cast<T_int1>(floor(g_disp2/cell_size_d));
+            // for ghost particles not in grid2 but will contribute to some vertices in grid2
+            if(c_index[idim] >= g_stride[idim] && c_index2 < g_stride[idim])
+                c_index[idim] = c_index2;
+            // for out of grid2 particles assign random cell in grid2
+            c_index[idim] = c_index[idim] % g_stride[idim];
         }
 
         T_int1 cell_id = c_index[0]*g_stride[2]*g_stride[1] + c_index[1]*g_stride[1] + c_index[2];
-        sortidx[tid] = tid;
         cellid[tid] = cell_id;
+        sortidx[tid] = tid;
     }
+
 }
 
 template <typename T_int1, typename T_int2, typename T_float>
@@ -729,7 +748,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     cudaEventCreate(&stop);
     for(int ii=0; ii<1024; ii++){
     cudaEventRecord(start);
-    cal_cellid<<<grid_size, block_size>>>(n_particle, pmid, disp, cell_size, stride[0], stride[1], stride[2], d_index, d_sortidx);
+    cal_cellid<<<grid_size, block_size>>>(n_particle, pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], d_index, d_sortidx);
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
     float milliseconds = 0;
