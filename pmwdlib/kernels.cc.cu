@@ -568,17 +568,23 @@ void argsort_kernel(cudaStream_t stream, void** buffers, const char* opaque, std
     T *d_keys = reinterpret_cast<T*>(buffers[0]);
     void *work_d = buffers[1];
     char *work_i_d = static_cast<char*>(work_d);
+    uint32_t *d_indices = reinterpret_cast<uint32_t*>(buffers[2]);
 
     int64_t keys_mem_size = sizeof(T) * n_keys;
+    int64_t indices_mem_size = sizeof(uint32_t)  * n_keys;
     T* d_keys_buff = (T*)&work_i_d[0];
-    void *d_temp_storage = (void*)&work_i_d[keys_mem_size];
+    uint32_t* d_indices_buff = (uint32_t*)&work_i_d[keys_mem_size];
+    void *d_temp_storage = (void*)&work_i_d[keys_mem_size+indices_mem_size];
 
 #ifdef SCATTER_TIME
     cudaEventRecord(start);
 #endif
+    thrust::device_ptr<uint32_t> dev_ptr = thrust::device_pointer_cast(d_indices);
+    thrust::sequence(dev_ptr, dev_ptr+n_keys);
     cub::DoubleBuffer<T> d_keys_dbuff(d_keys, d_keys_buff);
-    cub::DeviceRadixSort::SortKeys(d_temp_storage, temp_storage_bytes, d_keys_dbuff, n_keys);
-    d_keys = d_keys_dbuff.Current();
+    cub::DoubleBuffer<uint32_t> d_indices_dbuff(d_indices, d_indices_buff);
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, d_keys_dbuff, d_indices_dbuff, n_keys);
+    d_indices = d_indices_dbuff.Current();
 #ifdef SCATTER_TIME
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
@@ -878,11 +884,12 @@ template int64_t get_sort_keys_workspace_size<uint64_t>(int64_t n_keys, size_t& 
 
 template <typename T>
 int64_t get_argsort_workspace_size(int64_t n_keys, size_t& temp_storage_bytes){
-    int64_t nkeys_mem_size = sizeof(T) * n_keys;
+    int64_t nkeys_mem_size = sizeof(T) * n_keys + sizeof(uint32_t) * n_keys;
     void *d_temp_storage = NULL;
     temp_storage_bytes=0;
     cub::DoubleBuffer<T> d_keys(NULL, NULL);
-    cub::DeviceRadixSort::SortKeys(d_temp_storage, temp_storage_bytes, d_keys, n_keys);
+    cub::DoubleBuffer<uint32_t> d_indices(NULL, NULL);
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, d_keys, d_indices, n_keys);
     return temp_storage_bytes + nkeys_mem_size;
 }
 

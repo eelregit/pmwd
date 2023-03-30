@@ -241,3 +241,77 @@ _sort_keys_prim = Primitive("sort_keys_cuda")
 _sort_keys_prim.def_impl(partial(xla.apply_primitive, _sort_keys_prim))
 _sort_keys_prim.def_abstract_eval(_sort_keys_abstract_eval)
 mlir.register_lowering(_sort_keys_prim, _sort_keys_lowering, platform="gpu")
+
+### define argsort op
+@jit
+def argsort_cuda(keys):
+    return _argsort_prim.bind(keys)
+
+def _argsort_abstract_eval(keys):
+    return ShapeArray(keys.shape, dtypes.canonicalize_dtype(np.uint32))
+
+def _argsort_lowering(ctx, keys, *, platform="gpu"):
+    # Extract the numpy type of the inputs
+    keys_aval, *_ = ctx.avals_in
+    out_aval, *_ = ctx.avals_out
+    #print(out_aval.dtype)
+    np_dtype = np.dtype(keys_aval.dtype)
+    in_type = ir.RankedTensorType(keys.type)
+    in_layout = tuple(range(len(in_type.shape) - 1, -1, -1))
+    out_type = ir.RankedTensorType.get(out_aval.shape, ir.IntegerType.get_unsigned(32))
+    out_layout = tuple(range(len(out_type.shape) - 1, -1, -1))
+
+    # We dispatch a different call depending on the dtype
+    if np_dtype == np.float32:
+        op_name = platform + "_argsort_f32"
+        # dimension using the 'opaque' parameter
+        workspace_size, opaque = _jaxpmwd.build_argsort_descriptor_f32(np.prod(in_type.shape).astype(np.int64))
+    elif np_dtype == np.float64:
+        op_name = platform + "_argsort_f64"
+        # dimension using the 'opaque' parameter
+        workspace_size, opaque = _jaxpmwd.build_argsort_descriptor_f64(np.prod(in_type.shape).astype(np.int64))
+    elif np_dtype == np.int32:
+        op_name = platform + "_argsort_f64"
+        # dimension using the 'opaque' parameter
+        workspace_size, opaque = _jaxpmwd.build_argsort_descriptor_i32(np.prod(in_type.shape).astype(np.int64))
+    elif np_dtype == np.int64:
+        op_name = platform + "_argsort_f64"
+        # dimension using the 'opaque' parameter
+        workspace_size, opaque = _jaxpmwd.build_argsort_descriptor_i64(np.prod(in_type.shape).astype(np.int64))
+    else:
+        raise NotImplementedError(f"Unsupported dtype {np_dtype}")
+
+    workspace = mlir.full_like_aval(ctx, 0, core.ShapedArray(shape=[workspace_size], dtype=np.byte))
+
+    # And then the following is what changes between the GPU and CPU
+    if platform == "cpu":
+        raise NotImplementedError(f"Unsupported cpu platform")
+    elif platform == "gpu":
+        if _jaxpmwd is None:
+            raise ValueError(
+                "The '_jaxpmwd' module was not compiled with CUDA support"
+            )
+
+        # TODO: if we use shared mem with bin sort, bin sort work mem allocate by XLA here and pass to cuda
+        result = custom_call(
+            op_name,
+            # Output types
+            out_types=[out_type],
+            # The inputs:
+            operands=[keys, workspace],
+            # Layout specification:
+            operand_layouts=[in_layout, (0,)],
+            result_layouts=[out_layout],
+            # GPU specific additional data
+            backend_config=opaque,
+        )
+        return hlo.ReshapeOp(mlir.aval_to_ir_type(out_aval), result).results
+
+    raise ValueError(
+        "Unsupported platform; this must be 'gpu'"
+    )
+
+_argsort_prim = Primitive("argsort_cuda")
+_argsort_prim.def_impl(partial(xla.apply_primitive, _argsort_prim))
+_argsort_prim.def_abstract_eval(_argsort_abstract_eval)
+mlir.register_lowering(_argsort_prim, _argsort_lowering, platform="gpu")
