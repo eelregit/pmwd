@@ -527,7 +527,42 @@ void sort_keys_kernel(cudaStream_t stream, void** buffers, const char* opaque, s
 #endif
 
     // inputs/outputs
-    const SortKeysDescriptor *descriptor = unpack_descriptor<SortKeysDescriptor>(opaque, opaque_len);
+    const SortDescriptor *descriptor = unpack_descriptor<SortDescriptor>(opaque, opaque_len);
+    int64_t n_keys = descriptor->n_keys;
+    size_t temp_storage_bytes = descriptor->tmp_storage_size;
+    T *d_keys = reinterpret_cast<T*>(buffers[0]);
+    void *work_d = buffers[1];
+    char *work_i_d = static_cast<char*>(work_d);
+
+    int64_t keys_mem_size = sizeof(T) * n_keys;
+    T* d_keys_buff = (T*)&work_i_d[0];
+    void *d_temp_storage = (void*)&work_i_d[keys_mem_size];
+
+#ifdef SCATTER_TIME
+    cudaEventRecord(start);
+#endif
+    cub::DoubleBuffer<T> d_keys_dbuff(d_keys, d_keys_buff);
+    cub::DeviceRadixSort::SortKeys(d_temp_storage, temp_storage_bytes, d_keys_dbuff, n_keys);
+    d_keys = d_keys_dbuff.Current();
+#ifdef SCATTER_TIME
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("cuda kernel Sort: %f milliseconds\n", milliseconds);
+#endif
+}
+
+template <typename T>
+void argsort_kernel(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+#ifdef SCATTER_TIME
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+#endif
+
+    // inputs/outputs
+    const SortDescriptor *descriptor = unpack_descriptor<SortDescriptor>(opaque, opaque_len);
     int64_t n_keys = descriptor->n_keys;
     size_t temp_storage_bytes = descriptor->tmp_storage_size;
     T *d_keys = reinterpret_cast<T*>(buffers[0]);
@@ -789,6 +824,22 @@ void sort_keys_i64(cudaStream_t stream, void** buffers, const char* opaque, std:
     sort_keys_kernel<int64_t>(stream, buffers, opaque, opaque_len);
 }
 
+void argsort_f32(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    argsort_kernel<float>(stream, buffers, opaque, opaque_len);
+}
+
+void argsort_f64(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    argsort_kernel<double>(stream, buffers, opaque, opaque_len);
+}
+
+void argsort_i32(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    argsort_kernel<int32_t>(stream, buffers, opaque, opaque_len);
+}
+
+void argsort_i64(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    argsort_kernel<int64_t>(stream, buffers, opaque, opaque_len);
+}
+
 int64_t get_workspace_size(int64_t n_ptcls, uint32_t stride_x, uint32_t stride_y, uint32_t stride_z, size_t& temp_storage_bytes){
     // get arrays storages
     // 4 arrays of n_ptcls of uint32_t
@@ -824,6 +875,23 @@ template int64_t get_sort_keys_workspace_size<int32_t>(int64_t n_keys, size_t& t
 template int64_t get_sort_keys_workspace_size<int64_t>(int64_t n_keys, size_t& temp_storage_bytes);
 template int64_t get_sort_keys_workspace_size<uint32_t>(int64_t n_keys, size_t& temp_storage_bytes);
 template int64_t get_sort_keys_workspace_size<uint64_t>(int64_t n_keys, size_t& temp_storage_bytes);
+
+template <typename T>
+int64_t get_argsort_workspace_size(int64_t n_keys, size_t& temp_storage_bytes){
+    int64_t nkeys_mem_size = sizeof(T) * n_keys;
+    void *d_temp_storage = NULL;
+    temp_storage_bytes=0;
+    cub::DoubleBuffer<T> d_keys(NULL, NULL);
+    cub::DeviceRadixSort::SortKeys(d_temp_storage, temp_storage_bytes, d_keys, n_keys);
+    return temp_storage_bytes + nkeys_mem_size;
+}
+
+template int64_t get_argsort_workspace_size<float>(int64_t n_keys, size_t& temp_storage_bytes);
+template int64_t get_argsort_workspace_size<double>(int64_t n_keys, size_t& temp_storage_bytes);
+template int64_t get_argsort_workspace_size<int32_t>(int64_t n_keys, size_t& temp_storage_bytes);
+template int64_t get_argsort_workspace_size<int64_t>(int64_t n_keys, size_t& temp_storage_bytes);
+template int64_t get_argsort_workspace_size<uint32_t>(int64_t n_keys, size_t& temp_storage_bytes);
+template int64_t get_argsort_workspace_size<uint64_t>(int64_t n_keys, size_t& temp_storage_bytes);
 
 __global__ void
 pp_gm(uint32_t* cell_ids, uint32_t n_cell, uint32_t* pos,
