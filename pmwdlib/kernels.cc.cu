@@ -595,6 +595,93 @@ void argsort_kernel(cudaStream_t stream, void** buffers, const char* opaque, std
 }
 
 template <typename T>
+void enmesh_dense(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+#ifdef SCATTER_TIME
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+#endif
+
+    // inputs/outputs
+    const PmwdDescriptor<T> *descriptor = unpack_descriptor<PmwdDescriptor<T>>(opaque, opaque_len);
+    T cell_size = descriptor->cell_size;
+    T ptcl_spacing = descriptor->ptcl_spacing;
+    int64_t n_particle = descriptor->n_particle;
+    uint32_t ptcl_grid[3]  = {descriptor->ptcl_grid[0], descriptor->ptcl_grid[1], descriptor->ptcl_grid[2]};
+    uint32_t stride[3]  = {descriptor->stride[0], descriptor->stride[1], descriptor->stride[2]};
+    T offset[3]  = {descriptor->offset[0], descriptor->offset[1], descriptor->offset[2]};
+    size_t   temp_storage_bytes = descriptor->tmp_storage_size;
+    uint32_t *pmid = reinterpret_cast<uint32_t *>(buffers[0]);
+    T *disp = reinterpret_cast<T *>(buffers[1]);
+    T *particle_values = reinterpret_cast<T *>(buffers[2]);
+    void *work_d = buffers[4];
+    T *grid_values = reinterpret_cast<T *>(buffers[5]);
+    char *work_i_d = static_cast<char *>(work_d);
+
+    // parameters for shared mem using bins to group cells
+    uint32_t bin_size = BINSIZE;
+    uint32_t nbinx = static_cast<uint32_t>(std::ceil(1.0*stride[0]/bin_size));
+    uint32_t nbiny = static_cast<uint32_t>(std::ceil(1.0*stride[1]/bin_size));
+    uint32_t nbinz = static_cast<uint32_t>(std::ceil(1.0*stride[2]/bin_size));
+
+    uint32_t npts_mem_size = sizeof(uint32_t) * n_particle;
+    uint32_t nbins_mem_size = sizeof(uint32_t) * nbinx*nbiny*nbinz;
+    uint32_t* d_sortidx = (uint32_t*)work_i_d;
+    uint32_t* d_sortidx_buff = (uint32_t*)&work_i_d[npts_mem_size];
+    uint32_t* d_index = (uint32_t*)&work_i_d[2*npts_mem_size];
+    uint32_t* d_index_buff = (uint32_t*)&work_i_d[3*npts_mem_size];
+    uint32_t* d_bin_count = (uint32_t*)&work_i_d[4*npts_mem_size];
+    uint32_t* d_bin_start = (uint32_t*)&work_i_d[4*npts_mem_size + nbins_mem_size];
+    void     *d_temp_storage = (void*)&work_i_d[4*npts_mem_size + 2*nbins_mem_size + sizeof(uint32_t)];
+    int block_size = 1024;
+    int grid_size = ((n_particle + block_size) / block_size);
+
+#ifdef SCATTER_TIME
+    cudaEventRecord(start);
+#endif
+    cal_binid<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], d_index, d_sortidx);
+#ifdef SCATTER_TIME
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    float milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("cuda kernel cal_binid: %f milliseconds\n", milliseconds);
+#endif
+
+#ifdef SCATTER_TIME
+    cudaEventRecord(start);
+#endif
+    cub::DoubleBuffer<uint32_t> d_keys(d_index, d_index_buff);
+    cub::DoubleBuffer<uint32_t> d_values(d_sortidx, d_sortidx_buff);
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, d_keys, d_values, n_particle);
+    d_index = d_keys.Current();
+    d_sortidx = d_values.Current();
+#ifdef SCATTER_TIME
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("cuda kernel SortPairs: %f milliseconds\n", milliseconds);
+#endif
+
+#ifdef SCATTER_TIME
+    cudaEventRecord(start);
+#endif
+    thrust::counting_iterator<uint32_t> search_begin(0);
+    thrust::upper_bound(thrust::device_ptr<uint32_t>(d_index), thrust::device_ptr<uint32_t>(d_index)+uint32_t(n_particle),
+                        search_begin, search_begin+nbinx*nbiny*nbinz,
+                        thrust::device_ptr<uint32_t>(d_bin_start)+1);
+    thrust::adjacent_difference(thrust::device_ptr<uint32_t>(d_bin_start)+1, thrust::device_ptr<uint32_t>(d_bin_start)+1+nbinx*nbiny*nbinz, thrust::device_ptr<uint32_t>(d_bin_count));
+#ifdef SCATTER_TIME
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    milliseconds = 0;
+    cudaEventElapsedTime(&milliseconds, start, stop);
+    printf("cuda kernel bin count: %f milliseconds\n", milliseconds);
+#endif
+}
+
+template <typename T>
 void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
 #ifdef SCATTER_TIME
     cudaEvent_t start, stop;
@@ -899,6 +986,24 @@ template int64_t get_argsort_workspace_size<int32_t>(int64_t n_keys, size_t& tem
 template int64_t get_argsort_workspace_size<int64_t>(int64_t n_keys, size_t& temp_storage_bytes);
 template int64_t get_argsort_workspace_size<uint32_t>(int64_t n_keys, size_t& temp_storage_bytes);
 template int64_t get_argsort_workspace_size<uint64_t>(int64_t n_keys, size_t& temp_storage_bytes);
+
+int64_t get_enmesh_workspace_size(int64_t n_ptcls, uint32_t stride_x, uint32_t stride_y, uint32_t stride_z, size_t& temp_storage_bytes){
+    // get arrays storages
+    // 4 arrays of n_ptcls of uint32_t
+    // 1 array of nbins of uint32_t
+    // 1 array of (nbins+1) of uint32_t
+    int64_t n_cells = stride_x*stride_y*stride_z;
+    int64_t npts_mem_size = sizeof(uint32_t) * n_ptcls * 4;
+    int64_t ncells_mem_size = sizeof(uint32_t) * (2*n_cells+1);
+
+    // get sort workspace size
+    void *d_temp_storage = NULL;
+    temp_storage_bytes=0;
+    cub::DoubleBuffer<uint32_t> d_keys(NULL, NULL);
+    cub::DoubleBuffer<uint32_t> d_values(NULL, NULL);
+    cub::DeviceRadixSort::SortPairs(d_temp_storage, temp_storage_bytes, d_keys, d_values, n_ptcls);
+    return temp_storage_bytes + npts_mem_size + ncells_mem_size;
+}
 
 __global__ void
 pp_gm(uint32_t* cell_ids, uint32_t n_cell, uint32_t* pos,
