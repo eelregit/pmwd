@@ -24,7 +24,7 @@ setup(
     packages=find_packages(),
     python_requires='>=3.7',
     install_requires=[
-        'jax',
+        'jax>=0.4.7',
         'numpy>=1.20',  # numpy.typing
         'mcfit',
     ],
