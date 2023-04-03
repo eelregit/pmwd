@@ -681,6 +681,68 @@ void enmesh_dense(cudaStream_t stream, void** buffers, const char* opaque, std::
 #ifdef SCATTER_TIME
     cudaEventRecord(start);
 #endif
+    /*
+       dense histogram ad edge using,
+       histogram:
+       unique_cellid, sparse_counts = cub::Encode(sorted_cellid)
+       # alternatively: unique_cellid, sparse_counts =
+       #   thrust::reduce_by_key(sorted_cellid)
+
+       dense_counts = thrust::set_union_by_key(
+         unique_cellid,
+         thrust::counting_iterator,
+         sparse_counts,
+         thrust::constant_iterator<0>,
+         thrust::discard_iterator,
+         dense_counts,
+       )
+       # alternatively: dense_counts = thrust::scatter(
+       #   sparse_counts, unique_cellid, dense_counts=zeros)
+
+       dense_edges = thrust::exclusive_scan(dense_counts)
+
+       find edges:
+       unique_cellid, sparse_edges = thrust::unique_by_key_copy(
+         sorted_cellid,
+         thrust::counting_iterator,
+         unique_cellid,
+         sparse_edges,
+       )
+       sparse_edges[-1] = number_of_particles  # dense_edges is longer by 1
+
+       # unnecessary here: dense_counts = thrust:adjacent_difference(dense_edges)
+
+       # Though I don't know how to turn sparse_edges into dense_edges
+       # use expand?
+
+       code:
+        int A_keys[7] = {12, 10, 8, 6, 5, 2, 0};
+        int A_vals[7] = { 0,  0, 0, 0, 100, 0, 0};
+        int B_keys[5] = {9, 7, 5, 3, 1};
+        int B_vals[5] = {1, 1, 1, 1, 1};
+        int keys_result[11];
+        int vals_result[11];
+        thrust::pair<int*,int*> end = thrust::set_union_by_key(thrust::host, A_keys, A_keys + 7, B_keys, B_keys + 5, A_vals,B_vals, keys_result, vals_result, thrust::greater<int>());
+        thrust::for_each(thrust::host, keys_result, keys_result+11,
+        printf_functor());
+        printf("\n");
+        thrust::for_each(thrust::host, vals_result, vals_result+11,
+        printf_functor());
+        printf("\n");
+        // sparse histogram
+        uint32_t num_bins = thrust::inner_product(dev_ptr, dev_ptr + n_particle -1,
+                            dev_ptr+1,
+                            uint32_t(1),
+                            thrust::plus<uint32_t>(),
+                            thrust::not_equal_to<uint32_t>());
+        histogram_values.resize(num_bins);
+        histogram_counts.resize(num_bins);
+        thrust::reduce_by_key(dev_ptr, dev_ptr+n_particle,
+                thrust::constant_iterator<uint32_t>(1),
+                histogram_values.begin(),
+                histogram_counts.begin());
+    */
+    // dense histogram and edge using upper bound
     thrust::counting_iterator<uint32_t> search_begin(0);
     thrust::upper_bound(thrust::device_ptr<uint32_t>(d_index), thrust::device_ptr<uint32_t>(d_index)+uint32_t(n_particle),
                         search_begin, search_begin+n_cells,

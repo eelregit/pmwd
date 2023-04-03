@@ -30,6 +30,8 @@ void argsort_i32(cudaStream_t stream, void** buffers, const char* opaque, std::s
 void argsort_i64(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
 
 int64_t get_enmesh_workspace_size(int64_t n_ptcls, uint32_t stride_x, uint32_t stride_y, uint32_t stride_z, size_t& temp_storage_bytes);
+void enmesh_f32(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
+void enmesh_f64(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len);
 }  // namespace jax_pmwd
 
 #endif
