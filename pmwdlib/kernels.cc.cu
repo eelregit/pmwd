@@ -614,7 +614,7 @@ void argsort_kernel(cudaStream_t stream, void** buffers, const char* opaque, std
 }
 
 template <typename T>
-void enmesh_dense(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+void enmesh_kernel(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
 #ifdef SCATTER_TIME
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -1007,6 +1007,14 @@ void argsort_i32(cudaStream_t stream, void** buffers, const char* opaque, std::s
 
 void argsort_i64(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
     argsort_kernel<int64_t>(stream, buffers, opaque, opaque_len);
+}
+
+void enmesh_f32(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    enmesh_kernel<float>(stream, buffers, opaque, opaque_len);
+}
+
+void enmesh_f64(cudaStream_t stream, void** buffers, const char* opaque, std::size_t opaque_len){
+    enmesh_kernel<double>(stream, buffers, opaque, opaque_len);
 }
 
 int64_t get_workspace_size(int64_t n_ptcls, uint32_t stride_x, uint32_t stride_y, uint32_t stride_z, size_t& temp_storage_bytes){
