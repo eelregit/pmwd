@@ -119,11 +119,17 @@ musicola = MUSIC + sCOLA, an approximate perfectly parallel method.
 
 \section*{TODO}
 \begin{itemize}
+\item Is ``COLA'' really necessary in sCOLA, or can we simply run a
+  zoom-in PM inside coarser LPTs?
 \item PDE solver: spectral vs finite difference?
 \item boundary conditions: unbounded, Dirichlet, or?
 \item Host memory stores the hi-res ICs, every GPU stores the lowest
   resolution ICs, and receives nested ICs of other resolutions before
   every run.
+\item Including super-sample modes naturally and completely (beyond the
+  DC density and tidal ones).
+\item Gradient checkpointing on LPTs can be used to trade computation
+  for memory.
 \end{itemize}
 
 
