@@ -239,11 +239,9 @@ class CosmicWebNorm(FuncNorm):
 
     def get_colorbar_ticks(self, subs=(1, 2, 5), sep=0.03):
         """Get pretty colorbar ticks locations and labels."""
-        lg_min = np.floor(np.log10(self.fit_min))
-        lg_max = np.floor(np.log10(self.max))
-        lg_num = round(lg_max - lg_min) + 1
-        x = np.logspace(lg_min, lg_max, num=lg_num, endpoint=True)
-        x = np.ravel(x[:, np.newaxis] * subs)
+        lg_min = int(np.floor(np.log10(self.fit_min)))
+        lg_max = int(np.floor(np.log10(self.max)))
+        x = np.array([s * 10**e for e in range(lg_min, lg_max+1) for s in subs])
         x = x[(x >= self.fit_min) & (x <= self.max)]
 
         # only keep well separated ticks in the candidates
