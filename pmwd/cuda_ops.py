@@ -248,7 +248,7 @@ def argsort_cuda(keys):
     return _argsort_prim.bind(keys)
 
 def _argsort_abstract_eval(keys):
-    return ShapeArray(keys.shape, dtypes.canonicalize_dtype(np.uint32))
+    return (ShapedArray(keys.shape, dtypes.canonicalize_dtype(np.uint32)), ShapedArray(keys.shape, keys.dtype))
 
 def _argsort_lowering(ctx, keys, *, platform="gpu"):
     # Extract the numpy type of the inputs
@@ -293,25 +293,27 @@ def _argsort_lowering(ctx, keys, *, platform="gpu"):
             )
 
         # TODO: if we use shared mem with bin sort, bin sort work mem allocate by XLA here and pass to cuda
-        result = custom_call(
+        return custom_call(
             op_name,
             # Output types
-            out_types=[out_type],
+            out_types=[out_type, in_type],
             # The inputs:
             operands=[keys, workspace],
             # Layout specification:
             operand_layouts=[in_layout, (0,)],
-            result_layouts=[out_layout],
+            result_layouts=[out_layout, in_layout],
+            operand_output_aliases={0:1},
             # GPU specific additional data
             backend_config=opaque,
         )
-        return hlo.ReshapeOp(mlir.aval_to_ir_type(out_aval), result).results
+        #return hlo.ReshapeOp(mlir.aval_to_ir_type(out_aval), result).results
 
     raise ValueError(
         "Unsupported platform; this must be 'gpu'"
     )
 
 _argsort_prim = Primitive("argsort_cuda")
+_argsort_prim.multiple_results = True
 _argsort_prim.def_impl(partial(xla.apply_primitive, _argsort_prim))
 _argsort_prim.def_abstract_eval(_argsort_abstract_eval)
 mlir.register_lowering(_argsort_prim, _argsort_lowering, platform="gpu")
@@ -325,7 +327,7 @@ def enmesh_cuda(pmid, disp, mesh, offset, ptcl_grid, ptcl_spacing, cell_size):
 def _enmesh_abstract_eval(pmid, disp, mesh, offset, ptcl_grid, ptcl_spacing, cell_size):
     shape_mesh = [np.prod(mesh.shape)]
     shape_ptcl = [np.prod(pmid.shape)]
-    return (ShapeArray(shape_ptcl, dtypes.canonicalize_dtype(np.uint32)), ShapeArray(shape_mesh, dtypes.canonicalize_dtype(np.uint32)), ShapeArray(shape_mesh, dtypes.canonicalize_dtype(np.uint32)))
+    return (ShapedArray(shape_ptcl, dtypes.canonicalize_dtype(np.uint32)), ShapedArray(shape_mesh, dtypes.canonicalize_dtype(np.uint32)), ShapedArray(shape_mesh, dtypes.canonicalize_dtype(np.uint32)))
 
 def _enmesh_lowering(ctx, pmid, disp, mesh, *, offset, ptcl_grid, ptcl_spacing, cell_size, platform="gpu"):
     # Extract the numpy type of the inputs
@@ -370,7 +372,7 @@ def _enmesh_lowering(ctx, pmid, disp, mesh, *, offset, ptcl_grid, ptcl_spacing, 
             )
 
         # TODO: if we use shared mem with bin sort, bin sort work mem allocate by XLA here and pass to cuda
-        result = custom_call(
+        return custom_call(
             op_name,
             # Output types
             out_types=[ptcl_out_type, mesh_out_type, mesh_out_type],
@@ -382,13 +384,14 @@ def _enmesh_lowering(ctx, pmid, disp, mesh, *, offset, ptcl_grid, ptcl_spacing, 
             # GPU specific additional data
             backend_config=opaque,
         )
-        return hlo.ReshapeOp(mlir.aval_to_ir_type(out_aval), result).results
+        #return hlo.ReshapeOp(mlir.aval_to_ir_type(out_aval), result).results
 
     raise ValueError(
         "Unsupported platform; this must be 'gpu'"
     )
 
 _enmesh_prim = Primitive("enmesh_cuda")
+_argsort_prim.multiple_results = True
 _enmesh_prim.def_impl(partial(xla.apply_primitive, _enmesh_prim))
 _enmesh_prim.def_abstract_eval(_enmesh_abstract_eval)
 mlir.register_lowering(_enmesh_prim, _enmesh_lowering, platform="gpu")

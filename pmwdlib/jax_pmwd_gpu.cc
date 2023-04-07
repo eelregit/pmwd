@@ -24,6 +24,11 @@ pybind11::dict Registrations() {
   dict["gpu_sort_keys_i32"] = encapsulate_function(sort_keys_i32);
   dict["gpu_sort_keys_i64"] = encapsulate_function(sort_keys_i64);
 
+  dict["gpu_argsort_f32"] = encapsulate_function(argsort_f32);
+  dict["gpu_argsort_f64"] = encapsulate_function(argsort_f64);
+  dict["gpu_argsort_i32"] = encapsulate_function(argsort_i32);
+  dict["gpu_argsort_i64"] = encapsulate_function(argsort_i64);
+
   dict["gpu_enmesh_f32"] = encapsulate_function(enmesh_f32);
   dict["gpu_enmesh_f64"] = encapsulate_function(enmesh_f64);
   return dict;

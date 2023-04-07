@@ -20,6 +20,9 @@ os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.99'
 key = random.PRNGKey(101)
 nkeys = 8192
 keys = random.uniform(key, shape=(nkeys,),dtype=jnp.float32,minval=0.0,maxval=2.0)
-print(keys)
 sorted_keys = pmwd.sort_keys_cuda(keys)
+sorted_index, sorted_keys2 = pmwd.argsort_cuda(keys)
+print(sorted_index)
+print(keys)
 print(sorted_keys)
+print(sorted_keys2)
