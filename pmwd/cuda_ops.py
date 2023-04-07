@@ -7,11 +7,12 @@ from jax import core, dtypes, lax
 from jax.core import Primitive
 from jax import numpy as jnp
 from jax.abstract_arrays import ShapedArray
-from jax.interpreters import ad, batching, mlir, xla
+from jax._src.interpreters import ad, batching, mlir, xla
 from jax import jit
 from jax.lib import xla_client
 from jaxlib.hlo_helpers import custom_call
 from jax._src.lib.mlir.dialects import hlo
+from jax._src import dispatch
 from . import _jaxpmwd
 
 # Registering ops for XLA
@@ -89,7 +90,7 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_grid, ptcl_spa
     )
 
 _scatter_prim = Primitive("scatter_cuda")
-_scatter_prim.def_impl(partial(xla.apply_primitive, _scatter_prim))
+_scatter_prim.def_impl(partial(dispatch.apply_primitive, _scatter_prim))
 _scatter_prim.def_abstract_eval(_scatter_abstract_eval)
 mlir.register_lowering(_scatter_prim, _scatter_lowering, platform="gpu")
 
@@ -164,7 +165,7 @@ def _gather_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_s
     )
 
 _gather_prim = Primitive("gather_cuda")
-_gather_prim.def_impl(partial(xla.apply_primitive, _gather_prim))
+_gather_prim.def_impl(partial(dispatch.apply_primitive, _gather_prim))
 _gather_prim.def_abstract_eval(_gather_abstract_eval)
 mlir.register_lowering(_gather_prim, _gather_lowering, platform="gpu")
 
@@ -238,7 +239,7 @@ def _sort_keys_lowering(ctx, keys, *, platform="gpu"):
     )
 
 _sort_keys_prim = Primitive("sort_keys_cuda")
-_sort_keys_prim.def_impl(partial(xla.apply_primitive, _sort_keys_prim))
+_sort_keys_prim.def_impl(partial(dispatch.apply_primitive, _sort_keys_prim))
 _sort_keys_prim.def_abstract_eval(_sort_keys_abstract_eval)
 mlir.register_lowering(_sort_keys_prim, _sort_keys_lowering, platform="gpu")
 
@@ -314,7 +315,7 @@ def _argsort_lowering(ctx, keys, *, platform="gpu"):
 
 _argsort_prim = Primitive("argsort_cuda")
 _argsort_prim.multiple_results = True
-_argsort_prim.def_impl(partial(xla.apply_primitive, _argsort_prim))
+_argsort_prim.def_impl(partial(dispatch.apply_primitive, _argsort_prim))
 _argsort_prim.def_abstract_eval(_argsort_abstract_eval)
 mlir.register_lowering(_argsort_prim, _argsort_lowering, platform="gpu")
 
@@ -392,6 +393,6 @@ def _enmesh_lowering(ctx, pmid, disp, mesh, *, offset, ptcl_grid, ptcl_spacing, 
 
 _enmesh_prim = Primitive("enmesh_cuda")
 _argsort_prim.multiple_results = True
-_enmesh_prim.def_impl(partial(xla.apply_primitive, _enmesh_prim))
+_enmesh_prim.def_impl(partial(dispatch.apply_primitive, _enmesh_prim))
 _enmesh_prim.def_abstract_eval(_enmesh_abstract_eval)
 mlir.register_lowering(_enmesh_prim, _enmesh_lowering, platform="gpu")
