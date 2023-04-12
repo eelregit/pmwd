@@ -5,7 +5,9 @@ import numpy as np
 import jax.numpy as jnp
 from jax import device_get
 
-from pmwd import Configuration, Cosmology, Particles
+from pmwd.configuration import Configuration
+from pmwd.cosmology import Cosmology
+from pmwd.particles import Particles
 
 
 def read_gadget_hdf5(base, pmid_dtype=jnp.int16, verbose=False):
