@@ -13,6 +13,7 @@
 \usepackage{amsmath}
 %  \allowdisplaybreaks
 \usepackage{bm}
+\usepackage{dsfont}
 %\usepackage{mathrsfs}
 %\usepackage{soul}
 %\usepackage{tensor}
@@ -55,6 +56,9 @@
 \renewcommand{\figureautorefname}{Fig.}
 \newcommand{\subfigureautorefname}{\figureautorefname}
 
+\DeclareMathOperator*{\E}{\mathds{E}}
+\DeclareMathOperator{\tsum}{{\textstyle\sum}}
+\newcommand{\1}{\mathds{1}}
 \newcommand{\order}{\mathcal{O}}
 \newcommand{\deltaD}{\delta^\textsc{d}}
 \newcommand{\deltaK}{\delta^\textsc{k}}
@@ -265,6 +269,56 @@ are uniform (and Gaussian with known power spectrum) on large scales.
 \YL{Optimal mesh cell size given variance of particle density for fixed
 error budget, cosmology and time dependence.}
 
+
+
+\subsection{Complexity}
+
+$N$ particles, $M$ cells, volume $V$, mean matter density
+$\bar\rho$, particle mass $m = \bar\rho V / N$, density field $\rho(\vx)
+= \bar\rho [1 + \delta(\vx)]$, $C_i$ is the $i$-th cell, and $D_i$ are
+the cells whose particles directly interact with those in $C_i$ (so $C_i
+\subsetneq D_i$).
+Each cell $C$ has volume $V / M$, and each direct interacting region $D$
+has volume $d V / M$ with $d$ being an integer greater than 1.
+The total number of pairs of interactions is
+%
+\begin{align}
+\tsum_{i=1}^M \E \bigl[ \tsum_{p\in C_i} \1_{p'\in D_i} \bigr]
+%
+&\simeq \frac{N^2}{V^2} \tsum_{i=1}^M \E \biggl[
+  \int_{C_i} \!\!\!\d\vx \int_{D_i} \!\!\!\d\vx'\,
+  [1 + \delta(\vx)] [1 + \delta(\vx')] \biggr] \nonumber\\
+%
+&= \frac{M N^2}{V^2} \int_C \!\!\d\vx \int_D \!\!\d\vx'\,
+  \bigl[ 1 + \xi(\vx' - \vx) \bigr]
+= \frac{d N^2}M  \bigl( 1 + \sigma^2_{CD} \bigr),
+\end{align}
+%
+where $\xi$ is the matter density 2-point correlation function, and we
+have replaced the sums over particles with the integrals over the
+density fields, $\sum_p \to m^{-1} \int \!\d\vx\, \rho(\vx) = N V^{-1}
+\int \!\d\vx\, [1 + \delta(\vx)]$, in deriving the first equality.
+We have also used the density covariance between $C$ and $D$, defined as
+%
+\begin{equation}
+\sigma^2_{CD} \triangleq \int \!\!\frac{\d\vk}{(2\pi)^3}\,
+  P(k) W_C^*(\vk) W_D(\vk)
+= \frac{M^2}{d V^2} \int_C \!\!\d\vx \int_D \!\!\d\vx'\,
+  \xi(\vx' - \vx),
+\end{equation}
+%
+where $P(k)$ is the matter density power spectrum and the Fourier
+transform of $\xi$.
+$\sigma^2_{CD}$ depends on the geometry of $C$ and $D$, through their
+Fourier space windows:
+%
+\begin{align}
+W_C(\vk) &\triangleq \frac{M}V \int_C \!\!\d\vx\, e^{i\vk\cdot\vx},
+  \nonumber\\
+W_D(\vk) &\triangleq \frac{M}{dV} \int_D \!\!\d\vx\, e^{i\vk\cdot\vx},
+\end{align}
+%
+both normalized to 1 at $\vk=\vzero$.
 
 
 
