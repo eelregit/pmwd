@@ -122,7 +122,7 @@ def read_g4data(sobol_ids, sims_dir, snaps_per_sim, fn_sobol):
 class G4snapDataset(Dataset):
 
     def __init__(self, sims_dir, sobol_ids=None, sobols_edge=None,
-                 snaps_per_sim=10, fn_sobol='sobol.txt'):
+                 snaps_per_sim=121, fn_sobol='sobol.txt'):
         self.sims_dir = sims_dir
         if sobol_ids is None:
             sobol_ids = np.arange(*sobols_edge)
