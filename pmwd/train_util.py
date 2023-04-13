@@ -1,6 +1,7 @@
 import jax
-from jax import random
+from jax import random, pmap, jit, tree_map
 import jax.numpy as jnp
+from jax.lax import pmean
 import numpy as np
 import optax
 from functools import partial
@@ -14,8 +15,10 @@ from pmwd import (
     white_noise,
     linear_modes,
     lpt,
-    nbody
+    nbody,
+    scatter,
 )
+from pmwd.pm_util import rfftnfreq
 from pmwd.io_util import read_gadget_hdf5
 
 
@@ -65,20 +68,14 @@ def scale_Sobol(fn='sobol.txt', ind=slice(None)):
     return sobol.T
 
 
-def gen_ic(i, fn_sobol='sobol.txt', re_sobol=False,
-           a_start=1/16, a_stop=1+1/128, a_nbody_maxstep=1/64, mesh_shape=1):
-    """Generate the initial condition with lpt for nbody.
-    The seed for white noise is simply the Sobol index i.
-    """
-    sobol = scale_Sobol(fn_sobol, i)  # scaled Sobol parameters at i
-
+def gen_cc(sobol, mesh_shape=1, a_nbody_maxstep=1/64, a_start=1/16, a_stop=1+1/128):
+    """Setup conf and cosmo given a sobol."""
     conf = Configuration(
         ptcl_spacing = sobol[0] / 128,
         ptcl_grid_shape = (128,) * 3,
         a_start = a_start,
         a_stop = a_stop,
         float_dtype = jnp.float64,
-        growth_dt0 = 1,
         mesh_shape = mesh_shape,
         # TODO number of time steps
         a_nbody_maxstep=a_nbody_maxstep,
@@ -94,38 +91,101 @@ def gen_ic(i, fn_sobol='sobol.txt', re_sobol=False,
         h = sobol[7],
     )
 
-    seed = i
+    return conf, cosmo
+
+
+def gen_ic(seed, conf, cosmo):
+    """Generate the initial condition with lpt for nbody."""
     modes = white_noise(seed, conf)
 
     cosmo = boltzmann(cosmo, conf)
     modes = linear_modes(modes, cosmo, conf)
     ptcl, obsvbl = lpt(modes, cosmo, conf)
 
-    ret = (ptcl, cosmo, conf)
-    if re_sobol: ret += (sobol,)
+    return ptcl, cosmo
 
-    return ret
+
+# TODO make this parallel?
+def read_g4data(sobol_ids, sims_dir, snaps_per_sim, fn_sobol):
+    data = {}
+    for i, sidx in enumerate(sobol_ids):
+        data[i] = {}
+        sobol = scale_Sobol(fn_sobol, sidx)
+        for j in range(snaps_per_sim):
+            snap_file = os.path.join(sims_dir, f'{sidx:03}',
+                                        'output', f'snapshot_{j:03}')
+            pos, vel, a = read_gadget_hdf5(snap_file)
+            data[i][j] = (pos, vel, a, sidx, sobol)
+    return data
 
 
 class G4snapDataset(Dataset):
 
-    def __init__(self, sims_dir, sobols=None, snaps_per_sim=121, sobols_edge=None):
+    def __init__(self, sims_dir, sobol_ids=None, sobols_edge=None,
+                 snaps_per_sim=10, fn_sobol='sobol.txt'):
         self.sims_dir = sims_dir
-        if sobols is None:
-            sobols = np.arange(*sobols_edge)
-        self.sobols = sobols
-        self.num_sims = len(sobols)
+        if sobol_ids is None:
+            sobol_ids = np.arange(*sobols_edge)
+        self.n_sims = len(sobol_ids)
         self.snaps_per_sim = snaps_per_sim
+        self.n_snaps = self.n_sims * self.snaps_per_sim
 
-        self.num_snaps = self.num_sims * self.snaps_per_sim
+        self.data = read_g4data(sobol_ids, sims_dir, snaps_per_sim, fn_sobol)
 
     def __len__(self):
-        return self.num_snaps
+        return self.n_snaps
 
     def __getitem__(self, idx):
         i_sobol = idx // self.snaps_per_sim
         i_snap = idx % self.snaps_per_sim
-        snap_file = os.path.join(self.sims_dir, f'{self.sobols[i_sobol]:03}',
-                                 'output', f'snapshot_{i_snap:03}')
-        pos, vel, a = read_gadget_hdf5(snap_file)
-        return pos, vel, a
+
+        return self.data[i_sobol][i_snap]
+
+
+# FIXME update the loss function
+def loss_ptcl(ptcl, tgt, conf):
+    """The loss function between a snapshot and the target."""
+    loss = 0
+    pos, vel = tgt
+    # get the target disp
+    disp = pos - ptcl.pmid * conf.cell_size
+    loss += jnp.sum((ptcl.disp - disp)**2)
+    return loss
+
+
+def obj(tgt, ptcl_ic, so_params, cosmo, conf):
+    cosmo = cosmo.replace(so_params=so_params)
+    ptcl, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
+    loss = loss_ptcl(obsvbl[0], tgt, conf)
+    return loss
+
+
+@partial(pmap, axis_name='global', in_axes=(0, None), out_axes=None)
+def _global_mean(loss, grad):
+    loss = pmean(loss, axis_name='global')
+    grad = pmean(grad, axis_name='global')
+    return loss, grad
+
+
+def train_step(tgt, so_params, opt_state, aux_params):
+    a, sidx, sobol, mesh_shape, n_steps, learning_rate = aux_params
+
+    # generate ic, cosmo, conf TODO number of time steps
+    conf, cosmo = gen_cc(sobol, mesh_shape=(mesh_shape,)*3)
+    conf = conf.replace(a_out=a)
+    ptcl_ic, cosmo = gen_ic(sidx, conf, cosmo)
+
+    # grad
+    obj_valgrad = jax.value_and_grad(obj, argnums=2)
+    loss, grad = obj_valgrad(tgt, ptcl_ic, so_params, cosmo, conf)
+
+    # average over global devices
+    loss = jnp.expand_dims(loss, axis=0)  # for pmap
+    loss, grad = _global_mean(loss, grad)
+
+    # optimize
+    optimizer = optax.adam(learning_rate=learning_rate)
+    updates, opt_state = optimizer.update(grad, opt_state, so_params)
+    so_params = optax.apply_updates(so_params, updates)
+
+    return so_params, loss, opt_state
