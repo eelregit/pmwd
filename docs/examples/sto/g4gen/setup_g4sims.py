@@ -5,11 +5,11 @@ import jax
 
 import numpy as np
 
-from pmwd.train_util import gen_ic
+from pmwd.train_util import scale_Sobol, gen_cc, gen_ic
 from pmwd.io_util import write_gadget_hdf5
 
 
-def gen_g4files(sim_dir, i, fn_sobol='sobol.txt',
+def gen_g4files(sim_dir, sidx, fn_sobol='sobol.txt',
                 tpl_config='Config.sh', tpl_param='param.txt', tpl_job='job.sh'):
     """
     Generate input files with Sobol i parameters for Gadget4 dark matter only
@@ -28,7 +28,9 @@ def gen_g4files(sim_dir, i, fn_sobol='sobol.txt',
     """
     # generate initial condition on GPU, to be consistent with training
     with jax.default_device(jax.devices('gpu')[0]):
-        ptcl, cosmo, conf, sobol = gen_ic(i, fn_sobol, re_sobol=True)
+        sobol = scale_Sobol(fn_sobol, sidx)
+        conf, cosmo = gen_cc(sobol)
+        ptcl, cosmo = gen_ic(sidx, conf, cosmo)  # the seed for ic is simply the sobol index
     write_gadget_hdf5(os.path.join(sim_dir, 'ic'), conf.a_start, ptcl, cosmo, conf)
 
     with (open(tpl_config, 'r') as f,
@@ -65,7 +67,7 @@ def gen_g4files(sim_dir, i, fn_sobol='sobol.txt',
     with (open(tpl_job, 'r') as f,
           open(os.path.join(sim_dir, 'job.sh'), 'w') as fo):
         job = f.read()
-        job = job.format(job_index=i)
+        job = job.format(job_index=sidx)
         fo.write(job)
 
     print(f'> files in {sim_dir} generated')
@@ -75,13 +77,13 @@ if __name__ == "__main__":
     i_start, i_stop = int(sys.argv[1]), int(sys.argv[2])
     base_dir = 'g4sims'
 
-    for i in range(i_start, i_stop):  # not including i_stop
+    for sidx in range(i_start, i_stop):  # not including i_stop
         # create the sub-directories for each simulation
-        sim_dir = os.path.join(base_dir, f'{i:03}')
+        sim_dir = os.path.join(base_dir, f'{sidx:03}')
         os.makedirs(sim_dir, exist_ok=True)
 
         # generate ic and necessary files
-        gen_g4files(sim_dir, i)
+        gen_g4files(sim_dir, sidx)
 
         # submit the job (compile + run)
         os.system(f'cd {sim_dir} && sbatch job.sh')
