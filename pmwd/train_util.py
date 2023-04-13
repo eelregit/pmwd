@@ -7,6 +7,7 @@ import optax
 from functools import partial
 from torch.utils.data import Dataset, DataLoader
 import os
+from joblib import Parallel, delayed
 
 from pmwd import (
     Configuration,
@@ -105,17 +106,18 @@ def gen_ic(seed, conf, cosmo):
     return ptcl, cosmo
 
 
-# TODO make this parallel?
 def read_g4data(sobol_ids, sims_dir, snaps_per_sim, fn_sobol):
     data = {}
-    for i, sidx in enumerate(sobol_ids):
+    def load_sobol(i, sidx):
         data[i] = {}
         sobol = scale_Sobol(fn_sobol, sidx)
         for j in range(snaps_per_sim):
             snap_file = os.path.join(sims_dir, f'{sidx:03}',
-                                        'output', f'snapshot_{j:03}')
+                                     'output', f'snapshot_{j:03}')
             pos, vel, a = read_gadget_hdf5(snap_file)
             data[i][j] = (pos, vel, a, sidx, sobol)
+    Parallel(n_jobs=min(16, len(sobol_ids)), prefer='threads', require='sharedmem')(
+        delayed(load_sobol)(i, sidx) for i, sidx in enumerate(sobol_ids))
     return data
 
 
