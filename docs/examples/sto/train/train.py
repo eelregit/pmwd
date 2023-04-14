@@ -52,12 +52,8 @@ if __name__ == "__main__":
                           num_workers=0, collate_fn=lambda x: x)
 
     # structure of the so neural nets
-    # dummy conf and cosmo for getting the number of so input features
     printinfo('initializing SO parameters')
-    conf = Configuration(1., (128,)*3)
-    cosmo = SimpleLCDM(conf)
-    cosmo = boltzmann(cosmo, conf)
-    n_input = [soft_len(cosmo, conf)] * 3  # three nets
+    n_input = [soft_len()] * 3  # three nets
     nodes = [[2*n, n//2, 1] for n in n_input]
     so_params = init_mlp_params(n_input, nodes)
 

@@ -8,6 +8,9 @@ from typing import Sequence, Callable
 import math
 
 from pmwd import (
+    Configuration,
+    SimpleLCDM,
+    boltzmann,
     H_deriv,
     Omega_m_a,
     growth,
@@ -119,7 +122,11 @@ def sotheta(cosmo, conf, a):
     return (theta_l, theta_o)
 
 
-def soft_len(cosmo, conf):
+def soft_len():
+    # get the length of SO input features with dummy conf and cosmo
+    conf = Configuration(1., (128,)*3)
+    cosmo = SimpleLCDM(conf)
+    cosmo = boltzmann(cosmo, conf)
     tl, to = sotheta(cosmo, conf, conf.a_start)
     return len(tl) + len(to)
 
