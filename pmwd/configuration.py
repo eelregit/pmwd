@@ -187,6 +187,11 @@ class Configuration:
                 'var_gauss',
                 GaussVar(self.transfer_k[1:], lowring=True, backend='jax'),
             )
+            object.__setattr__(
+                self,
+                'a_nbody',
+                self.a_nbody_all[:self.a_out_idx+1]
+            )
 
         # ~ 1.5e-8 for float64, 3.5e-4 for float32
         growth_tol = math.sqrt(jnp.finfo(self.cosmo_dtype).eps)
@@ -320,7 +325,7 @@ class Configuration:
                             dtype=self.cosmo_dtype)
 
     @property
-    def a_nbody(self):
+    def a_nbody_all(self):
         """N-body time integration scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
         return jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
                             dtype=self.cosmo_dtype)
@@ -328,7 +333,7 @@ class Configuration:
     @property
     def a_out_idx(self):
         """The index i of a_out in a_nbody, a_nbody[i-1] < a_out <= a_nbody[i]."""
-        return jnp.searchsorted(self.a_nbody, self.a_out)
+        return jnp.searchsorted(self.a_nbody_all, self.a_out)
 
     @property
     def growth_a(self):
