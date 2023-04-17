@@ -14,23 +14,21 @@ import optax
 import torch
 from torch.utils.data import DataLoader
 from datetime import datetime
+import orbax.checkpoint
 
-from pmwd import Configuration, SimpleLCDM, boltzmann
 from pmwd.so_util import soft_len, init_mlp_params
 from pmwd.train_util import G4snapDataset, train_step
 
 
-def printinfo(s):
+def printinfo(s, flush=False):
     print(f"[{datetime.now().strftime('%H:%M:%S  %m-%d')}] Proc {procid}: {s}",
-          flush=True)
+          flush=flush)
 
 
 if __name__ == "__main__":
 
-    # # must be called before any jax functions, incl. jax.devices() etc
+    # must be called before any jax functions, incl. jax.devices() etc
     jax.distributed.initialize(local_device_ids=[0])
-    # printinfo(f'jax global devices: {jax.devices()}')
-    # printinfo(f'jax local devices: {jax.local_devices()}')
 
     # hyper parameters of training
     n_epochs = 1
@@ -38,8 +36,8 @@ if __name__ == "__main__":
     sobol_ids = np.arange(0, 8)
 
     # RNGs with fixed seeds, for same randomness across processes
-    np_rng = np.random.default_rng(16807)
-    tc_rng = torch.Generator().manual_seed(16807)
+    np_rng = np.random.default_rng(16807)  # for pmwd MC sampling
+    tc_rng = torch.Generator().manual_seed(16807)  # for dataloader shuffle
 
     # the corresponding sobol ids of training data for current proc
     sobol_ids = np.array_split(sobol_ids, n_procs)[procid]
@@ -61,8 +59,11 @@ if __name__ == "__main__":
     optimizer = optax.adam(learning_rate=learning_rate)
     opt_state = optimizer.init(so_params)
 
+    # checkpointer = orbax.checkpoint.AsyncCheckpointer(
+    #                orbax.checkpoint.PyTreeCheckpointHandler())
+
     for epoch in range(n_epochs):
-        printinfo(f'training epoch {epoch}')
+        printinfo(f'training epoch {epoch}', flush=True)
         for i, g4snap in enumerate(g4loader):
             pos, vel, a, sidx, sobol = g4snap
 
@@ -76,6 +77,8 @@ if __name__ == "__main__":
             so_params, loss, opt_state = train_step(tgt, so_params, opt_state,
                                                     aux_params)
 
-            printinfo(f'training step {i}, loss {loss}')
-
-            # TODO write so_params and loss to file
+            # checkpoint
+            # state = {'so_params': so_params,
+            #          'loss': loss,
+            #          'opt_state': opt_state}
+            # checkpointer.save('checkpoint/test', state)

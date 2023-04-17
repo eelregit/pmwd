@@ -1,11 +1,11 @@
 import jax
-from jax import random, pmap, jit, tree_map
+from jax import pmap
 import jax.numpy as jnp
 from jax.lax import pmean
 import numpy as np
 import optax
 from functools import partial
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 import os
 from joblib import Parallel, delayed
 
@@ -18,6 +18,7 @@ from pmwd import (
     lpt,
     nbody,
     scatter,
+    Particles,
 )
 from pmwd.pm_util import rfftnfreq
 from pmwd.io_util import read_gadget_hdf5
@@ -144,21 +145,54 @@ class G4snapDataset(Dataset):
         return self.data[i_sobol][i_snap]
 
 
-# FIXME update the loss function
-def loss_ptcl(ptcl, tgt, conf):
-    """The loss function between a snapshot and the target."""
+def _loss_dens_mse(dens, dens_t):
+    return jnp.sum((dens - dens_t)**2)
+
+
+def _loss_disp_mse(ptcl, ptcl_t, conf):
+    return jnp.sum((ptcl.disp - ptcl_t.disp)**2)
+
+
+def _loss_vel_mse(ptcl, ptcl_t, conf):
+    return jnp.sum((ptcl.vel - ptcl_t.vel)**2)
+
+
+def _loss_scale_wmse(dens, dens_t, conf):
+    dens_k = jnp.fft.rfftn(dens)
+    dens_t_k = jnp.fft.rfftn(dens_t)
+    kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
+    k2 = sum(k**2 for k in kvec)
+    return jnp.sum(jnp.abs(dens_k - dens_t_k)**2 / k2**1.5)
+
+
+# FIXME update the loss functions
+def loss_func(ptcl, tgt, conf, mesh_shape=None):
     loss = 0
-    pos, vel = tgt
-    # get the target disp
-    disp = pos - ptcl.pmid * conf.cell_size
-    loss += jnp.sum((ptcl.disp - disp)**2)
+
+    # get the target ptcl
+    pos_t, vel_t = tgt
+    disp_t = pos_t - ptcl.pmid * conf.cell_size
+    ptcl_t = Particles(conf, ptcl.pmid, disp_t, vel_t)
+
+    # get the density fields
+    if mesh_shape is None:
+        cell_size = conf.cell_size
+        mesh_shape = conf.mesh_shape
+    else:  # float or int
+        cell_size = conf.ptcl_spacing / mesh_shape
+        mesh_shape = tuple(mesh_shape * s for s in conf.ptcl_grid_shape)
+    dens, dens_t = (scatter(p, conf, mesh=jnp.zeros(mesh_shape, dtype=conf.float_dtype),
+                            val=1, cell_size=cell_size) for p in (ptcl, ptcl_t))
+
+    loss += _loss_scale_wmse(dens, dens_t, conf)
+
     return loss
 
 
 def obj(tgt, ptcl_ic, so_params, cosmo, conf):
     cosmo = cosmo.replace(so_params=so_params)
     ptcl, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
-    loss = loss_ptcl(obsvbl[0], tgt, conf)
+    loss = loss_func(obsvbl[0], tgt, conf)
     return loss
 
 
