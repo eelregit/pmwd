@@ -162,7 +162,8 @@ def _loss_scale_wmse(dens, dens_t, conf):
     dens_t_k = jnp.fft.rfftn(dens_t)
     kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
     k2 = sum(k**2 for k in kvec)
-    return jnp.sum(jnp.abs(dens_k - dens_t_k)**2 / k2**1.5)
+    se = jnp.where(k2 != 0, jnp.abs(dens_k - dens_t_k)**2 / k2**1.5, 0)
+    return jnp.sum(se)
 
 
 # FIXME update the loss functions
