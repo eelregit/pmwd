@@ -139,7 +139,7 @@ class Configuration:
     a_start: float = 1/64
     a_stop: float = 1
     a_lpt_maxstep: float = 1/128
-    a_nbody_maxstep: float = 1/64
+    a_nbody_num: int = 63
 
     symp_splits: Tuple[Tuple[float, float], ...] = ((0, 0.5), (1, 0.5))
 
@@ -307,11 +307,6 @@ class Configuration:
     def a_lpt_step(self):
         """LPT light cone scale factor step size."""
         return self.a_start / self.a_lpt_num
-
-    @property
-    def a_nbody_num(self):
-        """Number of N-body time integration scale factor steps, excluding ``a_start``."""
-        return math.ceil((self.a_stop - self.a_start) / self.a_nbody_maxstep)
 
     @property
     def a_nbody_step(self):

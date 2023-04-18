@@ -70,7 +70,7 @@ def scale_Sobol(fn='sobol.txt', ind=slice(None)):
     return sobol.T
 
 
-def gen_cc(sobol, mesh_shape=1, a_nbody_maxstep=1/64, a_start=1/16, a_stop=1+1/128):
+def gen_cc(sobol, mesh_shape=1, a_out=1, a_nbody_num=63, a_start=1/16, a_stop=1+1/128):
     """Setup conf and cosmo given a sobol."""
     conf = Configuration(
         ptcl_spacing = sobol[0] / 128,
@@ -79,8 +79,8 @@ def gen_cc(sobol, mesh_shape=1, a_nbody_maxstep=1/64, a_start=1/16, a_stop=1+1/1
         a_stop = a_stop,
         float_dtype = jnp.float64,
         mesh_shape = mesh_shape,
-        # TODO number of time steps
-        a_nbody_maxstep=a_nbody_maxstep,
+        a_out = a_out,
+        a_nbody_num = a_nbody_num,
     )
 
     cosmo = Cosmology(
@@ -206,9 +206,8 @@ def _global_mean(loss, grad):
 def train_step(tgt, so_params, opt_state, aux_params):
     a, sidx, sobol, mesh_shape, n_steps, learning_rate = aux_params
 
-    # generate ic, cosmo, conf TODO number of time steps
-    conf, cosmo = gen_cc(sobol, mesh_shape=(mesh_shape,)*3)
-    conf = conf.replace(a_out=a)
+    # generate ic, cosmo, conf
+    conf, cosmo = gen_cc(sobol, mesh_shape=(mesh_shape,)*3, a_out=a, a_nbody_num=n_steps)
     ptcl_ic, cosmo = gen_ic(sidx, conf, cosmo)
 
     # grad
