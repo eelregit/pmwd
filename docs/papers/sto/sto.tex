@@ -359,7 +359,7 @@ In Fourier space, the gravitational force field reads
 Force sharpening
 %
 \begin{equation}
-\frac{k_i}{k^2} \to \frac{k_i}{k^2}
+\frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
   h(k_i; \vvartheta) g(k; \vvartheta) \prod_{j=1}^3 f(k_j; \vvartheta),
 \end{equation}
 %
@@ -371,6 +371,14 @@ g(k; \vvartheta) = g(k/k_P, kR_\tophat, \cdots; D, f, \cdots).
 \end{equation}
 
 Parameters in these neural networks are optimized during training.
+
+\YL{While $g$ is spherically symmetric by assumption, $f$ and $h$ are
+expected to be even functions, i.e., real valued in Fourier space.
+It is interesting to symbolically regress both $h(k_i)$ and $k_i h(k_i)$
+to see which one gives simpler expression, given the possible different
+rankings by complexity.
+For example, $k_i h(k_i)$ may have a simpler form as a nonlinear odd
+function.}
 
 
 \subsection{Temporal Optimization}
