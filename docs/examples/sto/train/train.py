@@ -13,6 +13,7 @@ import numpy as np
 import optax
 import torch
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import orbax.checkpoint
 
@@ -32,7 +33,7 @@ if __name__ == "__main__":
 
     # hyper parameters of training
     n_epochs = 1
-    learning_rate = 0.1
+    learning_rate = 0.01
     sobol_ids = np.arange(0, 8)
 
     # RNGs with fixed seeds, for same randomness across processes
@@ -50,20 +51,23 @@ if __name__ == "__main__":
                           num_workers=0, collate_fn=lambda x: x)
 
     # structure of the so neural nets
-    printinfo('initializing SO parameters')
+    printinfo('initializing SO parameters & optimizer')
     n_input = [soft_len()] * 3  # three nets
     nodes = [[2*n, n//2, 1] for n in n_input]
     so_params = init_mlp_params(n_input, nodes)
 
-    printinfo('initializing optimizer')
     optimizer = optax.adam(learning_rate=learning_rate)
     opt_state = optimizer.init(so_params)
 
     # checkpointer = orbax.checkpoint.AsyncCheckpointer(
     #                orbax.checkpoint.PyTreeCheckpointHandler())
 
+    if procid == 0:
+        # print('epoch, step, mesh_shape, steps, loss')
+        writer = SummaryWriter()
+
+    printinfo('training started ...', flush=True)
     for epoch in range(n_epochs):
-        printinfo(f'training epoch {epoch}', flush=True)
         for i, g4snap in enumerate(g4loader):
             pos, vel, a, sidx, sobol = g4snap
 
@@ -77,8 +81,18 @@ if __name__ == "__main__":
             so_params, loss, opt_state = train_step(tgt, so_params, opt_state,
                                                     aux_params)
 
+            # track and checkpoint
+            if procid == 0:
+                # print((f'{epoch}, {i:>3d}, {mesh_shape:>3d}, {n_steps:>4d}, ' +
+                #        f'{loss:12.3e}'), flush=True)
+                global_step = epoch * len(g4loader) + i
+                writer.add_scalar('loss', float(loss), global_step)
+
             # checkpoint
             # state = {'so_params': so_params,
             #          'loss': loss,
             #          'opt_state': opt_state}
             # checkpointer.save('checkpoint/test', state)
+
+    if procid == 0:
+        writer.close()
