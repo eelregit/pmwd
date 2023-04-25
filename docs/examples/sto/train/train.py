@@ -53,8 +53,8 @@ if __name__ == "__main__":
     # structure of the so neural nets
     printinfo('initializing SO parameters & optimizer')
     n_input = [soft_len()] * 3  # three nets
-    nodes = [[2*n, n, 1] for n in n_input]
-    so_params = init_mlp_params(n_input, nodes)
+    so_nodes = [[2*n, n, 1] for n in n_input]
+    so_params = init_mlp_params(n_input, so_nodes)
 
     optimizer = optax.adam(learning_rate=learning_rate)
     opt_state = optimizer.init(so_params)
@@ -73,7 +73,7 @@ if __name__ == "__main__":
             n_steps = np.rint(10**np_rng.uniform(1, 3)).astype(int)
 
             tgt = (pos, vel)
-            aux_params = (a, sidx, sobol, mesh_shape, n_steps, learning_rate)
+            aux_params = (a, sidx, sobol, mesh_shape, n_steps, learning_rate, so_nodes)
             so_params, loss, opt_state = train_step(tgt, so_params, opt_state,
                                                     aux_params)
 
@@ -89,11 +89,10 @@ if __name__ == "__main__":
             jobid = os.getenv('SLURM_JOB_ID')
             with open(fn := f'params/j{jobid}_e{epoch}.pickle', 'wb') as f:
                 dic = {'n_input': n_input,
-                       'nodes': nodes,
+                       'so_nodes': so_nodes,
                        'so_params': so_params}
                 pickle.dump(dic, f)
             printinfo(f'epoch {epoch} done, params saved: {fn}', flush=True)
-
 
     if procid == 0:
         writer.close()

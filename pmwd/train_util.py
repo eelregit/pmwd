@@ -70,7 +70,8 @@ def scale_Sobol(fn='sobol.txt', ind=slice(None)):
     return sobol.T
 
 
-def gen_cc(sobol, mesh_shape=1, a_out=1, a_nbody_num=63, a_start=1/16, a_stop=1+1/128):
+def gen_cc(sobol, mesh_shape=1, a_out=1, a_nbody_num=63, so_nodes=None,
+           a_start=1/16, a_stop=1+1/128):
     """Setup conf and cosmo given a sobol."""
     conf = Configuration(
         ptcl_spacing = sobol[0] / 128,
@@ -81,6 +82,7 @@ def gen_cc(sobol, mesh_shape=1, a_out=1, a_nbody_num=63, a_start=1/16, a_stop=1+
         mesh_shape = mesh_shape,
         a_out = a_out,
         a_nbody_num = a_nbody_num,
+        so_nodes = so_nodes,
     )
 
     cosmo = Cosmology(
@@ -149,11 +151,11 @@ def _loss_dens_mse(dens, dens_t):
     return jnp.sum((dens - dens_t)**2)
 
 
-def _loss_disp_mse(ptcl, ptcl_t, conf):
+def _loss_disp_mse(ptcl, ptcl_t):
     return jnp.sum((ptcl.disp - ptcl_t.disp)**2)
 
 
-def _loss_vel_mse(ptcl, ptcl_t, conf):
+def _loss_vel_mse(ptcl, ptcl_t):
     return jnp.sum((ptcl.vel - ptcl_t.vel)**2)
 
 
@@ -166,7 +168,6 @@ def _loss_scale_wmse(dens, dens_t, conf):
     return jnp.sum(se)
 
 
-# FIXME update the loss functions
 def loss_func(ptcl, tgt, conf, mesh_shape=None):
     loss = 0
 
@@ -205,10 +206,11 @@ def _global_mean(loss, grad):
 
 
 def train_step(tgt, so_params, opt_state, aux_params):
-    a, sidx, sobol, mesh_shape, n_steps, learning_rate = aux_params
+    a, sidx, sobol, mesh_shape, n_steps, learning_rate, so_nodes = aux_params
 
     # generate ic, cosmo, conf
-    conf, cosmo = gen_cc(sobol, mesh_shape=(mesh_shape,)*3, a_out=a, a_nbody_num=n_steps)
+    conf, cosmo = gen_cc(sobol, mesh_shape=(mesh_shape,)*3, a_out=a, a_nbody_num=n_steps,
+                         so_nodes=so_nodes)
     ptcl_ic, cosmo = gen_ic(sidx, conf, cosmo)
 
     # grad
