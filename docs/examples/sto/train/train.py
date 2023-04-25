@@ -15,7 +15,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
-import orbax.checkpoint
+import pickle
 
 from pmwd.so_util import soft_len, init_mlp_params
 from pmwd.train_util import G4snapDataset, train_step
@@ -53,20 +53,16 @@ if __name__ == "__main__":
     # structure of the so neural nets
     printinfo('initializing SO parameters & optimizer')
     n_input = [soft_len()] * 3  # three nets
-    nodes = [[2*n, n//2, 1] for n in n_input]
+    nodes = [[2*n, n, 1] for n in n_input]
     so_params = init_mlp_params(n_input, nodes)
 
     optimizer = optax.adam(learning_rate=learning_rate)
     opt_state = optimizer.init(so_params)
 
-    # checkpointer = orbax.checkpoint.AsyncCheckpointer(
-    #                orbax.checkpoint.PyTreeCheckpointHandler())
-
-    if procid == 0:
-        # print('epoch, step, mesh_shape, steps, loss')
-        writer = SummaryWriter()
-
     printinfo('training started ...', flush=True)
+    if procid == 0:
+        print('epoch, step, mesh_shape, steps, loss')
+        writer = SummaryWriter()
     for epoch in range(n_epochs):
         for i, g4snap in enumerate(g4loader):
             pos, vel, a, sidx, sobol = g4snap
@@ -81,18 +77,23 @@ if __name__ == "__main__":
             so_params, loss, opt_state = train_step(tgt, so_params, opt_state,
                                                     aux_params)
 
-            # track and checkpoint
+            # track
             if procid == 0:
-                # print((f'{epoch}, {i:>3d}, {mesh_shape:>3d}, {n_steps:>4d}, ' +
-                #        f'{loss:12.3e}'), flush=True)
+                print((f'{epoch}, {i:>3d}, {mesh_shape:>3d}, {n_steps:>4d}, ' +
+                       f'{loss:12.3e}'), flush=True)
                 global_step = epoch * len(g4loader) + i
                 writer.add_scalar('loss', float(loss), global_step)
 
-            # checkpoint
-            # state = {'so_params': so_params,
-            #          'loss': loss,
-            #          'opt_state': opt_state}
-            # checkpointer.save('checkpoint/test', state)
+        # checkpoint SO params
+        if procid == 0:
+            jobid = os.getenv('SLURM_JOB_ID')
+            with open(fn := f'params/j{jobid}_e{epoch}.pickle', 'wb') as f:
+                dic = {'n_input': n_input,
+                       'nodes': nodes,
+                       'so_params': so_params}
+                pickle.dump(dic, f)
+            printinfo(f'epoch {epoch} done, params saved: {fn}', flush=True)
+
 
     if procid == 0:
         writer.close()
