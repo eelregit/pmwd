@@ -93,7 +93,6 @@ def nonlinear_scales(cosmo, conf, a):
     return (1/k_P, R_TH, R_G, Rd, -dk_P/k_P**2, dR_TH, dR_G, dRd)
 
 
-@jax.jit
 def sotheta(cosmo, conf, a):
     # quantities of dim L
     theta_l = jnp.asarray([
