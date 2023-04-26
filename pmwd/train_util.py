@@ -189,18 +189,18 @@ def loss_func(ptcl, tgt, conf, mesh_shape=None):
     disp_t = pos_t - ptcl.pmid * conf.cell_size
     ptcl_t = Particles(conf, ptcl.pmid, disp_t, vel_t)
 
-    # get the density fields
-    if mesh_shape is None:
-        cell_size = conf.cell_size
-        mesh_shape = conf.mesh_shape
+    # get the density fields for the loss
+    if mesh_shape is None:  # default to 2x the mesh in pmwd sim
+        cell_size = conf.cell_size / 2
+        mesh_shape = tuple(2 * ms for ms in conf.mesh_shape)
     else:  # float or int
         cell_size = conf.ptcl_spacing / mesh_shape
-        mesh_shape = tuple(mesh_shape * s for s in conf.ptcl_grid_shape)
+        mesh_shape = tuple(round(mesh_shape * s) for s in conf.ptcl_grid_shape)
     dens, dens_t = (scatter(p, conf, mesh=jnp.zeros(mesh_shape, dtype=conf.float_dtype),
                             val=1, cell_size=cell_size) for p in (ptcl, ptcl_t))
     dens_k = jnp.fft.rfftn(dens)
     dens_t_k = jnp.fft.rfftn(dens_t)
-    kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
+    kvec = rfftnfreq(mesh_shape, cell_size, dtype=conf.float_dtype)
 
     loss += _loss_scale_wmse(kvec, dens_k, dens_t_k)
     # loss += _loss_dens_mse(dens, dens_t)
