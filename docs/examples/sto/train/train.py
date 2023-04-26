@@ -15,6 +15,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
+import time
 import pickle
 
 from pmwd.so_util import soft_len, init_mlp_params
@@ -61,8 +62,10 @@ if __name__ == "__main__":
 
     printinfo('training started ...', flush=True)
     if procid == 0:
-        print('epoch, step, mesh_shape, steps, loss')
+        print('time, epoch, step, mesh_shape, steps, loss')
         writer = SummaryWriter()
+
+    tic = time.perf_counter()
     for epoch in range(n_epochs):
         for i, g4snap in enumerate(g4loader):
             pos, vel, a, sidx, sobol = g4snap
@@ -79,8 +82,10 @@ if __name__ == "__main__":
 
             # track
             if procid == 0:
-                print((f'{epoch}, {i:>3d}, {mesh_shape:>3d}, {n_steps:>4d}, ' +
-                       f'{loss:12.3e}'), flush=True)
+                tt = time.perf_counter() - tic
+                tic = time.perf_counter()
+                print((f'{tt:.0f} s, {epoch}, {i:>3d}, {mesh_shape:>3d}, ' +
+                       f'{n_steps:>4d}, {loss:12.3e}'), flush=True)
                 global_step = epoch * len(g4loader) + i
                 writer.add_scalar('loss', float(loss), global_step)
 
