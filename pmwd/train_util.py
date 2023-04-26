@@ -1,5 +1,4 @@
 import jax
-from jax import pmap
 import jax.numpy as jnp
 from jax.lax import pmean
 import numpy as np
@@ -159,13 +158,27 @@ def _loss_vel_mse(ptcl, ptcl_t):
     return jnp.sum((ptcl.vel - ptcl_t.vel)**2)
 
 
-def _loss_scale_wmse(dens, dens_t, conf):
-    dens_k = jnp.fft.rfftn(dens)
-    dens_t_k = jnp.fft.rfftn(dens_t)
-    kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
+@jax.custom_vjp
+def _loss_scale_wmse(kvec, dens_k, dens_t_k):
     k2 = sum(k**2 for k in kvec)
-    se = jnp.where(k2 != 0, jnp.abs(dens_k - dens_t_k)**2 / k2**1.5, 0)
-    return jnp.sum(se)
+    diff = dens_k - dens_t_k
+    loss = jnp.sum(jnp.where(k2 != 0, jnp.abs(diff)**2 / k2**1.5, 0))
+    return loss, (k2, diff)
+
+def _loss_scale_wmse_fwd(kvec, dens_k, dens_t_k):
+    loss, res = _loss_scale_wmse(kvec, dens_k, dens_t_k)
+    return loss, res
+
+def _loss_scale_wmse_bwd(res, loss_cot):
+    k2, diff = res
+    abs_valgrad = jax.value_and_grad(jnp.abs)
+    abs_diff, dabs_diff = jax.vmap(abs_valgrad)(diff.ravel())
+    abs_diff = abs_diff.reshape(k2.shape)
+    dabs_diff = dabs_diff.reshape(k2.shape)
+    dens_k_cot = loss_cot * jnp.where(k2 != 0, 2 * abs_diff * dabs_diff / k2**1.5, 0)
+    return None, dens_k_cot, None
+
+_loss_scale_wmse.defvjp(_loss_scale_wmse_fwd, _loss_scale_wmse_bwd)
 
 
 def loss_func(ptcl, tgt, conf, mesh_shape=None):
@@ -185,8 +198,13 @@ def loss_func(ptcl, tgt, conf, mesh_shape=None):
         mesh_shape = tuple(mesh_shape * s for s in conf.ptcl_grid_shape)
     dens, dens_t = (scatter(p, conf, mesh=jnp.zeros(mesh_shape, dtype=conf.float_dtype),
                             val=1, cell_size=cell_size) for p in (ptcl, ptcl_t))
+    dens_k = jnp.fft.rfftn(dens)
+    dens_t_k = jnp.fft.rfftn(dens_t)
+    kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
 
-    loss += _loss_scale_wmse(dens, dens_t, conf)
+    loss += _loss_scale_wmse(kvec, dens_k, dens_t_k)
+    # loss += _loss_dens_mse(dens, dens_t)
+    # loss += _loss_disp_mse(ptcl, ptcl_t)
 
     return loss
 
@@ -198,7 +216,7 @@ def obj(tgt, ptcl_ic, so_params, cosmo, conf):
     return loss
 
 
-@partial(pmap, axis_name='global', in_axes=(0, None), out_axes=None)
+@partial(jax.pmap, axis_name='global', in_axes=(0, None), out_axes=None)
 def _global_mean(loss, grad):
     loss = pmean(loss, axis_name='global')
     grad = pmean(grad, axis_name='global')
