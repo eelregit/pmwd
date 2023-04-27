@@ -251,3 +251,51 @@ def train_step(tgt, so_params, pmwd_params, learning_rate, opt_state):
     so_params = optax.apply_updates(so_params, updates)
 
     return so_params, loss, opt_state
+
+
+def visins(fn_root, tgt, so_params, pmwd_params, mesh_shape=None):
+    """Util for visually inspection during/after training."""
+    # run pmwd with given params
+    ptcl_ic, cosmo, conf = _init_pmwd(pmwd_params)
+    cosmo = cosmo.replace(so_params=so_params)
+    _, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
+    ptcl = obsvbl[0]
+
+    # get the target ptcl
+    pos_t, vel_t = tgt
+    disp_t = pos_t - ptcl.pmid * conf.cell_size
+    ptcl_t = Particles(conf, ptcl.pmid, disp_t, vel_t)
+
+    # get the density fields
+    if mesh_shape is None:  # default to 2x the mesh in pmwd sim
+        cell_size = conf.cell_size / 2
+        mesh_shape = tuple(2 * ms for ms in conf.mesh_shape)
+    else:  # float or int
+        cell_size = conf.ptcl_spacing / mesh_shape
+        mesh_shape = tuple(round(mesh_shape * s) for s in conf.ptcl_grid_shape)
+    dens, dens_t = (scatter(p, conf, mesh=jnp.zeros(mesh_shape, dtype=conf.float_dtype),
+                            val=1, cell_size=cell_size) for p in (ptcl, ptcl_t))
+
+    ### power spectra
+    k, ps, N = powspec(dens, cell_size)
+    ps = ps.real
+    k, ps_t, N = powspec(dens_t, cell_size)
+    ps_t = ps_t.real
+    k, ps_cross, N = powspec(dens, cell_size, g=dens_t)
+    ps_cross = ps_cross.real
+
+    # check the correlation coefficient and ratio of auto power
+    psr = ps / ps_t
+    cc = ps_cross / jnp.sqrt(ps * ps_t)
+
+    fig, ax = plt.subplots(1, 1, figsize=(5, 3), tight_layout=True)
+    ax.plot(k, psr, label=r'$P(k)/P_t(k)$')
+    ax.plot(k, cc, label=r'corr. coef.')
+    ax.set_xscale('log')
+    ax.set_xlabel(r'$k$')
+    ax.set_xlim(k[0], 1)
+    ax.legend()
+    fig.savefig(f'{fn_root}_ps.pdf')
+
+    ### TODO 2d density plot
+
