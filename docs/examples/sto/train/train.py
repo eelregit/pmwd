@@ -76,9 +76,9 @@ if __name__ == "__main__":
             n_steps = np.rint(10**np_rng.uniform(1, 3)).astype(int)
 
             tgt = (pos, vel)
-            aux_params = (a, sidx, sobol, mesh_shape, n_steps, learning_rate, so_nodes)
-            so_params, loss, opt_state = train_step(tgt, so_params, opt_state,
-                                                    aux_params)
+            pmwd_params = (a, sidx, sobol, mesh_shape, n_steps, so_nodes)
+            so_params, loss, opt_state = train_step(tgt, so_params, pmwd_params,
+                                                    learning_rate, opt_state)
 
             # track
             if procid == 0:
