@@ -8,7 +8,7 @@ from jax.lax import cond
 from pmwd.boltzmann import growth
 from pmwd.cosmology import E2, H_deriv
 from pmwd.gravity import gravity
-from pmwd.obs_util import itp_prev, itp_next
+from pmwd.obs_util import itp_prev, itp_next, itp_prev_adj, itp_next_adj
 from pmwd.particles import Particles
 
 
@@ -207,10 +207,20 @@ def observe(i, ptcl, obsvbl, cosmo, conf):
 
 
 def observe_init(a, ptcl, obsvbl, cosmo, conf):
-    obsvbl = [  # a list to carry all observables
-        Particles(ptcl.conf, ptcl.pmid, jnp.zeros_like(ptcl.disp),
-                  vel=jnp.zeros_like(ptcl.vel)),  # interp ptcl
-    ]
+    def ptcl_zero(conf, ptcl, cosmo):
+        return Particles(ptcl.conf, ptcl.pmid, jnp.zeros_like(ptcl.disp),
+                         vel=jnp.zeros_like(ptcl.vel))
+
+    def interp_lpt(conf, ptcl, cosmo):  # interp right after lpt
+        a0 = conf.a_nbody[0]
+        a1 = conf.a_nbody[1]
+        disp, vel = itp_prev(ptcl, a0, a1, conf.a_out, cosmo)
+        return Particles(ptcl.conf, ptcl.pmid, disp, vel=vel)
+
+    snap = cond(conf.a_out_idx == 1, interp_lpt, ptcl_zero, conf, ptcl, cosmo)
+
+    # a list to carry all observables
+    obsvbl = [snap]
     return obsvbl
 
 
@@ -218,18 +228,6 @@ def observe_adj(i, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, conf):
 
     def func_re(ptcl_cot, obsvbl_cot, cosmo_cot, ptcl, cosmo, conf):
         return ptcl_cot, cosmo_cot
-
-    def itp_prev_adj(iptcl_cot, ptcl, a0, a1, a, cosmo):
-        (disp, vel), itp_prev_vjp = vjp(itp_prev, ptcl, a0, a1, a, cosmo)
-        ptcl_cot_itp, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_prev_vjp(
-            (iptcl_cot.disp, iptcl_cot.vel))
-        return ptcl_cot_itp, cosmo_cot_itp
-
-    def itp_next_adj(iptcl_cot, ptcl, a0, a1, a, cosmo):
-        (disp, vel), itp_next_vjp = vjp(itp_next, ptcl, a0, a1, a, cosmo)
-        ptcl_cot_itp, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_next_vjp(
-            (iptcl_cot.disp, iptcl_cot.vel))
-        return ptcl_cot_itp, cosmo_cot_itp
 
     def interp_ptcl_adj(ptcl_cot, obsvbl_cot, cosmo_cot, ptcl, cosmo, conf):
         a0 = conf.a_nbody[conf.a_out_idx-1]
@@ -252,6 +250,32 @@ def observe_adj(i, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, conf):
                                ptcl_cot, obsvbl_cot, cosmo_cot, ptcl, cosmo, conf)
 
     return ptcl_cot, cosmo_cot
+
+
+def observe_init_adj(obsvbl_cot, ptcl, ptcl_cot, cosmo, cosmo_cot, conf):
+
+    def ptcl_zero_adj(iptcl_cot, ptcl, ptcl_cot, cosmo, cosmo_cot, conf):
+        return ptcl_cot, cosmo_cot
+
+    def interp_lpt_adj(iptcl_cot, ptcl, ptcl_cot, cosmo, cosmo_cot, conf):
+        a0 = conf.a_nbody[0]
+        a1 = conf.a_nbody[1]
+        ptcl_cot_itp, cosmo_cot_itp = itp_prev_adj(
+                                iptcl_cot, ptcl, a0, a1, conf.a_out, cosmo)
+
+        disp_cot = ptcl_cot.disp + ptcl_cot_itp.disp
+        vel_cot = ptcl_cot.vel + ptcl_cot_itp.vel
+        ptcl_cot = ptcl_cot.replace(disp=disp_cot, vel=vel_cot)
+
+        cosmo_cot += cosmo_cot_itp
+
+        return ptcl_cot, cosmo_cot
+
+    ptcl_cot, cosmo_cot = cond(conf.a_out_idx == 1, interp_lpt_adj, ptcl_zero_adj,
+                               obsvbl_cot[0], ptcl, ptcl_cot, cosmo, cosmo_cot, conf)
+    obsvbl_cot = None
+
+    return ptcl_cot, cosmo_cot, obsvbl_cot
 
 
 @jit
@@ -321,7 +345,7 @@ def nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf, reverse=False):
         a_nbody[-1], ptcl, ptcl_cot, obsvbl_cot, cosmo, conf)
 
     # i goes with ptcl in observe_adj, i.e. a_prev here
-    idxs = jnp.arange(len(a_nbody)-2, -1, -1)
+    idxs = jnp.arange(len(a_nbody)-1, 0, -1)
     for i, a_prev, a_next in zip(idxs, a_nbody[:0:-1], a_nbody[-2::-1]):
         ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_step(
             i, a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
@@ -339,7 +363,9 @@ def nbody_bwd(reverse, res, cotangents):
     ptcl, ptcl_cot, cosmo_cot = nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf,
                                           reverse=reverse)
 
-    obsvbl_cot = None  # FIXME
+    ptcl_cot, cosmo_cot, obsvbl_cot = observe_init_adj(
+                        obsvbl_cot, ptcl, ptcl_cot, cosmo, cosmo_cot, conf)
+
     return ptcl_cot, obsvbl_cot, cosmo_cot, None
 
 nbody.defvjp(nbody_fwd, nbody_bwd)
