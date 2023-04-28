@@ -1,6 +1,6 @@
 import jax
 import jax.numpy as jnp
-from jax import random
+from jax import random, vmap
 from jax.tree_util import tree_map
 import flax.linen as nn
 from flax.core.frozen_dict import unfreeze, freeze
@@ -21,7 +21,7 @@ from pmwd import (
 class MLP(nn.Module):
     features: Sequence[int]
     activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
-    outivator: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
+    outivator: Callable[[jnp.ndarray], jnp.ndarray] = None
 
     def setup(self):
         self.layers = [nn.Dense(f) for f in self.features]
@@ -39,7 +39,7 @@ class MLP(nn.Module):
         return x
 
 
-def init_mlp_params(n_input, nodes, zero_params=None):
+def init_mlp_params(n_input, nodes, scheme=None):
     """Initialize MLP parameters."""
     nets = [MLP(features=n) for n in nodes]
     xs = [jnp.ones(n) for n in n_input]  # dummy inputs
@@ -48,16 +48,15 @@ def init_mlp_params(n_input, nodes, zero_params=None):
     # by default in flax.linen.Dense, kernel: lecun_norm, bias: 0
     params = [nn.init(key, x) for nn, key, x in zip(nets, keys, xs)]
 
-    # set all params to zero
-    if zero_params == 'all':
-        params = tree_map(lambda x: jnp.zeros_like(x), params)
-
-    # set the params of the last layer to zero, bias = zero by default
-    if zero_params == 'last':
+    # for the last layer: set weights to zero and bias to one
+    # TODO instead of zero, use very small random values for weights?
+    if scheme == 'last_w0_b1':
         for i, p in enumerate(params):
             p = unfreeze(p)
-            p['params'][f'layers_{len(nodes)-1}']['kernel'] = (
-                jnp.zeros((nodes[i][-2], 1)))
+            p['params'][f'layers_{len(nodes[i])-1}']['kernel'] = (
+                jnp.zeros((nodes[i][-2], nodes[i][-1])))
+            p['params'][f'layers_{len(nodes[i])-1}']['bias'] = (
+                jnp.ones(nodes[i][-1]))
             params[i] = freeze(p)
 
     return params
@@ -130,30 +129,49 @@ def soft_len():
     return len(tl) + len(to)
 
 
-def soft(k, theta):
-    """SO features for neural nets input."""
+def soft_bc(k, theta):
+    """SO features for neural nets input, broadcast with k being an array."""
     # multiply each element of k with theta_l, and append theta_o
-    # return is of shape k.shape + (len(theta_l) + len(theta_o),)
     theta_l, theta_o = theta
     k_shape = k.shape
-    f = k.reshape(k_shape+(1,)) * theta_l.reshape((1,)*len(k_shape)+theta_l.shape)
-    f = jnp.concatenate((f, jnp.broadcast_to(theta_o, k_shape+theta_o.shape)), axis=-1)
-    return f
+    ft = k.reshape(k_shape+(1,)) * theta_l.reshape((1,)*len(k_shape)+theta_l.shape)
+    ft = jnp.concatenate((ft, jnp.broadcast_to(theta_o, k_shape+theta_o.shape)), axis=-1)
+    return ft
 
 
-def sonn(k, theta, cosmo, conf, nid):
-    """Evaluate the neural net."""
-    ft = soft(k, theta)
+def sonn_bc(k, theta, cosmo, conf, nid):
+    """Evaluate the neural net, broadcast with k being processed in one pass."""
+    ft = soft_bc(k, theta)
     net = MLP(features=conf.so_nodes[nid])
     return net.apply(cosmo.so_params[nid], ft)[..., 0]  # rm the trailing axis of dim one
 
 
+def soft(k, theta):
+    """SO features for neural nets input, with k being a scalar."""
+    theta_l, theta_o = theta
+    return jnp.concatenate((k * theta_l, theta_o))
+
+
+def sonn_vmap(k, theta, cosmo, conf, nid):
+    """Evaluate the neural net, using vmap over k."""
+    net = MLP(features=conf.so_nodes[nid])
+    def _sonn(_k):
+        _ft = soft(_k, theta)
+        return net.apply(cosmo.so_params[nid], _ft)[0]
+    return vmap(_sonn)(k.ravel()).reshape(k.shape)
+
+
 def pot_sharp(kvec, theta, pot, cosmo, conf, a):
     """Spatial optimization of the laplace potential."""
-    f = [sonn(k_, theta, cosmo, conf, 0) for k_ in kvec]
+    f = [sonn_bc(k_, theta, cosmo, conf, 0) for k_ in kvec]
 
     k = jnp.sqrt(sum(k_**2 for k_ in kvec))
-    g = sonn(k, theta, cosmo, conf, 1)
+    g = sonn_bc(k, theta, cosmo, conf, 1)
+    # ks = jnp.array_split(k, 16)
+    # g = []
+    # for k in ks:
+    #     g.append(sonn_vmap(k, theta, cosmo, conf, 1))
+    # g = jnp.concatenate(g, axis=0)
 
     pot *= g * math.prod(f)
     return pot
@@ -161,5 +179,5 @@ def pot_sharp(kvec, theta, pot, cosmo, conf, a):
 
 def grad_sharp(k, theta, grad, cosmo, conf, a):
     """Spatial optimization of the gradient."""
-    grad *= sonn(k, theta, cosmo, conf, 2)
+    grad *= sonn_vmap(k, theta, cosmo, conf, 2)
     return grad
