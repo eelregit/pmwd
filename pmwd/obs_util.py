@@ -1,3 +1,4 @@
+from jax import vjp
 import jax.numpy as jnp
 
 from pmwd.particles import Particles
@@ -40,6 +41,22 @@ def itp_next(ptcl1, a0, a1, a, cosmo):
 
     dtype = ptcl1.conf.float_dtype
     return disp.astype(dtype), vel.astype(dtype)
+
+
+def itp_prev_adj(iptcl_cot, ptcl, a0, a1, a, cosmo):
+    # iptcl_cot is the cotangent of the interpolated ptcl
+    (disp, vel), itp_prev_vjp = vjp(itp_prev, ptcl, a0, a1, a, cosmo)
+    ptcl_cot_itp, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_prev_vjp(
+                                            (iptcl_cot.disp, iptcl_cot.vel))
+    return ptcl_cot_itp, cosmo_cot_itp  # TODO return other cotangents?
+
+
+def itp_next_adj(iptcl_cot, ptcl, a0, a1, a, cosmo):
+    # iptcl_cot is the cotangent of the interpolated ptcl
+    (disp, vel), itp_next_vjp = vjp(itp_next, ptcl, a0, a1, a, cosmo)
+    ptcl_cot_itp, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_next_vjp(
+                                            (iptcl_cot.disp, iptcl_cot.vel))
+    return ptcl_cot_itp, cosmo_cot_itp
 
 
 def interptcl(ptcl0, ptcl1, a0, a1, a, cosmo):
