@@ -7,6 +7,7 @@ from functools import partial
 from torch.utils.data import Dataset
 import os
 from joblib import Parallel, delayed
+import matplotlib.pyplot as plt
 
 from pmwd import (
     Configuration,
@@ -21,6 +22,7 @@ from pmwd import (
 )
 from pmwd.pm_util import rfftnfreq
 from pmwd.io_util import read_gadget_hdf5
+from pmwd.spec_util import powspec
 
 
 def scale_Sobol(fn='sobol.txt', ind=slice(None)):
@@ -118,7 +120,7 @@ def read_g4data(sobol_ids, sims_dir, snaps_per_sim, fn_sobol):
                                      'output', f'snapshot_{j:03}')
             pos, vel, a = read_gadget_hdf5(snap_file)
             data[i][j] = (pos, vel, a, sidx, sobol)
-    Parallel(n_jobs=min(16, len(sobol_ids)), prefer='threads', require='sharedmem')(
+    Parallel(n_jobs=min(8, len(sobol_ids)), prefer='threads', require='sharedmem')(
         delayed(load_sobol)(i, sidx) for i, sidx in enumerate(sobol_ids))
     return data
 
@@ -147,15 +149,13 @@ class G4snapDataset(Dataset):
 
 
 def _loss_dens_mse(dens, dens_t):
-    return jnp.sum((dens - dens_t)**2)
-
+    return (dens - dens_t).var()
 
 def _loss_disp_mse(ptcl, ptcl_t):
-    return jnp.sum((ptcl.disp - ptcl_t.disp)**2)
-
+    return (ptcl.disp - ptcl_t.disp).var()
 
 def _loss_vel_mse(ptcl, ptcl_t):
-    return jnp.sum((ptcl.vel - ptcl_t.vel)**2)
+    return (ptcl.vel - ptcl_t.vel).var()
 
 
 @jax.custom_vjp
@@ -163,25 +163,27 @@ def _loss_scale_wmse(kvec, dens_k, dens_t_k):
     k2 = sum(k**2 for k in kvec)
     diff = dens_k - dens_t_k
     loss = jnp.sum(jnp.where(k2 != 0, jnp.abs(diff)**2 / k2**1.5, 0))
-    return loss, (k2, diff)
+    return jnp.log(loss), (loss, k2, diff)
 
 def _loss_scale_wmse_fwd(kvec, dens_k, dens_t_k):
     loss, res = _loss_scale_wmse(kvec, dens_k, dens_t_k)
     return loss, res
 
 def _loss_scale_wmse_bwd(res, loss_cot):
-    k2, diff = res
+    loss, k2, diff = res
     abs_valgrad = jax.value_and_grad(jnp.abs)
     abs_diff, dabs_diff = jax.vmap(abs_valgrad)(diff.ravel())
     abs_diff = abs_diff.reshape(k2.shape)
     dabs_diff = dabs_diff.reshape(k2.shape)
+
+    loss_cot /= loss
     dens_k_cot = loss_cot * jnp.where(k2 != 0, 2 * abs_diff * dabs_diff / k2**1.5, 0)
     return None, dens_k_cot, None
 
 _loss_scale_wmse.defvjp(_loss_scale_wmse_fwd, _loss_scale_wmse_bwd)
 
 
-def loss_func(ptcl, tgt, conf, mesh_shape=None):
+def loss_func(ptcl, tgt, conf, mesh_shape=4):
     loss = 0
 
     # get the target ptcl
@@ -190,7 +192,7 @@ def loss_func(ptcl, tgt, conf, mesh_shape=None):
     ptcl_t = Particles(conf, ptcl.pmid, disp_t, vel_t)
 
     # get the density fields for the loss
-    if mesh_shape is None:  # default to 2x the mesh in pmwd sim
+    if mesh_shape is None:  # 2x the mesh in pmwd sim
         cell_size = conf.cell_size / 2
         mesh_shape = tuple(2 * ms for ms in conf.mesh_shape)
     else:  # float or int
@@ -203,6 +205,7 @@ def loss_func(ptcl, tgt, conf, mesh_shape=None):
     kvec = rfftnfreq(mesh_shape, cell_size, dtype=conf.float_dtype)
 
     loss += _loss_scale_wmse(kvec, dens_k, dens_t_k)
+    # loss += _loss_dens_var(dens, dens_t)
     # loss += _loss_dens_mse(dens, dens_t)
     # loss += _loss_disp_mse(ptcl, ptcl_t)
 
@@ -211,7 +214,7 @@ def loss_func(ptcl, tgt, conf, mesh_shape=None):
 
 def obj(tgt, ptcl_ic, so_params, cosmo, conf):
     cosmo = cosmo.replace(so_params=so_params)
-    ptcl, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
+    _, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
     loss = loss_func(obsvbl[0], tgt, conf)
     return loss
 
@@ -253,8 +256,8 @@ def train_step(tgt, so_params, pmwd_params, learning_rate, opt_state):
     return so_params, loss, opt_state
 
 
-def visins(fn_root, tgt, so_params, pmwd_params, mesh_shape=None):
-    """Util for visually inspection during/after training."""
+def visins(tgt, so_params, pmwd_params, fn_root=None, mesh_shape=4):
+    """Util for visual inspection during/after training."""
     # run pmwd with given params
     ptcl_ic, cosmo, conf = _init_pmwd(pmwd_params)
     cosmo = cosmo.replace(so_params=so_params)
@@ -267,7 +270,7 @@ def visins(fn_root, tgt, so_params, pmwd_params, mesh_shape=None):
     ptcl_t = Particles(conf, ptcl.pmid, disp_t, vel_t)
 
     # get the density fields
-    if mesh_shape is None:  # default to 2x the mesh in pmwd sim
+    if mesh_shape is None:  # 2x the mesh in pmwd sim
         cell_size = conf.cell_size / 2
         mesh_shape = tuple(2 * ms for ms in conf.mesh_shape)
     else:  # float or int
@@ -288,14 +291,16 @@ def visins(fn_root, tgt, so_params, pmwd_params, mesh_shape=None):
     psr = ps / ps_t
     cc = ps_cross / jnp.sqrt(ps * ps_t)
 
-    fig, ax = plt.subplots(1, 1, figsize=(5, 3), tight_layout=True)
+    fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.6), tight_layout=True)
     ax.plot(k, psr, label=r'$P(k)/P_t(k)$')
     ax.plot(k, cc, label=r'corr. coef.')
     ax.set_xscale('log')
     ax.set_xlabel(r'$k$')
-    ax.set_xlim(k[0], 1)
+    ax.set_xlim(k[0], k[-1])
+    ax.set_ylim(0.9, 1.1)
     ax.legend()
-    fig.savefig(f'{fn_root}_ps.pdf')
 
-    ### TODO 2d density plot
+    if fn_root is not None:
+        fig.savefig(f'{fn_root}_ps.pdf')
 
+    return fig
