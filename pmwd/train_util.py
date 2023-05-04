@@ -110,42 +110,51 @@ def gen_ic(seed, conf, cosmo):
     return ptcl, cosmo
 
 
-def read_g4data(sobol_ids, sims_dir, snaps_per_sim, fn_sobol):
+def read_g4data(sims_dir, sobol_ids, snap_ids, fn_sobol):
     data = {}
-    def load_sobol(i, sidx):
-        data[i] = {}
-        sobol = scale_Sobol(fn_sobol, sidx)
-        for j in range(snaps_per_sim):
-            snap_file = os.path.join(sims_dir, f'{sidx:03}',
-                                     'output', f'snapshot_{j:03}')
+    def load_sobol(sobo):
+        data[sobo] = {}
+        sobol = scale_Sobol(fn_sobol, sobo)
+        for snap in snap_ids:
+            snap_file = os.path.join(sims_dir, f'{sobo:03}',
+                                     'output', f'snapshot_{snap:03}')
             pos, vel, a = read_gadget_hdf5(snap_file)
-            data[i][j] = (pos, vel, a, sidx, sobol)
+            data[sobo][snap] = (pos, vel, a, sobo, sobol)
     Parallel(n_jobs=min(8, len(sobol_ids)), prefer='threads', require='sharedmem')(
-        delayed(load_sobol)(i, sidx) for i, sidx in enumerate(sobol_ids))
+        delayed(load_sobol)(sobo) for sobo in sobol_ids)
     return data
 
 
 class G4snapDataset(Dataset):
 
     def __init__(self, sims_dir, sobol_ids=None, sobols_edge=None,
-                 snaps_per_sim=121, fn_sobol='sobol.txt'):
+                 snap_ids=None, snaps_per_sim=121, fn_sobol='sobol.txt'):
         self.sims_dir = sims_dir
+
         if sobol_ids is None:
             sobol_ids = np.arange(*sobols_edge)
+        self.sobol_ids = sobol_ids
+
+        if snap_ids is not None:
+            self.snap_ids = snap_ids
+            self.snaps_per_sim = len(snap_ids)
+        else:
+            self.snap_ids = np.arange(snaps_per_sim)
+            self.snaps_per_sim = snaps_per_sim
+
         self.n_sims = len(sobol_ids)
-        self.snaps_per_sim = snaps_per_sim
         self.n_snaps = self.n_sims * self.snaps_per_sim
 
-        self.data = read_g4data(sobol_ids, sims_dir, snaps_per_sim, fn_sobol)
+        self.data = read_g4data(sims_dir, self.sobol_ids, self.snap_ids, fn_sobol)
 
     def __len__(self):
         return self.n_snaps
 
     def __getitem__(self, idx):
-        i_sobol = idx // self.snaps_per_sim
-        i_snap = idx % self.snaps_per_sim
+        sobol_id = self.sobol_ids[idx // self.snaps_per_sim]
+        snap_id = self.snap_ids[idx % self.snaps_per_sim]
 
-        return self.data[i_sobol][i_snap]
+        return self.data[sobol_id][snap_id]
 
 
 def _loss_dens_mse(dens, dens_t):
