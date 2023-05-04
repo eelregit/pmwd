@@ -7,6 +7,8 @@ procid = int(os.getenv('SLURM_PROCID'))
 n_tasks_per_node = int(os.getenv('SLURM_NTASKS_PER_NODE'))
 os.environ['CUDA_VISIBLE_DEVICES'] = str(procid % n_tasks_per_node)
 
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.95'
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -19,7 +21,7 @@ import time
 import pickle
 
 from pmwd.so_util import soft_len, init_mlp_params
-from pmwd.train_util import G4snapDataset, train_step
+from pmwd.train_util import G4snapDataset, train_step, visins
 
 
 def printinfo(s, flush=False):
@@ -33,8 +35,8 @@ if __name__ == "__main__":
     jax.distributed.initialize(local_device_ids=[0])
 
     # hyper parameters of training
-    n_epochs = 1
-    learning_rate = 0.01
+    n_epochs = 10
+    learning_rate = 0.1
     sobol_ids = np.arange(0, 8)
 
     # RNGs with fixed seeds, for same randomness across processes
@@ -48,14 +50,14 @@ if __name__ == "__main__":
     # load training data
     printinfo('preparing the data loader')
     g4data = G4snapDataset('g4sims', sobol_ids=sobol_ids)
-    g4loader = DataLoader(g4data, batch_size=None, shuffle=True, generator=tc_rng,
+    g4loader = DataLoader(g4data, batch_size=None, shuffle=False, generator=tc_rng,
                           num_workers=0, collate_fn=lambda x: x)
 
     # structure of the so neural nets
     printinfo('initializing SO parameters & optimizer')
     n_input = [soft_len()] * 3  # three nets
     so_nodes = [[2*n, n, 1] for n in n_input]
-    so_params = init_mlp_params(n_input, so_nodes)
+    so_params = init_mlp_params(n_input, so_nodes, scheme='last_w0_b1')
 
     optimizer = optax.adam(learning_rate=learning_rate)
     opt_state = optimizer.init(so_params)
@@ -67,27 +69,35 @@ if __name__ == "__main__":
 
     tic = time.perf_counter()
     for epoch in range(n_epochs):
-        for i, g4snap in enumerate(g4loader):
+        for step, g4snap in enumerate(g4loader):
             pos, vel, a, sidx, sobol = g4snap
 
             # mesh shape, 128 * [1, 2, 3, 4]
-            mesh_shape = np_rng.integers(1, 5) * 128
+            # mesh_shape = np_rng.integers(1, 5) * 128
             # number of time steps, [10, 1000], log-uniform
-            n_steps = np.rint(10**np_rng.uniform(1, 3)).astype(int)
+            # n_steps = np.rint(10**np_rng.uniform(1, 3)).astype(int)
+            mesh_shape = 256
+            n_steps = 100
 
             tgt = (pos, vel)
             pmwd_params = (a, sidx, sobol, mesh_shape, n_steps, so_nodes)
             so_params, loss, opt_state = train_step(tgt, so_params, pmwd_params,
                                                     learning_rate, opt_state)
 
-            # track
+            # step track
             if procid == 0:
                 tt = time.perf_counter() - tic
                 tic = time.perf_counter()
-                print((f'{tt:.0f} s, {epoch}, {i:>3d}, {mesh_shape:>3d}, ' +
+                print((f'{tt:.0f} s, {epoch}, {step:>3d}, {mesh_shape:>3d}, ' +
                        f'{n_steps:>4d}, {loss:12.3e}'), flush=True)
-                global_step = epoch * len(g4loader) + i
-                writer.add_scalar('loss', float(loss), global_step)
+                global_step = epoch * len(g4loader) + step + 1
+                writer.add_scalar('loss/train', float(loss), global_step)
+
+        # epoch track
+        if procid == 0:
+            fig = visins(tgt, so_params, pmwd_params)
+            writer.add_figure('fig/epoch/power', fig, epoch+1)
+            fig.clf()
 
         # checkpoint SO params
         if procid == 0:
