@@ -35,7 +35,7 @@ if __name__ == "__main__":
     jax.distributed.initialize(local_device_ids=[0])
 
     # hyper parameters of training
-    n_epochs = 10
+    n_epochs = 30
     learning_rate = 0.1
     sobol_ids = np.arange(0, 8)
 
@@ -93,14 +93,13 @@ if __name__ == "__main__":
                 global_step = epoch * len(g4loader) + step + 1
                 writer.add_scalar('loss/train', float(loss), global_step)
 
-        # epoch track
         if procid == 0:
+            # epoch track
             fig = visins(tgt, so_params, pmwd_params)
             writer.add_figure('fig/epoch/power', fig, epoch+1)
             fig.clf()
 
-        # checkpoint SO params
-        if procid == 0:
+            # checkpoint SO params
             jobid = os.getenv('SLURM_JOB_ID')
             with open(fn := f'params/j{jobid}_e{epoch}.pickle', 'wb') as f:
                 dic = {'n_input': n_input,
