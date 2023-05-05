@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-from jax.lax import pmean
 import numpy as np
 import optax
 from functools import partial
@@ -9,17 +8,14 @@ import os
 from joblib import Parallel, delayed
 import matplotlib.pyplot as plt
 
-from pmwd import (
-    Configuration,
-    Cosmology,
-    boltzmann,
-    white_noise,
-    linear_modes,
-    lpt,
-    nbody,
-    scatter,
-    Particles,
-)
+from pmwd.configuration import Configuration
+from pmwd.cosmology import Cosmology
+from pmwd.boltzmann import boltzmann
+from pmwd.modes import white_noise, linear_modes
+from pmwd.lpt import lpt
+from pmwd.nbody import nbody
+from pmwd.scatter import scatter
+from pmwd.particles import Particles, ptcl_rpos
 from pmwd.pm_util import rfftnfreq
 from pmwd.io_util import read_gadget_hdf5
 from pmwd.spec_util import powspec
@@ -158,42 +154,45 @@ class G4snapDataset(Dataset):
 
 
 def _loss_dens_mse(dens, dens_t):
-    return (dens - dens_t).var()
+    return jnp.mean((dens - dens_t)**2)
 
 def _loss_disp_mse(ptcl, ptcl_t):
-    return (ptcl.disp - ptcl_t.disp).var()
+    return jnp.mean((ptcl.disp - ptcl_t.disp)**2)
 
 def _loss_vel_mse(ptcl, ptcl_t):
-    return (ptcl.vel - ptcl_t.vel).var()
+    return jnp.mean((ptcl.vel - ptcl_t.vel)**2)
 
 
 @jax.custom_vjp
-def _loss_scale_wmse(kvec, dens_k, dens_t_k):
+def _scale_wmse(kvec, f, g):
+    # mse of two fields in Fourier space, uniform weights
     k2 = sum(k**2 for k in kvec)
-    diff = dens_k - dens_t_k
-    loss = jnp.sum(jnp.where(k2 != 0, jnp.abs(diff)**2 / k2**1.5, 0))
-    return jnp.log(loss), (loss, k2, diff)
+    d = f - g
+    loss = jnp.sum(jnp.where(k2 != 0, jnp.abs(d)**2 / k2**1.5, 0)
+                   ) / jnp.array(d.shape).prod()
+    return jnp.log(loss), (loss, k2, d)
 
-def _loss_scale_wmse_fwd(kvec, dens_k, dens_t_k):
-    loss, res = _loss_scale_wmse(kvec, dens_k, dens_t_k)
+def _scale_wmse_fwd(kvec, f, g):
+    loss, res = _scale_wmse(kvec, f, g)
     return loss, res
 
-def _loss_scale_wmse_bwd(res, loss_cot):
-    loss, k2, diff = res
+def _scale_wmse_bwd(res, loss_cot):
+    loss, k2, d = res
+    d_shape = d.shape
     abs_valgrad = jax.value_and_grad(jnp.abs)
-    abs_diff, dabs_diff = jax.vmap(abs_valgrad)(diff.ravel())
-    abs_diff = abs_diff.reshape(k2.shape)
-    dabs_diff = dabs_diff.reshape(k2.shape)
+    d, d_grad = jax.vmap(abs_valgrad)(d.ravel())
+    d = d.reshape(d_shape)
+    d_grad = d_grad.reshape(d_shape)
 
     loss_cot /= loss
-    dens_k_cot = loss_cot * jnp.where(k2 != 0, 2 * abs_diff * dabs_diff / k2**1.5, 0)
-    return None, dens_k_cot, None
+    f_cot = loss_cot * jnp.where(k2 != 0, 2 * d * d_grad / k2**1.5, 0
+                                 ) / jnp.array(d_shape).prod()
+    return None, f_cot, None
 
-_loss_scale_wmse.defvjp(_loss_scale_wmse_fwd, _loss_scale_wmse_bwd)
+_scale_wmse.defvjp(_scale_wmse_fwd, _scale_wmse_bwd)
 
 
 def loss_func(ptcl, tgt, conf, mesh_shape=4):
-    loss = 0
 
     # get the target ptcl
     pos_t, vel_t = tgt
@@ -211,10 +210,18 @@ def loss_func(ptcl, tgt, conf, mesh_shape=4):
                             val=1, cell_size=cell_size) for p in (ptcl, ptcl_t))
     dens_k = jnp.fft.rfftn(dens)
     dens_t_k = jnp.fft.rfftn(dens_t)
-    kvec = rfftnfreq(mesh_shape, cell_size, dtype=conf.float_dtype)
+    kvec_dens = rfftnfreq(mesh_shape, cell_size, dtype=conf.float_dtype)
 
-    loss += _loss_scale_wmse(kvec, dens_k, dens_t_k)
-    # loss += _loss_dens_var(dens, dens_t)
+    # get the disp from particles' grid Lagrangian positions
+    disp, disp_t = (ptcl_rpos(p, Particles.gen_grid(p.conf), p.conf)
+                    for p in (ptcl, ptcl_t))
+    disp_k = jnp.fft.rfftn(disp, axes=range(-3, 0))
+    disp_t_k = jnp.fft.rfftn(disp_t, axes=range(-3, 0))
+    kvec_disp = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
+
+    loss = 0
+    loss += _scale_wmse(kvec_dens, dens_k, dens_t_k)
+    loss += _scale_wmse(kvec_disp, disp_k, disp_t_k)
     # loss += _loss_dens_mse(dens, dens_t)
     # loss += _loss_disp_mse(ptcl, ptcl_t)
 
@@ -230,8 +237,8 @@ def obj(tgt, ptcl_ic, so_params, cosmo, conf):
 
 @partial(jax.pmap, axis_name='global', in_axes=(0, None), out_axes=None)
 def _global_mean(loss, grad):
-    loss = pmean(loss, axis_name='global')
-    grad = pmean(grad, axis_name='global')
+    loss = jax.lax.pmean(loss, axis_name='global')
+    grad = jax.lax.pmean(grad, axis_name='global')
     return loss, grad
 
 
