@@ -6,28 +6,31 @@ import matplotlib.pyplot as plt
 from pmwd.train_util import scale_Sobol
 
 
-def gen_sobol(filename, d=9, m=9, extra=9):
+def gen_sobol(filename, d=9, m=9, extra=9, seed=55868, seed_max=65536):
     from scipy.stats.qmc import Sobol, discrepancy
 
-    disc_min = np.inf
-    for seed in range(65536):
-        sampler = Sobol(d, scramble=True, seed=seed)  # d is the dimensionality
-        sample = sampler.random_base2(m)  # m is the log2 of the number of samples
-        disc = discrepancy(sample, method='MD')
-        if disc < disc_min:
-            seed_min = seed
-            disc_min = disc
-    print(f'0 <= seed = {seed_min} < 65536, minimizes mixture discrepancy = '
-            f'{disc_min}')
-    # seed_min = 55868, mixture discrepancy = 0.016109347957680598
+    nicer_seed = seed
+    if seed is None:
+        disc_min = np.inf
+        for s in range(seed_max):
+            sampler = Sobol(d, scramble=True, seed=s)  # d is the dimensionality
+            sample = sampler.random_base2(m)  # m is the log2 of the number of samples
+            disc = discrepancy(sample, method='MD')
+            if disc < disc_min:
+                nicer_seed = s
+                disc_min = disc
+        print(f'0 <= seed = {nicer_seed} < {seed_max}, minimizes mixture discrepancy = '
+                f'{disc_min}')
+        # nicer_seed = 55868, mixture discrepancy = 0.016109347957680598
 
-    sampler = Sobol(d, scramble=True, seed=seed_min)
-    sample = sampler.random(n=2**m + extra)
+    sampler = Sobol(d, scramble=True, seed=nicer_seed)
+    sample = sampler.random(n=2**m + extra)  # extra is the additional testing samples
     np.savetxt(filename, sample)
 
 
-def plt_proj(filename, max_rows=None):
-    sample = np.loadtxt(filename, max_rows=max_rows)
+def plt_proj(filename, max_rows=None, max_cols=None):
+    usecols = range(max_cols) if isinstance(max_cols, int) else max_cols
+    sample = np.loadtxt(filename, usecols=usecols, max_rows=max_rows)
 
     n, d = sample.shape
 
