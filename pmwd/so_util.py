@@ -98,9 +98,8 @@ def sotheta(cosmo, conf, a):
         *nonlinear_scales(cosmo, conf, a),
         conf.ptcl_spacing,
         conf.cell_size,
+        conf.softening_length,
     ])
-    if conf.softening_length is not None:
-        theta_l = jnp.append(theta_l, conf.softening_length)
 
     # dimensionless quantities
     D1 = growth(a, cosmo, conf, order=1)
@@ -114,7 +113,7 @@ def sotheta(cosmo, conf, a):
         dlnD2 - 2,
         Omega_m_a(a, cosmo),
         H_deriv(a, cosmo),
-        # time step size?
+        # TODO time step size?
     ])
 
     return (theta_l, theta_o)
@@ -125,8 +124,8 @@ def soft_len():
     conf = Configuration(1., (128,)*3)
     cosmo = SimpleLCDM(conf)
     cosmo = boltzmann(cosmo, conf)
-    tl, to = sotheta(cosmo, conf, conf.a_start)
-    return len(tl) + len(to)
+    theta_l, theta_o = sotheta(cosmo, conf, conf.a_start)
+    return len(theta_l) + len(theta_o)
 
 
 def soft_bc(k, theta):

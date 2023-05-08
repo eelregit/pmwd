@@ -80,6 +80,7 @@ def gen_cc(sobol, mesh_shape=1, a_out=1, a_nbody_num=63, so_nodes=None,
         a_out = a_out,
         a_nbody_num = a_nbody_num,
         so_nodes = so_nodes,
+        softening_length = sobol[8],
     )
 
     cosmo = Cosmology(
