@@ -112,21 +112,21 @@ cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx,
     for(uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_particle; tid+=gridDim.x*blockDim.x){
         // read particle data from global memory
         T_int1 p_pmid[DIM] = {pmid[tid*DIM + 0], pmid[tid*DIM + 1], pmid[tid*DIM + 2]};
-        T_float p_disp[DIM] = {disp[tid*DIM + 0], disp[tid*DIM + 1], disp[tid*DIM + 2]};
+        double p_disp[DIM] = {disp[tid*DIM + 0], disp[tid*DIM + 1], disp[tid*DIM + 2]};
 
         // strides
         //T_int1 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
         T_int1 g_stride[3] = {stridex, stridey, stridez};
-        T_float g_offset[3] = {offsetx, offsety, offsetz};
+        double g_offset[3] = {offsetx, offsety, offsetz};
 
         // cell index for each dimension
         T_int1 c_index[DIM];
         T_int1 c_index2;
-        T_float g_disp;
-        T_float g_disp2;
-        T_float ptcl_spacing_d = static_cast<T_float>(ptcl_spacing);
-        T_float cell_size_d = static_cast<T_float>(cell_size);
-        T_float L1[DIM] = {ptcl_spacing_d*ptcl_gridx, ptcl_spacing_d*ptcl_gridy, ptcl_spacing_d*ptcl_gridz};
+        double g_disp;
+        double g_disp2;
+        double ptcl_spacing_d = static_cast<double>(ptcl_spacing);
+        double cell_size_d = static_cast<double>(cell_size);
+        double L1[DIM] = {ptcl_spacing_d*ptcl_gridx, ptcl_spacing_d*ptcl_gridy, ptcl_spacing_d*ptcl_gridz};
         for(int idim=0; idim<3; idim++){
             g_disp = ptcl_spacing_d*p_pmid[idim]+p_disp[idim]-g_offset[idim];
             g_disp = g_disp - floor(g_disp/L1[idim])*L1[idim];
@@ -277,28 +277,28 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
     T_int1 bidz = bid%nbinz;
 
     // strides
-    T_float ptcl_spacing_d = static_cast<T_float>(ptcl_spacing);
-    T_float cell_size_d = static_cast<T_float>(cell_size);
-    T_float L1[DIM] = {ptcl_spacing_d*ptcl_gridx, ptcl_spacing_d*ptcl_gridy, ptcl_spacing_d*ptcl_gridz};
+    double ptcl_spacing_d = static_cast<double>(ptcl_spacing);
+    double cell_size_d = static_cast<double>(cell_size);
+    double L1[DIM] = {ptcl_spacing_d*ptcl_gridx, ptcl_spacing_d*ptcl_gridy, ptcl_spacing_d*ptcl_gridz};
     T_int1 g_stride[3] = {stridex, stridey, stridez};
-    T_float g_offset[3] = {offsetx, offsety, offsetz};
+    double g_offset[3] = {offsetx, offsety, offsetz};
     T_int2 hstride[2] = {(bin_size_z+1)*(bin_size_y+1), bin_size_z+1};
     int idx;
     int pstart = bin_start[bid];
     int npts = bin_count[bid];
-    T_float g_disp[DIM];
-    T_float t_disp[DIM];
+    double g_disp[DIM];
+    double t_disp[DIM];
     T_int1 v_index[DIM];
     T_int1  c_index[DIM];
     T_int1  p_index[DIM];
-    T_float t_val;
-    T_float w_val;
+    double t_val;
+    double w_val;
     T_int2 cell_id;
     for(int i=threadIdx.x; i<npts; i+=blockDim.x){
         idx = index[pstart + i];
         T_int2 p_pmid[DIM] = {pmid[idx*DIM + 0], pmid[idx*DIM + 1], pmid[idx*DIM + 2]};
-        T_float p_disp[DIM] = {disp[idx*DIM + 0], disp[idx*DIM + 1], disp[idx*DIM + 2]};
-        T_float p_val = values[idx];
+        double p_disp[DIM] = {disp[idx*DIM + 0], disp[idx*DIM + 1], disp[idx*DIM + 2]};
+        double p_val = values[idx];
 
         // displacement with in a cell for cell (i,j,k)==(0,0,0)
         for(int idim=0; idim<3; idim++){
@@ -890,7 +890,9 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
 #endif
     // scatter using shared memory
     cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
-    scatter_kernel_sm<<<nbinx*nbiny*nbinz, 1024, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx);
+    scatter_kernel_sm<<<nbinx*nbiny*nbinz, 512, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx);
+    cudaDeviceSynchronize();
+    CUDA_SAFE_CALL(cudaGetLastError());
 #ifdef SCATTER_TIME
     cudaEventRecord(stop);
     cudaEventSynchronize(stop);
