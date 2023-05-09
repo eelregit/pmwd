@@ -2,12 +2,12 @@
 
 #SBATCH --partition=gpu
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=8
-#SBATCH --gpus-per-node=8
+#SBATCH --ntasks-per-node=1
+#SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --constraint=h100,ib
-#SBATCH --mem=1000G
-#SBATCH --time=3-0
+#SBATCH --mem-per-gpu=125G
+#SBATCH --time=0-3
 
 module purge
 

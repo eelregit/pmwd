@@ -19,6 +19,7 @@ from pmwd.particles import Particles, ptcl_rpos
 from pmwd.pm_util import rfftnfreq
 from pmwd.io_util import read_gadget_hdf5
 from pmwd.spec_util import powspec
+from pmwd.so_util import sotheta, soft_bc, sonn_bc
 
 
 def scale_Sobol(fn='sobol.txt', ind=slice(None)):
@@ -92,6 +93,7 @@ def gen_cc(sobol, mesh_shape=1, a_out=1, a_nbody_num=63, so_nodes=None,
         Omega_k_ = sobol[6],
         h = sobol[7],
     )
+    cosmo = boltzmann(cosmo, conf)
 
     return conf, cosmo
 
@@ -100,32 +102,31 @@ def gen_ic(seed, conf, cosmo):
     """Generate the initial condition with lpt for nbody."""
     modes = white_noise(seed, conf)
 
-    cosmo = boltzmann(cosmo, conf)
     modes = linear_modes(modes, cosmo, conf)
     ptcl, obsvbl = lpt(modes, cosmo, conf)
 
-    return ptcl, cosmo
+    return ptcl
 
 
 def read_g4data(sims_dir, sobol_ids, snap_ids, fn_sobol):
     data = {}
-    def load_sobol(sobo):
-        data[sobo] = {}
-        sobol = scale_Sobol(fn_sobol, sobo)
+    def load_sobol(sidx):
+        data[sidx] = {}
+        sobol = scale_Sobol(fn_sobol, sidx)
         for snap in snap_ids:
-            snap_file = os.path.join(sims_dir, f'{sobo:03}',
+            snap_file = os.path.join(sims_dir, f'{sidx:03}',
                                      'output', f'snapshot_{snap:03}')
             pos, vel, a = read_gadget_hdf5(snap_file)
-            data[sobo][snap] = (pos, vel, a, sobo, sobol)
+            data[sidx][snap] = (pos, vel, a, sidx, sobol)
     Parallel(n_jobs=min(8, len(sobol_ids)), prefer='threads', require='sharedmem')(
-        delayed(load_sobol)(sobo) for sobo in sobol_ids)
+        delayed(load_sobol)(sidx) for sidx in sobol_ids)
     return data
 
 
 class G4snapDataset(Dataset):
 
     def __init__(self, sims_dir, sobol_ids=None, sobols_edge=None,
-                 snap_ids=None, snaps_per_sim=121, fn_sobol='sobol.txt'):
+                 snap_ids=[120], snaps_per_sim=121, fn_sobol='sobol.txt'):
         self.sims_dir = sims_dir
 
         if sobol_ids is None:
@@ -142,7 +143,7 @@ class G4snapDataset(Dataset):
         self.n_sims = len(sobol_ids)
         self.n_snaps = self.n_sims * self.snaps_per_sim
 
-        self.data = read_g4data(sims_dir, self.sobol_ids, self.snap_ids, fn_sobol)
+        self.g4data = read_g4data(sims_dir, self.sobol_ids, self.snap_ids, fn_sobol)
 
     def __len__(self):
         return self.n_snaps
@@ -151,7 +152,9 @@ class G4snapDataset(Dataset):
         sobol_id = self.sobol_ids[idx // self.snaps_per_sim]
         snap_id = self.snap_ids[idx % self.snaps_per_sim]
 
-        return self.data[sobol_id][snap_id]
+        # TODO generate pmwd parameters and IC here?
+
+        return self.g4data[sobol_id][snap_id]
 
 
 def _loss_dens_mse(dens, dens_t):
@@ -165,7 +168,7 @@ def _loss_vel_mse(ptcl, ptcl_t):
 
 
 @jax.custom_vjp
-def _scale_wmse(kvec, f, g):
+def _loss_scale_wmse(kvec, f, g):
     # mse of two fields in Fourier space, uniform weights
     k2 = sum(k**2 for k in kvec)
     d = f - g
@@ -174,7 +177,7 @@ def _scale_wmse(kvec, f, g):
     return jnp.log(loss), (loss, k2, d)
 
 def _scale_wmse_fwd(kvec, f, g):
-    loss, res = _scale_wmse(kvec, f, g)
+    loss, res = _loss_scale_wmse(kvec, f, g)
     return loss, res
 
 def _scale_wmse_bwd(res, loss_cot):
@@ -190,7 +193,19 @@ def _scale_wmse_bwd(res, loss_cot):
                                  ) / jnp.array(d_shape).prod()
     return None, f_cot, None
 
-_scale_wmse.defvjp(_scale_wmse_fwd, _scale_wmse_bwd)
+_loss_scale_wmse.defvjp(_scale_wmse_fwd, _scale_wmse_bwd)
+
+
+def ptcl2dens(ptcls, conf, mesh_shape):
+    if mesh_shape is None:  # 2x the mesh in pmwd sim
+        cell_size = conf.cell_size / 2
+        mesh_shape = tuple(2 * ms for ms in conf.mesh_shape)
+    else:  # float or int
+        cell_size = conf.ptcl_spacing / mesh_shape
+        mesh_shape = tuple(round(mesh_shape * s) for s in conf.ptcl_grid_shape)
+    denss = (scatter(p, conf, mesh=jnp.zeros(mesh_shape, dtype=conf.float_dtype),
+                     val=1, cell_size=cell_size) for p in ptcls)
+    return denss, (mesh_shape, cell_size)
 
 
 def loss_func(ptcl, tgt, conf, mesh_shape=4):
@@ -201,14 +216,8 @@ def loss_func(ptcl, tgt, conf, mesh_shape=4):
     ptcl_t = Particles(conf, ptcl.pmid, disp_t, vel_t)
 
     # get the density fields for the loss
-    if mesh_shape is None:  # 2x the mesh in pmwd sim
-        cell_size = conf.cell_size / 2
-        mesh_shape = tuple(2 * ms for ms in conf.mesh_shape)
-    else:  # float or int
-        cell_size = conf.ptcl_spacing / mesh_shape
-        mesh_shape = tuple(round(mesh_shape * s) for s in conf.ptcl_grid_shape)
-    dens, dens_t = (scatter(p, conf, mesh=jnp.zeros(mesh_shape, dtype=conf.float_dtype),
-                            val=1, cell_size=cell_size) for p in (ptcl, ptcl_t))
+    (dens, dens_t), (mesh_shape, cell_size) = ptcl2dens(
+                                               (ptcl, ptcl_t), conf, mesh_shape)
     dens_k = jnp.fft.rfftn(dens)
     dens_t_k = jnp.fft.rfftn(dens_t)
     kvec_dens = rfftnfreq(mesh_shape, cell_size, dtype=conf.float_dtype)
@@ -216,13 +225,14 @@ def loss_func(ptcl, tgt, conf, mesh_shape=4):
     # get the disp from particles' grid Lagrangian positions
     disp, disp_t = (ptcl_rpos(p, Particles.gen_grid(p.conf), p.conf)
                     for p in (ptcl, ptcl_t))
-    disp_k = jnp.fft.rfftn(disp, axes=range(-3, 0))
-    disp_t_k = jnp.fft.rfftn(disp_t, axes=range(-3, 0))
+    shape_ = (-1,) + conf.ptcl_grid_shape
+    disp_k = jnp.fft.rfftn(disp.T.reshape(shape_), axes=range(-3, 0))
+    disp_t_k = jnp.fft.rfftn(disp_t.T.reshape(shape_), axes=range(-3, 0))
     kvec_disp = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
     loss = 0
-    loss += _scale_wmse(kvec_dens, dens_k, dens_t_k)
-    loss += _scale_wmse(kvec_disp, disp_k, disp_t_k)
+    # loss += _loss_scale_wmse(kvec_dens, dens_k, dens_t_k)
+    loss += _loss_scale_wmse(kvec_disp, disp_k, disp_t_k)
     # loss += _loss_dens_mse(dens, dens_t)
     # loss += _loss_disp_mse(ptcl, ptcl_t)
 
@@ -249,7 +259,7 @@ def _init_pmwd(pmwd_params):
     # generate ic, cosmo, conf
     conf, cosmo = gen_cc(sobol, mesh_shape=(mesh_shape,)*3, a_out=a_out,
                          a_nbody_num=n_steps, so_nodes=so_nodes)
-    ptcl_ic, cosmo = gen_ic(sidx, conf, cosmo)
+    ptcl_ic = gen_ic(sidx, conf, cosmo)
 
     return ptcl_ic, cosmo, conf
 
@@ -273,30 +283,10 @@ def train_step(tgt, so_params, pmwd_params, learning_rate, opt_state):
     return so_params, loss, opt_state
 
 
-def visins(tgt, so_params, pmwd_params, fn_root=None, mesh_shape=4):
-    """Util for visual inspection during/after training."""
-    # run pmwd with given params
-    ptcl_ic, cosmo, conf = _init_pmwd(pmwd_params)
-    cosmo = cosmo.replace(so_params=so_params)
-    _, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
-    ptcl = obsvbl[0]
+def plt_power(dens, dens_t, cell_size):
+    """Plot power spectra related."""
 
-    # get the target ptcl
-    pos_t, vel_t = tgt
-    disp_t = pos_t - ptcl.pmid * conf.cell_size
-    ptcl_t = Particles(conf, ptcl.pmid, disp_t, vel_t)
-
-    # get the density fields
-    if mesh_shape is None:  # 2x the mesh in pmwd sim
-        cell_size = conf.cell_size / 2
-        mesh_shape = tuple(2 * ms for ms in conf.mesh_shape)
-    else:  # float or int
-        cell_size = conf.ptcl_spacing / mesh_shape
-        mesh_shape = tuple(round(mesh_shape * s) for s in conf.ptcl_grid_shape)
-    dens, dens_t = (scatter(p, conf, mesh=jnp.zeros(mesh_shape, dtype=conf.float_dtype),
-                            val=1, cell_size=cell_size) for p in (ptcl, ptcl_t))
-
-    ### power spectra
+    # estimate power spectra
     k, ps, N = powspec(dens, cell_size)
     ps = ps.real
     k, ps_t, N = powspec(dens_t, cell_size)
@@ -304,7 +294,7 @@ def visins(tgt, so_params, pmwd_params, fn_root=None, mesh_shape=4):
     k, ps_cross, N = powspec(dens, cell_size, g=dens_t)
     ps_cross = ps_cross.real
 
-    # check the correlation coefficient and ratio of auto power
+    # the correlation coefficient and ratio of auto powers
     psr = ps / ps_t
     cc = ps_cross / jnp.sqrt(ps * ps_t)
 
@@ -317,7 +307,56 @@ def visins(tgt, so_params, pmwd_params, fn_root=None, mesh_shape=4):
     ax.set_ylim(0.9, 1.1)
     ax.legend()
 
-    if fn_root is not None:
-        fig.savefig(f'{fn_root}_ps.pdf')
+    return fig
+
+
+def plt_sofuncs(nid, k, cosmo, conf):
+    """Plot the SO function given k. nid: 0:f, 1:g, 2:h."""
+    nid_dic = {0: 'f', 1: 'g', 2: 'h'}
+
+    theta = sotheta(cosmo, conf, conf.a_out)
+    sout = sonn_bc(k, theta, cosmo, conf, nid)
+
+    fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.6), tight_layout=True)
+    ax.plot(k, sout)
+    if nid == 1:
+        ax.set_xscale('log')
+    else:
+        ax.set_xscale('symlog')
+    ax.set_xlabel(r'$k$')
+    ax.set_title(f'{nid_dic[nid]} net')
 
     return fig
+
+
+def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=4):
+    # run pmwd with given params
+    ptcl_ic, cosmo, conf = _init_pmwd(pmwd_params)
+    cosmo = cosmo.replace(so_params=so_params)
+    _, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
+    ptcl = obsvbl[0]
+
+    # get the target ptcl
+    pos_t, vel_t = tgt
+    disp_t = pos_t - ptcl.pmid * conf.cell_size
+    ptcl_t = Particles(conf, ptcl.pmid, disp_t, vel_t)
+
+    figs = {}
+
+    # plot power spectra
+    (dens, dens_t), (mesh_shape, cell_size) = ptcl2dens(
+                                               (ptcl, ptcl_t), conf, mesh_shape)
+    kvec_dens = rfftnfreq(mesh_shape, cell_size, dtype=conf.float_dtype)
+    figs['power'] = plt_power(dens, dens_t, cell_size)
+
+    # plot SO functions
+    # k sample points to evaluate the functions
+    kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
+    k_1d = jnp.sort(kvec[0].ravel())
+    k_min = kvec[0].ravel()[1]
+    k_max = jnp.sqrt(3 * jnp.abs(k_1d).max()**2)
+    k_3d = jnp.logspace(jnp.log10(k_min), jnp.log10(k_max), 1000)
+    for nid, n, k in zip([0, 1, 2], ['f', 'g', 'h'], [k_1d, k_3d, k_1d]):
+        figs[f'{n}_net'] = plt_sofuncs(nid, k, cosmo, conf)
+
+    return figs

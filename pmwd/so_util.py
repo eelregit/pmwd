@@ -7,15 +7,9 @@ from flax.core.frozen_dict import unfreeze, freeze
 from typing import Sequence, Callable
 import math
 
-from pmwd import (
-    Configuration,
-    SimpleLCDM,
-    boltzmann,
-    H_deriv,
-    Omega_m_a,
-    growth,
-    linear_power,
-)
+from pmwd.configuration import Configuration
+from pmwd.cosmology import Cosmology, H_deriv, Omega_m_a, SimpleLCDM
+from pmwd.boltzmann import boltzmann, growth, linear_power
 
 
 class MLP(nn.Module):
@@ -178,5 +172,5 @@ def pot_sharp(kvec, theta, pot, cosmo, conf, a):
 
 def grad_sharp(k, theta, grad, cosmo, conf, a):
     """Spatial optimization of the gradient."""
-    grad *= sonn_vmap(k, theta, cosmo, conf, 2)
+    grad *= sonn_bc(k, theta, cosmo, conf, 2)
     return grad

@@ -21,7 +21,7 @@ import time
 import pickle
 
 from pmwd.so_util import soft_len, init_mlp_params
-from pmwd.train_util import G4snapDataset, train_step, visins
+from pmwd.train_util import G4snapDataset, train_step, vis_inspect
 
 
 def printinfo(s, flush=False):
@@ -36,8 +36,9 @@ if __name__ == "__main__":
 
     # hyper parameters of training
     n_epochs = 30
-    learning_rate = 0.1
-    sobol_ids = np.arange(0, 8)
+    learning_rate = 1e-3
+    # sobol_ids = np.arange(0, 1)
+    sobol_ids = [1]
 
     # RNGs with fixed seeds, for same randomness across processes
     np_rng = np.random.default_rng(16807)  # for pmwd MC sampling
@@ -56,8 +57,10 @@ if __name__ == "__main__":
     # structure of the so neural nets
     printinfo('initializing SO parameters & optimizer')
     n_input = [soft_len()] * 3  # three nets
-    so_nodes = [[2*n, n, 1] for n in n_input]
+    so_nodes = [[n * 2 // 3, n // 3, 1] for n in n_input]
     so_params = init_mlp_params(n_input, so_nodes, scheme='last_w0_b1')
+    # keep a copy of the initial params
+    so_params_init = so_params
 
     optimizer = optax.adam(learning_rate=learning_rate)
     opt_state = optimizer.init(so_params)
@@ -94,10 +97,18 @@ if __name__ == "__main__":
                 writer.add_scalar('loss/train', float(loss), global_step)
 
         if procid == 0:
+            # check the status before training
+            if epoch == 0:
+                figs = vis_inspect(tgt, so_params_init, pmwd_params)
+                for key, fig in figs.items():
+                    writer.add_figure(f'fig/epoch/{key}', fig, 0)
+                    fig.clf()
+
             # epoch track
-            fig = visins(tgt, so_params, pmwd_params)
-            writer.add_figure('fig/epoch/power', fig, epoch+1)
-            fig.clf()
+            figs = vis_inspect(tgt, so_params, pmwd_params)
+            for key, fig in figs.items():
+                writer.add_figure(f'fig/epoch/{key}', fig, epoch+1)
+                fig.clf()
 
             # checkpoint SO params
             jobid = os.getenv('SLURM_JOB_ID')

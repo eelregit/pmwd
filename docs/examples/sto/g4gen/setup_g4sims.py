@@ -30,7 +30,7 @@ def gen_g4files(sim_dir, sidx, fn_sobol='sobol.txt',
     with jax.default_device(jax.devices('gpu')[0]):
         sobol = scale_Sobol(fn_sobol, sidx)
         conf, cosmo = gen_cc(sobol)
-        ptcl, cosmo = gen_ic(sidx, conf, cosmo)  # the seed for ic is simply the sobol index
+        ptcl = gen_ic(sidx, conf, cosmo)  # the seed for ic is simply the sobol index
     write_gadget_hdf5(os.path.join(sim_dir, 'ic'), conf.a_start, ptcl, cosmo, conf)
 
     with (open(tpl_config, 'r') as f,
