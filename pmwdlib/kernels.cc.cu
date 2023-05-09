@@ -112,12 +112,12 @@ cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx,
     for(uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_particle; tid+=gridDim.x*blockDim.x){
         // read particle data from global memory
         T_int1 p_pmid[DIM] = {pmid[tid*DIM + 0], pmid[tid*DIM + 1], pmid[tid*DIM + 2]};
-        double p_disp[DIM] = {disp[tid*DIM + 0], disp[tid*DIM + 1], disp[tid*DIM + 2]};
+        T_float p_disp[DIM] = {disp[tid*DIM + 0], disp[tid*DIM + 1], disp[tid*DIM + 2]};
 
         // strides
         //T_int1 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
         T_int1 g_stride[3] = {stridex, stridey, stridez};
-        double g_offset[3] = {offsetx, offsety, offsetz};
+        T_float g_offset[3] = {offsetx, offsety, offsetz};
 
         // cell index for each dimension
         T_int1 c_index[DIM];
@@ -281,7 +281,7 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
     double cell_size_d = static_cast<double>(cell_size);
     double L1[DIM] = {ptcl_spacing_d*ptcl_gridx, ptcl_spacing_d*ptcl_gridy, ptcl_spacing_d*ptcl_gridz};
     T_int1 g_stride[3] = {stridex, stridey, stridez};
-    double g_offset[3] = {offsetx, offsety, offsetz};
+    T_float g_offset[3] = {offsetx, offsety, offsetz};
     T_int2 hstride[2] = {(bin_size_z+1)*(bin_size_y+1), bin_size_z+1};
     int idx;
     int pstart = bin_start[bid];
@@ -291,14 +291,14 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
     T_int1 v_index[DIM];
     T_int1  c_index[DIM];
     T_int1  p_index[DIM];
-    double t_val;
-    double w_val;
+    T_float t_val;
+    T_float w_val;
     T_int2 cell_id;
     for(int i=threadIdx.x; i<npts; i+=blockDim.x){
         idx = index[pstart + i];
         T_int2 p_pmid[DIM] = {pmid[idx*DIM + 0], pmid[idx*DIM + 1], pmid[idx*DIM + 2]};
-        double p_disp[DIM] = {disp[idx*DIM + 0], disp[idx*DIM + 1], disp[idx*DIM + 2]};
-        double p_val = values[idx];
+        T_float p_disp[DIM] = {disp[idx*DIM + 0], disp[idx*DIM + 1], disp[idx*DIM + 2]};
+        T_float p_val = values[idx];
 
         // displacement with in a cell for cell (i,j,k)==(0,0,0)
         for(int idim=0; idim<3; idim++){
@@ -355,109 +355,6 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
             atomicAdd(&grid_vals[outidx], gval_shared[i]);
         }
     }
-    /*
-    extern __shared__ char shared_char[];
-    T_value* gval_shared = (T_value*)&shared_char[0];
-    T_int1 N = (bin_size_x+1)*(bin_size_y+1)*(bin_size_z+1);
-    for(int i=threadIdx.x; i<N; i+=blockDim.x){
-        gval_shared[i] = 0.0;
-    }
-    __syncthreads();
-
-    // each block represents a bin
-    T_int2 bid = blockIdx.x;
-    T_int2 bidx = bid/(nbiny*nbinz);
-    T_int2 bidy = (bid/nbinz)%nbiny;
-    T_int2 bidz = bid%nbinz;
-    T_int2 bids[3] = {bidx,bidy,bidz};
-    T_int2 nbins[3] = {nbinx,nbiny,nbinz};
-
-    // strides
-    double ptcl_spacing_d = static_cast<double>(ptcl_spacing);
-    double L1[DIM] = {ptcl_spacing_d*ptcl_gridx, ptcl_spacing_d*ptcl_gridy, ptcl_spacing_d*ptcl_gridz};
-    //T_int2 p_stride[3] = {ptcl_gridx, ptcl_gridy, ptcl_gridz};
-    int g_stride[3] = {stridex, stridey, stridez};
-    T_float g_offset[3] = {offsetx, offsety, offsetz};
-    int hstride[2] = {(bin_size_z+1)*(bin_size_y+1), bin_size_z+1};
-    int idx;
-    int pstart = bin_start[bid];
-    int npts = bin_count[bid];
-    double g_disp[DIM];
-    double t_disp[DIM];
-    int v_index[DIM];
-    int  c_index[DIM];
-    int  p_index[DIM];
-    double t_val;
-    double w_val;
-    int cell_id;
-    for(int i=threadIdx.x; i<npts; i+=blockDim.x){
-        idx = index[pstart + i];
-        T_int2 p_pmid[DIM] = {pmid[idx*DIM + 0], pmid[idx*DIM + 1], pmid[idx*DIM + 2]};
-        T_float p_disp[DIM] = {disp[idx*DIM + 0], disp[idx*DIM + 1], disp[idx*DIM + 2]};
-        T_float p_val = values[idx];
-
-        // displacement with in a cell for cell (i,j,k)==(0,0,0)
-        for(int idim=0; idim<3; idim++){
-            g_disp[idim] = ptcl_spacing_d*p_pmid[idim]+p_disp[idim]-g_offset[idim];
-            g_disp[idim] -= floor(g_disp[idim]/L1[idim])*L1[idim];
-            p_index[idim] = static_cast<int>(floor(g_disp[idim]/cell_size));
-        }
-
-        // grid value to calculate
-        // loop over all 8 vertice(cells) 
-        for(int ii=0; ii<2; ii++)
-        for(int jj=0; jj<2; jj++)
-        for(int kk=0; kk<2; kk++){
-            t_disp[0] = g_disp[0] + ii*cell_size;
-            t_disp[1] = g_disp[1] + jj*cell_size;
-            t_disp[2] = g_disp[2] + kk*cell_size;
-            int neighbor[3] = {ii,jj,kk};
-
-            for(int idim=0; idim<3; idim++){
-                t_disp[idim] -= floor(t_disp[idim]/L1[idim])*L1[idim];
-                v_index[idim] = static_cast<int>(floor(t_disp[idim]/cell_size));
-                c_index[idim] = p_index[idim];
-                if(c_index[idim] >= g_stride[idim] && v_index[idim] < g_stride[idim])
-                {
-                  c_index[idim] = v_index[idim];
-                  neighbor[idim] = 0;
-                }
-
-                t_disp[idim]  = g_disp[idim] - v_index[idim]*cell_size;
-                t_disp[idim] -= floor(t_disp[idim]/L1[idim]+0.5)*L1[idim];
-                t_disp[idim] /= cell_size;
-            }
-
-            w_val = 1.0;
-            if(v_index[0]>=g_stride[0] ||  v_index[1]>=g_stride[1] || v_index[2]>=g_stride[2])
-                w_val = 0.0;
-
-            // grid value
-            t_val = w_val*p_val*(1-abs(t_disp[0]))*(1-abs(t_disp[1]))*(1-abs(t_disp[2]));
-
-            // vertex_id
-            cell_id = (c_index[0]%bin_size_x+neighbor[0]) * hstride[0] +
-                      (c_index[1]%bin_size_y+neighbor[1]) * hstride[1] + (c_index[2]%bin_size_z+neighbor[2]);
-
-            // atomic write to grid values shared memory
-            atomicAdd(&gval_shared[cell_id], t_val);
-        }
-    }
-    __syncthreads();
-    for(int i=threadIdx.x; i<N; i+=blockDim.x){
-        int ix = i/((bin_size_y+1)*(bin_size_z+1));
-        int iy = (i/(bin_size_z+1)) % (bin_size_y+1);
-        int iz = i%(bin_size_z+1);
-        int icx = bidx*bin_size_x + ix;
-        int icy = bidy*bin_size_y + iy;
-        int icz = bidz*bin_size_z + iz;
-
-        if(icx<(g_stride[0]+1) && icy<(g_stride[1]+1) && icz<(g_stride[2]+1)){ // CHECK condition
-            int outidx = icz%g_stride[2] + (icy%g_stride[1])*g_stride[2] + (icx%g_stride[0])*g_stride[2]*g_stride[1];
-            atomicAdd(&grid_vals[outidx], gval_shared[i]);
-        }
-    }
-    */
 }
 
 template <typename T_int1, typename T_int2, typename T_float, typename T_value>
