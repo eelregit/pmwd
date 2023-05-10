@@ -787,7 +787,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
 #endif
     // scatter using shared memory
     cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
-    scatter_kernel_sm<<<nbinx*nbiny*nbinz, 1024, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx);
+    scatter_kernel_sm<<<nbinx*nbiny*nbinz, 512, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx);
     cudaDeviceSynchronize();
     CUDA_SAFE_CALL(cudaGetLastError());
 #ifdef SCATTER_TIME
