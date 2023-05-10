@@ -38,7 +38,7 @@ if __name__ == "__main__":
     n_epochs = 30
     learning_rate = 1e-3
     # sobol_ids = np.arange(0, 1)
-    sobol_ids = [1]
+    sobol_ids = [0]
 
     # RNGs with fixed seeds, for same randomness across processes
     np_rng = np.random.default_rng(16807)  # for pmwd MC sampling
@@ -62,6 +62,9 @@ if __name__ == "__main__":
     # keep a copy of the initial params
     so_params_init = so_params
 
+    # mannually turn off nets
+    for i in [0, 1]: so_nodes[i] = None
+
     optimizer = optax.adam(learning_rate=learning_rate)
     opt_state = optimizer.init(so_params)
 
@@ -79,7 +82,7 @@ if __name__ == "__main__":
             # mesh_shape = np_rng.integers(1, 5) * 128
             # number of time steps, [10, 1000], log-uniform
             # n_steps = np.rint(10**np_rng.uniform(1, 3)).astype(int)
-            mesh_shape = 256
+            mesh_shape = 128
             n_steps = 100
 
             tgt = (pos, vel)

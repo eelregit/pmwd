@@ -156,21 +156,25 @@ def sonn_vmap(k, theta, cosmo, conf, nid):
 
 def pot_sharp(kvec, theta, pot, cosmo, conf, a):
     """Spatial optimization of the laplace potential."""
-    f = [sonn_bc(k_, theta, cosmo, conf, 0) for k_ in kvec]
+    if conf.so_nodes[0] is not None:  # apply f net
+        f = [sonn_bc(k_, theta, cosmo, conf, 0) for k_ in kvec]
+        pot *= math.prod(f)
 
-    k = jnp.sqrt(sum(k_**2 for k_ in kvec))
-    g = sonn_bc(k, theta, cosmo, conf, 1)
-    # ks = jnp.array_split(k, 16)
-    # g = []
-    # for k in ks:
-    #     g.append(sonn_vmap(k, theta, cosmo, conf, 1))
-    # g = jnp.concatenate(g, axis=0)
+    if conf.so_nodes[1] is not None:  # apply g net
+        k = jnp.sqrt(sum(k_**2 for k_ in kvec))
+        g = sonn_bc(k, theta, cosmo, conf, 1)
+        # ks = jnp.array_split(k, 16)
+        # g = []
+        # for k in ks:
+        #     g.append(sonn_vmap(k, theta, cosmo, conf, 1))
+        # g = jnp.concatenate(g, axis=0)
+        pot *= g
 
-    pot *= g * math.prod(f)
     return pot
 
 
 def grad_sharp(k, theta, grad, cosmo, conf, a):
     """Spatial optimization of the gradient."""
-    grad *= sonn_bc(k, theta, cosmo, conf, 2)
+    if conf.so_nodes[2] is not None:  # apply h net
+        grad *= sonn_bc(k, theta, cosmo, conf, 2)
     return grad

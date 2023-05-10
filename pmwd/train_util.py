@@ -20,6 +20,7 @@ from pmwd.pm_util import rfftnfreq
 from pmwd.io_util import read_gadget_hdf5
 from pmwd.spec_util import powspec
 from pmwd.so_util import sotheta, soft_bc, sonn_bc
+from pmwd.vis_util import simshow, CosmicWebNorm
 
 
 def scale_Sobol(fn='sobol.txt', ind=slice(None)):
@@ -208,7 +209,7 @@ def ptcl2dens(ptcls, conf, mesh_shape):
     return denss, (mesh_shape, cell_size)
 
 
-def loss_func(ptcl, tgt, conf, mesh_shape=4):
+def loss_func(ptcl, tgt, conf, mesh_shape=3):
 
     # get the target ptcl
     pos_t, vel_t = tgt
@@ -231,7 +232,7 @@ def loss_func(ptcl, tgt, conf, mesh_shape=4):
     kvec_disp = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
     loss = 0
-    # loss += _loss_scale_wmse(kvec_dens, dens_k, dens_t_k)
+    loss += _loss_scale_wmse(kvec_dens, dens_k, dens_t_k)
     loss += _loss_scale_wmse(kvec_disp, disp_k, disp_t_k)
     # loss += _loss_dens_mse(dens, dens_t)
     # loss += _loss_disp_mse(ptcl, ptcl_t)
@@ -285,7 +286,6 @@ def train_step(tgt, so_params, pmwd_params, learning_rate, opt_state):
 
 def plt_power(dens, dens_t, cell_size):
     """Plot power spectra related."""
-
     # estimate power spectra
     k, ps, N = powspec(dens, cell_size)
     ps = ps.real
@@ -294,13 +294,14 @@ def plt_power(dens, dens_t, cell_size):
     k, ps_cross, N = powspec(dens, cell_size, g=dens_t)
     ps_cross = ps_cross.real
 
-    # the correlation coefficient and ratio of auto powers
-    psr = ps / ps_t
+    # the transfer function and correlation coefficient
+    tf = jnp.sqrt(ps / ps_t)
     cc = ps_cross / jnp.sqrt(ps * ps_t)
 
     fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.6), tight_layout=True)
-    ax.plot(k, psr, label=r'$P(k)/P_t(k)$')
+    ax.plot(k, tf, label=r'$trans. func.$')
     ax.plot(k, cc, label=r'corr. coef.')
+    ax.axhline(y=1, ls='--', c='grey')
     ax.set_xscale('log')
     ax.set_xlabel(r'$k$')
     ax.set_xlim(k[0], k[-1])
@@ -319,6 +320,7 @@ def plt_sofuncs(nid, k, cosmo, conf):
 
     fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.6), tight_layout=True)
     ax.plot(k, sout)
+    ax.axhline(y=1, ls='--', c='grey')
     if nid == 1:
         ax.set_xscale('log')
     else:
@@ -329,7 +331,7 @@ def plt_sofuncs(nid, k, cosmo, conf):
     return fig
 
 
-def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=4):
+def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=3):
     # run pmwd with given params
     ptcl_ic, cosmo, conf = _init_pmwd(pmwd_params)
     cosmo = cosmo.replace(so_params=so_params)
@@ -357,6 +359,15 @@ def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=4):
     k_max = jnp.sqrt(3 * jnp.abs(k_1d).max()**2)
     k_3d = jnp.logspace(jnp.log10(k_min), jnp.log10(k_max), 1000)
     for nid, n, k in zip([0, 1, 2], ['f', 'g', 'h'], [k_1d, k_3d, k_1d]):
-        figs[f'{n}_net'] = plt_sofuncs(nid, k, cosmo, conf)
+        if conf.so_nodes[nid] is not None:
+            figs[f'{n}_net'] = plt_sofuncs(nid, k, cosmo, conf)
+
+    # plot the density slab
+    norm = CosmicWebNorm(dens_t)
+    figs['dens_target'] = simshow(dens_t[:16].mean(axis=0), norm=norm)[0]
+    figs['dens_target'].tight_layout()
+    figs['dens'] = simshow(dens[:16].mean(axis=0), norm=norm)[0]
+    figs['dens'].tight_layout()
+
 
     return figs
