@@ -16,7 +16,7 @@ from pmwd import (
 from pmwd.scatter import _scatter
 from jax import random
 import os
-os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.99'
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.9'
 key = random.PRNGKey(101)
 ngrid = 512
 print("loading")
