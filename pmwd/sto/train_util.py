@@ -19,7 +19,7 @@ from pmwd.particles import Particles, ptcl_rpos
 from pmwd.pm_util import rfftnfreq
 from pmwd.io_util import read_gadget_hdf5
 from pmwd.spec_util import powspec
-from pmwd.so_util import sotheta, soft_bc, sonn_bc
+from pmwd.sto.so import sotheta, soft_bc, sonn_bc
 from pmwd.vis_util import simshow, CosmicWebNorm
 
 
@@ -127,7 +127,7 @@ def read_g4data(sims_dir, sobol_ids, snap_ids, fn_sobol):
 class G4snapDataset(Dataset):
 
     def __init__(self, sims_dir, sobol_ids=None, sobols_edge=None,
-                 snap_ids=[120], snaps_per_sim=121, fn_sobol='sobol.txt'):
+                 snap_ids=[30], snaps_per_sim=121, fn_sobol='sobol.txt'):
         self.sims_dir = sims_dir
 
         if sobol_ids is None:
@@ -197,6 +197,11 @@ def _scale_wmse_bwd(res, loss_cot):
 _loss_scale_wmse.defvjp(_scale_wmse_fwd, _scale_wmse_bwd)
 
 
+def _loss_ref1():
+    """The loss defined by Eq.(4) in 2207.05509v2 (Lanzieri2022)."""
+    pass
+
+
 def ptcl2dens(ptcls, conf, mesh_shape):
     if mesh_shape is None:  # 2x the mesh in pmwd sim
         cell_size = conf.cell_size / 2
@@ -236,6 +241,7 @@ def loss_func(ptcl, tgt, conf, mesh_shape=3):
     loss += _loss_scale_wmse(kvec_disp, disp_k, disp_t_k)
     # loss += _loss_dens_mse(dens, dens_t)
     # loss += _loss_disp_mse(ptcl, ptcl_t)
+    loss += _loss_vel_mse(ptcl, ptcl_t)
 
     return loss
 
@@ -299,13 +305,13 @@ def plt_power(dens, dens_t, cell_size):
     cc = ps_cross / jnp.sqrt(ps * ps_t)
 
     fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.6), tight_layout=True)
-    ax.plot(k, tf, label=r'$trans. func.$')
+    ax.plot(k, tf, label=r'trans. func.')
     ax.plot(k, cc, label=r'corr. coef.')
     ax.axhline(y=1, ls='--', c='grey')
     ax.set_xscale('log')
     ax.set_xlabel(r'$k$')
     ax.set_xlim(k[0], k[-1])
-    ax.set_ylim(0.9, 1.1)
+    ax.set_ylim(0.7, 1.3)
     ax.legend()
 
     return fig
