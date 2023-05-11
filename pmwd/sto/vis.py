@@ -3,27 +3,16 @@ import matplotlib.pyplot as plt
 
 from pmwd.nbody import nbody
 from pmwd.particles import Particles
-from pmwd.spec_util import powspec
 from pmwd.vis_util import simshow, CosmicWebNorm
 from pmwd.pm_util import rfftnfreq
 from pmwd.sto.so import sotheta, sonn_bc
 from pmwd.sto.train import _init_pmwd
-from pmwd.sto.util import ptcl2dens
+from pmwd.sto.util import ptcl2dens, power_tfcc
 
 
 def plt_power(dens, dens_t, cell_size):
     """Plot power spectra related."""
-    # estimate power spectra
-    k, ps, N = powspec(dens, cell_size)
-    ps = ps.real
-    k, ps_t, N = powspec(dens_t, cell_size)
-    ps_t = ps_t.real
-    k, ps_cross, N = powspec(dens, cell_size, g=dens_t)
-    ps_cross = ps_cross.real
-
-    # the transfer function and correlation coefficient
-    tf = jnp.sqrt(ps / ps_t)
-    cc = ps_cross / jnp.sqrt(ps * ps_t)
+    k, tf, cc = power_tfcc(dens, dens_t, cell_size)
 
     fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.6), tight_layout=True)
     ax.plot(k, tf, label=r'trans. func.')
@@ -91,9 +80,9 @@ def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=3):
 
     # plot the density slab
     norm = CosmicWebNorm(dens_t)
-    figs['dens_target'] = simshow(dens_t[:16].mean(axis=0), norm=norm)[0]
+    figs['dens_target'] = simshow(dens_t[:32].mean(axis=0), norm=norm)[0]
     figs['dens_target'].tight_layout()
-    figs['dens'] = simshow(dens[:16].mean(axis=0), norm=norm)[0]
+    figs['dens'] = simshow(dens[:32].mean(axis=0), norm=norm)[0]
     figs['dens'].tight_layout()
 
 
