@@ -1,6 +1,6 @@
 """Generate the csv file of scaled Sobol parameters for convenience."""
 import numpy as np
-from pmwd.sto.train_util import scale_Sobol
+from pmwd.sto.data import scale_Sobol
 
 sobol = scale_Sobol()
 

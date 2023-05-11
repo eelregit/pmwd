@@ -21,7 +21,9 @@ import time
 import pickle
 
 from pmwd.sto.so import soft_len, init_mlp_params
-from pmwd.sto.train_util import G4snapDataset, train_step, vis_inspect
+from pmwd.sto.train import train_step
+from pmwd.sto.vis import vis_inspect
+from pmwd.sto.data import G4snapDataset
 
 
 def printinfo(s, flush=False):
@@ -36,7 +38,7 @@ if __name__ == "__main__":
 
     # hyper parameters of training
     n_epochs = 30
-    learning_rate = 1e-4
+    learning_rate = 1e-3
     # sobol_ids = np.arange(0, 1)
     sobol_ids = [0]
 
