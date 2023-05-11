@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
-#SBATCH --constraint=h100,ib
+#SBATCH --constraint=a100-80gb,ib
 #SBATCH --mem-per-gpu=125G
 #SBATCH --time=0-3
 

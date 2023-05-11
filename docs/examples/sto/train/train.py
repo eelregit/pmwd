@@ -20,8 +20,8 @@ from datetime import datetime
 import time
 import pickle
 
-from pmwd.so_util import soft_len, init_mlp_params
-from pmwd.train_util import G4snapDataset, train_step, vis_inspect
+from pmwd.sto.so import soft_len, init_mlp_params
+from pmwd.sto.train_util import G4snapDataset, train_step, vis_inspect
 
 
 def printinfo(s, flush=False):
@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     # hyper parameters of training
     n_epochs = 30
-    learning_rate = 1e-3
+    learning_rate = 1e-4
     # sobol_ids = np.arange(0, 1)
     sobol_ids = [0]
 
@@ -63,7 +63,7 @@ if __name__ == "__main__":
     so_params_init = so_params
 
     # mannually turn off nets
-    for i in [0, 1]: so_nodes[i] = None
+    for i in [1, 2]: so_nodes[i] = None
 
     optimizer = optax.adam(learning_rate=learning_rate)
     opt_state = optimizer.init(so_params)
