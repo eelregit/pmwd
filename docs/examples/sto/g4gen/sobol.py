@@ -3,7 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pmwd.sto.train_util import scale_Sobol
+from pmwd.sto.data import scale_Sobol
 
 
 def gen_sobol(filename, d=9, m=9, extra=9, seed=55868, seed_max=65536):

@@ -5,7 +5,7 @@ import jax
 
 import numpy as np
 
-from pmwd.sto.train_util import scale_Sobol, gen_cc, gen_ic
+from pmwd.sto.data import scale_Sobol, gen_cc, gen_ic
 from pmwd.io_util import write_gadget_hdf5
 
 
