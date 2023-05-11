@@ -4,7 +4,7 @@ import jax.numpy as jnp
 
 from pmwd.particles import Particles, ptcl_rpos
 from pmwd.pm_util import rfftnfreq
-from pmwd.sto.util import ptcl2dens
+from pmwd.sto.util import ptcl2dens, power_tfcc
 
 
 def _loss_dens_mse(dens, dens_t):
@@ -48,6 +48,11 @@ def _scale_wmse_bwd(res, loss_cot):
 _loss_scale_wmse.defvjp(_scale_wmse_fwd, _scale_wmse_bwd)
 
 
+def _loss_tfcc(dens, dens_t, cell_size, wtf=1):
+    k, tf, cc = power_tfcc(dens, dens_t, cell_size)
+    return wtf * jnp.sum((1 - tf)**2) + jnp.sum((1 - cc)**2)
+
+
 def _loss_Lanzieri():
     """The loss defined by Eq.(4) in 2207.05509v2 (Lanzieri2022)."""
     pass
@@ -75,11 +80,12 @@ def loss_func(ptcl, tgt, conf, mesh_shape=3):
     disp_t_k = jnp.fft.rfftn(disp_t.T.reshape(shape_), axes=range(-3, 0))
     kvec_disp = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
-    loss = 0
-    loss += _loss_scale_wmse(kvec_dens, dens_k, dens_t_k)
-    loss += _loss_scale_wmse(kvec_disp, disp_k, disp_t_k)
+    loss = 0.
+    # loss += _loss_scale_wmse(kvec_dens, dens_k, dens_t_k)
+    # loss += _loss_scale_wmse(kvec_disp, disp_k, disp_t_k)
     # loss += _loss_dens_mse(dens, dens_t)
     # loss += _loss_disp_mse(ptcl, ptcl_t)
-    loss += _loss_vel_mse(ptcl, ptcl_t)
+    # loss += _loss_vel_mse(ptcl, ptcl_t)
+    loss += _loss_tfcc(dens, dens_t, cell_size)
 
     return loss
