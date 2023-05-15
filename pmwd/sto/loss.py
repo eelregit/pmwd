@@ -4,19 +4,13 @@ import jax.numpy as jnp
 
 from pmwd.particles import Particles, ptcl_rpos
 from pmwd.pm_util import rfftnfreq
+from pmwd.spec_util import powspec
 from pmwd.sto.util import ptcl2dens, power_tfcc
 
 
-def _loss_dens_mse(dens, dens_t):
-    return jnp.mean((dens - dens_t)**2)
-
-
-def _loss_disp_mse(ptcl, ptcl_t):
-    return jnp.mean((ptcl.disp - ptcl_t.disp)**2)
-
-
-def _loss_vel_mse(ptcl, ptcl_t):
-    return jnp.mean((ptcl.vel - ptcl_t.vel)**2)
+def _loss_log_mse(f, g, weights=None):
+    """Simple log mse between two arrays, with optional weights."""
+    return jnp.log(jnp.average(jnp.abs(f - g)**2, weights=weights))
 
 
 @jax.custom_vjp
@@ -53,9 +47,13 @@ def _loss_tfcc(dens, dens_t, cell_size, wtf=1):
     return wtf * jnp.sum((1 - tf)**2) + jnp.sum((1 - cc)**2)
 
 
-def _loss_Lanzieri():
+def _loss_Lanzieri(disp, disp_t, dens, dens_t, cell_size):
     """The loss defined by Eq.(4) in 2207.05509v2 (Lanzieri2022)."""
-    pass
+    loss = jnp.sum((disp - disp_t)**2)
+    k, ps, N = powspec(dens, cell_size)
+    k, ps_t, N = powspec(dens_t, cell_size)
+    loss += 0.1 * jnp.sum((ps / ps_t - 1)**2)
+    return loss
 
 
 def loss_func(ptcl, tgt, conf, mesh_shape=3):
@@ -81,11 +79,22 @@ def loss_func(ptcl, tgt, conf, mesh_shape=3):
     kvec_disp = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
     loss = 0.
+
+    # density field
+    # loss += _loss_log_mse(dens, dens_t)
+    # loss += _loss_log_mse(dens_k, dens_t_k)
     # loss += _loss_scale_wmse(kvec_dens, dens_k, dens_t_k)
+
+    # displacement
+    # loss += _loss_log_mse(disp, disp_t)
+    # loss += _loss_log_mse(disp_k, disp_t_k)
     # loss += _loss_scale_wmse(kvec_disp, disp_k, disp_t_k)
-    # loss += _loss_dens_mse(dens, dens_t)
-    # loss += _loss_disp_mse(ptcl, ptcl_t)
-    # loss += _loss_vel_mse(ptcl, ptcl_t)
-    loss += _loss_tfcc(dens, dens_t, cell_size)
+
+    # velocity
+    # loss += _loss_log_mse(ptcl.vel, ptcl_t.vel)
+
+    # other combinations
+    # loss += _loss_tfcc(dens, dens_t, cell_size)
+    loss += _loss_Lanzieri(disp, disp_t, dens, dens_t, cell_size)
 
     return loss

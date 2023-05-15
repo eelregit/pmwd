@@ -85,5 +85,4 @@ def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=3):
     figs['dens'] = simshow(dens[:32].mean(axis=0), norm=norm)[0]
     figs['dens'].tight_layout()
 
-
     return figs
