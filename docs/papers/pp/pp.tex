@@ -8,14 +8,14 @@
 \usepackage{newpxtext,eulerpx}
 %  \restoresymbol{newpx}{lambdabar}
 \usepackage[T1]{fontenc}
-\usepackage[margin=3cm]{geometry}
+\usepackage[margin=2cm]{geometry}
 %\usepackage{setspace}
 \usepackage{amsmath}
 %  \allowdisplaybreaks
 \usepackage{bm}
 \usepackage{dsfont}
 %\usepackage{mathrsfs}
-%\usepackage{soul}
+\usepackage{soul}
 %\usepackage{tensor}
 \usepackage{graphicx}
 %\usepackage{booktabs}
@@ -27,11 +27,11 @@
     colorlinks=true,
     linkcolor=BrickRed,
     filecolor=BrickRed,
-    citecolor=LimeGreen,
-    urlcolor=Cerulean,
+    citecolor=BrickRed,
+    urlcolor=RoyalBlue,
   }
-\usepackage{natbib}
-\usepackage[dvipsnames,svgnames,x11names]{xcolor}
+\usepackage[numbers]{natbib}
+\usepackage[dvipsnames]{xcolor}
 \usepackage{comment}
   \newif\ifshow
   %\showtrue  % show
@@ -52,6 +52,7 @@
 
 \renewcommand{\sectionautorefname}{Sec.}
 \renewcommand{\subsectionautorefname}{Sec.}
+\renewcommand{\subsubsectionautorefname}{Sec.}
 \renewcommand{\appendixautorefname}{App.}
 \renewcommand{\figureautorefname}{Fig.}
 \newcommand{\subfigureautorefname}{\figureautorefname}
@@ -59,6 +60,8 @@
 \DeclareMathOperator*{\E}{\mathds{E}}
 \DeclareMathOperator{\tsum}{{\textstyle\sum}}
 \newcommand{\1}{\mathds{1}}
+\newcommand{\R}{\mathds{R}}
+\newcommand{\Z}{\mathds{Z}}
 \newcommand{\order}{\mathcal{O}}
 \newcommand{\deltaD}{\delta^\textsc{d}}
 \newcommand{\deltaK}{\delta^\textsc{k}}
@@ -75,6 +78,8 @@
 \bmdefine{\vomega}{\omega}  % white noise modes
 \bmdefine{\vk}{k}  % wavevectors
 \bmdefine{\vn}{n}  % wavevector indices
+\bmdefine{\vm}{m}  % grid point indices
+\bmdefine{\vj}{j}  % integer indices
 \bmdefine{\vx}{x}  % comoving and canonical coordinates
 \bmdefine{\vq}{q}  % Lagrangian coordinates
 \bmdefine{\vs}{s}  % displacements
@@ -131,19 +136,19 @@ Adding the PP compensation to the PM force.
 \subsection{Particle-Mesh Force}
 
 
-\YL{Alex suggested starting from 1D.}
-
-\YL{Describe briefly normal PM here. Also introduce possible filter
-below. Explain that we are not doing splitting the usual way.}
+\YL{Describe briefly PM (and our corrections) here. Also introduce
+possible filter below. Explain that we are not doing splitting the
+usual way.}
 
 
 \subsubsection{Partial Sum}
 
-In a periodic box of size $L_1 \times \cdots \times L_d$ in
-$\mathbb{R}^d$, Poisson's equation,
+In a periodic box of size $L_1 \times \cdots \times L_d$ in $\R^d$,
+Poisson's equation,
 %
 \begin{equation}
 \nabla^2 u = f,
+\label{Poisson}
 \end{equation}
 %
 becomes
@@ -153,21 +158,23 @@ becomes
 \end{equation}
 %
 in Fourier space, with discretized wavevectors $\vk_\vn \triangleq (2\pi
-n_1 / L_1, \cdots, 2\pi n_d / L_d )^\intercal$ and integrer $n_i \in
-\mathbb{Z}/N_i\mathbb{Z}$.
+n_1 / L_1, \cdots, 2\pi n_d / L_d )^\intercal$ and $n_i \in \Z$.
 And the force $- \vnabla u$ becomes $i \vk_\vn f / k_\vn^2$.
+When \eqref{Poisson} is further discretized by a $N_1 \times \cdots
+\times N_d$ mesh of cell size $l$, with $\vx_\vm \triangleq (m_1 l,
+\cdots, m_d l)^\intercal$ and $m_i \in \Z/N_i\Z$, $\vk_\vn$ is also
+periodic with $n_i \in \Z/N_i\Z$.
 
-At finite resolution of the mesh cell size $l$, the bandwidth is
-truncated at the Nyquist frequency $\knyq = \pi / l$.
-In a 1D periodic length $L$ with a mesh of size $N = L / l$, the
-partial sum is equivalent to a convolution by (the Dirichlet kernel)
+At finite resolution, the bandwidth is truncated at the Nyquist
+frequency $\knyq = \pi / l$.
+In 1D, the partial sum is equivalent to a convolution by (the Dirichlet
+kernel)
 %
 \begin{align}
 \frac1{2 L} \Bigg(
-  \sum_{n=-\lfloor \frac{N}2\rfloor}^{\lfloor \frac{N}2\rfloor}
-  + \sum_{n=-\lfloor \frac{N-1}2\rfloor}^{\lfloor \frac{N-1}2\rfloor}
-\Bigg)
-\exp\bigl( i n\kfun x \bigr)
+  \sum_{n=-\lfloor\frac{N}2\rfloor}^{\lfloor\frac{N}2\rfloor}
+  + \sum_{n=-\lfloor\frac{N-1}2\rfloor}^{\lfloor\frac{N-1}2\rfloor}
+\Bigg) e^{i k_n x}
 %
 &= \frac{
   \sin \bigl[
@@ -180,10 +187,10 @@ partial sum is equivalent to a convolution by (the Dirichlet kernel)
 %
 &= \frac{\sin \bigl( \knyq x \bigr)}
         {\sin \bigl( \frac12 \kfun x \bigr) L}
-  \cdot \begin{cases}
-    \cos \bigl( \frac12 \kfun x \bigr) & \text{if } N \text{ is even}, \\
-    1 & \text{if } N \text{ is odd}.
-  \end{cases}
+\cdot \begin{cases}
+  \cos \bigl( \frac12 \kfun x \bigr) & \text{if } N \text{ is even}, \\
+  1 & \text{if } N \text{ is odd}.
+\end{cases}
 \end{align}
 %
 $\kfun = 2\pi / L$ is the fundamental frequency, and the first sum
@@ -194,23 +201,122 @@ $\kfun$, due to the sign ambiguity of the wavevector at the Nyquist
 frequency.
 %
 \begin{equation}
-\frac1L
-  \sum_{n=-\lfloor \frac{N-1}2\rfloor}^{\lfloor \frac{N-1}2\rfloor}
-  \exp\bigl( i n\kfun x \bigr)
+\frac1L \sum_{n=-\lfloor\frac{N-1}2\rfloor}^{\lfloor\frac{N-1}2\rfloor}
+  e^{i k_n x}
 %
 = \frac{\sin \bigl[
-    \bigl( \bigl\lfloor\frac{N-1}2\bigr\rfloor + \frac12 \bigr) \kfun x
-  \bigr]
-}{\sin \bigl( \frac12 \kfun x \bigr) L}
+  \bigl( \bigl\lfloor\frac{N-1}2\bigr\rfloor + \frac12 \bigr) \kfun x
+\bigr]}{\sin \bigl( \frac12 \kfun x \bigr) L}.
 \end{equation}
+%
+
+In 1D, the partial summed force of a point unit source at $x=0$ is
+%
+\begin{equation}
+\frac1L \Bigg(
+  \sum_{n=-\lfloor\frac{N-1}2\rfloor}^{-1}
+  + \sum_{n=1}^{\lfloor\frac{N-1}2\rfloor}
+\Bigg) \frac{i k_n}{k_n^2} e^{i k_n x}
+= -2 \sum_{n=1}^{\lfloor\frac{N-1}2\rfloor} \frac{\sin k_n x}{k_n L},
+\end{equation}
+%
+which as $N\to\infty$ has the limit
+%
+\begin{equation}
+-2 \sum_{n=1}^\infty \frac{\sin k_n x}{k_n L} = \frac{x}L - \frac12,
+\qquad 0 < x < L,
+\end{equation}
+%
+following, e.g., (1.441.1) in \cite{TISP}.
+Therefore, the 1D periodic force is linear, in contrast to constant as
+in the open boundary case.
+And all frequencies with $n > \lfloor\frac{N-1}2\rfloor$ sum up to the
+error between the linear force and its partial sum.
+
+We can introduce a window $w(k_n)$ to correct this force error, so that
+at all $x_m \neq 0$ the corrected partial sum gives the linear force,
+i.e.,
+%
+\begin{equation}
+\sum_{n=1}^{N-1} \frac{i w(k_n)}{k_n L} e^{i k_n x_m}
+= \frac{x_m}L - \frac12,
+\qquad m \in \{1, \cdots, N-1\},
+\end{equation}
+%
+with vanishing self-force at $m=0$.
+We can discrete Fourier transform the right hand side to find
+%
+\begin{equation}
+w(k_n) = \frac{-i k_n L}N \sum_{m=1}^{N-1}
+\Bigl( \frac{x_m}L - \frac12 \Bigr) e^{-i k_n x_m}
+%
+= - k_n l \sum_{m=1}^{N-1}
+\Bigl( \frac{x_m}L - \frac12 \Bigr) \sin k_n x_m
+%
+= \frac{k_n l / 2}{\tan k_n l / 2}.
+\end{equation}
+%
+We have used (1.352.1) from \cite{TISP} in the last equality.
+\YL{Note the similarity to a deconvolution of the first order B-spline
+window.}
+Alternatively, combining eqX and eqY,
+%
+\begin{equation}
+w(k_n) = \sum_{j=-\infty}^\infty \frac{n}{n+jN}
+\end{equation}
+%
+
+In 3D:
+%
+\begin{equation}
+\frac{n_i w_i(\vk_\vn)}{\vn^2}
+= \sum_\vj \frac{(\vn + \vj N)_i}{(\vn + \vj N)^2}
+\end{equation}
+%
+
+For example, $i=3$:
+%
+\begin{equation}
+\frac{n_3 w_3(\vk_\vn)}{\vn^2}
+= \sum_\vj
+\frac{n_3 + j_3 N}{(n_1 + j_1 N)^2 + (n_2 + j_2 N)^2 + (n_3 + j_3 N)^2}
+\end{equation}
+%
 
 
-\YL{TODO: verify that in 1D the partial sum explains the force error.
-Two ways: mass integral vs force partial sum, off by the Nyquist?}
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.7\linewidth]{force1D.pdf}
+\caption{1D periodic forces with grids of even and odd lengths, from a
+point source at $x=0$.}
+\label{fig:force1D}
+\end{figure*}
 
 
-\YL{Minimize force error above a certain radius, e.g. beyond 27 cells,
-(in a way similar to choosing NUFFT kernel?):
+\subsubsection{Windowed partial sum?}
+
+Consider the $p$-th order B-spline window in 1D,
+%
+\begin{equation}
+W_p(k_n) = \biggl( \frac{\sin k_n l / 2}{k_n l / 2} \biggr)^p.
+\end{equation}
+%
+When the particles are scattered to the mesh (see \autoref{sec:equiv})
+using such a kernel, one usual practice is to approximately ``undo'' the
+smearing by a deconvolution.
+This is done by dividing the force by $W_p^2(k_n)$, with $W_p$ squared
+because of the additional smearing when gathering the particle forces
+from the mesh.
+\st{
+If we take the deconvolutions into account in modeling the partial sum
+approximation, this will change the shape of the Dirichlet kernel.
+However, we are not able to find the analytic expression of the new
+kernel.
+}
+
+
+\YL{\st{Minimize force error above a certain radius, e.g. beyond 27 cells,
+(in a way similar to choosing NUFFT kernel?)}:
 \begin{itemize}
 \item \url{https://arxiv.org/abs/1712.04732},
 \item \url{https://www.frontiersin.org/articles/10.3389/fphy.2016.00028/full},
@@ -225,17 +331,18 @@ Two ways: mass integral vs force partial sum, off by the Nyquist?}
 }
 
 
-\YL{2 possible ways to optimize:
+\YL{\st{2 possible ways to optimize:
 suppress the oscillation outside of the PP patch size;
 shift the phase of the oscillation so that there are both positive and
-negative parts between two nearby mesh points.
+negative parts between two nearby mesh points.}
 }
 
 
 \subsubsection{Equivalent Point Source}
+\label{sec:equiv}
 
 simple cubic (CIC), bcc, interlocking/interlacing cubic.
-\YL{See \citet{HockneyEastwood1988} for the interlacing one.
+\YL{See \cite{HockneyEastwood1988} for the interlacing one.
 Other references:
 \begin{itemize}
 \item \url{https://aip.scitation.org/doi/10.1063/1.3430521},
@@ -263,12 +370,6 @@ volume.}
 
 For cosmological applications, we want to optimize for point clouds that
 are uniform (and Gaussian with known power spectrum) on large scales.
-\YL{Complexity analysis given variance of particle density.}
-
-
-\YL{Optimal mesh cell size given variance of particle density for fixed
-error budget, cosmology and time dependence.}
-
 
 
 \subsection{Complexity}
@@ -285,9 +386,9 @@ The total number of pairs of interactions is
 \begin{align}
 \tsum_{i=1}^M \E \bigl[ \tsum_{p\in C_i} \1_{p'\in D_i} \bigr]
 %
-&\simeq \frac{N^2}{V^2} \tsum_{i=1}^M \E \biggl[
+&\simeq \tsum_{i=1}^M \frac{N^2}{V^2}
   \int_{C_i} \!\!\!\d\vx \int_{D_i} \!\!\!\d\vx'\,
-  [1 + \delta(\vx)] [1 + \delta(\vx')] \biggr] \nonumber\\
+  \E \bigl\{ [1 + \delta(\vx)] [1 + \delta(\vx')] \bigr\} \nonumber\\
 %
 &= \frac{M N^2}{V^2} \int_C \!\!\d\vx \int_D \!\!\d\vx'\,
   \bigl[ 1 + \xi(\vx' - \vx) \bigr]
@@ -321,6 +422,11 @@ W_D(\vk) &\triangleq \frac{M}{dV} \int_D \!\!\d\vx\, e^{i\vk\cdot\vx},
 both normalized to 1 at $\vk=\vzero$.
 
 
+\YL{Optimal mesh cell size given $\sigma^2_{CD}$ for fixed error budget,
+cosmology and time dependence.}
+
+
+
 
 \section{Results}
 
@@ -332,7 +438,7 @@ both normalized to 1 at $\vk=\vzero$.
 
 
 
-\bibliographystyle{plainnat}
+\bibliographystyle{plain}
 \bibliography{pp}
 
 
