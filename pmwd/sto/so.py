@@ -42,13 +42,23 @@ def init_mlp_params(n_input, nodes, scheme=None):
     # by default in flax.linen.Dense, kernel: lecun_norm, bias: 0
     params = [nn.init(key, x) for nn, key, x in zip(nets, keys, xs)]
 
-    # for the last layer: set weights to zero and bias to one
-    # TODO instead of zero, use very small random values for weights?
+    # for the last layer: set bias to one & weights to zero
     if scheme == 'last_w0_b1':
         for i, p in enumerate(params):
             p = unfreeze(p)
             p['params'][f'layers_{len(nodes[i])-1}']['kernel'] = (
                 jnp.zeros((nodes[i][-2], nodes[i][-1])))
+            p['params'][f'layers_{len(nodes[i])-1}']['bias'] = (
+                jnp.ones(nodes[i][-1]))
+            params[i] = freeze(p)
+
+    # for the last layer: set bias to one & weights to small random values
+    if scheme == 'last_ws_b1':
+        keys = random.split(random.PRNGKey(1), len(params))
+        for i, p in enumerate(params):
+            p = unfreeze(p)
+            p['params'][f'layers_{len(nodes[i])-1}']['kernel'] = (
+                random.normal(keys[i], (nodes[i][-2], nodes[i][-1]))) * 1e-4
             p['params'][f'layers_{len(nodes[i])-1}']['bias'] = (
                 jnp.ones(nodes[i][-1]))
             params[i] = freeze(p)
