@@ -12,6 +12,7 @@
 \usepackage[T1]{fontenc}
 \usepackage{amsmath}
 \usepackage{bm}
+\usepackage{dsfont}
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{nicefrac}
@@ -154,7 +155,8 @@ cosmology: large-scale structure of Universe
 \item Probably necessary to first incorporate List \& Hahn's recent
   improvement on FastPM integrator arXiv:2301:09655.
 \item Compare sto DM and halo fields and summary stats with those of raw
-  pmwd, deconvolved pmwd, and gadget, on the last 9 test cases.
+  pmwd, deconvolved pmwd, and gadget, on the last 9 test cases and
+  noncubic box.
 \item Demonstrate capability of generalization, on some cases with
   extrapolating cosmological parameters, etc.
 \item Non-integer multiple mesh shapes: for uniform particle grid, test
@@ -284,16 +286,84 @@ remain zero until the time stepping from $a_{k+1}$ to $a_k$.
 
 \subsection{Objective Function}
 
-Again combine Lagrangian and Eulerian fields.
-
-A mean squared error (MSE) loss on the fields would focus too much on
-the small scales. In this work we choose uniform weights in the scale
-space, by weighing each mode of wavenumber $k$ by $k^{-3}$ in the MSE
-loss
+A mean squared error (MSE) loss on the fields is dominated by the small
+scale modes.
+In this work we choose uniform weights in the scale space on the
+relative MSE.
+We bin the modes logarithmically by \nicefrac13 octave in scale, e.g.,
+in the $i$-th $k$-bin, $K_i \triangleq [k_i, k_{i+1})$, with $k_i =
+2^{1+i/3} \pi / L$ and $i = 0, 1, \cdots$.
+Our loss on $f$ sums up the MSE relative to the target field power in
+logarithmic bins:
+%
 \begin{equation}
-  \cJ = \mathbb{E} \sum_\vk k^{-3}
-    \bigl| \hat f(\vk) - f(\vk) \bigr|^2.
+\cL_f = \sum_i
+\frac{\sum_{k \in K_i} \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
+     {\sum_{k' \in K_i} |f(\vk')|^2}.
 \end{equation}
+%
+To understand the form of the loss function, let's introduce for each
+mode the square root ratio of power
+%
+\begin{equation}
+T(\vk) \triangleq
+\sqrt{\frac{|\hat f(\vk)|^2}{|f(\vk')|^2}},
+\end{equation}
+%
+and the cross correlation coefficient
+%
+\begin{equation}
+r(\vk) \triangleq
+\frac{\Re \bigl[ \hat f(\vk) f^*(\vk) \bigr]}
+     {\sqrt{|\hat f(\vk)|^2 |f(\vk')|^2}}.
+\end{equation}
+%
+Now, under the mild assumptions that $T$ and $r$ are smooth and
+isotropic, we can show
+%
+\begin{equation}
+\cL_f \simeq \sum_\vk \Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
+  + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq 0,
+\end{equation}
+%
+that only vanishes when both $T$ and $r$ are unity for all modes, i.e.,
+when $\hat f$ is identical to $f$.
+Above we choose the binned version instead for the robustness against
+the noisy modewise $|f(\vk)|^2$ in the denominator.
+
+We combine Lagrangian and Eulerian fields to form the total loss:
+%
+\begin{equation}
+\cJ = \cL_\vs + \cL_\delta
++ \cL_{(1+\delta)\vv} + \cL_{(1+\delta)\vv\vv}
++ \cdots
+\end{equation}
+%
+\YL{(a simple sum since we have already done careful normalization in
+$\cL_f$'s) and also try}
+%
+\begin{equation}
+\cJ = \ln \cL_\vs + \ln \cL_\delta
++ \ln \cL_{(1+\delta)\vv} + \ln \cL_{(1+\delta)\vv\vv}
++ \cdots
+\end{equation}
+%
+Note that $\cL_\vs$ is on the displacement field $\vs(\vq)$ in the
+Lagrangian space, while the rest are in the Eulerian space:
+%
+\begin{align}
+1 + \delta(\vx) &= \int\!\d^3\vq\,
+\deltaD[ \vx - \vq - \vs(\vq)], \nonumber\\
+%
+\bigl[(1+\delta)\vv\bigr]_i(\vx) &= \int\!\d^3\vq\,
+\deltaD[ \vx - \vq - \vs(\vq)] v_i, \nonumber\\
+%
+\bigl[(1+\delta)\vv\vv\bigr]_{ij}(\vx) &= \int\!\d^3\vq\,
+\deltaD[ \vx - \vq - \vs(\vq)] v_i v_j,
+\end{align}
+%
+which we compute by scattering particles and their velocities to the
+\YL{choice of mesh for loss}.
 
 An alternative loss function can be the Eulernian density weighted
 particle displacement MSE.
