@@ -6,11 +6,11 @@ from pmwd.particles import Particles
 from pmwd.vis_util import simshow, CosmicWebNorm
 from pmwd.pm_util import rfftnfreq
 from pmwd.sto.so import sotheta, sonn_bc
-from pmwd.sto.train import _init_pmwd
+from pmwd.sto.train import _init_pmwd, pmodel
 from pmwd.sto.util import ptcl2dens, power_tfcc
 
 
-def plt_power(dens, dens_t, cell_size):
+def plt_power(dens, dens_t, cell_size, nyquist):
     """Plot power spectra related."""
     k, tf, cc = power_tfcc(dens, dens_t, cell_size)
 
@@ -18,16 +18,17 @@ def plt_power(dens, dens_t, cell_size):
     ax.plot(k, tf, label=r'trans. func.')
     ax.plot(k, cc, label=r'corr. coef.')
     ax.axhline(y=1, ls='--', c='grey')
+    ax.axvline(x=nyquist, ls=':', c='grey')
     ax.set_xscale('log')
     ax.set_xlabel(r'$k$')
     ax.set_xlim(k[0], k[-1])
-    ax.set_ylim(0.7, 1.3)
+    ax.set_ylim(0., 1.3)
     ax.legend()
 
     return fig
 
 
-def plt_sofuncs(nid, k, cosmo, conf):
+def plt_sofunc(nid, k, cosmo, conf):
     """Plot the SO function given k. nid: 0:f, 1:g, 2:h."""
     nid_dic = {0: 'f', 1: 'g', 2: 'h'}
 
@@ -47,12 +48,12 @@ def plt_sofuncs(nid, k, cosmo, conf):
     return fig
 
 
-def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=3):
+def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=1):
     # run pmwd with given params
     ptcl_ic, cosmo, conf = _init_pmwd(pmwd_params)
-    cosmo = cosmo.replace(so_params=so_params)
-    _, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
-    ptcl = obsvbl[0]
+    ptcl, cosmo = pmodel(ptcl_ic, so_params, cosmo, conf)
+
+    nyquist = jnp.pi / conf.cell_size
 
     # get the target ptcl
     pos_t, vel_t = tgt
@@ -65,7 +66,7 @@ def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=3):
     (dens, dens_t), (mesh_shape, cell_size) = ptcl2dens(
                                                (ptcl, ptcl_t), conf, mesh_shape)
     kvec_dens = rfftnfreq(mesh_shape, cell_size, dtype=conf.float_dtype)
-    figs['power'] = plt_power(dens, dens_t, cell_size)
+    figs['power'] = plt_power(dens, dens_t, cell_size, nyquist)
 
     # plot SO functions
     # k sample points to evaluate the functions
@@ -76,13 +77,14 @@ def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=3):
     k_3d = jnp.logspace(jnp.log10(k_min), jnp.log10(k_max), 1000)
     for nid, n, k in zip([0, 1, 2], ['f', 'g', 'h'], [k_1d, k_3d, k_1d]):
         if conf.so_nodes[nid] is not None:
-            figs[f'{n}_net'] = plt_sofuncs(nid, k, cosmo, conf)
+            figs[f'{n}_net'] = plt_sofunc(nid, k, cosmo, conf)
 
     # plot the density slab
     norm = CosmicWebNorm(dens_t)
-    figs['dens_target'] = simshow(dens_t[:32].mean(axis=0), norm=norm)[0]
+    slab = int(dens.shape[0] * 0.2)
+    figs['dens_target'] = simshow(dens_t[:slab].mean(axis=0), norm=norm)[0]
     figs['dens_target'].tight_layout()
-    figs['dens'] = simshow(dens[:32].mean(axis=0), norm=norm)[0]
+    figs['dens'] = simshow(dens[:slab].mean(axis=0), norm=norm)[0]
     figs['dens'].tight_layout()
 
     return figs

@@ -115,20 +115,12 @@ def read_g4data(sims_dir, sobol_ids, snap_ids, fn_sobol):
 
 class G4snapDataset(Dataset):
 
-    def __init__(self, sims_dir, sobol_ids=None, sobols_edge=None,
-                 snap_ids=[30], snaps_per_sim=121, fn_sobol='sobol.txt'):
+    def __init__(self, sims_dir, sobol_ids, snap_ids, fn_sobol='sobol.txt'):
         self.sims_dir = sims_dir
 
-        if sobol_ids is None:
-            sobol_ids = np.arange(*sobols_edge)
         self.sobol_ids = sobol_ids
-
-        if snap_ids is not None:
-            self.snap_ids = snap_ids
-            self.snaps_per_sim = len(snap_ids)
-        else:
-            self.snap_ids = np.arange(snaps_per_sim)
-            self.snaps_per_sim = snaps_per_sim
+        self.snap_ids = snap_ids
+        self.snaps_per_sim = len(snap_ids)
 
         self.n_sims = len(sobol_ids)
         self.n_snaps = self.n_sims * self.snaps_per_sim

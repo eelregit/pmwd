@@ -8,10 +8,15 @@ from pmwd.sto.data import gen_cc, gen_ic
 from pmwd.sto.loss import loss_func
 
 
-def obj(tgt, ptcl_ic, so_params, cosmo, conf):
+def pmodel(ptcl_ic, so_params, cosmo, conf):
     cosmo = cosmo.replace(so_params=so_params)
     _, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
-    loss = loss_func(obsvbl[0], tgt, conf)
+    return obsvbl[0], cosmo
+
+
+def obj(tgt, ptcl_ic, so_params, cosmo, conf):
+    ptcl, cosmo = pmodel(ptcl_ic, so_params, cosmo, conf)
+    loss = loss_func(ptcl, tgt, conf)
     return loss
 
 
@@ -33,7 +38,7 @@ def _init_pmwd(pmwd_params):
     return ptcl_ic, cosmo, conf
 
 
-def train_step(tgt, so_params, pmwd_params, learning_rate, opt_state):
+def train_step(tgt, so_params, pmwd_params, opt_params):
     ptcl_ic, cosmo, conf = _init_pmwd(pmwd_params)
 
     # loss and grad
@@ -45,7 +50,7 @@ def train_step(tgt, so_params, pmwd_params, learning_rate, opt_state):
     loss, grad = _global_mean(loss, grad)
 
     # optimize
-    optimizer = optax.adam(learning_rate=learning_rate)
+    optimizer, opt_state = opt_params
     updates, opt_state = optimizer.update(grad, opt_state, so_params)
     so_params = optax.apply_updates(so_params, updates)
 
