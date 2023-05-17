@@ -287,12 +287,12 @@ remain zero until the time stepping from $a_{k+1}$ to $a_k$.
 \subsection{Objective Function}
 
 A mean squared error (MSE) loss on the fields is dominated by the small
-scale modes.
+scale modes \citep{HeEtAl2019}.
 In this work we choose uniform weights in the scale space on the
 relative MSE.
-We bin the modes logarithmically by \nicefrac13 octave in scale, e.g.,
-in the $i$-th $k$-bin, $K_i \triangleq [k_i, k_{i+1})$, with $k_i =
-2^{1+i/3} \pi / L$ and $i = 0, 1, \cdots$.
+We bin the modes logarithmically by \nicefrac13 octave in scale, with
+the $i$-th $k$-bin $K_i \triangleq [k_i, k_{i+1})$, where $k_i =
+2^{1+i/3} \pi / L$.
 Our loss on $f$ sums up the MSE relative to the target field power in
 logarithmic bins:
 %
@@ -322,7 +322,7 @@ Now, under the mild assumptions that $T$ and $r$ are smooth and
 isotropic, we can show
 %
 \begin{equation}
-\cL_f \simeq \sum_\vk \Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
+\cL_f \propto \int \!\d\ln\!k\, \Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
   + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq 0,
 \end{equation}
 %
@@ -330,6 +330,10 @@ that only vanishes when both $T$ and $r$ are unity for all modes, i.e.,
 when $\hat f$ is identical to $f$.
 Above we choose the binned version instead for the robustness against
 the noisy modewise $|f(\vk)|^2$ in the denominator.
+The derivation here is similar to that in \citet{HeEtAl2019} on the MSE
+loss, while our modification is important to balance among all scales so
+that the neural network does not focus too much on either high or low
+$k$'s.
 
 We combine Lagrangian and Eulerian fields to form the total loss:
 %
@@ -540,7 +544,7 @@ that varies as in \autoref{tab:param} and helps to sample different
 alignment between snapshot and start/stop times.
 
 The curvature $\Omega_k$ is related to the separate universe simulation
-\citep{LiEtAl2014a, WagnerEtAl2015}.
+\citep{LiEtAl2014}.
 
 
 \begin{figure*}
