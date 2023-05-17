@@ -14,20 +14,20 @@ def _loss_log_mse(f, g, weights=None):
 
 
 @jax.custom_vjp
-def _loss_scale_wmse(kvec, f, g):
+def _loss_scale_wmse(kvec, f, g, k2pow):
     # mse of two fields in Fourier space, uniform weights
     k2 = sum(k**2 for k in kvec)
     d = f - g
-    loss = jnp.sum(jnp.where(k2 != 0, jnp.abs(d)**2 / k2**1.5, 0)
+    loss = jnp.sum(jnp.where(k2 != 0, jnp.abs(d)**2 / k2**k2pow, 0)
                    ) / jnp.array(d.shape).prod()
-    return jnp.log(loss), (loss, k2, d)
+    return jnp.log(loss), (loss, k2, d, k2pow)
 
-def _scale_wmse_fwd(kvec, f, g):
-    loss, res = _loss_scale_wmse(kvec, f, g)
+def _scale_wmse_fwd(kvec, f, g, k2pow):
+    loss, res = _loss_scale_wmse(kvec, f, g, k2pow)
     return loss, res
 
 def _scale_wmse_bwd(res, loss_cot):
-    loss, k2, d = res
+    loss, k2, d, k2pow = res
     d_shape = d.shape
     abs_valgrad = jax.value_and_grad(jnp.abs)
     d, d_grad = jax.vmap(abs_valgrad)(d.ravel())
@@ -35,9 +35,9 @@ def _scale_wmse_bwd(res, loss_cot):
     d_grad = d_grad.reshape(d_shape)
 
     loss_cot /= loss
-    f_cot = loss_cot * jnp.where(k2 != 0, 2 * d * d_grad / k2**1.5, 0
+    f_cot = loss_cot * jnp.where(k2 != 0, 2 * d * d_grad / k2**k2pow, 0
                                  ) / jnp.array(d_shape).prod()
-    return None, f_cot, None
+    return None, f_cot, None, None
 
 _loss_scale_wmse.defvjp(_scale_wmse_fwd, _scale_wmse_bwd)
 
@@ -56,14 +56,14 @@ def _loss_Lanzieri(disp, disp_t, dens, dens_t, cell_size):
     return loss
 
 
-def loss_func(ptcl, tgt, conf, mesh_shape=3):
+def loss_func(ptcl, tgt, conf, mesh_shape=1):
 
     # get the target ptcl
     pos_t, vel_t = tgt
     disp_t = pos_t - ptcl.pmid * conf.cell_size
     ptcl_t = Particles(conf, ptcl.pmid, disp_t, vel_t)
 
-    # get the density fields for the loss
+    # get the density fields
     (dens, dens_t), (mesh_shape, cell_size) = ptcl2dens(
                                                (ptcl, ptcl_t), conf, mesh_shape)
     dens_k = jnp.fft.rfftn(dens)
@@ -83,18 +83,18 @@ def loss_func(ptcl, tgt, conf, mesh_shape=3):
     # density field
     # loss += _loss_log_mse(dens, dens_t)
     # loss += _loss_log_mse(dens_k, dens_t_k)
-    # loss += _loss_scale_wmse(kvec_dens, dens_k, dens_t_k)
+    loss += _loss_scale_wmse(kvec_dens, dens_k, dens_t_k, 0.5)
 
     # displacement
     # loss += _loss_log_mse(disp, disp_t)
     # loss += _loss_log_mse(disp_k, disp_t_k)
-    # loss += _loss_scale_wmse(kvec_disp, disp_k, disp_t_k)
+    loss += _loss_scale_wmse(kvec_disp, disp_k, disp_t_k, 0.5)
 
     # velocity
     # loss += _loss_log_mse(ptcl.vel, ptcl_t.vel)
 
     # other combinations
     # loss += _loss_tfcc(dens, dens_t, cell_size)
-    loss += _loss_Lanzieri(disp, disp_t, dens, dens_t, cell_size)
+    # loss += _loss_Lanzieri(disp, disp_t, dens, dens_t, cell_size)
 
     return loss

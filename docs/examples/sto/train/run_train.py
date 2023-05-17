@@ -37,10 +37,11 @@ if __name__ == "__main__":
     jax.distributed.initialize(local_device_ids=[0])
 
     # hyper parameters of training
-    n_epochs = 30
+    n_epochs = 100
     learning_rate = 1e-3
-    # sobol_ids = np.arange(0, 1)
+    # sobol_ids = np.arange(0, 4)
     sobol_ids = [0]
+    snap_ids = [10, 60, 120]
 
     # RNGs with fixed seeds, for same randomness across processes
     np_rng = np.random.default_rng(16807)  # for pmwd MC sampling
@@ -52,7 +53,7 @@ if __name__ == "__main__":
 
     # load training data
     printinfo('preparing the data loader')
-    g4data = G4snapDataset('g4sims', sobol_ids=sobol_ids)
+    g4data = G4snapDataset('g4sims', sobol_ids, snap_ids)
     g4loader = DataLoader(g4data, batch_size=None, shuffle=False, generator=tc_rng,
                           num_workers=0, collate_fn=lambda x: x)
 
@@ -60,14 +61,14 @@ if __name__ == "__main__":
     printinfo('initializing SO parameters & optimizer')
     n_input = [soft_len()] * 3  # three nets
     so_nodes = [[n * 2 // 3, n // 3, 1] for n in n_input]
-    so_params = init_mlp_params(n_input, so_nodes, scheme='last_w0_b1')
+    so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
     # keep a copy of the initial params
     so_params_init = so_params
 
     # mannually turn off nets
-    for i in [1, 2]: so_nodes[i] = None
+    # for i in [0, 2]: so_nodes[i] = None
 
-    optimizer = optax.adam(learning_rate=learning_rate)
+    optimizer = optax.adam(learning_rate)
     opt_state = optimizer.init(so_params)
 
     printinfo('training started ...', flush=True)
@@ -89,8 +90,9 @@ if __name__ == "__main__":
 
             tgt = (pos, vel)
             pmwd_params = (a, sidx, sobol, mesh_shape, n_steps, so_nodes)
+            opt_params = (optimizer, opt_state)
             so_params, loss, opt_state = train_step(tgt, so_params, pmwd_params,
-                                                    learning_rate, opt_state)
+                                                    opt_params)
 
             # step track
             if procid == 0:
@@ -99,7 +101,7 @@ if __name__ == "__main__":
                 print((f'{tt:.0f} s, {epoch}, {step:>3d}, {mesh_shape:>3d}, ' +
                        f'{n_steps:>4d}, {loss:12.3e}'), flush=True)
                 global_step = epoch * len(g4loader) + step + 1
-                writer.add_scalar('loss/train', float(loss), global_step)
+                writer.add_scalar('loss/train/step', float(loss), global_step)
 
         if procid == 0:
             # check the status before training
@@ -110,6 +112,7 @@ if __name__ == "__main__":
                     fig.clf()
 
             # epoch track
+            writer.add_scalar('loss/train/epoch', float(loss), epoch+1)
             figs = vis_inspect(tgt, so_params, pmwd_params)
             for key, fig in figs.items():
                 writer.add_figure(f'fig/epoch/{key}', fig, epoch+1)
@@ -117,10 +120,8 @@ if __name__ == "__main__":
 
             # checkpoint SO params
             jobid = os.getenv('SLURM_JOB_ID')
-            with open(fn := f'params/j{jobid}_e{epoch}.pickle', 'wb') as f:
-                dic = {'n_input': n_input,
-                       'so_nodes': so_nodes,
-                       'so_params': so_params}
+            with open(fn := f'params/j{jobid}_e{epoch:0>3d}.pickle', 'wb') as f:
+                dic = {'so_params': so_params}
                 pickle.dump(dic, f)
             printinfo(f'epoch {epoch} done, params saved: {fn}', flush=True)
 
