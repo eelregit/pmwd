@@ -17,11 +17,9 @@ def ptcl2dens(ptcls, conf, mesh_shape):
 
 def power_tfcc(dens, dens_t, cell_size):
     # estimate power spectra
-    k, ps, N = powspec(dens, cell_size)
-    ps = ps.real
-    k, ps_t, N = powspec(dens_t, cell_size)
-    ps_t = ps_t.real
-    k, ps_cross, N = powspec(dens, cell_size, g=dens_t)
+    k, ps, N, bins = powspec(dens, cell_size, cut_nyq=False)
+    k, ps_t, N, bins = powspec(dens_t, cell_size, cut_nyq=False)
+    k, ps_cross, N, bins = powspec(dens, cell_size, g=dens_t, cut_nyq=False)
     ps_cross = ps_cross.real
 
     # the transfer function and correlation coefficient

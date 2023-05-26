@@ -22,7 +22,7 @@ def plt_power(dens, dens_t, cell_size, nyquist):
     ax.set_xscale('log')
     ax.set_xlabel(r'$k$')
     ax.set_xlim(k[0], k[-1])
-    ax.set_ylim(0., 1.3)
+    ax.set_ylim(0.5, 1.5)
     ax.legend()
 
     return fig
@@ -48,7 +48,7 @@ def plt_sofunc(nid, k, cosmo, conf):
     return fig
 
 
-def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=1):
+def vis_inspect(tgt, so_params, pmwd_params, vis_mesh_shape=1):
     # run pmwd with given params
     ptcl_ic, cosmo, conf = _init_pmwd(pmwd_params)
     ptcl, cosmo = pmodel(ptcl_ic, so_params, cosmo, conf)
@@ -63,9 +63,9 @@ def vis_inspect(tgt, so_params, pmwd_params, mesh_shape=1):
     figs = {}
 
     # plot power spectra
-    (dens, dens_t), (mesh_shape, cell_size) = ptcl2dens(
-                                               (ptcl, ptcl_t), conf, mesh_shape)
-    kvec_dens = rfftnfreq(mesh_shape, cell_size, dtype=conf.float_dtype)
+    (dens, dens_t), (vis_mesh_shape, cell_size) = ptcl2dens(
+                                        (ptcl, ptcl_t), conf, vis_mesh_shape)
+    kvec_dens = rfftnfreq(vis_mesh_shape, cell_size, dtype=conf.float_dtype)
     figs['power'] = plt_power(dens, dens_t, cell_size, nyquist)
 
     # plot SO functions
