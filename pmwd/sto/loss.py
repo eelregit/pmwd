@@ -56,7 +56,22 @@ def _loss_Lanzieri(disp, disp_t, dens, dens_t, cell_size):
     return loss
 
 
-def loss_func(ptcl, tgt, conf, mesh_shape=1):
+def _loss_norm_power(f, g, spacing=1, log=False):
+    # f (model) & g (target) are fields of the same shape in configuration space
+    k, P_d, N, bins = powspec(f - g, spacing, cut_nyq=False)
+    k, P_g, N, bins = powspec(g, spacing, cut_nyq=False)
+    w = jnp.cos(k / k.max() * jnp.pi / 2)**2
+    loss = (w * P_d / P_g).sum() / len(k)
+    if log: loss = jnp.log(loss)
+    return loss
+
+
+def _loss_abs_power(f, g, spacing=1, cc_pow=1):
+    k, tf, cc = power_tfcc(f, g, spacing)
+    return (jnp.abs(1 - tf) + (1 - cc)**cc_pow).sum()
+
+
+def loss_func(ptcl, tgt, conf, loss_mesh_shape=1):
 
     # get the target ptcl
     pos_t, vel_t = tgt
@@ -64,31 +79,38 @@ def loss_func(ptcl, tgt, conf, mesh_shape=1):
     ptcl_t = Particles(conf, ptcl.pmid, disp_t, vel_t)
 
     # get the density fields
-    (dens, dens_t), (mesh_shape, cell_size) = ptcl2dens(
-                                               (ptcl, ptcl_t), conf, mesh_shape)
-    dens_k = jnp.fft.rfftn(dens)
-    dens_t_k = jnp.fft.rfftn(dens_t)
-    kvec_dens = rfftnfreq(mesh_shape, cell_size, dtype=conf.float_dtype)
+    (dens, dens_t), (loss_mesh_shape, cell_size) = ptcl2dens(
+                                        (ptcl, ptcl_t), conf, loss_mesh_shape)
+    # dens_k = jnp.fft.rfftn(dens)
+    # dens_t_k = jnp.fft.rfftn(dens_t)
+    # kvec_dens = rfftnfreq(loss_mesh_shape, cell_size, dtype=conf.float_dtype)
 
     # get the disp from particles' grid Lagrangian positions
     disp, disp_t = (ptcl_rpos(p, Particles.gen_grid(p.conf), p.conf)
                     for p in (ptcl, ptcl_t))
+    # reshape -> last 3 axes are spatial dims
     shape_ = (-1,) + conf.ptcl_grid_shape
-    disp_k = jnp.fft.rfftn(disp.T.reshape(shape_), axes=range(-3, 0))
-    disp_t_k = jnp.fft.rfftn(disp_t.T.reshape(shape_), axes=range(-3, 0))
-    kvec_disp = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
+    disp = disp.T.reshape(shape_)
+    disp_t = disp_t.T.reshape(shape_)
+    # disp_k = jnp.fft.rfftn(disp, axes=range(-3, 0))
+    # disp_t_k = jnp.fft.rfftn(disp_t, axes=range(-3, 0))
+    # kvec_disp = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
     loss = 0.
-
-    # density field
-    # loss += _loss_log_mse(dens, dens_t)
-    # loss += _loss_log_mse(dens_k, dens_t_k)
-    loss += _loss_scale_wmse(kvec_dens, dens_k, dens_t_k, 0.5)
 
     # displacement
     # loss += _loss_log_mse(disp, disp_t)
     # loss += _loss_log_mse(disp_k, disp_t_k)
-    loss += _loss_scale_wmse(kvec_disp, disp_k, disp_t_k, 0.5)
+    # loss += _loss_scale_wmse(kvec_disp, disp_k, disp_t_k, 0.5)
+    loss += _loss_norm_power(disp, disp_t, log=True)
+    # loss += _loss_abs_power(disp, disp_t)
+
+    # density field
+    # loss += _loss_log_mse(dens, dens_t)
+    # loss += _loss_log_mse(dens_k, dens_t_k)
+    # loss += _loss_scale_wmse(kvec_dens, dens_k, dens_t_k, 0.5)
+    loss += _loss_norm_power(dens, dens_t, log=True)
+    # loss += _loss_abs_power(dens, dens_t)
 
     # velocity
     # loss += _loss_log_mse(ptcl.vel, ptcl_t.vel)

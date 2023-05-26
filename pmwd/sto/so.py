@@ -137,8 +137,12 @@ def soft_bc(k, theta):
     # multiply each element of k with theta_l, and append theta_o
     theta_l, theta_o = theta
     k_shape = k.shape
-    ft = k.reshape(k_shape+(1,)) * theta_l.reshape((1,)*len(k_shape)+theta_l.shape)
-    ft = jnp.concatenate((ft, jnp.broadcast_to(theta_o, k_shape+theta_o.shape)), axis=-1)
+    k = k.reshape(k_shape + (1,))
+    theta_l = theta_l.reshape((1,) * len(k_shape) + theta_l.shape)
+    ft = k * theta_l
+    # ft = jnp.log(jnp.where(ft != 0., jnp.abs(ft), 1.))
+    ft = jnp.concatenate((ft, jnp.broadcast_to(theta_o, k_shape+theta_o.shape)),
+                         axis=-1)
     return ft
 
 
@@ -152,7 +156,9 @@ def sonn_bc(k, theta, cosmo, conf, nid):
 def soft(k, theta):
     """SO features for neural nets input, with k being a scalar."""
     theta_l, theta_o = theta
-    return jnp.concatenate((k * theta_l, theta_o))
+    k_theta_l = k * theta_l
+    # k_theta_l = jnp.log(jnp.where(k_theta_l != 0., jnp.abs(k_theta_l), 1.))
+    return jnp.concatenate((k_theta_l, theta_o))
 
 
 def sonn_vmap(k, theta, cosmo, conf, nid):
