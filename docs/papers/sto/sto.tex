@@ -304,12 +304,17 @@ Our loss on a field $f$ sums up its MSE relative to the target field
 power in logarithmic bins:
 %
 \begin{equation}
+\cL_f = \frac1{N_K} \sum_i \ln \biggl[
+\frac{\sum_{k \in K_i} \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
+     {\sum_{k' \in K_i} |f(\vk')|^2} \biggr],
+\end{equation}
+%
+\begin{equation}
 \cL_f = \frac1{N_K} \sum_i
 \frac{\sum_{k \in K_i} w(\vk) \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
      {\sum_{k' \in K_i} |f(\vk')|^2},
 \end{equation}
 %
-\textbf{
 where $N_K$ is the number of $k$-bins and $w(\vk)$ is a nonnegative
 factor that suppresses the high $k$ contribution in Eulerian fields such
 as the density field (with $w=1$ for the Lagrangian displacement field).
@@ -322,12 +327,11 @@ force solver.
 We can try for $w$:
 %
 \begin{equation}
-\prod_{j=1}^3 \frac{k_j l / 2}{\tan(k_j l /2)} \textrm{and its square},
-\prod_{j=1}^3 \cos (k_j l / 2) \textrm{and its square},
+\prod_{j=1}^3 \frac{k_j l / 2}{\tan(k_j l /2)} \textrm{to some power},
+\prod_{j=1}^3 \cos (k_j l / 2) \textrm{to some power},
 \end{equation}
 %
 which vanish when any $k_j$ reaches the Nyquist.
-}
 \YL{Maybe add a figure of $w$ along axis, face diagonal and body
 digonal, if this works.}
 
@@ -349,6 +353,12 @@ r(\vk) \triangleq
 %
 Now, under the mild assumptions that $T$ and $r$ are smooth and
 isotropic, we can show
+%
+\begin{equation}
+\cL_f \propto \int \!\d\ln\!k\, \ln
+\Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
+  + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq -\infty;
+\end{equation}
 %
 \begin{equation}
 \cL_f \propto \int \!\d\ln\!k\, w(\vk)
