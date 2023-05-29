@@ -304,9 +304,8 @@ Our loss on a field $f$ sums up its MSE relative to the target field
 power in logarithmic bins:
 %
 \begin{equation}
-\cL_f = \frac1{N_K} \sum_i \ln \biggl[
-\frac{\sum_{k \in K_i} \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
-     {\sum_{k' \in K_i} |f(\vk')|^2} \biggr],
+\cL_f = \frac1{N_K} \sum_i \,\ln\!\!
+\sum_{k \in K_i} \bigl| \hat f(\vk) - f(\vk) \bigr|^2,
 \end{equation}
 %
 \begin{equation}
@@ -357,8 +356,10 @@ isotropic, we can show
 \begin{equation}
 \cL_f \propto \int \!\d\ln\!k\, \ln
 \Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
-  + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq -\infty;
+  + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq -\infty,
 \end{equation}
+%
+up to a constant;
 %
 \begin{equation}
 \cL_f \propto \int \!\d\ln\!k\, w(\vk)
