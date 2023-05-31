@@ -20,6 +20,7 @@
 
 
 \newcommand{\pmwd}{{\usefont{T1}{nova}{m}{sl}pmwd}}
+\newcommand{\GADGET}{{{\fontsize{7.7pt}{9pt}\selectfont GADGET}-4}}
 
 \renewcommand{\sectionautorefname}{Sec.}
 \renewcommand{\subsectionautorefname}{Sec.}
@@ -144,13 +145,13 @@ cosmology: large-scale structure of Universe
     displacement with np.trapz of $P$ over $\ln k$, the $\ln a$ time
     derivatives, etc.\newline
     \textbf{Update}: code has been added.
-\item Compare one pair of Gadget4 and \pmwd\ (with say 100 to 1000 time
+\item Compare one pair of \GADGET\ and \pmwd\ (with say 100 to 1000 time
     steps) results and make sure that they agree perfectly on the large
     scales. For this purpose the box size should be large enough (in
     linear regime), say 1 Gpc/$h$.\newline
-    \textbf{Update}: for Sobol=6, boxsize=983Mpc, Gadget4 and \pmwd\ are visually
+    \textbf{Update}: for Sobol=6, boxsize=983Mpc, \GADGET\ and \pmwd\ are visually
     consistent at the field level. To further check power spectrum. For odd mesh
-    shapes (e.g. 1, 3, 5), pmwd and Gadget are perfectly consistent on large
+    shapes (e.g. 1, 3, 5), pmwd and \GADGET\ are perfectly consistent on large
     scales. \textbf{While for even mesh shapes (e.g. 2, 4), the powers look
     slightly different. To figure out this weird issue.}
 \item Be careful with the non-deterministic ICs generated on GPUs.\newline
@@ -162,7 +163,7 @@ cosmology: large-scale structure of Universe
 \item Probably necessary to first incorporate List \& Hahn's recent
   improvement on FastPM integrator arXiv:2301:09655.
 \item Compare sto DM and halo fields and summary stats with those of raw
-  pmwd, deconvolved pmwd, and gadget, on the last 9 test cases and
+  pmwd, deconvolved pmwd, and \GADGET, on the last 9 test cases and
   noncubic box.
 \item Demonstrate capability of generalization, on some cases with
   extrapolating cosmological parameters, etc.
@@ -291,27 +292,43 @@ In the reverse time evolution of the adjoint equations, these adjoint varibales
 remain zero until the time stepping from $a_{k+1}$ to $a_k$.
 
 
-\subsection{Objective Function}
+\subsection{Loss Function}
 
-A mean squared error (MSE) loss on the fields is dominated by the small
-scale modes \citep{HeEtAl2019}.
+For the displacement field, we adopt the mean squared error (MSE) loss
+that proved effective in many previous works
+\citep[e.g.,][]{HeEtAl2019, LiEtAl2021}:
+%
+\begin{equation}
+\cL_\vs = \ln \sum_\vq \bigl[ \hat\vs(\vq) - \vs(\vq) \bigr]^2,
+\end{equation}
+%
+in which a particle originating from its Lagrangian position $\vq$ is
+displaced by $\vs$ in the \GADGET\ snapshot and by $\hat\vs$ in the
+prediction of \pmwd\ model in training.
+Note that we have further taken the logarithm to combine it with the
+other loss(es) below.
+% Say that only s loss is not enough even though in principle it is, and cite DrewEtAl x2 too
+
+However, in the Eulerian space, an MSE loss is dominated by the small
+scale modes.
 In this work we choose uniform weights in the scale space on the
 relative MSE.
 We bin the modes logarithmically by \nicefrac13 octave in scale, with
 the $i$-th $k$-bin $K_i \triangleq [k_i, k_{i+1})$, where $k_i =
 2^{1+i/3} \pi / L$.
-Our loss on a field $f$ sums up its MSE relative to the target field
-power in logarithmic bins:
+Our loss on the overdensity field $\delta$ sums up its MSE relative to
+the target field power in logarithmic bins:
 %
 \begin{equation}
-\cL_f = \frac1{N_K} \sum_i \,\ln\!\!
-\sum_{k \in K_i} \bigl| \hat f(\vk) - f(\vk) \bigr|^2,
+\cL_\delta = \frac1{N_K} \sum_i \,\ln\!\!
+\sum_{k \in K_i} \bigl| \hat\delta(\vk) - \delta(\vk) \bigr|^2,
 \end{equation}
 %
 \begin{equation}
-\cL_f = \frac1{N_K} \sum_i
-\frac{\sum_{k \in K_i} w(\vk) \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
-     {\sum_{k' \in K_i} |f(\vk')|^2},
+\cL_\delta = \frac1{N_K} \sum_i
+\frac{\sum_{k \in K_i} w(\vk)
+      \bigl| \hat\delta(\vk) - \delta(\vk) \bigr|^2}
+     {\sum_{k' \in K_i} |\delta(\vk')|^2},
 \end{equation}
 %
 where $N_K$ is the number of $k$-bins and $w(\vk)$ is a nonnegative
@@ -354,7 +371,7 @@ Now, under the mild assumptions that $T$ and $r$ are smooth and
 isotropic, we can show
 %
 \begin{equation}
-\cL_f \propto \int \!\d\ln\!k\, \ln
+\cL_\delta \propto \int \!\d\ln\!k\, \ln
 \Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
   + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq -\infty,
 \end{equation}
@@ -362,15 +379,15 @@ isotropic, we can show
 up to a constant;
 %
 \begin{equation}
-\cL_f \propto \int \!\d\ln\!k\, w(\vk)
+\cL_\delta \propto \int \!\d\ln\!k\, w(\vk)
 \Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
   + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq 0,
 \end{equation}
 %
 that only vanishes when both $T$ and $r$ are unity for all modes, i.e.,
-when $\hat f$ is identical to $f$.
+when $\hat\delta$ is identical to $\delta$.
 Above we choose the binned version instead for the robustness against
-the noisy modewise $|f(\vk)|^2$ in the denominator.
+the noisy modewise $|\delta(\vk)|^2$ in the denominator.
 The derivation here is similar to that in \citet{HeEtAl2019} on the MSE
 loss, while our modification is important to balance among all scales so
 that the neural network does not focus too much on either high or low
@@ -519,7 +536,7 @@ optimized.
 
 \begin{table*}
 \centering
-\caption{Ranges of GADGET-4 and \pmwd\ configuration and cosmological
+\caption{Ranges of \GADGET\ and \pmwd\ configuration and cosmological
 parameters.
 Note that the grid ratio need next fast len to determine the mesh shape
 for fast FFT.
@@ -527,13 +544,13 @@ Given the box size, the mesh shape determines the cell size.
 The softening parameter gives the ratio of the comoving softening length
 to the mean particle spacing.
 The curvature $\Omega_k$ is related to the separate universe simulation.
-We sample parameters applicable to GADGET-4 during data generation, and
+We sample parameters applicable to \GADGET\ during data generation, and
 those applicable to \pmwd\ during training.
-\textsuperscript\dag The box size is determined jointly by the \pmwd\
+\textsuperscript\dag{}The box size is determined jointly by the \pmwd\
 mesh shape and mesh cell size below, which are assumed to be sampled
 independently.
 In practice, we sample one conditioned on the other and the box size.
-* Number of time steps from $a=1/16$ to $a=1$.
+*Number of time steps from $a=1/16$ to $a=1$.
 }
 \label{tab:param}
 \begin{tabular}{lcccr}
@@ -548,7 +565,7 @@ In practice, we sample one conditioned on the other and the box size.
   \cmidrule(lr){2-4}
   & snapshot offset, $\Delta\!a$ & uniform & [0, 1/128) \\
   \cmidrule(lr){2-4}
-  GADGET-4 & $\As \times 10^9$ & log-uniform & [1, 4) \\
+  \GADGET\ & $\As \times 10^9$ & log-uniform & [1, 4) \\
   \cmidrule(lr){2-4}
   \& \pmwd\ & $\ns$ & log-uniform & [0.75, 1.25) & RQMC \\
   \cmidrule(lr){2-4}
@@ -560,7 +577,7 @@ In practice, we sample one conditioned on the other and the box size.
   \cmidrule(lr){2-4}
   & $h$ & log-uniform & [0.5, 1) \\
   \cmidrule(lr){1-4}
-  GADGET-4 & softening ratio & log-uniform & [1/50, 1/20) \\
+  \GADGET\ & softening ratio & log-uniform & [1/50, 1/20) \\
   \cmidrule(lr){1-5}
   & mesh shape & log-uniform & [128, 512] \\
   \cmidrule(lr){2-4}
@@ -574,7 +591,7 @@ In practice, we sample one conditioned on the other and the box size.
 
 \subsection{Parameters and Configurations}
 
-We run 512 GADGET-4 simulations that cover a wide range of
+We run 512 \GADGET\ simulations that cover a wide range of
 configurations and cosmological parameters, as listed in
 \autoref{tab:param}.
 Each simulation has $128^3$ particles and writes 121 snapshots linearly
@@ -612,7 +629,7 @@ The curvature $\Omega_k$ is related to the separate universe simulation
 
 \citet{GADGET-4}
 
-We configure GADGET-4 with high force and time integration accuracy
+We configure \GADGET\ with high force and time integration accuracy
 settings.
 For gravitational force, we choose pure FMM with $p=5$ and opening angle
 0.4.
@@ -621,9 +638,9 @@ For gravitational force, we choose pure FMM with $p=5$ and opening angle
 
 \subsection{Training}
 
-Given 512 Gadget simulations and 121 output snapshots each, in total we have
+Given 512 \GADGET\ simulations and 121 output snapshots each, in total we have
 61952 snapshots for training.
-Following \autoref{tab:param}, given a snapshot from Gadget simulations, we
+Following \autoref{tab:param}, given a snapshot from \GADGET\ simulations, we
 configure \pmwd\ with the same initial coniditions and cosmological parameters,
 and randomly sample the mesh shape (or the mesh cell size) and the number of
 time steps.
