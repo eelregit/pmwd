@@ -299,7 +299,8 @@ that proved effective in many previous works
 \citep[e.g.,][]{HeEtAl2019, LiEtAl2021}:
 %
 \begin{equation}
-\cL_\vs = \ln \sum_\vq \bigl[ \hat\vs(\vq) - \vs(\vq) \bigr]^2,
+\cL_\vs = \ln \frac{\sum_\vq \bigl[ \hat\vs(\vq) - \vs(\vq) \bigr]^2}
+                   {\sum_{\vq'} s(\vq')^2},
 \end{equation}
 %
 in which a particle originating from its Lagrangian position $\vq$ is
@@ -309,10 +310,10 @@ Note that we have further taken the logarithm to combine it with the
 other loss(es) below.
 % Say that only s loss is not enough even though in principle it is, and cite DrewEtAl x2 too
 
-\YL{TODO: Even though the log should be enough for adaptive optimizer
-and fixed sim config, this may create problem when training on all
-config at the same time. And careful normalization inside the log should
-be added. Same for the Eulerian losses below.}
+\YL{Even though the log should be enough for adaptive optimizer and
+fixed sim config, this may create problem when training on all config at
+the same time. So normalizations inside the log is added above and
+below.}
 
 However, in the Eulerian space, an MSE loss is dominated by the small
 scale modes.
@@ -325,8 +326,9 @@ Our loss on the overdensity field $\delta$ sums up its MSE relative to
 the target field power in logarithmic bins:
 %
 \begin{equation}
-\cL_\delta = \frac1{N_K} \sum_i \,\ln\!\!
-\sum_{k \in K_i} \bigl| \hat\delta(\vk) - \delta(\vk) \bigr|^2,
+\cL_\delta = \frac1{N_K} \sum_i \ln
+\frac{\sum_{k \in K_i} \bigl| \hat\delta(\vk) - \delta(\vk) \bigr|^2}
+     {\sum_{k' \in K_i} |\delta(\vk')|^2},
 \end{equation}
 %
 \begin{equation}
@@ -381,7 +383,7 @@ isotropic, we can show
   + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq -\infty,
 \end{equation}
 %
-up to a constant;
+replacing
 %
 \begin{equation}
 \cL_\delta \propto \int \!\d\ln\!k\, w(\vk)
