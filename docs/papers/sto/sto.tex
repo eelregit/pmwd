@@ -309,6 +309,11 @@ Note that we have further taken the logarithm to combine it with the
 other loss(es) below.
 % Say that only s loss is not enough even though in principle it is, and cite DrewEtAl x2 too
 
+\YL{TODO: Even though the log should be enough for adaptive optimizer
+and fixed sim config, this may create problem when training on all
+config at the same time. And careful normalization inside the log should
+be added. Same for the Eulerian losses below.}
+
 However, in the Eulerian space, an MSE loss is dominated by the small
 scale modes.
 In this work we choose uniform weights in the scale space on the
