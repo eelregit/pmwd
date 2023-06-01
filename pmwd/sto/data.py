@@ -108,7 +108,7 @@ def read_g4data(sims_dir, sobol_ids, snap_ids, fn_sobol):
             snap_file = os.path.join(sims_dir, f'{sidx:03}',
                                      'output', f'snapshot_{snap:03}')
             pos, vel, a = read_gadget_hdf5(snap_file)
-            data[sidx][snap] = (pos, vel, a, sidx, sobol)
+            data[sidx][snap] = (pos, vel, a, sidx, sobol, snap)
     Parallel(n_jobs=min(8, len(sobol_ids)), prefer='threads', require='sharedmem')(
         delayed(load_sobol)(sidx) for sidx in sobol_ids)
     return data
