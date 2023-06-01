@@ -38,7 +38,7 @@ if __name__ == "__main__":
     jax.distributed.initialize(local_device_ids=[0])
 
     # hyper parameters of training
-    n_epochs = 100
+    n_epochs = 150
     learning_rate = 1e-3
     sobol_ids = [0]
     snap_ids = np.arange(0, 121, 3)
@@ -54,7 +54,7 @@ if __name__ == "__main__":
     # load training data
     printinfo('preparing the data loader')
     g4data = G4snapDataset('g4sims', sobol_ids, snap_ids)
-    g4loader = DataLoader(g4data, batch_size=None, shuffle=False, generator=tc_rng,
+    g4loader = DataLoader(g4data, batch_size=None, shuffle=True, generator=tc_rng,
                           num_workers=0, collate_fn=lambda x: x)
 
     # structure of the so neural nets
@@ -83,13 +83,13 @@ if __name__ == "__main__":
 
     printinfo('training started ...', flush=True)
     if procid == 0:
-        print('time, epoch, step, mesh_shape, steps, loss')
+        print('time, epoch, step, mesh_shape, n_steps, snap_id, loss')
         writer = SummaryWriter()
 
     tic = time.perf_counter()
     for epoch in range(n_epochs):
         for step, g4snap in enumerate(g4loader):
-            pos, vel, a, sidx, sobol = g4snap
+            pos, vel, a, sidx, sobol, snap_id = g4snap
 
             # mesh shape, 128 * [1, 2, 3, 4]
             # mesh_shape = np_rng.integers(1, 5) * 128
@@ -104,30 +104,32 @@ if __name__ == "__main__":
             so_params, loss, opt_state = train_step(tgt, so_params, pmwd_params,
                                                     opt_params)
 
-            # step track
+            # track
             if procid == 0:
+                # step
                 tt = time.perf_counter() - tic
                 tic = time.perf_counter()
                 print((f'{tt:.0f} s, {epoch}, {step:>3d}, {mesh_shape:>3d}, ' +
-                       f'{n_steps:>4d}, {loss:12.3e}'), flush=True)
+                       f'{n_steps:>4d}, {snap_id:>4d}, {loss:12.3e}'), flush=True)
                 global_step = epoch * len(g4loader) + step + 1
                 writer.add_scalar('loss/train/step', float(loss), global_step)
 
+                # epoch: last snapshot
+                if snap_id == snap_ids[-1]:
+                    # check the status before training
+                    if epoch == 0:
+                        figs = vis_inspect(tgt, so_params_init, pmwd_params)
+                        for key, fig in figs.items():
+                            writer.add_figure(f'fig/epoch/{key}', fig, 0)
+                            fig.clf()
+
+                    writer.add_scalar('loss/train/epoch', float(loss), epoch+1)
+                    figs = vis_inspect(tgt, so_params, pmwd_params)
+                    for key, fig in figs.items():
+                        writer.add_figure(f'fig/epoch/{key}', fig, epoch+1)
+                        fig.clf()
+
         if procid == 0:
-            # check the status before training
-            if epoch == 0:
-                figs = vis_inspect(tgt, so_params_init, pmwd_params)
-                for key, fig in figs.items():
-                    writer.add_figure(f'fig/epoch/{key}', fig, 0)
-                    fig.clf()
-
-            # epoch track
-            writer.add_scalar('loss/train/epoch', float(loss), epoch+1)
-            figs = vis_inspect(tgt, so_params, pmwd_params)
-            for key, fig in figs.items():
-                writer.add_figure(f'fig/epoch/{key}', fig, epoch+1)
-                fig.clf()
-
             # checkpoint SO params
             jobid = os.getenv('SLURM_JOB_ID')
             with open(fn := f'params/j{jobid}_e{epoch:0>3d}.pickle', 'wb') as f:
