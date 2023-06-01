@@ -146,7 +146,13 @@ class Configuration:
     chunk_size: int = 2**24
 
     # SO related
-    # list of the number of nodes (no input layer) of so nn, order: f, g, h
+    # type of SO method
+    # None: no SO applied
+    # 0: fitting of NN given by SR
+    # 2: f(k_i) * g(k_1, k_2, k_3)
+    # 3: h(k_i) * g(k) * [f(k_1) * f(k_2) * f(k_3)]
+    so_type: Optional[int] = None
+    # list of the number of nodes (no input layer) of so nn
     so_nodes: Optional[list] = None
     a_out: float = a_stop
     softening_length: Optional[float] = None

@@ -20,7 +20,8 @@ from datetime import datetime
 import time
 import pickle
 
-from pmwd.sto.so import soft_len, init_mlp_params
+from pmwd.sto.so import soft_len
+from pmwd.sto.mlp import init_mlp_params
 from pmwd.sto.train import train_step
 from pmwd.sto.vis import vis_inspect
 from pmwd.sto.data import G4snapDataset
@@ -39,9 +40,8 @@ if __name__ == "__main__":
     # hyper parameters of training
     n_epochs = 100
     learning_rate = 1e-3
-    # sobol_ids = np.arange(0, 4)
     sobol_ids = [0]
-    snap_ids = [10, 60, 120]
+    snap_ids = np.arange(0, 121, 3)
 
     # RNGs with fixed seeds, for same randomness across processes
     np_rng = np.random.default_rng(16807)  # for pmwd MC sampling
@@ -59,13 +59,23 @@ if __name__ == "__main__":
 
     # structure of the so neural nets
     printinfo('initializing SO parameters & optimizer')
-    n_input = [soft_len()] * 3  # three nets
+
+    # SO scheme: h(k_i) * g(k) * [f(k_1) * f(k_2) * f(k_3)]
+    # so_type = 3
+    # n_input = [soft_len()] * 3  # three nets
+    # so_nodes = [[n * 2 // 3, n // 3, 1] for n in n_input]
+    # so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
+
+    # SO scheme: f(k_i) * g(k_1, k_2, k_3)
+    so_type = 2
+    n_input = [soft_len(l_fac=3), soft_len()]
     so_nodes = [[n * 2 // 3, n // 3, 1] for n in n_input]
     so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
+
     # keep a copy of the initial params
     so_params_init = so_params
 
-    # mannually turn off nets
+    # mannually turn off nets by setting the corresponding so_nodes to None
     # for i in [0, 2]: so_nodes[i] = None
 
     optimizer = optax.adam(learning_rate)
@@ -89,7 +99,7 @@ if __name__ == "__main__":
             n_steps = 100
 
             tgt = (pos, vel)
-            pmwd_params = (a, sidx, sobol, mesh_shape, n_steps, so_nodes)
+            pmwd_params = (a, sidx, sobol, mesh_shape, n_steps, so_type, so_nodes)
             opt_params = (optimizer, opt_state)
             so_params, loss, opt_state = train_step(tgt, so_params, pmwd_params,
                                                     opt_params)

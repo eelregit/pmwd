@@ -1,69 +1,13 @@
 import jax
 import jax.numpy as jnp
-from jax import random, vmap
+from jax import vmap
 from jax.tree_util import tree_map
-import flax.linen as nn
-from flax.core.frozen_dict import unfreeze, freeze
-from typing import Sequence, Callable
 import math
 
 from pmwd.configuration import Configuration
 from pmwd.cosmology import Cosmology, H_deriv, Omega_m_a, SimpleLCDM
 from pmwd.boltzmann import boltzmann, growth, linear_power
-
-
-class MLP(nn.Module):
-    features: Sequence[int]
-    activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
-    outivator: Callable[[jnp.ndarray], jnp.ndarray] = None
-
-    def setup(self):
-        self.layers = [nn.Dense(f) for f in self.features]
-
-    def __call__(self, inputs):
-        x = inputs
-        for i, lyr in enumerate(self.layers):
-            x = lyr(x)
-            if i != len(self.layers)-1:
-                x = self.activator(x)
-            else:
-                if self.outivator is not None:
-                    x = self.outivator(x)
-
-        return x
-
-
-def init_mlp_params(n_input, nodes, scheme=None):
-    """Initialize MLP parameters."""
-    nets = [MLP(features=n) for n in nodes]
-    xs = [jnp.ones(n) for n in n_input]  # dummy inputs
-    keys = random.split(random.PRNGKey(0), len(n_input))
-
-    # by default in flax.linen.Dense, kernel: lecun_norm, bias: 0
-    params = [nn.init(key, x) for nn, key, x in zip(nets, keys, xs)]
-
-    # for the last layer: set bias to one & weights to zero
-    if scheme == 'last_w0_b1':
-        for i, p in enumerate(params):
-            p = unfreeze(p)
-            p['params'][f'layers_{len(nodes[i])-1}']['kernel'] = (
-                jnp.zeros((nodes[i][-2], nodes[i][-1])))
-            p['params'][f'layers_{len(nodes[i])-1}']['bias'] = (
-                jnp.ones(nodes[i][-1]))
-            params[i] = freeze(p)
-
-    # for the last layer: set bias to one & weights to small random values
-    if scheme == 'last_ws_b1':
-        keys = random.split(random.PRNGKey(1), len(params))
-        for i, p in enumerate(params):
-            p = unfreeze(p)
-            p['params'][f'layers_{len(nodes[i])-1}']['kernel'] = (
-                random.normal(keys[i], (nodes[i][-2], nodes[i][-1]))) * 1e-4
-            p['params'][f'layers_{len(nodes[i])-1}']['bias'] = (
-                jnp.ones(nodes[i][-1]))
-            params[i] = freeze(p)
-
-    return params
+from pmwd.sto.mlp import MLP
 
 
 def nonlinear_scales(cosmo, conf, a):
@@ -123,13 +67,21 @@ def sotheta(cosmo, conf, a):
     return (theta_l, theta_o)
 
 
-def soft_len():
+def soft_len(l_fac=1):
     # get the length of SO input features with dummy conf and cosmo
     conf = Configuration(1., (128,)*3)
     cosmo = SimpleLCDM(conf)
     cosmo = boltzmann(cosmo, conf)
     theta_l, theta_o = sotheta(cosmo, conf, conf.a_start)
-    return len(theta_l) + len(theta_o)
+    return len(theta_l) * l_fac + len(theta_o)
+
+
+def soft(k, theta):
+    """SO features for neural nets input, with k being a scalar."""
+    theta_l, theta_o = theta
+    k_theta_l = k * theta_l
+    # k_theta_l = jnp.log(jnp.where(k_theta_l != 0., jnp.abs(k_theta_l), 1.))
+    return jnp.concatenate((k_theta_l, theta_o))
 
 
 def soft_bc(k, theta):
@@ -153,14 +105,6 @@ def sonn_bc(k, theta, cosmo, conf, nid):
     return net.apply(cosmo.so_params[nid], ft)[..., 0]  # rm the trailing axis of dim one
 
 
-def soft(k, theta):
-    """SO features for neural nets input, with k being a scalar."""
-    theta_l, theta_o = theta
-    k_theta_l = k * theta_l
-    # k_theta_l = jnp.log(jnp.where(k_theta_l != 0., jnp.abs(k_theta_l), 1.))
-    return jnp.concatenate((k_theta_l, theta_o))
-
-
 def sonn_vmap(k, theta, cosmo, conf, nid):
     """Evaluate the neural net, using vmap over k."""
     net = MLP(features=conf.so_nodes[nid])
@@ -170,20 +114,41 @@ def sonn_vmap(k, theta, cosmo, conf, nid):
     return vmap(_sonn)(k.ravel()).reshape(k.shape)
 
 
+def sonn_g(kv, theta, cosmo, conf, nid):
+    # kv shape: e.g. (128, 128, 65, 3)
+    kv_shape = kv.shape
+    kv = kv.reshape(kv_shape + (1,))
+
+    theta_l, theta_o = theta
+    theta_l = theta_l.reshape((1,) * len(kv_shape) + theta_l.shape)
+    ft = (kv * theta_l).reshape(kv_shape[:-1] + (-1,))
+    ft = jnp.concatenate((ft, jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)),
+                         axis=-1)
+    net = MLP(features=conf.so_nodes[nid])
+    return net.apply(cosmo.so_params[nid], ft)[..., 0]  # rm the trailing axis of dim one
+
+
 def pot_sharp(kvec, theta, pot, cosmo, conf, a):
     """Spatial optimization of the laplace potential."""
-    if conf.so_nodes[0] is not None:  # apply f net
-        f = [sonn_bc(k_, theta, cosmo, conf, 0) for k_ in kvec]
-        pot *= math.prod(f)
+    if conf.so_type == 3:
+        if conf.so_nodes[0] is not None:  # apply f net
+            f = [sonn_bc(k_, theta, cosmo, conf, 0) for k_ in kvec]
+            pot *= math.prod(f)
 
-    if conf.so_nodes[1] is not None:  # apply g net
-        k = jnp.sqrt(sum(k_**2 for k_ in kvec))
-        g = sonn_bc(k, theta, cosmo, conf, 1)
-        # ks = jnp.array_split(k, 16)
-        # g = []
-        # for k in ks:
-        #     g.append(sonn_vmap(k, theta, cosmo, conf, 1))
-        # g = jnp.concatenate(g, axis=0)
+        if conf.so_nodes[1] is not None:  # apply g net
+            k = jnp.sqrt(sum(k_**2 for k_ in kvec))
+            g = sonn_bc(k, theta, cosmo, conf, 1)
+            # ks = jnp.array_split(k, 16)
+            # g = []
+            # for k in ks:
+            #     g.append(sonn_vmap(k, theta, cosmo, conf, 1))
+            # g = jnp.concatenate(g, axis=0)
+            pot *= g
+
+    if conf.so_type == 2:
+        kv = jnp.stack([jnp.broadcast_to(k_, pot.shape) for k_ in kvec], axis=-1)
+        kv = jnp.sort(kv, axis=-1)
+        g = sonn_g(kv, theta, cosmo, conf, 0)
         pot *= g
 
     return pot
@@ -191,6 +156,11 @@ def pot_sharp(kvec, theta, pot, cosmo, conf, a):
 
 def grad_sharp(k, theta, grad, cosmo, conf, a):
     """Spatial optimization of the gradient."""
-    if conf.so_nodes[2] is not None:  # apply h net
-        grad *= sonn_bc(k, theta, cosmo, conf, 2)
+    if conf.so_type == 3:
+        if conf.so_nodes[2] is not None:  # apply h net
+            grad *= sonn_bc(k, theta, cosmo, conf, 2)
+
+    if conf.so_type == 2:
+        grad *= sonn_bc(k, theta, cosmo, conf, 1)
+
     return grad

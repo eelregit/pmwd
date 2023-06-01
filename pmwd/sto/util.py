@@ -4,9 +4,9 @@ from pmwd.spec_util import powspec
 
 
 def ptcl2dens(ptcls, conf, mesh_shape):
-    if mesh_shape is None:  # 2x the mesh in pmwd sim
-        cell_size = conf.cell_size / 2
-        mesh_shape = tuple(2 * ms for ms in conf.mesh_shape)
+    if mesh_shape is None:  # the mesh in pmwd sim
+        cell_size = conf.cell_size
+        mesh_shape = conf.mesh_shape
     else:  # float or int
         cell_size = conf.ptcl_spacing / mesh_shape
         mesh_shape = tuple(round(mesh_shape * s) for s in conf.ptcl_grid_shape)

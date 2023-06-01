@@ -58,7 +58,7 @@ def scale_Sobol(fn='sobol.txt', ind=slice(None)):
     return sobol.T
 
 
-def gen_cc(sobol, mesh_shape=1, a_out=1, a_nbody_num=63, so_nodes=None,
+def gen_cc(sobol, mesh_shape=1, a_out=1, a_nbody_num=63, so_type=None, so_nodes=None,
            a_start=1/16, a_stop=1+1/128):
     """Setup conf and cosmo given a sobol."""
     conf = Configuration(
@@ -70,6 +70,7 @@ def gen_cc(sobol, mesh_shape=1, a_out=1, a_nbody_num=63, so_nodes=None,
         mesh_shape = mesh_shape,
         a_out = a_out,
         a_nbody_num = a_nbody_num,
+        so_type = so_type,
         so_nodes = so_nodes,
         softening_length = sobol[8],
     )
