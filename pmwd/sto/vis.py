@@ -70,14 +70,14 @@ def vis_inspect(tgt, so_params, pmwd_params, vis_mesh_shape=1):
 
     # plot SO functions
     # k sample points to evaluate the functions
-    kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
-    k_1d = jnp.sort(kvec[0].ravel())
-    k_min = kvec[0].ravel()[1]
-    k_max = jnp.sqrt(3 * jnp.abs(k_1d).max()**2)
-    k_3d = jnp.logspace(jnp.log10(k_min), jnp.log10(k_max), 1000)
-    for nid, n, k in zip([0, 1, 2], ['f', 'g', 'h'], [k_1d, k_3d, k_1d]):
-        if conf.so_nodes[nid] is not None:
-            figs[f'{n}_net'] = plt_sofunc(nid, k, cosmo, conf)
+    # kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
+    # k_1d = jnp.sort(kvec[0].ravel())
+    # k_min = kvec[0].ravel()[1]
+    # k_max = jnp.sqrt(3 * jnp.abs(k_1d).max()**2)
+    # k_3d = jnp.logspace(jnp.log10(k_min), jnp.log10(k_max), 1000)
+    # for nid, n, k in zip([0, 1, 2], ['f', 'g', 'h'], [k_1d, k_3d, k_1d]):
+    #     if conf.so_nodes[nid] is not None:
+    #         figs[f'{n}_net'] = plt_sofunc(nid, k, cosmo, conf)
 
     # plot the density slab
     norm = CosmicWebNorm(dens_t)

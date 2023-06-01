@@ -58,7 +58,7 @@ def gravity(a, ptcl, cosmo, conf):
 
     pot = laplace(kvec, dens, cosmo)
 
-    if conf.so_nodes is not None:  # spatial optimization
+    if conf.so_type is not None:  # spatial optimization
         theta = sotheta(cosmo, conf, a)
         pot = pot_sharp(kvec, theta, pot, cosmo, conf, a)
 
@@ -66,7 +66,7 @@ def gravity(a, ptcl, cosmo, conf):
     for k in kvec:
         grad = neg_grad(k, pot, conf.cell_size)
 
-        if conf.so_nodes is not None:  # spatial optimization
+        if conf.so_type is not None:  # spatial optimization
             grad = grad_sharp(k, theta, grad, cosmo, conf, a)
 
         grad = fftinv(grad, shape=conf.mesh_shape)

@@ -28,11 +28,11 @@ def _global_mean(loss, grad):
 
 
 def _init_pmwd(pmwd_params):
-    a_out, sidx, sobol, mesh_shape, n_steps, so_nodes = pmwd_params
+    a_out, sidx, sobol, mesh_shape, n_steps, so_type, so_nodes = pmwd_params
 
     # generate ic, cosmo, conf
     conf, cosmo = gen_cc(sobol, mesh_shape=(mesh_shape,)*3, a_out=a_out,
-                         a_nbody_num=n_steps, so_nodes=so_nodes)
+                         a_nbody_num=n_steps, so_type=so_type, so_nodes=so_nodes)
     ptcl_ic = gen_ic(sidx, conf, cosmo)
 
     return ptcl_ic, cosmo, conf
