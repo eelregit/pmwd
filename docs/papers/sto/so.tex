@@ -1,0 +1,742 @@
+\documentclass[usenatbib]{mnras}
+
+% Allow "Thomas van Noord" and "Simon de Laguarde" and alike to be sorted by "N" and "L" etc. in the bibliography.
+% Write the name in the bibliography as "\VAN{Noord}{Van}{van} Noord, Thomas"
+\DeclareRobustCommand{\VAN}[3]{#2}
+\let\VANthebibliography\thebibliography
+\def\thebibliography{\DeclareRobustCommand{\VAN}[3]{##3}\VANthebibliography}
+
+
+\usepackage{microtype}
+\usepackage{newpxtext, eulerpx}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{bm}
+\usepackage{dsfont}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{nicefrac}
+\usepackage[dvipsnames]{xcolor}
+
+
+\newcommand{\pmwd}{{\usefont{T1}{nova}{m}{sl}pmwd}}
+\newcommand{\GADGET}{{{\fontsize{7.7pt}{9pt}\selectfont GADGET}-4}}
+
+\renewcommand{\sectionautorefname}{Sec.}
+\renewcommand{\subsectionautorefname}{Sec.}
+\renewcommand{\appendixautorefname}{App.}
+\renewcommand{\figureautorefname}{Fig.}
+%\newcommand{\subfigureautorefname}{\figureautorefname}
+
+%FIXME copied from ../adjoint/adjoint.tex
+\newcommand{\deltaD}{\delta^\textsc{d}}
+\newcommand{\deltaK}{\delta^\textsc{k}}
+\renewcommand{\d}{d}
+\newcommand{\p}{\partial}
+\newcommand{\cJ}{\mathcal{J}}
+\newcommand{\cR}{\mathcal{R}}
+\newcommand{\cL}{\mathcal{L}}
+\newcommand{\cH}{\mathcal{H}}
+\bmdefine{\vzero}{0}
+\bmdefine{\vI}{I}
+\bmdefine{\vnabla}{\nabla}
+\bmdefine{\vtheta}{\theta}  % parameters
+\bmdefine{\vvartheta}{\vartheta}  % relevant scales and factors to form
+                                  % dimensionless features as NN inputs
+\bmdefine{\vomega}{\omega}  % white noise modes
+\bmdefine{\vk}{k}  % wavevectors
+\bmdefine{\vx}{x}  % comoving and canonical coordinates
+\bmdefine{\vq}{q}  % Lagrangian coordinates
+\bmdefine{\vs}{s}  % displacements
+\bmdefine{\vp}{p}  % canonical momenta
+\bmdefine{\vv}{v}  % FIXME some velocities
+\bmdefine{\va}{a}  % accelerations
+\bmdefine{\vz}{z}  % states
+\bmdefine{\vo}{o}  % observable
+\bmdefine{\vf}{f}
+\bmdefine{\vF}{F}
+\bmdefine{\vDelta}{\Delta}
+\bmdefine{\vLambda}{\Lambda}
+\bmdefine{\vlambda}{\lambda}
+\bmdefine{\vvarphi}{\varphi}
+\bmdefine{\vxi}{\xi}  % x adjoint
+\bmdefine{\vpi}{\pi}  % p adjoint
+\bmdefine{\valpha}{\alpha}  % force vjp x gradient
+\bmdefine{\vzeta}{\zeta}  % force vjp theta gradient
+\newcommand{\lna}{\ln\!a}
+\newcommand{\lnk}{\ln\!k}
+\newcommand{\half}{\nicefrac12}
+\newcommand{\As}{A_\mathrm{s}}
+\newcommand{\ns}{n_\mathrm{s}}
+\newcommand{\Omegam}{\Omega_\mathrm{m}}
+\newcommand{\Omegab}{\Omega_\mathrm{b}}
+\newcommand{\Mpc}{\mathrm{Mpc}}
+\newcommand{\ic}{\mathrm{i}}
+\newcommand{\linear}{\mathrm{lin}}
+\newcommand{\tophat}{\mathrm{TH}}
+\newcommand{\gauss}{\mathrm{G}}
+
+\newcommand{\YL}[1]{\textcolor{Bittersweet}{#1}}
+
+
+
+\title[Optimized Cosmological Simulation]
+{Neural and Symbolic Optimization of Cosmological Particle-Mesh
+Simulation}
+
+
+\author[Zhang \& Li et al.]{
+%
+Yucheng Zhang,$^{1, 2}$
+%
+Yin Li,$^{1, 3, 4}$\thanks{Email: XYZ, eelregit@gmail.com, and XYZ}
+%
+Drew Jamieson,$^{5}$
+%
+Libin Lu,$^{3}$
+%
+and XYZ
+%
+\\$^1$Department of Mathematics and Theory, Peng Cheng Laboratory,
+Shenzhen, Guangdong 518066, China
+%
+\\$^2$Center for Cosmology and Particle Physics, Department of Physics,
+New York University, New York, NY 10003, USA
+%
+\\$^3$Center for Computational Mathematics, Flatiron Institute, New
+York, NY 10010, USA
+%
+\\$^4$Center for Computational Astrophysics, Flatiron Institute, New
+York, NY 10010, USA
+%
+\\$^5$Max Planck Institute for Astrophysics, 85748 Garching bei
+M\"unchen, Germany
+}
+
+
+\date{Accepted XXX. Received YYY; in original form ZZZ}
+\pubyear{2023}
+
+
+
+\begin{document}
+\label{firstpage}
+\pagerange{\pageref{firstpage}--\pageref{lastpage}}
+\maketitle
+
+
+
+\begin{abstract}
+We sharpen the PM force with first neural networks and then symbolic
+regression, taking symmetry and dimensional analysis in consideration.
+\end{abstract}
+
+\begin{keywords}
+cosmology: large-scale structure of Universe
+-- methods: numerical
+-- software: development
+\end{keywords}
+
+
+
+\section*{TODO}
+\begin{itemize}
+\item (paper) Moving some of the following ongoing and completed tasks
+  to the main text and add preliminary figures.
+\item (data; YL) Incorporate 3lpt branch; testing; find a\_start for
+  different mass resolutions; probably replace linear snapshot spacing
+  according to the nonlinearity (estimate (with PM till convergence) the
+  std acc over the std vel) of each realization.
+\item (model; YL) Compare one pair of \GADGET\ and \pmwd\ (with say 100 to 1000 time
+    steps) results and make sure that they agree perfectly on the large
+    scales. For this purpose the box size should be large enough (in
+    linear regime), say 1 Gpc/$h$.\newline
+    \textbf{Update}: for Sobol=6, boxsize=983Mpc, \GADGET\ and \pmwd\ are visually
+    consistent at the field level. To further check power spectrum. For odd mesh
+    shapes (e.g. 1, 3, 5), pmwd and \GADGET\ are perfectly consistent on large
+    scales. \textbf{While for even mesh shapes (e.g. 2, 4), the powers look
+    slightly different. To figure out this weird issue.}
+\item (model; YL) Probably necessary to first incorporate List \& Hahn's
+  recent improvement on FastPM integrator arXiv:2301:09655.
+\item (train, valid) Show $T - 1$ in symlog with 0.01 linthresh, and
+  $1-r^2$ in log at 3 different $a$'s; Show $f$ and $g$ (along axis and
+  face diagonal) at 3 different $a$'s; Track mean epoch loss
+\item (train) Add random offset in loss grid (see \autoref{tab:param})
+  to remove the position dependence in loss.
+\item (train) Randomize snapshots of each simulation instead of
+  sequential; alternatively accumulate their gradients
+\item (train) 3 sets of grid: ptcl, force mesh, and loss grid. Explore
+  if we can use a finer loss grid, from 1x to say 1.5x and even 2x.
+\item (train, valid) Non-integer multiple mesh shapes: for uniform
+  particle grid, test (with double precision on CPUs) whether they start
+  moving by artifact forces on cell scales, in 3 cases: no
+  deconvolution, with CIC deconvolution, with SO.
+\item (train) For generalizability and robustness, consider testing
+  L1/L2 and dropout. Also they're worth adding if they give lower losses
+  at convergence. Note that 512 realization are not too many, and we
+  have features that can be very correlated.
+\item (train) find the best loss function for production training
+\item (train) optuna hyperparam search on a subset of training data
+  before production training
+  (\href{https://github.com/optuna/optuna-examples/blob/main/haiku/haiku_simple.py}{optuna example}).
+\item (train) Reduce learning rate on (mean epoch) loss plateau in
+  production
+\item (valid) Interpolation test: compare SO DM and halo fields and
+  summary stats with those of raw pmwd, deconvolved pmwd, and \GADGET,
+  on the last 9 test cases and noncubic box.
+\item (valid) Extrapolation test: demonstrate generalization capability,
+  compare extrap PySR, extrap SO, raw pmwd, deconv pmwd, and \GADGET.
+\end{itemize}
+
+
+\section{Introduction}
+
+
+\section{Methods}
+
+
+\subsection{Simulation and Differentiation}
+
+We briefly recap the discussion in \citet{Li2022a} and introduce the notations.
+We denote the particles' state with $\vz = (\vx, \vp)^\intercal$ and their
+adjoint variables with $\vlambda = (\vxi, \vpi)$.
+The forward simulation is evolved using a symplectic integrator.
+From $a_{i-1}$ to $a_i$, the particles' state is updated alternately for $\vx$
+and $\vp$ through a loop over the symplectic integration indexed with $j$
+\begin{alignat}{2}
+&D_{j-1}^j: &\qquad \vx_j &= \vx_{j-1} +
+  \vp_{j-1} D(a^p_{j-1}, a^x_{j-1}, a^x_j), \nonumber\\
+%
+&F_j: & \va_j &\triangleq -\vnabla\varphi(\vx_j), \nonumber\\
+%
+&K_{j-1}^j: & \vp_j &= \vp_{j-1} + \va_j K(a^x_j, a^p_{j-1}, a^p_j).
+\label{DFK}
+\end{alignat}
+The intermediate times are given by
+\begin{align}
+a^x_j &= (1 - C^x_j) a_{i-1} + C^x_j a_i, \nonumber\\
+a^p_j &= (1 - C^p_j) a_{i-1} + C^p_j a_i,
+\end{align}
+where $C^x$ and $C^p$ are the cumulative coefficients of the symplectic
+integrator, e.g. $C^x = (0, 0, 1)$ and $C^p = (0, 0.5, 1)$ for leapfrog.
+The reverse time integration from $a_i$ to $a_{i-1}$ and adjoint equations
+\begin{alignat}{2}
+&K_j^{j-1}: &\qquad \vp_{j-1} &= \vp_j +
+  \va_j K(a^x_j, a^p_j, a^p_{j-1}), \nonumber\\
+%
+& & \vxi_{j-1} &= \vxi_j - \valpha_j K(a^x_j, a^p_j, a^p_{j-1}) \nonumber\\
+%
+&D_j^{j-1}: & \vx_{j-1} &= \vx_j +
+  \vp_{j-1} D(a^p_{j-1}, a^x_j, a^x_{j-1}), \nonumber\\
+%
+& & \vpi_{j-1} &= \vpi_j - \vxi_{j-1} D(a^p_{j-1}, a^x_j, a^x_{j-1}), \nonumber\\
+%
+&F_{j-1}: & \va_{j-1} &\triangleq -\vnabla\vvarphi(\vx_{j-1}), \nonumber\\
+%
+& & \valpha_{j-1} &\triangleq -\vpi_{j-1} \cdot
+  \frac{\p\vnabla\vvarphi_{j-1}}{\p\vx_{j-1}}, \nonumber\\
+& & \vzeta_{j-1} &\triangleq - \vpi_{j-1} \cdot
+  \frac{\p\vnabla\vvarphi_{j-1}}{\p\vtheta}.
+\label{KDF_adj}
+\end{alignat}
+
+We consider an objective function $\cJ(\vo, \theta)$ defined on the observable
+$\vo(\vz_0,...,\vz_n,\vtheta)$.
+The observe operator from $a_i$ to $a_{i-1}$ reads
+\begin{align}
+  O_i^{i-1}: \qquad \vxi_{i-1} :\:\!\!\!&= \vxi_{i-1}
+  + \frac{\p\cJ}{\p\vo} \cdot \frac{\p\vo}{\p\vx_{i-1}}, \nonumber\\
+                    \vpi_{i-1} :\:\!\!\!&= \vpi_{i-1}
+  + \frac{\p\cJ}{\p\vo} \cdot \frac{\p\vo}{\p\vp_{i-1}}.
+\end{align}
+
+% % TODO update the final gradient for loop over j
+% The final gradient is accumulated through
+% \begin{multline}
+%   \frac{\d\cJ}{\d\vtheta} = \frac{\p\cJ}{\p\vtheta}
+%   %
+%   + \frac{\p\cJ}{\p\vo} \cdot \frac{\p\vo}{\p\vtheta}
+%   %
+%   + \vxi_0 \cdot \frac{\p\vx_0}{\p\vtheta}
+%   + \vpi_0 \cdot \frac{\p\vp_0}{\p\vtheta} \\
+%   %
+%   - \sum_{i=1}^n \Bigl[
+%     \bigl( \vpi_i \cdot\va_i \frac\p{\p\vtheta} + \vzeta_i
+%       \bigr) K(t_i, t_i, t_{i-\half}) \\
+%     + \vxi_i \cdot \vp_{i-\half}
+%       \frac{\p D(t_{i-\half}, t_i, t_{i-1})}{\p\vtheta}
+%     \Bigr],
+% \label{KDFO_grad}
+% \end{multline}
+% where $\vtheta$ could include cosmological parameters, initial conditions, as
+% well as STO parameters in this work.
+
+
+\subsection{Snapshot Observable}
+\label{sec:snapobs}
+
+Given two snapshots at $a_i$ and $a_{i+1}$, we get the particle displacements
+in between at $a$ using interpolation with the cubic Hermite spline,
+\begin{align}
+  \vx(a) =\ &h_{00}(\alpha)\vx_i + h_{10}(\alpha)(a_{i+1} - a_i)\vv_i + \nonumber\\
+           &h_{01}(\alpha)\vx_{i+1} + h_{11}(\alpha)(a_{i+1} - a_i)\vv_{i+1},
+\end{align}
+where $\alpha := (a - a_i)/(a_{i+1} - a_i)$ and the Hermite basis functions read
+\begin{align}
+  h_{00}(\alpha) &= 2\alpha^3 - 3\alpha^2 + 1, \nonumber\\
+  h_{10}(\alpha) &= \alpha^3 - 2\alpha^2 + \alpha, \nonumber\\
+  h_{01}(\alpha) &= -2\alpha^3 + 3\alpha^2, \nonumber\\
+  h_{11}(\alpha) &= \alpha^3 - \alpha^2.
+\end{align}
+The particle velocity is then given by the derivative $\d\vx / \d a$.
+
+Our observable $\vo$ is a snapshot $\hat\vz = (\hat\vx, \hat\vp)^\intercal$ at a
+given time $a_o$, which in general can be given by the interpolation of two
+snapshots $\vz_{k-1}$ and $\vz_k$ where $a_{k-1} \leq a_o < a_k$.
+Then ${\p\vo}/{\p\vz_i}$ would be zero except for the relevant $\vz_{k-1}$ and
+$\vz_k$.
+We have in the initial conditions of the adjoint equations
+\begin{align}
+  \vxi_n &= \frac{\p\cJ}{\p\vo} \cdot \frac{\p\vo}{\p\vx_n}, \nonumber\\
+  \vpi_n &= \frac{\p\cJ}{\p\vo} \cdot \frac{\p\vo}{\p\vp_n}.
+\end{align}
+In the reverse time evolution of the adjoint equations, these adjoint varibales
+remain zero until the time stepping from $a_{k+1}$ to $a_k$.
+
+
+\subsection{Loss Function}
+
+For the displacement field, we adopt the mean squared error (MSE) loss
+that proved effective in many previous works
+\citep[e.g.,][]{HeEtAl2019, LiEtAl2021}:
+%
+\begin{equation}
+\cL_\vs = \ln \frac{\sum_\vq \bigl[ \hat\vs(\vq) - \vs(\vq) \bigr]^2}
+                   {\sum_{\vq'} s(\vq')^2},
+\end{equation}
+%
+in which a particle originating from its Lagrangian position $\vq$ is
+displaced by $\vs$ in the \GADGET\ snapshot and by $\hat\vs$ in the
+prediction of \pmwd\ model in training.
+Note that we have further taken the logarithm to combine it with the
+other loss(es) below.
+% Say that only s loss is not enough even though in principle it is, and cite DrewEtAl x2 too
+
+\YL{Even though the log should be enough for adaptive optimizer and
+fixed sim config, this may create problem when training on all config at
+the same time. So normalizations inside the log is added above and
+below.}
+
+However, in the Eulerian space, an MSE loss is dominated by the small
+scale modes.
+In this work we choose uniform weights in the scale space on the
+relative MSE.
+We bin the modes logarithmically by \nicefrac13 octave in scale, with
+the $i$-th $k$-bin $K_i \triangleq [k_i, k_{i+1})$, where $k_i =
+2^{1+i/3} \pi / L$.
+Our loss on the overdensity field $\delta$ sums up its MSE relative to
+the target field power in logarithmic bins:
+%
+\begin{equation}
+\cL_\delta = \frac1{N_K} \sum_i \ln
+\frac{\sum_{k \in K_i} \bigl| \hat\delta(\vk) - \delta(\vk) \bigr|^2}
+     {\sum_{k' \in K_i} |\delta(\vk')|^2},
+\end{equation}
+%
+\begin{equation}
+\cL_\delta = \frac1{N_K} \sum_i
+\frac{\sum_{k \in K_i} w(\vk)
+      \bigl| \hat\delta(\vk) - \delta(\vk) \bigr|^2}
+     {\sum_{k' \in K_i} |\delta(\vk')|^2},
+\end{equation}
+%
+where $N_K$ is the number of $k$-bins and $w(\vk)$ is a nonnegative
+factor that suppresses the high $k$ contribution in Eulerian fields such
+as the density field (with $w=1$ for the Lagrangian displacement field).
+This is because a PM solver gradually loses small scale information step
+by step, and without $w$ setting the priority, the loss function could
+encourage the network to fit the small scales at the cost of the
+intermediate scales.
+
+To understand the form of the loss function, let's introduce for each
+mode the square root ratio of power
+%
+\begin{equation}
+T(\vk) \triangleq
+\sqrt{\frac{|\hat f(\vk)|^2}{|f(\vk')|^2}},
+\end{equation}
+%
+and the cross correlation coefficient
+%
+\begin{equation}
+r(\vk) \triangleq
+\frac{\Re \bigl[ \hat f(\vk) f^*(\vk) \bigr]}
+     {\sqrt{|\hat f(\vk)|^2 |f(\vk')|^2}}.
+\end{equation}
+%
+Now, under the mild assumptions that $T$ and $r$ are smooth and
+isotropic, we can show
+%
+\begin{equation}
+\cL_\delta \propto \int \!\d\ln\!k\, \ln
+\Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
+  + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq -\infty,
+\end{equation}
+%
+replacing
+%
+\begin{equation}
+\cL_\delta \propto \int \!\d\ln\!k\, w(\vk)
+\Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
+  + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq 0,
+\end{equation}
+%
+that only vanishes when both $T$ and $r$ are unity for all modes, i.e.,
+when $\hat\delta$ is identical to $\delta$.
+Above we choose the binned version instead for the robustness against
+the noisy modewise $|\delta(\vk)|^2$ in the denominator.
+The derivation here is similar to that in \citet{HeEtAl2019} on the MSE
+loss, while our modification is important to balance among all scales so
+that the neural network does not focus too much on either high or low
+$k$'s.
+
+We combine Lagrangian and Eulerian fields to form the total loss:
+%
+\begin{equation}
+\cJ = \cL_\vs + \cL_\vv + \cL_\delta
++ \cL_{(1+\delta)\vv} + \cL_{(1+\delta)\vv\vv}
++ \cdots
+\end{equation}
+%
+\YL{(a simple sum since we have already done careful normalization in
+$\cL_f$'s) and also try}
+%
+\begin{equation}
+\cJ = \ln\cL_\vs + \ln\cL_\vv + \ln\cL_\delta
++ \ln\cL_{(1+\delta)\vv} + \ln\cL_{(1+\delta)\vv\vv}
++ \cdots
+\end{equation}
+%
+Note that $\cL_\vs$ is on the displacement field $\vs(\vq)$ in the
+Lagrangian space, while the rest are in the Eulerian space:
+%
+\begin{align}
+1 + \delta(\vx) &= \int\!\d^3\vq\,
+\deltaD[ \vx - \vq - \vs(\vq)], \nonumber\\
+%
+\bigl[(1+\delta)\vv\bigr]_i(\vx) &= \int\!\d^3\vq\,
+\deltaD[ \vx - \vq - \vs(\vq)] v_i, \nonumber\\
+%
+\bigl[(1+\delta)\vv\vv\bigr]_{ij}(\vx) &= \int\!\d^3\vq\,
+\deltaD[ \vx - \vq - \vs(\vq)] v_i v_j,
+\end{align}
+%
+which we compute by scattering particles and their velocities to the
+\YL{choice of mesh for loss}.
+
+An alternative loss function can be the Eulernian density weighted
+particle displacement MSE.
+
+
+
+\subsection{Optimization of Dynamics}
+\label{sec:so}
+
+\begin{table}
+\centering
+\caption{Possible features that can affect force sharpening. TODO}
+\label{tab:feat}
+\begin{tabular}{rl}
+\toprule
+type & feature \\
+\midrule
+& $R_\mathrm{d}$: RMS linear displacement \\
+\cmidrule(lr){2-2}
+& $R_P$: $\Delta_\linear^2(R_P^{-1}) \triangleq 1$ \\
+\cmidrule(lr){2-2}
+nonlinear scales & $R_\tophat$: $\sigma_\tophat^2(R_\tophat) \triangleq 1$ \\
+\cmidrule(lr){2-2}
+& $R_\gauss$: $\sigma_\gauss^2(R_\tophat) \triangleq 1$ \\
+\cmidrule(lr){2-2}
+& $\d R / \d\lna$: time derivatives of the above \\
+\midrule
+& particle spacing \\
+\cmidrule(lr){2-2}
+other scales & $l$: PM force mesh cell size \\
+\cmidrule(lr){2-2}
+& softening length \\
+\midrule
+& $G_m(a) \triangleq D_m(a) / a^m, m \in \{1, 2, \YL{3's?}\}$ \\
+\cmidrule(lr){2-2}
+& $\d\ln G_m / \d\lna$ \\
+\cmidrule(lr){2-2}
+dimensionless factors & $\Omegam(a)$ \\
+\cmidrule(lr){2-2}
+& $\d\ln\!H / \d\lna$ \\
+\cmidrule(lr){2-2}
+& $\Delta\lna$: time step size in $\lna$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The dimensionless power spectrum
+%
+\begin{equation}
+\Delta^2(k) \triangleq \frac{k^3 P(k)}{2 \pi^2}.
+\end{equation}
+
+Variance of linear matter overdensity in a top-hat window
+%
+\begin{equation}
+\sigma_\tophat^2(R) = \int_0^\infty \frac{\d k}k
+  \Delta_\linear^2(k) W_\tophat^2(kR),
+\end{equation}
+where $W_\tophat(kR) = 3[\sin(kR) - kR\cos(kR)] / (kR)^3$ is the
+Fourier transform of the top-hat window.
+Likewise $\sigma_\gauss^2(R)$ is defined with a Gaussian window
+$W_\gauss(kR) = e^{-(kR)^2/2}$.
+
+The RMS linear displacement
+%
+\begin{equation}
+R_\mathrm{d} = \int \frac{k P_\linear}{6\pi^2} \d\lnk.
+\end{equation}
+%
+
+Relevant scale-independent dimensionless factors are
+\begin{itemize}
+\item $G_m(a) \triangleq D_m(a) / a^m$: linear growth given in
+  suppression factors for $m \in \{1, 2\}$;
+\item $\d\ln G_m / \d\lna$: with $m=1$ case related to the growth rate
+  $f \triangleq \d\ln D_1 / \d\lna$;
+\item $\Omegam(a)$: matter density parameter at $a$;
+\item $\d\ln\!H / \d\lna$: time derivative of Hubble expansion;
+\item $\Delta\lna$: time step size in $\lna$.
+\end{itemize}
+
+We combine the above list of parameters in $\vvartheta$.
+
+
+In Fourier space, the gravitational force field reads
+\begin{equation}
+- i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
+\end{equation}
+Force sharpening
+%
+\begin{equation}
+\frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
+  f(k_i; \vvartheta) g(k_1, k_2, k_3; \vvartheta),
+\end{equation}
+%
+where $f$, $g$ are neural networks, each approximating a nonlinear
+function of the wavevector components and all the features considered
+above in dimensionless combinations, e.g.,
+%
+\begin{equation}
+f(k_i; \vvartheta) = f(k_i/k_P, kR_\tophat, \cdots; D, f, \cdots).
+\end{equation}
+%
+$f$ and $g$ are optimized during training to correct and sharpen the
+gravitational forces.
+Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is however
+broken by the PM solver to the O\textsubscript{h} discrete symmetry with
+48 elements involving permutations and reversals of the 3 principal axes
+of the simulation box.
+The PM evaluation of each force component can further break the symmetry
+along that axis, leaving the remaining 2 permutationally symmetric.
+Therefore, we implement $f$ and $g$ to be even functions of the
+wavevector components, and $g$ to be permutation equivariant in all 3
+components, so that $f g$ can be the most general way to modify the
+force kernel.
+An even and real kernel in configuration space is also even in Fourier
+space.
+We take the absolute value for the evenness, and sort the 3 wavevector
+compontents to achieve the permutation equivariance.
+
+\YL{It is interesting to symbolically regress $f$, $k_i f$, and $f g$
+etc to see which one gives simpler expression, given the possible
+different rankings by complexity.
+For example, $k_i f(k_i)$ may have a simpler form as a nonlinear odd
+function.}
+
+
+\subsection{Temporal Optimization}
+\label{sec:to}
+
+We use a spline to model the function $a(t)$ that maps uniformly sampled $t$
+values to optimally distributed $a$ time steps.
+The spline is parameterized with a number of control points that are optimized
+during training.
+The gradients (i.e. cotangents) are back propagated from the array of
+integration time steps to the control points through a VJP transformation of
+$a(t)$.
+
+The time-dependence of the discrete symplectic integrator mainly enters through
+the drift and kick factors in \eqref{DFK}.
+Besides, the input features of the SO NNs introduced in \autoref{sec:so} could
+also depend on time.
+Therefore when we perform TO together with SO, the force evaluation in
+\eqref{DFK} which contains SO also becomes time-dependent and needs to be
+optimized.
+
+
+\begin{table*}
+\centering
+\caption{Ranges of \GADGET\ and \pmwd\ configuration and cosmological
+parameters.
+Note that the grid ratio need next fast len to determine the mesh shape
+for fast FFT.
+Given the box size, the mesh shape determines the cell size.
+The softening parameter gives the ratio of the comoving softening length
+to the mean particle spacing.
+The curvature $\Omega_k$ is related to the separate universe simulation.
+We sample parameters applicable to \GADGET\ during data generation, and
+those applicable to \pmwd\ during training.
+\textsuperscript\dag{}The box size is determined jointly by the \pmwd\
+mesh shape and mesh cell size below, which are assumed to be sampled
+independently. \YL{I forgot why I wrote ``Mpc'' without the $h$ here.}
+In practice, we sample one conditioned on the other and the box size.
+*Number of time steps from $a=1/16$ to $a=1$.
+}
+\label{tab:param}
+\begin{tabular}{lcccr}
+\toprule
+applicability & parameter & distribution & range & sampling \\
+\midrule
+& $128^3$ white noise & $\mathcal{N}(\vzero, \vI)$ & 512 realizations & MC \\
+\cmidrule(lr){2-5}
+& 121 snapshots, $a$ & uniform & [1/16, 1] & deterministic \\
+\cmidrule(lr){2-5}
+& box size in Mpc\textsuperscript\dag & log-trapezoidal & [25.6, 2560) \\
+\cmidrule(lr){2-4}
+& snapshot offset, $\Delta\!a$ & uniform & [0, 1/128) \\
+\cmidrule(lr){2-4}
+\GADGET\ & $\As \times 10^9$ & log-uniform & [1, 4) \\
+\cmidrule(lr){2-4}
+\& \pmwd\ & $\ns$ & log-uniform & [0.75, 1.25) & RQMC \\
+\cmidrule(lr){2-4}
+& $\Omegam$ & log-uniform & [1/5, 1/2) & see \autoref{fig:sobol} \\
+\cmidrule(lr){2-4}
+& $\Omegab / \Omegam$ & log-uniform & [1/8, 1/4) \\
+\cmidrule(lr){2-4}
+& $\Omega_k / (1 - \Omega_k)$ & uniform & [-1/3, 1/3) \\
+\cmidrule(lr){2-4}
+& $h$ & log-uniform & [0.5, 1) \\
+\cmidrule(lr){1-4}
+\GADGET\ & softening ratio & log-uniform & [1/50, 1/20) \\
+\cmidrule(lr){1-5}
+& mesh shape & log-uniform & [128, 512] \\
+\cmidrule(lr){2-4}
+\pmwd\ & mesh cell size in Mpc & log-uniform & [0.2, 5] & MC \\
+\cmidrule(lr){2-4}
+& number of time steps* & log-uniform & [10, 1000] \\
+\cmidrule(lr){1-4}
+training & loss grid offset in its own spacing & uniform & $[0, 1)^3$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+
+\subsection{Parameters and Configurations}
+
+We run 512 \GADGET\ simulations that cover a wide range of
+configurations and cosmological parameters, as listed in
+\autoref{tab:param}.
+Each simulation has $128^3$ particles and writes 121 snapshots linearly
+spaced in scale factor from $1/16 + \Delta a$ to $1 + \Delta a$, with
+spacing $1/128$.
+$\Delta a$ is an offset, common for all snapshots in each simulation,
+that varies as in \autoref{tab:param} and helps to sample different
+alignment between snapshot and start/stop times.
+
+The curvature $\Omega_k$ is related to the separate universe simulation
+\citep{LiEtAl2014, WagnerEtAl2015}.
+
+We have verified IC generation on GPUs is deterministic though different
+from those on CPUs, so we generate ICs for both training data and
+training on GPUs.
+
+
+\begin{figure*}
+  \centering
+  \includegraphics[width=0.9\linewidth]{sobol.pdf}
+  \caption{Randomized Quasi-Monte Carlo (RQMC) configuration with
+    scrambled Sobol sequence of 512 points in 9D.
+    Lower triangular panels show the 2D projections and the diagonal
+    panels are the 1D cumulative histograms.
+    From left to right (top to bottom), we use each dimension of the
+    sample to scale the parameters as ordered in \autoref{tab:param}.
+    We use the \texttt{scipy.stats.qmc} package \citep{SciPy} to
+    generate the Sobol sequence \citep{Sobol1967}, which uses the
+    direction number from \citet{JoeKuo2008} and the Owen scrambling
+    \citep{Owen1998}.
+    We search among 65536 scrambling seeds to minimize the mixture
+    discrepancy (a uniformity measure) proposed in \citet{Zhou2013MD}.
+  }
+  \label{fig:sobol}
+\end{figure*}
+
+
+\subsection{Simulations}
+
+\citet{GADGET-4}
+
+We configure \GADGET\ with high force and time integration accuracy
+settings.
+For gravitational force, we choose pure FMM with $p=5$ and opening angle
+0.4.
+%FIXME list other from Config.sh and param.txt
+
+
+\subsection{Training}
+
+Given 512 \GADGET\ simulations and 121 output snapshots each, in total we have
+61952 snapshots for training.
+Following \autoref{tab:param}, given a snapshot from \GADGET\ simulations, we
+configure \pmwd\ with the same initial coniditions and cosmological parameters,
+and randomly sample the mesh shape (or the mesh cell size) and the number of
+time steps.
+
+We perform parallel training using a number of nodes that each hosts multiple
+GPU devices.
+The training on a given snapshot is performed on a single GPU device.
+The gradients are collected and averaged to update the SO parameters.
+To make sure that each individual training in a parallel run finishes in similar
+time, they share the same number of time steps.
+
+
+\section{Results}
+
+\subsection{SO function}
+
+We use the \texttt{PySR} \citep{Cranmer2023} symbolic regression code to
+fit for an analytic function expression of the SO neural network.
+
+
+
+\section{Conclusions}
+
+
+\section*{Acknowledgements}
+
+YZ and YL were supported by The Major Key Project of PCL.
+The Flatiron Institute is supported by the Simons Foundation.
+
+
+\section*{Code Availability}
+
+\pmwd\ \citep{Li2022b} is open-source on
+\href{https://github.com/eelregit/pmwd}{GitHub}, including the
+\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/sto}{source
+and scripts of this paper}.
+
+
+
+\bibliographystyle{mnras}
+\bibliography{sto}
+
+
+
+\bsp  % typesetting comment
+\label{lastpage}
+\end{document}
