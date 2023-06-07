@@ -147,6 +147,9 @@ cosmology: large-scale structure of Universe
   different mass resolutions; probably replace linear snapshot spacing
   according to the nonlinearity (estimate (with PM till convergence) the
   std acc over the std vel) of each realization.
+\item (model; YL) Change nbody for loop by lax scan and/or while loops.
+  while\_loop can help to save compilation when trained on different
+  snapshots. Performance difference between scan and while?
 \item (model; YL) Compare one pair of \GADGET\ and \pmwd\ (with say 100 to 1000 time
     steps) results and make sure that they agree perfectly on the large
     scales. For this purpose the box size should be large enough (in
@@ -158,33 +161,40 @@ cosmology: large-scale structure of Universe
     slightly different. To figure out this weird issue.}
 \item (model; YL) Probably necessary to first incorporate List \& Hahn's
   recent improvement on FastPM integrator arXiv:2301:09655.
-\item (train, valid) Show $T - 1$ in symlog with 0.01 linthresh, and
-  $1-r^2$ in log at 3 different $a$'s; Show $f$ and $g$ (along axis and
-  face diagonal) at 3 different $a$'s; Track mean epoch loss
-\item (train) Add random offset in loss grid (see \autoref{tab:param})
-  to remove the position dependence in loss.
+\item (train, test) For $\vs(\vq)$, $\vv(\vq)$, $\delta(\vx)$,
+  $(1+\delta)\vv(\vx)$, $(1+\delta)\vv\vv(\vx)$, show $T - 1$ in symlog
+  with 0.01 linthresh, and $1-r^2$ in log at 3 different $a$'s; Show $f$
+  and $g$ (along axis and face diagonal) at 3 different $a$'s; Track
+  mean epoch loss
 \item (train) Randomize snapshots of each simulation instead of
-  sequential; alternatively accumulate their gradients
-\item (train) 3 sets of grid: ptcl, force mesh, and loss grid. Explore
-  if we can use a finer loss grid, from 1x to say 1.5x and even 2x.
-\item (train, valid) Non-integer multiple mesh shapes: for uniform
+  sequential; alternatively accumulate their gradients; Normalize loss
+  by number of time steps
+\item (train, test) 3 sets of grid for ptcl, force mesh, and loss. Add
+  random offset in loss grid (see \autoref{tab:param}) to remove the
+  position dependence in loss; likewise for force mesh? how about only
+  training (for lower loss), only ``inference'' (for higher accuracy),
+  or both? the random force mesh offset can also be replaced by a
+  structured scheme, e.g., alternating between 2 interlocking grids
+\item (train) Explore if we can use a finer loss grid, from 1x to say
+  1.5x and even 2x.
+\item (train, test) Non-integer multiple mesh shapes: for uniform
   particle grid, test (with double precision on CPUs) whether they start
   moving by artifact forces on cell scales, in 3 cases: no
   deconvolution, with CIC deconvolution, with SO.
-\item (train) For generalizability and robustness, consider testing
-  L1/L2 and dropout. Also they're worth adding if they give lower losses
-  at convergence. Note that 512 realization are not too many, and we
-  have features that can be very correlated.
 \item (train) find the best loss function for production training
+\item (train) For generalizability and robustness, consider testing
+  weight decay and dropout. Also they're worth adding if they give lower
+  losses at convergence. Note that 512 realization are not too many, and
+  we have features that can be very correlated.
 \item (train) optuna hyperparam search on a subset of training data
   before production training
   (\href{https://github.com/optuna/optuna-examples/blob/main/haiku/haiku_simple.py}{optuna example}).
 \item (train) Reduce learning rate on (mean epoch) loss plateau in
   production
-\item (valid) Interpolation test: compare SO DM and halo fields and
+\item (test) Interpolation test: compare SO DM and halo fields and
   summary stats with those of raw pmwd, deconvolved pmwd, and \GADGET,
   on the last 9 test cases and noncubic box.
-\item (valid) Extrapolation test: demonstrate generalization capability,
+\item (test) Extrapolation test: demonstrate generalization capability,
   compare extrap PySR, extrap SO, raw pmwd, deconv pmwd, and \GADGET.
 \end{itemize}
 
@@ -306,6 +316,40 @@ remain zero until the time stepping from $a_{k+1}$ to $a_k$.
 
 \subsection{Loss Function}
 
+\YL{
+For a field $f$ in either Lagrangian or Eulerian space, we have thought
+of 3 forms of MSE-inspired loss:
+%
+\begin{equation}
+\cL_f = \ln \frac{\sum_\vq \bigl[ \hat f(\vq) - f(\vq) \bigr]^2}
+                   {\sum_{\vq'} f(\vq')^2},
+\end{equation}
+%
+(or with $\vq$ replaced by $\vx$ for Eulerian fields, or equivalently by
+their Fourier wavevector $\vk$ in both cases)
+%
+\begin{equation}
+\cL_f = \frac1{N_K} \sum_i \ln
+\frac{\sum_{k \in K_i} \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
+     {\sum_{k' \in K_i} | f(\vk')|^2},
+\end{equation}
+%
+and
+%
+\begin{equation}
+\cL_f = \ln \biggl[ \frac1{N_K} \sum_i
+\frac{\sum_{k \in K_i} w(\vk)
+      \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
+     {\sum_{k' \in K_i} |f(\vk')|^2} \biggl].
+\end{equation}
+%
+Then the question is which loss we should use for which $f$, to get
+stable and robust results, e.g., no bump for large or small boxes.
+To further limit our scope in this paper, we should probably only
+consider $f \in \{\vs, \delta\}$, and optionally the Lagrangian particle
+velocity $\vv(\vq)$.
+}
+
 For the displacement field, we adopt the mean squared error (MSE) loss
 that proved effective in many previous works
 \citep[e.g.,][]{HeEtAl2019, LiEtAl2021}:
@@ -403,40 +447,28 @@ $k$'s.
 We combine Lagrangian and Eulerian fields to form the total loss:
 %
 \begin{equation}
-\cJ = \cL_\vs + \cL_\vv + \cL_\delta
-+ \cL_{(1+\delta)\vv} + \cL_{(1+\delta)\vv\vv}
-+ \cdots
+\cJ = \frac1{N_a} (\cL_\vs + [\cL_\vv] + \cL_\delta),
 \end{equation}
 %
+where $N_a$ is the time steps it take to generate the snapshot for each
+iteration.
 \YL{(a simple sum since we have already done careful normalization in
 $\cL_f$'s) and also try}
 %
 \begin{equation}
-\cJ = \ln\cL_\vs + \ln\cL_\vv + \ln\cL_\delta
-+ \ln\cL_{(1+\delta)\vv} + \ln\cL_{(1+\delta)\vv\vv}
-+ \cdots
+\cJ = \frac1{N_a} (\ln\cL_\vs + [\ln\cL_\vv] + \ln\cL_\delta).
 \end{equation}
 %
+
+\YL{TODO move this above:}
 Note that $\cL_\vs$ is on the displacement field $\vs(\vq)$ in the
-Lagrangian space, while the rest are in the Eulerian space:
+Lagrangian space, while the density field is in the Eulerian space:
 %
-\begin{align}
-1 + \delta(\vx) &= \int\!\d^3\vq\,
-\deltaD[ \vx - \vq - \vs(\vq)], \nonumber\\
+\begin{equation}
+1 + \delta(\vx) = \int\!\d^3\vq\, \deltaD[ \vx - \vq - \vs(\vq)],
+\end{equation}
 %
-\bigl[(1+\delta)\vv\bigr]_i(\vx) &= \int\!\d^3\vq\,
-\deltaD[ \vx - \vq - \vs(\vq)] v_i, \nonumber\\
-%
-\bigl[(1+\delta)\vv\vv\bigr]_{ij}(\vx) &= \int\!\d^3\vq\,
-\deltaD[ \vx - \vq - \vs(\vq)] v_i v_j,
-\end{align}
-%
-which we compute by scattering particles and their velocities to the
-\YL{choice of mesh for loss}.
-
-An alternative loss function can be the Eulernian density weighted
-particle displacement MSE.
-
+which we compute by scattering particles to the choice of grid for loss.
 
 
 \subsection{Optimization of Dynamics}
@@ -546,8 +578,8 @@ The PM evaluation of each force component can further break the symmetry
 along that axis, leaving the remaining 2 permutationally symmetric.
 Therefore, we implement $f$ and $g$ to be even functions of the
 wavevector components, and $g$ to be permutation equivariant in all 3
-components, so that $f g$ can be the most general way to modify the
-force kernel.
+components, so that $f g$ is the most general modification to the force
+kernel.
 An even and real kernel in configuration space is also even in Fourier
 space.
 We take the absolute value for the evenness, and sort the 3 wavevector
@@ -690,19 +722,21 @@ For gravitational force, we choose pure FMM with $p=5$ and opening angle
 
 \subsection{Training}
 
-Given 512 \GADGET\ simulations and 121 output snapshots each, in total we have
-61952 snapshots for training.
-Following \autoref{tab:param}, given a snapshot from \GADGET\ simulations, we
-configure \pmwd\ with the same initial coniditions and cosmological parameters,
-and randomly sample the mesh shape (or the mesh cell size) and the number of
-time steps.
+Given 512 \GADGET\ simulations and 121 output snapshots each, in total
+we have 61952 snapshots for training.
+Following \autoref{tab:param}, in each iteration, we randomly sample the
+snapshots, the number of time steps, and the mesh shape (or its cell
+size), and configure \pmwd\ with the same initial coniditions,
+cosmological parameters and other common configurations.
+To balance the work of GPUs during training, in each iteration we use
+the same snapshot $a$, number of time steps, and mesh shape on all GPU.
 
-We perform parallel training using a number of nodes that each hosts multiple
-GPU devices.
-The training on a given snapshot is performed on a single GPU device.
+We perform parallel training using a number of nodes that each hosts
+multiple GPU devices.
+The training on each snapshot is performed on a single GPU device.
 The gradients are collected and averaged to update the SO parameters.
-To make sure that each individual training in a parallel run finishes in similar
-time, they share the same number of time steps.
+
+Hyperparameters:
 
 
 \section{Results}
