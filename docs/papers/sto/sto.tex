@@ -63,6 +63,8 @@
 \bmdefine{\vpi}{\pi}  % p adjoint
 \bmdefine{\valpha}{\alpha}  % force vjp x gradient
 \bmdefine{\vzeta}{\zeta}  % force vjp theta gradient
+\newcommand{\lna}{\ln\!a}
+\newcommand{\lnk}{\ln\!k}
 \newcommand{\half}{\nicefrac12}
 \newcommand{\As}{A_\mathrm{s}}
 \newcommand{\ns}{n_\mathrm{s}}
@@ -83,7 +85,7 @@
 Particle-Mesh Simulation}
 
 
-\author[Zhang, Li, Jamieson, et al.]{
+\author[Zhang \& Li et al.]{
 %
 Yucheng Zhang,$^{1, 2}$
 %
@@ -125,7 +127,8 @@ M\"unchen, Germany
 
 
 \begin{abstract}
-We sharpen PM force and optimize integration time steps.
+We optimize integration time steps with first neural networks and then
+symbolic regression, taking dimensional analysis in consideration.
 \end{abstract}
 
 \begin{keywords}
@@ -138,39 +141,6 @@ cosmology: large-scale structure of Universe
 
 \section*{TODO}
 \begin{itemize}
-\item Separate sto to SO and TO.
-\item Moving some of the following ongoing and completed tasks to the
-    main text and add preliminary figures.
-\item Implement the rest of the nonlinear scales, including the rms
-    displacement with np.trapz of $P$ over $\ln k$, the $\ln a$ time
-    derivatives, etc.\newline
-    \textbf{Update}: code has been added.
-\item Compare one pair of \GADGET\ and \pmwd\ (with say 100 to 1000 time
-    steps) results and make sure that they agree perfectly on the large
-    scales. For this purpose the box size should be large enough (in
-    linear regime), say 1 Gpc/$h$.\newline
-    \textbf{Update}: for Sobol=6, boxsize=983Mpc, \GADGET\ and \pmwd\ are visually
-    consistent at the field level. To further check power spectrum. For odd mesh
-    shapes (e.g. 1, 3, 5), pmwd and \GADGET\ are perfectly consistent on large
-    scales. \textbf{While for even mesh shapes (e.g. 2, 4), the powers look
-    slightly different. To figure out this weird issue.}
-\item Be careful with the non-deterministic ICs generated on GPUs.\newline
-      \textbf{Update}: we have shown that ICs generated on GPUs are
-      deterministic (but different from those on CPUs), generating ICs for both
-      training data and training on GPUs might be the simplest solution.
-\item Incorporate 3lpt branch; testing; find a\_start for different mass
-  resolutions
-\item Probably necessary to first incorporate List \& Hahn's recent
-  improvement on FastPM integrator arXiv:2301:09655.
-\item Compare sto DM and halo fields and summary stats with those of raw
-  pmwd, deconvolved pmwd, and \GADGET, on the last 9 test cases and
-  noncubic box.
-\item Demonstrate capability of generalization, on some cases with
-  extrapolating cosmological parameters, etc.
-\item Non-integer multiple mesh shapes: for uniform particle grid, test
-  (with double precision on CPUs) whether they start moving by artifact
-  forces on cell scales, in 3 cases: no deconvolution, with CIC
-  deconvolution, with SO.
 \item In TO, time step spacing can be important for light cone
   generation. We can train on light cone target data to learn TO for
   light cones. The result may be related to $c \d t/H = c \d a / a^2 H$.
@@ -345,18 +315,6 @@ This is because a PM solver gradually loses small scale information step
 by step, and without $w$ setting the priority, the loss function could
 encourage the network to fit the small scales at the cost of the
 intermediate scales.
-As a result, we can set the loss mesh size the same as that of the PM
-force solver.
-We can try for $w$:
-%
-\begin{equation}
-\prod_{j=1}^3 \frac{k_j l / 2}{\tan(k_j l /2)} \textrm{to some power},
-\prod_{j=1}^3 \cos (k_j l / 2) \textrm{to some power},
-\end{equation}
-%
-which vanish when any $k_j$ reaches the Nyquist.
-\YL{Maybe add a figure of $w$ along axis, face diagonal and body
-digonal, if this works.}
 
 To understand the form of the loss function, let's introduce for each
 mode the square root ratio of power
@@ -403,18 +361,20 @@ $k$'s.
 We combine Lagrangian and Eulerian fields to form the total loss:
 %
 \begin{equation}
-\cJ = \cL_\vs + \cL_\delta
+\cJ = \frac1{N_a} (\cL_\vs + \cL_\vv + \cL_\delta
 + \cL_{(1+\delta)\vv} + \cL_{(1+\delta)\vv\vv}
-+ \cdots
++ \cdots),
 \end{equation}
 %
+where $N_a$ is the time steps it take to generate the snapshot for each
+iteration.
 \YL{(a simple sum since we have already done careful normalization in
 $\cL_f$'s) and also try}
 %
 \begin{equation}
-\cJ = \ln \cL_\vs + \ln \cL_\delta
-+ \ln \cL_{(1+\delta)\vv} + \ln \cL_{(1+\delta)\vv\vv}
-+ \cdots
+\cJ = \frac1{N_a} (\ln\cL_\vs + \ln\cL_\vv + \ln\cL_\delta
++ \ln\cL_{(1+\delta)\vv} + \ln\cL_{(1+\delta)\vv\vv}
++ \cdots).
 \end{equation}
 %
 Note that $\cL_\vs$ is on the displacement field $\vs(\vq)$ in the
@@ -432,15 +392,48 @@ Lagrangian space, while the rest are in the Eulerian space:
 \end{align}
 %
 which we compute by scattering particles and their velocities to the
-\YL{choice of mesh for loss}.
-
-An alternative loss function can be the Eulernian density weighted
-particle displacement MSE.
-
+choice of grid for loss.
 
 
 \subsection{Spatial Optimization}
 \label{sec:so}
+
+\begin{table}
+\centering
+\caption{Possible features that can affect force sharpening. TODO}
+\label{tab:feat}
+\begin{tabular}{rl}
+\toprule
+type & feature \\
+\midrule
+& $R_\mathrm{d}$: RMS linear displacement \\
+\cmidrule(lr){2-2}
+& $R_P$: $\Delta_\linear^2(R_P^{-1}) \triangleq 1$ \\
+\cmidrule(lr){2-2}
+nonlinear scales & $R_\tophat$: $\sigma_\tophat^2(R_\tophat) \triangleq 1$ \\
+\cmidrule(lr){2-2}
+& $R_\gauss$: $\sigma_\gauss^2(R_\tophat) \triangleq 1$ \\
+\cmidrule(lr){2-2}
+& $\d R / \d\lna$: time derivatives of the above \\
+\midrule
+& particle spacing \\
+\cmidrule(lr){2-2}
+other scales & $l$: PM force mesh cell size \\
+\cmidrule(lr){2-2}
+& softening length \\
+\midrule
+& $G_m(a) \triangleq D_m(a) / a^m, m \in \{1, 2, \YL{3's?}\}$ \\
+\cmidrule(lr){2-2}
+& $\d\ln G_m / \d\lna$ \\
+\cmidrule(lr){2-2}
+dimensionless factors & $\Omegam(a)$ \\
+\cmidrule(lr){2-2}
+& $\d\ln\!H / \d\lna$ \\
+\cmidrule(lr){2-2}
+& $\Delta\lna$: time step size in $\lna$ \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 The dimensionless power spectrum
 %
@@ -459,34 +452,22 @@ Fourier transform of the top-hat window.
 Likewise $\sigma_\gauss^2(R)$ is defined with a Gaussian window
 $W_\gauss(kR) = e^{-(kR)^2/2}$.
 
-
-Various nonlinear scales are
-\begin{itemize}
-\item $k_P^{-1}$: determined by $\Delta_\linear^2(k_P) \triangleq 1$;
-\item $R_\tophat$: determined by $\sigma_\tophat^2(R_\tophat) \triangleq
-  1$;
-\item $R_\gauss$: determined by $\sigma_\gauss^2(R_\tophat) \triangleq
-  1$;
-\item $R_\mathrm{d}$: rms linear theory displacement;
-\item $\d R / \d\ln a$: time derivatives of the above scales.
-\end{itemize}
-
-Other relevant scales are
-\begin{itemize}
-\item $l$: PM cell size.
-\item particle spacing;
-\item softening length.
-\end{itemize}
+The RMS linear displacement
+%
+\begin{equation}
+R_\mathrm{d} = \int \frac{k P_\linear}{6\pi^2} \d\lnk.
+\end{equation}
+%
 
 Relevant scale-independent dimensionless factors are
 \begin{itemize}
 \item $G_m(a) \triangleq D_m(a) / a^m$: linear growth given in
   suppression factors for $m \in \{1, 2\}$;
-\item $\d\ln G_m / \d\ln a$: with $m=1$ case related to the growth rate
-  $f \triangleq \d\ln D_1 / \d\ln a$;
+\item $\d\ln G_m / \d\lna$: with $m=1$ case related to the growth rate
+  $f \triangleq \d\ln D_1 / \d\lna$;
 \item $\Omegam(a)$: matter density parameter at $a$;
-\item $\d\ln H / \d\ln a$: time derivative of Hubble expansion;
-\item $\Delta\ln a$: time step size in $\ln a$.
+\item $\d\ln\!H / \d\lna$: time derivative of Hubble expansion;
+\item $\Delta\lna$: time step size in $\lna$.
 \end{itemize}
 
 We combine the above list of parameters in $\vvartheta$.
@@ -500,24 +481,38 @@ Force sharpening
 %
 \begin{equation}
 \frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
-  h(k_i; \vvartheta) g(k; \vvartheta) \prod_{j=1}^3 f(k_j; \vvartheta),
+  f(k_i; \vvartheta) g(k_1, k_2, k_3; \vvartheta),
 \end{equation}
 %
-where $f$, $g$, $h$ are neural networks, each approximating a nonlinear
-function of the dimensionless features, e.g.,
+where $f$, $g$ are neural networks, each approximating a nonlinear
+function of the wavevector components and all the features considered
+above in dimensionless combinations, e.g.,
 %
 \begin{equation}
-g(k; \vvartheta) = g(k/k_P, kR_\tophat, \cdots; D, f, \cdots).
+f(k_i; \vvartheta) = f(k_i/k_P, kR_\tophat, \cdots; D, f, \cdots).
 \end{equation}
+%
+$f$ and $g$ are optimized during training to correct and sharpen the
+gravitational forces.
+Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is however
+broken by the PM solver to the O\textsubscript{h} discrete symmetry with
+48 elements involving permutations and reversals of the 3 principal axes
+of the simulation box.
+The PM evaluation of each force component can further break the symmetry
+along that axis, leaving the remaining 2 permutationally symmetric.
+Therefore, we implement $f$ and $g$ to be even functions of the
+wavevector components, and $g$ to be permutation equivariant in all 3
+components, so that $f g$ is the most general modification to the force
+kernel.
+An even and real kernel in configuration space is also even in Fourier
+space.
+We take the absolute value for the evenness, and sort the 3 wavevector
+compontents to achieve the permutation equivariance.
 
-Parameters in these neural networks are optimized during training.
-
-\YL{While $g$ is spherically symmetric by assumption, $f$ and $h$ are
-expected to be even functions, i.e., real valued in Fourier space.
-It is interesting to symbolically regress both $h(k_i)$ and $k_i h(k_i)$
-to see which one gives simpler expression, given the possible different
-rankings by complexity.
-For example, $k_i h(k_i)$ may have a simpler form as a nonlinear odd
+\YL{It is interesting to symbolically regress $f$, $k_i f$, and $f g$
+etc to see which one gives simpler expression, given the possible
+different rankings by complexity.
+For example, $k_i f(k_i)$ may have a simpler form as a nonlinear odd
 function.}
 
 
@@ -555,43 +550,45 @@ We sample parameters applicable to \GADGET\ during data generation, and
 those applicable to \pmwd\ during training.
 \textsuperscript\dag{}The box size is determined jointly by the \pmwd\
 mesh shape and mesh cell size below, which are assumed to be sampled
-independently.
+independently. \YL{I forgot why I wrote ``Mpc'' without the $h$ here.}
 In practice, we sample one conditioned on the other and the box size.
 *Number of time steps from $a=1/16$ to $a=1$.
 }
 \label{tab:param}
 \begin{tabular}{lcccr}
-  \toprule
-  applicability & parameter & distribution & range & sampling \\
-  \midrule
-  & $128^3$ white noise & $\mathcal{N}(\vzero, \vI)$ & 512 realizations & MC \\
-  \cmidrule(lr){2-5}
-  & 121 snapshots, $a$ & uniform & [1/16, 1] & deterministic \\
-  \cmidrule(lr){2-5}
-  & box size in Mpc\textsuperscript\dag & log-trapezoidal & [25.6, 2560) \\
-  \cmidrule(lr){2-4}
-  & snapshot offset, $\Delta\!a$ & uniform & [0, 1/128) \\
-  \cmidrule(lr){2-4}
-  \GADGET\ & $\As \times 10^9$ & log-uniform & [1, 4) \\
-  \cmidrule(lr){2-4}
-  \& \pmwd\ & $\ns$ & log-uniform & [0.75, 1.25) & RQMC \\
-  \cmidrule(lr){2-4}
-  & $\Omegam$ & log-uniform & [1/5, 1/2) & see \autoref{fig:sobol} \\
-  \cmidrule(lr){2-4}
-  & $\Omegab / \Omegam$ & log-uniform & [1/8, 1/4) \\
-  \cmidrule(lr){2-4}
-  & $\Omega_k / (1 - \Omega_k)$ & uniform & [-1/3, 1/3) \\
-  \cmidrule(lr){2-4}
-  & $h$ & log-uniform & [0.5, 1) \\
-  \cmidrule(lr){1-4}
-  \GADGET\ & softening ratio & log-uniform & [1/50, 1/20) \\
-  \cmidrule(lr){1-5}
-  & mesh shape & log-uniform & [128, 512] \\
-  \cmidrule(lr){2-4}
-  \pmwd\ & mesh cell size in Mpc & log-uniform & [0.2, 5] & MC \\
-  \cmidrule(lr){2-4}
-  & number of time steps* & log-uniform & [10, 1000] \\
-  \bottomrule
+\toprule
+applicability & parameter & distribution & range & sampling \\
+\midrule
+& $128^3$ white noise & $\mathcal{N}(\vzero, \vI)$ & 512 realizations & MC \\
+\cmidrule(lr){2-5}
+& 121 snapshots, $a$ & uniform & [1/16, 1] & deterministic \\
+\cmidrule(lr){2-5}
+& box size in Mpc\textsuperscript\dag & log-trapezoidal & [25.6, 2560) \\
+\cmidrule(lr){2-4}
+& snapshot offset, $\Delta\!a$ & uniform & [0, 1/128) \\
+\cmidrule(lr){2-4}
+\GADGET\ & $\As \times 10^9$ & log-uniform & [1, 4) \\
+\cmidrule(lr){2-4}
+\& \pmwd\ & $\ns$ & log-uniform & [0.75, 1.25) & RQMC \\
+\cmidrule(lr){2-4}
+& $\Omegam$ & log-uniform & [1/5, 1/2) & see \autoref{fig:sobol} \\
+\cmidrule(lr){2-4}
+& $\Omegab / \Omegam$ & log-uniform & [1/8, 1/4) \\
+\cmidrule(lr){2-4}
+& $\Omega_k / (1 - \Omega_k)$ & uniform & [-1/3, 1/3) \\
+\cmidrule(lr){2-4}
+& $h$ & log-uniform & [0.5, 1) \\
+\cmidrule(lr){1-4}
+\GADGET\ & softening ratio & log-uniform & [1/50, 1/20) \\
+\cmidrule(lr){1-5}
+& mesh shape & log-uniform & [128, 512] \\
+\cmidrule(lr){2-4}
+\pmwd\ & mesh cell size in Mpc & log-uniform & [0.2, 5] & MC \\
+\cmidrule(lr){2-4}
+& number of time steps* & log-uniform & [10, 1000] \\
+\cmidrule(lr){1-4}
+training & loss grid offset in its own spacing & uniform & $[0, 1)^3$ \\
+\bottomrule
 \end{tabular}
 \end{table*}
 
@@ -609,7 +606,11 @@ that varies as in \autoref{tab:param} and helps to sample different
 alignment between snapshot and start/stop times.
 
 The curvature $\Omega_k$ is related to the separate universe simulation
-\citep{LiEtAl2014}.
+\citep{LiEtAl2014, WagnerEtAl2015}.
+
+We have verified IC generation on GPUs is deterministic though different
+from those on CPUs, so we generate ICs for both training data and
+training on GPUs.
 
 
 \begin{figure*}
@@ -645,26 +646,28 @@ For gravitational force, we choose pure FMM with $p=5$ and opening angle
 
 \subsection{Training}
 
-Given 512 \GADGET\ simulations and 121 output snapshots each, in total we have
-61952 snapshots for training.
-Following \autoref{tab:param}, given a snapshot from \GADGET\ simulations, we
-configure \pmwd\ with the same initial coniditions and cosmological parameters,
-and randomly sample the mesh shape (or the mesh cell size) and the number of
-time steps.
+Given 512 \GADGET\ simulations and 121 output snapshots each, in total
+we have 61952 snapshots for training.
+Following \autoref{tab:param}, in each iteration, we randomly sample the
+snapshots, the number of time steps, and the mesh shape (or its cell
+size), and configure \pmwd\ with the same initial coniditions,
+cosmological parameters and other common configurations.
+To balance the work of GPUs during training, in each iteration we use
+the same snapshot $a$, number of time steps, and mesh shape on all GPU.
 
-We perform parallel training using a number of nodes that each hosts multiple
-GPU devices.
-The training on a given snapshot is performed on a single GPU device.
-The gradients are collected and averaged to update the STO parameters.
-To make sure that each individual training in a parallel run finishes in similar
-time, they share the same number of time steps.
+We perform parallel training using a number of nodes that each hosts
+multiple GPU devices.
+The training on each snapshot is performed on a single GPU device.
+The gradients are collected and averaged to update the SO parameters.
+
+Hyperparameters:
 
 
 \section{Results}
 
 \subsection{SO function}
 
-We use the \texttt{PySR} \citep{PySR, Cranmer2020} symbolic regression code to
+We use the \texttt{PySR} \citep{Cranmer2023} symbolic regression code to
 fit for an analytic function expression of the SO neural network.
 
 
