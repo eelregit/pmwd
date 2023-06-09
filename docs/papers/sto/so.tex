@@ -77,6 +77,7 @@
 \newcommand{\gauss}{\mathrm{G}}
 
 \newcommand{\YL}[1]{\textcolor{Bittersweet}{#1}}
+\newcommand{\YZ}[1]{\textcolor{MidnightBlue}{#1}}
 
 
 
@@ -168,7 +169,9 @@ cosmology: large-scale structure of Universe
   mean epoch loss
 \item (train) Randomize snapshots of each simulation instead of
   sequential; alternatively accumulate their gradients; Normalize loss
-  by number of time steps
+  by number of time steps\newline
+  \YZ{\textbf{Update}: Normalizing loss by number of time steps seems to halt
+  the training of late time snapshots, i.e. they stop improving.}
 \item (train, test) 3 sets of grid for ptcl, force mesh, and loss. Add
   random offset in loss grid (see \autoref{tab:param}) to remove the
   position dependence in loss; likewise for force mesh? how about only
