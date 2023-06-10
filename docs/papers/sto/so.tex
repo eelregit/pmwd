@@ -130,6 +130,10 @@ M\"unchen, Germany
 \begin{abstract}
 We sharpen the PM force with first neural networks and then symbolic
 regression, taking symmetry and dimensional analysis in consideration.
+
+We combine differentiable simulation, deep learning, [decision tree
+(feature selection)], and symbolic regression to extract the final kernel
+applicable to all other cosmological simulation code.
 \end{abstract}
 
 \begin{keywords}
@@ -324,15 +328,18 @@ For a field $f$ in either Lagrangian or Eulerian space, we have thought
 of 3 forms of MSE-inspired loss:
 %
 \begin{equation}
-\cL_f = \ln \frac{\sum_\vq \bigl[ \hat f(\vq) - f(\vq) \bigr]^2}
-                   {\sum_{\vq'} f(\vq')^2},
+\cL_f = \frac1{N_a} \ln
+  \frac{\sum_\vq \bigl[ \hat f(\vq) - f(\vq) \bigr]^2}
+       {\sum_{\vq'} f(\vq')^2},
 \end{equation}
 %
+where $N_a$ is the time steps it take to generate the snapshot for each
+iteration.
 (or with $\vq$ replaced by $\vx$ for Eulerian fields, or equivalently by
 their Fourier wavevector $\vk$ in both cases)
 %
 \begin{equation}
-\cL_f = \frac1{N_K} \sum_i \ln
+\cL_f = \frac1{N_a N_K} \sum_i \ln
 \frac{\sum_{k \in K_i} \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
      {\sum_{k' \in K_i} | f(\vk')|^2},
 \end{equation}
@@ -340,7 +347,7 @@ their Fourier wavevector $\vk$ in both cases)
 and
 %
 \begin{equation}
-\cL_f = \ln \biggl[ \frac1{N_K} \sum_i
+\cL_f = \frac1{N_a} \ln \biggl[ \frac1{N_K} \sum_i
 \frac{\sum_{k \in K_i} w(\vk)
       \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
      {\sum_{k' \in K_i} |f(\vk')|^2} \biggl].
@@ -450,16 +457,7 @@ $k$'s.
 We combine Lagrangian and Eulerian fields to form the total loss:
 %
 \begin{equation}
-\cJ = \frac1{N_a} (\cL_\vs + [\cL_\vv] + \cL_\delta),
-\end{equation}
-%
-where $N_a$ is the time steps it take to generate the snapshot for each
-iteration.
-\YL{(a simple sum since we have already done careful normalization in
-$\cL_f$'s) and also try}
-%
-\begin{equation}
-\cJ = \frac1{N_a} (\ln\cL_\vs + [\ln\cL_\vv] + \ln\cL_\delta).
+\cJ = \cL_\vs + [\cL_\vv] + \cL_\delta.
 \end{equation}
 %
 
