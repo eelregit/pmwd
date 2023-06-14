@@ -138,3 +138,6 @@ class G4snapDataset(Dataset):
         # TODO generate pmwd parameters and IC here?
 
         return self.g4data[sobol_id][snap_id]
+
+    def getsnap(self, sidx, snap):
+        return self.g4data[sidx][snap]
