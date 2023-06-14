@@ -1,10 +1,19 @@
 import jax.numpy as jnp
+
 from pmwd.scatter import scatter
 from pmwd.spec_util import powspec
+from pmwd.particles import Particles
 
 
-def ptcl2dens(ptcls, conf, mesh_shape):
-    if mesh_shape is None:  # the mesh in pmwd sim
+def pv2ptcl(pos, vel, pmid, conf):
+    """Get ptcl given (pos, vel) and (pmid, conf)."""
+    disp = pos - pmid * conf.cell_size
+    return Particles(conf, pmid, disp, vel)
+
+
+def scatter_dens(ptcls, conf, mesh_shape):
+    """A wrapper to scatter particles onto a given mesh shape for dens."""
+    if mesh_shape is None:  # the mesh in PM force
         cell_size = conf.cell_size
         mesh_shape = conf.mesh_shape
     else:  # float or int
@@ -15,11 +24,12 @@ def ptcl2dens(ptcls, conf, mesh_shape):
     return denss, (mesh_shape, cell_size)
 
 
-def power_tfcc(dens, dens_t, cell_size):
+def power_tfcc(f, g, spacing, cut_nyq=False):
+    """A wrapper to get the trans func and corr coef of two fields."""
     # estimate power spectra
-    k, ps, N, bins = powspec(dens, cell_size, cut_nyq=False)
-    k, ps_t, N, bins = powspec(dens_t, cell_size, cut_nyq=False)
-    k, ps_cross, N, bins = powspec(dens, cell_size, g=dens_t, cut_nyq=False)
+    k, ps, N, bins = powspec(f, spacing, cut_nyq=cut_nyq)
+    k, ps_t, N, bins = powspec(g, spacing, cut_nyq=cut_nyq)
+    k, ps_cross, N, bins = powspec(f, spacing, g=g, cut_nyq=cut_nyq)
     ps_cross = ps_cross.real
 
     # the transfer function and correlation coefficient
@@ -27,14 +37,3 @@ def power_tfcc(dens, dens_t, cell_size):
     cc = ps_cross / jnp.sqrt(ps * ps_t)
 
     return k, tf, cc
-
-
-def mlp_size(mlp_params):
-    """Infer the sizes of input and hidden layers given a list of MLP params."""
-    n_input, n_nodes = [], []
-    for params in mlp_params:
-        dic = params['params']
-        n_input.append(dic['layers_0']['kernel'].shape[0])
-        n_nodes.append([dic[f'layers_{i}']['kernel'].shape[1] for i in range(len(dic))])
-
-    return n_input, n_nodes

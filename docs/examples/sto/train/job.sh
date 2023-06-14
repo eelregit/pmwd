@@ -1,13 +1,13 @@
 #!/usr/bin/bash
 
 #SBATCH --partition=gpu
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --gpus-per-node=1
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=4
+#SBATCH --gpus-per-node=4
 #SBATCH --cpus-per-task=8
-#SBATCH --constraint=a100-80gb
+#SBATCH --constraint=h100
 #SBATCH --mem-per-gpu=125G
-#SBATCH --time=0-3
+#SBATCH --time=0-12
 
 module purge
 

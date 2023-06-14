@@ -57,3 +57,14 @@ def init_mlp_params(n_input, nodes, scheme=None):
             params[i] = freeze(p)
 
     return params
+
+
+def mlp_size(mlp_params):
+    """Infer the sizes of input and hidden layers given a list of MLP params."""
+    n_input, n_nodes = [], []
+    for params in mlp_params:
+        dic = params['params']
+        n_input.append(dic['layers_0']['kernel'].shape[0])
+        n_nodes.append([dic[f'layers_{i}']['kernel'].shape[1] for i in range(len(dic))])
+
+    return n_input, n_nodes

@@ -27,7 +27,7 @@ def _global_mean(loss, grad):
     return loss, grad
 
 
-def _init_pmwd(pmwd_params):
+def init_pmwd(pmwd_params):
     a_out, sidx, sobol, mesh_shape, n_steps, so_type, so_nodes = pmwd_params
 
     # generate ic, cosmo, conf
@@ -39,7 +39,7 @@ def _init_pmwd(pmwd_params):
 
 
 def train_step(tgt, so_params, pmwd_params, opt_params):
-    ptcl_ic, cosmo, conf = _init_pmwd(pmwd_params)
+    ptcl_ic, cosmo, conf = init_pmwd(pmwd_params)
 
     # loss and grad
     obj_valgrad = jax.value_and_grad(obj, argnums=2)
