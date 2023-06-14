@@ -67,6 +67,12 @@ def sotheta(cosmo, conf, a):
     return (theta_l, theta_o)
 
 
+def sotheta_names():
+    # str names of the variables returned by the sotheta function above
+    # currently hardcoded, should be updated along with sotheta function
+    pass
+
+
 def soft_len(l_fac=1):
     # get the length of SO input features with dummy conf and cosmo
     conf = Configuration(1., (128,)*3)
