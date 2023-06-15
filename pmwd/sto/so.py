@@ -136,6 +136,8 @@ def sonn_g(kv, theta, cosmo, conf, nid):
 
 def pot_sharp(kvec, theta, pot, cosmo, conf, a):
     """Spatial optimization of the laplace potential."""
+    kvec = jnp.abs(kvec)
+
     if conf.so_type == 3:
         if conf.so_nodes[0] is not None:  # apply f net
             f = [sonn_bc(k_, theta, cosmo, conf, 0) for k_ in kvec]
@@ -162,6 +164,8 @@ def pot_sharp(kvec, theta, pot, cosmo, conf, a):
 
 def grad_sharp(k, theta, grad, cosmo, conf, a):
     """Spatial optimization of the gradient."""
+    k = jnp.abs(k)
+
     if conf.so_type == 3:
         if conf.so_nodes[2] is not None:  # apply h net
             grad *= sonn_bc(k, theta, cosmo, conf, 2)
