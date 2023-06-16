@@ -1,31 +1,32 @@
-\documentclass[usenatbib]{mnras}
-
-% Allow "Thomas van Noord" and "Simon de Laguarde" and alike to be sorted by "N" and "L" etc. in the bibliography.
-% Write the name in the bibliography as "\VAN{Noord}{Van}{van} Noord, Thomas"
-\DeclareRobustCommand{\VAN}[3]{#2}
-\let\VANthebibliography\thebibliography
-\def\thebibliography{\DeclareRobustCommand{\VAN}[3]{##3}\VANthebibliography}
+\documentclass[modern, trackchanges, dvipsnames]{aastex631}
+  \urlstyle{sf}
 
 
+\usepackage{CJK}
 \usepackage{microtype}
+\usepackage{savesym}
+  \savesymbol{lambdabar}
 \usepackage{newpxtext, eulerpx}
+  \restoresymbol{newpx}{lambdabar}
 \usepackage[T1]{fontenc}
+\usepackage{fontawesome}
 \usepackage{amsmath}
 \usepackage{bm}
-\usepackage{dsfont}
-\usepackage{graphicx}
-\usepackage{booktabs}
 \usepackage{nicefrac}
-\usepackage[dvipsnames]{xcolor}
+\usepackage[caption=false]{subfig}
+\usepackage[figure,figure*]{hypcap}
+%\usepackage{tikz}
+%  \usetikzlibrary{positioning, fit, calc, arrows.meta}
+\usepackage{booktabs}
 
 
 \newcommand{\pmwd}{{\usefont{T1}{nova}{m}{sl}pmwd}}
-\newcommand{\GADGET}{{{\fontsize{7.7pt}{9pt}\selectfont GADGET}-4}}
+\newcommand{\GADGET}{{{\fontsize{10pt}{12pt}\selectfont GADGET}-4}}
 
-\renewcommand{\sectionautorefname}{Sec.}
-\renewcommand{\subsectionautorefname}{Sec.}
-\renewcommand{\appendixautorefname}{App.}
-\renewcommand{\figureautorefname}{Fig.}
+%\renewcommand{\sectionautorefname}{Sec.}
+%\renewcommand{\subsectionautorefname}{Sec.}
+%\renewcommand{\appendixautorefname}{App.}
+%\renewcommand{\figureautorefname}{Fig.}
 %\newcommand{\subfigureautorefname}{\figureautorefname}
 
 %FIXME copied from ../adjoint/adjoint.tex
@@ -76,66 +77,60 @@
 \newcommand{\tophat}{\mathrm{TH}}
 \newcommand{\gauss}{\mathrm{G}}
 
+\newcommand{\GPU}{NVIDIA H100 PCIe}  % 80GB memory
+
 \newcommand{\YL}[1]{\textcolor{Bittersweet}{#1}}
-
-
-
-\title[Spatiotemporally Optimized Simulation]
-{Neural and Symbolic Spatiotemporal Optimization of Cosmological
-Particle-Mesh Simulation}
-
-
-\author[Zhang \& Li et al.]{
-%
-Yucheng Zhang,$^{1, 2}$
-%
-Yin Li,$^{1, 3, 4}$\thanks{Email: XYZ, eelregit@gmail.com, and XYZ}
-%
-Drew Jamieson,$^{5}$
-%
-Libin Lu,$^{3}$
-%
-and XYZ
-%
-\\$^1$Department of Mathematics and Theory, Peng Cheng Laboratory,
-Shenzhen, Guangdong 518066, China
-%
-\\$^2$Center for Cosmology and Particle Physics, Department of Physics,
-New York University, New York, NY 10003, USA
-%
-\\$^3$Center for Computational Mathematics, Flatiron Institute, New
-York, NY 10010, USA
-%
-\\$^4$Center for Computational Astrophysics, Flatiron Institute, New
-York, NY 10010, USA
-%
-\\$^5$Max Planck Institute for Astrophysics, 85748 Garching bei
-M\"unchen, Germany
-}
-
-
-\date{Accepted XXX. Received YYY; in original form ZZZ}
-\pubyear{2023}
+\newcommand{\YZ}[1]{\textcolor{MidnightBlue}{#1}}
 
 
 
 \begin{document}
-\label{firstpage}
-\pagerange{\pageref{firstpage}--\pageref{lastpage}}
-\maketitle
+
+
+
+\title{\large Spatiotemporal Optimization of Cosmological Particle-Mesh
+Simulation by Neural, Tree, and Symbolic Regressions
+\vspace{0.3em}}
+
+
+\author[0000-0002-9300-2632]{\normalsize Yucheng Zhang}
+\affiliation{Department of Mathematics and Theory, Peng Cheng
+Laboratory, Shenzhen, Guangdong 518066, China}
+\affiliation{Center for Cosmology and Particle Physics, New York
+University, New York, New York 10003, USA}
+
+\author[0000-0002-0701-1410]{\normalsize Yin Li}
+\affiliation{Center for Computational Mathematics, Flatiron Institute,
+New York, New York 10010, USA}
+\affiliation{Department of Mathematics and Theory, Peng Cheng
+Laboratory, Shenzhen, Guangdong 518066, China}
+\affiliation{Center for Computational Astrophysics, Flatiron Institute,
+New York, New York 10010, USA}
+
+\author[0000-0001-5044-7204]{\normalsize Drew Jamieson}
+\affiliation{Max Planck Institute for Astrophysics, 85748 Garching bei
+M\"unchen, Germany}
+
+\author[0000-0003-0745-9431]{\normalsize Libin Lu}
+\affiliation{Center for Computational Mathematics, Flatiron Institute,
+New York, New York 10010, USA}
+
+
+\shorttitle{Spatiotemporally Optimized Simulation}
+\shortauthors{Zhang \& Li et al.}
+
+
+\correspondingauthor{XYZ, Yin Li, and XYZ}
+\email{XYZ, eelregit@gmail.com, and XYZ}
 
 
 
 \begin{abstract}
+
 We optimize integration time steps with first neural networks and then
 symbolic regression, taking dimensional analysis in consideration.
-\end{abstract}
 
-\begin{keywords}
-cosmology: large-scale structure of Universe
--- methods: numerical
--- software: development
-\end{keywords}
+\end{abstract}
 
 
 
@@ -144,15 +139,34 @@ cosmology: large-scale structure of Universe
 \item In TO, time step spacing can be important for light cone
   generation. We can train on light cone target data to learn TO for
   light cones. The result may be related to $c \d t/H = c \d a / a^2 H$.
+\item Fix cross references and other journal quirks as a patch
 \end{itemize}
 
 
+\vspace{1em}
 \section{Introduction}
 
 
+\vspace{1em}
+\section{Results}
+
+
+\vspace{1em}
+\subsection{SO function}
+
+We use the \texttt{PySR} \citep{Cranmer2023} symbolic regression code to
+fit for an analytic function expression of the SO neural network.
+
+
+\vspace{1em}
+\section{Discussion}
+
+
+\vspace{1em}
 \section{Methods}
 
 
+\vspace{1em}
 \subsection{Simulation and Differentiation}
 
 We briefly recap the discussion in \citet{Li2022a} and introduce the notations.
@@ -230,6 +244,7 @@ The observe operator from $a_i$ to $a_{i-1}$ reads
 % well as STO parameters in this work.
 
 
+\vspace{1em}
 \subsection{Snapshot Observable}
 \label{sec:snapobs}
 
@@ -262,6 +277,7 @@ In the reverse time evolution of the adjoint equations, these adjoint varibales
 remain zero until the time stepping from $a_{k+1}$ to $a_k$.
 
 
+\vspace{1em}
 \subsection{Loss Function}
 
 For the displacement field, we adopt the mean squared error (MSE) loss
@@ -321,7 +337,7 @@ mode the square root ratio of power
 %
 \begin{equation}
 T(\vk) \triangleq
-\sqrt{\frac{|\hat f(\vk)|^2}{|f(\vk')|^2}},
+\sqrt{\frac{|\hat f(\vk)|^2}{|f(\vk)|^2}},
 \end{equation}
 %
 and the cross correlation coefficient
@@ -329,7 +345,7 @@ and the cross correlation coefficient
 \begin{equation}
 r(\vk) \triangleq
 \frac{\Re \bigl[ \hat f(\vk) f^*(\vk) \bigr]}
-     {\sqrt{|\hat f(\vk)|^2 |f(\vk')|^2}}.
+     {\sqrt{|\hat f(\vk)|^2 |f(\vk)|^2}}.
 \end{equation}
 %
 Now, under the mild assumptions that $T$ and $r$ are smooth and
@@ -395,6 +411,7 @@ which we compute by scattering particles and their velocities to the
 choice of grid for loss.
 
 
+\vspace{1em}
 \subsection{Spatial Optimization}
 \label{sec:so}
 
@@ -516,6 +533,7 @@ For example, $k_i f(k_i)$ may have a simpler form as a nonlinear odd
 function.}
 
 
+\vspace{1em}
 \subsection{Temporal Optimization}
 \label{sec:to}
 
@@ -593,6 +611,7 @@ training & loss grid offset in its own spacing & uniform & $[0, 1)^3$ \\
 \end{table*}
 
 
+\vspace{1em}
 \subsection{Parameters and Configurations}
 
 We run 512 \GADGET\ simulations that cover a wide range of
@@ -633,6 +652,7 @@ training on GPUs.
 \end{figure*}
 
 
+\vspace{1em}
 \subsection{Simulations}
 
 \citet{GADGET-4}
@@ -644,6 +664,7 @@ For gravitational force, we choose pure FMM with $p=5$ and opening angle
 %FIXME list other from Config.sh and param.txt
 
 
+\vspace{1em}
 \subsection{Training}
 
 Given 512 \GADGET\ simulations and 121 output snapshots each, in total
@@ -663,38 +684,28 @@ The gradients are collected and averaged to update the SO parameters.
 Hyperparameters:
 
 
-\section{Results}
-
-\subsection{SO function}
-
-We use the \texttt{PySR} \citep{Cranmer2023} symbolic regression code to
-fit for an analytic function expression of the SO neural network.
-
-
-
-\section{Conclusions}
-
-
-\section*{Acknowledgements}
-
+\vspace{1em}
+\textit{\large Acknowledgements:}
 YZ and YL were supported by The Major Key Project of PCL.
 The Flatiron Institute is supported by the Simons Foundation.
 
 
-\section*{Code Availability}
+\vspace{1em}
+\textit{\large Code Availability:}
+\pmwd\ \citep{Li2022b} is open-source on GitHub
+\href{https://github.com/eelregit/pmwd}{\faGithub}, including the source
+files and scripts of this paper
+\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/sto}{\faFile}.
 
-\pmwd\ \citep{Li2022b} is open-source on
-\href{https://github.com/eelregit/pmwd}{GitHub}, including the
-\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/sto}{source
-and scripts of this paper}.
 
 
-
-\bibliographystyle{mnras}
+\bibliographystyle{aasjournal}
 \bibliography{sto}
 
 
 
-\bsp  % typesetting comment
-\label{lastpage}
+%\listofchanges
+
+
+
 \end{document}
