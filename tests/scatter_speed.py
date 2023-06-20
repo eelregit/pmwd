@@ -29,8 +29,8 @@ pmid = ptcl.pmid.astype(jnp.uint32)
 mesh = random.uniform(key, shape=conf.mesh_shape,dtype=jnp.float32,minval=0.0,maxval=2.0)
 val = random.uniform(key, shape=(ngrid*ngrid*ngrid,),dtype=jnp.float32,minval=0.0,maxval=2.0)
 disp = random.uniform(key, shape=(ngrid*ngrid*ngrid,3),dtype=jnp.float32,minval=0.0,maxval=2.0)
-cell_size = 1.
-offset = tuple((0.,0.,0.))
+cell_size = 0.83
+offset = tuple((0.31,0.21,0.13))
 
 mesh0 = mesh*0;
 mesh0 = pmwd.scatter_cuda(pmid, disp, val, mesh0, offset, ptcl_grid_shape, ptcl_spacing, cell_size).block_until_ready()
