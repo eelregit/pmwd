@@ -136,7 +136,7 @@ def sonn_g(kv, theta, cosmo, conf, nid):
 
 def pot_sharp(kvec, theta, pot, cosmo, conf, a):
     """Spatial optimization of the laplace potential."""
-    kvec = jnp.abs(kvec)
+    kvec = map(jnp.abs, kvec)
 
     if conf.so_type == 3:
         if conf.so_nodes[0] is not None:  # apply f net
