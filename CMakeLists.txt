@@ -32,7 +32,7 @@ check_language(CUDA)
 if (CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
     set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-    set(CMAKE_CUDA_ARCHITECTURES "80")
+    set(CMAKE_CUDA_ARCHITECTURES "60;70;75;80")
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Wall -Wno-unknown-pragmas -O3 -use_fast_math")
     add_compile_options(-Wall -Wno-unknown-pragmas -O3 -funroll-loops -use_fast_math)
 
