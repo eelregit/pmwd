@@ -224,80 +224,9 @@ applicable to all other cosmological simulation code.
 The differentiable cosmological simulation with adjoint method \citep{Li2022a}
 and the corresponding PM $N$-body library \pmwd\ \citep{Li2022b} are the
 foundation of the optimization discussed in this work.
-We briefly recap the discussion in \citet{Li2022a} and introduce the notations.
 We denote the particles' state with $\vz = (\vx, \vp)^\intercal$ and their
 adjoint variables with $\vlambda = (\vxi, \vpi)$.
-The forward simulation is evolved using a symplectic integrator.
-From time step $a_{i-1}$ to $a_i$, the particles' state is updated alternately
-for $\vx$ and $\vp$ through a loop over the symplectic integration indexed with
-$j$
-\begin{alignat}{2}
-&D_{j-1}^j: &\qquad \vx_j &= \vx_{j-1} +
-  \vp_{j-1} D(a^p_{j-1}, a^x_{j-1}, a^x_j), \nonumber\\
-%
-&F_j: & \va_j &\triangleq -\vnabla\varphi(\vx_j), \nonumber\\
-%
-&K_{j-1}^j: & \vp_j &= \vp_{j-1} + \va_j K(a^x_j, a^p_{j-1}, a^p_j).
-\label{DFK}
-\end{alignat}
-The intermediate times are given by
-\begin{align}
-a^x_j &= (1 - C^x_j) a_{i-1} + C^x_j a_i, \nonumber\\
-a^p_j &= (1 - C^p_j) a_{i-1} + C^p_j a_i,
-\end{align}
-where $C^x$ and $C^p$ are the cumulative coefficients of the symplectic
-integrator, e.g. $C^x = (0, 0, 1)$ and $C^p = (0, 0.5, 1)$ for leapfrog.
-The reverse time integration from $a_i$ to $a_{i-1}$ and adjoint equations
-\begin{alignat}{2}
-&K_j^{j-1}: &\qquad \vp_{j-1} &= \vp_j +
-  \va_j K(a^x_j, a^p_j, a^p_{j-1}), \nonumber\\
-%
-& & \vxi_{j-1} &= \vxi_j - \valpha_j K(a^x_j, a^p_j, a^p_{j-1}) \nonumber\\
-%
-&D_j^{j-1}: & \vx_{j-1} &= \vx_j +
-  \vp_{j-1} D(a^p_{j-1}, a^x_j, a^x_{j-1}), \nonumber\\
-%
-& & \vpi_{j-1} &= \vpi_j - \vxi_{j-1} D(a^p_{j-1}, a^x_j, a^x_{j-1}), \nonumber\\
-%
-&F_{j-1}: & \va_{j-1} &\triangleq -\vnabla\vvarphi(\vx_{j-1}), \nonumber\\
-%
-& & \valpha_{j-1} &\triangleq -\vpi_{j-1} \cdot
-  \frac{\p\vnabla\vvarphi_{j-1}}{\p\vx_{j-1}}, \nonumber\\
-& & \vzeta_{j-1} &\triangleq - \vpi_{j-1} \cdot
-  \frac{\p\vnabla\vvarphi_{j-1}}{\p\vtheta}.
-\label{KDF_adj}
-\end{alignat}
 
-We consider an objective function $\cJ(\vo, \theta)$ defined on the observable
-$\vo(\vz_0,...,\vz_n,\vtheta)$.
-The observe operator from $a_i$ to $a_{i-1}$ reads
-\begin{align}
-  O_i^{i-1}: \qquad \vxi_{i-1} :\:\!\!\!&= \vxi_{i-1}
-  + \frac{\p\cJ}{\p\vo} \cdot \frac{\p\vo}{\p\vx_{i-1}}, \nonumber\\
-                    \vpi_{i-1} :\:\!\!\!&= \vpi_{i-1}
-  + \frac{\p\cJ}{\p\vo} \cdot \frac{\p\vo}{\p\vp_{i-1}}.
-\end{align}
-
-% % TODO update the final gradient for loop over j
-% The final gradient is accumulated through
-% \begin{multline}
-%   \frac{\d\cJ}{\d\vtheta} = \frac{\p\cJ}{\p\vtheta}
-%   %
-%   + \frac{\p\cJ}{\p\vo} \cdot \frac{\p\vo}{\p\vtheta}
-%   %
-%   + \vxi_0 \cdot \frac{\p\vx_0}{\p\vtheta}
-%   + \vpi_0 \cdot \frac{\p\vp_0}{\p\vtheta} \\
-%   %
-%   - \sum_{i=1}^n \Bigl[
-%     \bigl( \vpi_i \cdot\va_i \frac\p{\p\vtheta} + \vzeta_i
-%       \bigr) K(t_i, t_i, t_{i-\half}) \\
-%     + \vxi_i \cdot \vp_{i-\half}
-%       \frac{\p D(t_{i-\half}, t_i, t_{i-1})}{\p\vtheta}
-%     \Bigr],
-% \label{KDFO_grad}
-% \end{multline}
-% where $\vtheta$ could include cosmological parameters, initial conditions, as
-% well as neural network parameters for optimization in this work.
 
 
 \vspace{1em}
