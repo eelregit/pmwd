@@ -221,12 +221,16 @@ applicable to all other cosmological simulation code.
 \vspace{1em}
 \subsection{Differentiable Simulation}
 
+The differentiable cosmological simulation with adjoint method \citep{Li2022a}
+and the corresponding PM $N$-body library \pmwd\ \citep{Li2022b} are the
+foundation of the optimization discussed in this work.
 We briefly recap the discussion in \citet{Li2022a} and introduce the notations.
 We denote the particles' state with $\vz = (\vx, \vp)^\intercal$ and their
 adjoint variables with $\vlambda = (\vxi, \vpi)$.
 The forward simulation is evolved using a symplectic integrator.
-From $a_{i-1}$ to $a_i$, the particles' state is updated alternately for $\vx$
-and $\vp$ through a loop over the symplectic integration indexed with $j$
+From time step $a_{i-1}$ to $a_i$, the particles' state is updated alternately
+for $\vx$ and $\vp$ through a loop over the symplectic integration indexed with
+$j$
 \begin{alignat}{2}
 &D_{j-1}^j: &\qquad \vx_j &= \vx_{j-1} +
   \vp_{j-1} D(a^p_{j-1}, a^x_{j-1}, a^x_j), \nonumber\\
@@ -293,7 +297,7 @@ The observe operator from $a_i$ to $a_{i-1}$ reads
 % \label{KDFO_grad}
 % \end{multline}
 % where $\vtheta$ could include cosmological parameters, initial conditions, as
-% well as STO parameters in this work.
+% well as neural network parameters for optimization in this work.
 
 
 \vspace{1em}
@@ -316,10 +320,12 @@ where $\alpha := (a - a_i)/(a_{i+1} - a_i)$ and the Hermite basis functions read
 The particle velocity is then given by the derivative $\d\vx / \d a$.
 
 We refer to the quantities that are directly related to the objective function
-as the observables. Our observable $\vo$ is a snapshot $\hat\vz = (\hat\vx,
+as the observables.
+Our observable $\vo$ is a snapshot $\hat\vz = (\hat\vx,
 \hat\vp)^\intercal$ at a given time $a_o$, which in general can be given by the
 interpolation of two snapshots $\vz_{k-1}$ and $\vz_k$ where $a_{k-1} \leq a_o <
-a_k$. Then ${\p\vo}/{\p\vz_i}$ would be zero except for the relevant $\vz_{k-1}$
+a_k$.
+Then ${\p\vo}/{\p\vz_i}$ would be zero except for the relevant $\vz_{k-1}$
 and $\vz_k$. We have in the initial conditions of the adjoint equations
 \begin{align}
   \vxi_n &= \frac{\p\cJ}{\p\vo} \cdot \frac{\p\vo}{\p\vx_n}, \nonumber\\
@@ -330,7 +336,7 @@ remain zero until the time stepping from $a_{k+1}$ to $a_k$.
 
 
 \vspace{1em}
-\subsection{Spatial Optimization of Dynamics}
+\subsection{Optimization of Dynamics}
 \label{sec:so}
 
 \begin{table}
@@ -443,6 +449,14 @@ An even and real kernel in configuration space is also even in Fourier
 space.
 We take the absolute value for the evenness, and sort the 3 wavevector
 compontents to achieve the permutation equivariance.
+
+\YZ{
+The parameters of the neural networks, which enter every force evaluation in
+every time integration step, can be treated just the same as other cosmological
+parameters.
+The objective gradients are accumulated, based on which the parameters are then
+optimized.
+}
 
 
 \vspace{1em}
@@ -719,12 +733,17 @@ cosmological parameters and other common configurations.
 To balance the work of GPUs during training, in each iteration we use
 the same snapshot $a$, number of time steps, and mesh shape on all GPU.
 
-We perform parallel training using a number of nodes that each hosts
-multiple GPU devices.
+We perform parallel training using distributed GPU devices.
 The training on each snapshot is performed on a single GPU device.
 The gradients are collected and averaged to update the SO parameters.
 
 Hyperparameters:
+
+\YZ{
+We implement the neural networks with \texttt{Flax} \citep{flax2020github}, and
+use the optimizers in \texttt{Optax}, part of the DeepMind JAX Ecosystem
+\citep{deepmind2020jax}.
+}
 
 
 \vspace{1em}
