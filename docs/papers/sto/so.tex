@@ -268,6 +268,21 @@ remain zero until the time stepping from $a_{k+1}$ to $a_k$.
 \subsection{Optimization of Dynamics}
 \label{sec:so}
 
+In Fourier space, the gravitational force field reads
+\begin{equation}
+- i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
+\end{equation}
+Force sharpening
+%
+\begin{equation}
+\frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
+  f(k_i; \vvartheta) g(k_1, k_2, k_3; \vvartheta),
+\end{equation}
+%
+where $f$, $g$ are neural networks, each approximating a nonlinear
+function of the wavevector components and all possible relevant features
+$\vvartheta$ summarized in \autoref{tab:feat} and discussed below.
+
 \begin{table}
 \centering
 \caption{Possible features that can affect force sharpening. TODO}
@@ -342,21 +357,7 @@ Relevant scale-independent dimensionless factors are
 
 We combine the above list of parameters in $\vvartheta$.
 
-
-In Fourier space, the gravitational force field reads
-\begin{equation}
-- i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
-\end{equation}
-Force sharpening
-%
-\begin{equation}
-\frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
-  f(k_i; \vvartheta) g(k_1, k_2, k_3; \vvartheta),
-\end{equation}
-%
-where $f$, $g$ are neural networks, each approximating a nonlinear
-function of the wavevector components and all the features considered
-above in dimensionless combinations, e.g.,
+Dimensionless combinations, e.g.,
 %
 \begin{equation}
 f(k_i; \vvartheta) = f(k_i/k_P, kR_\tophat, \cdots; D, f, \cdots).
