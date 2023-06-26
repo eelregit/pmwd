@@ -360,7 +360,11 @@ We combine the above list of parameters in $\vvartheta$.
 Dimensionless combinations, e.g.,
 %
 \begin{equation}
-f(k_i; \vvartheta) = f(k_i/k_P, kR_\tophat, \cdots; D, f, \cdots).
+f(k_i; \vvartheta) = f(k_iR_d, k_iR_\tophat, \cdots; G_m, \Omegam, \cdots)
+\end{equation}
+%
+\begin{equation}
+g(k_1, k_2, k_3; \vvartheta) = g(\{k_jR_d, k_jR_\tophat, \cdots\}_{j=1,2,3}; G_m, \Omegam, \cdots)
 \end{equation}
 %
 $f$ and $g$ are optimized during training to correct and sharpen the
@@ -386,6 +390,8 @@ every time integration step, can be treated just the same as other cosmological
 parameters.
 The objective gradients are accumulated, based on which the parameters are then
 optimized.
+For both $f$ and $g$ neural networks, we adopt the multilayer perceptron (MLP)
+structure, each with one input layer, two hidden layers and one output layer.
 }
 
 
@@ -665,7 +671,8 @@ the same snapshot $a$, number of time steps, and mesh shape on all GPU.
 
 We perform parallel training using distributed GPU devices.
 The training on each snapshot is performed on a single GPU device.
-The gradients are collected and averaged to update the SO parameters.
+During each training step, the gradients are collected and averaged across
+devices to update the SO parameters.
 
 Hyperparameters:
 
