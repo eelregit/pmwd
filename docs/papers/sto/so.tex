@@ -197,6 +197,8 @@ applicable to all other cosmological simulation code.
   on the last 9 test cases and noncubic box.
 \item (test) Extrapolation test: demonstrate generalization capability,
   compare extrap PySR, extrap SO, raw pmwd, deconv pmwd, and \GADGET.
+\item (test) Generate a sample of $(X, y)$ data with the trained neural network
+  for feature selection and symbolic regression.
 \item Fix cross references and other journal quirks as a patch
 \end{itemize}
 
@@ -686,8 +688,20 @@ use the optimizers in \texttt{Optax}, part of the DeepMind JAX Ecosystem
 \vspace{1em}
 \subsection{Symbolic Regression}
 
-We use the \texttt{PySR} \citep{Cranmer2023} symbolic regression code to fit for
-analytic function expressions of the trained SO neural networks.
+We generate a sample of (input, output) data with the trained neural network to
+perform feature selection and SR.
+
+We use the random forest regressor for feature selection using impurity-based
+importance.
+\YZ{Maybe we can add another column in \autoref{tab:feat} for feature
+importance?}
+We use the \texttt{scikit-learn} \citep{scikit-learn} code for this.
+% more details on the hyperparams in random forest
+
+The selected important features are then used for SR.
+
+We use the \texttt{PySR} \citep{Cranmer2023} SR code to fit for analytic
+function expressions of the trained SO neural networks.
 
 \YL{It is interesting to symbolically regress $f$, $k_i f$, and $f g$
 etc to see which one gives simpler expression, given the possible
