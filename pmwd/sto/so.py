@@ -86,29 +86,7 @@ def soft(k, theta):
     """SO features for neural nets input, with k being a scalar."""
     theta_l, theta_o = theta
     k_theta_l = k * theta_l
-    # k_theta_l = jnp.log(jnp.where(k_theta_l != 0., jnp.abs(k_theta_l), 1.))
     return jnp.concatenate((k_theta_l, theta_o))
-
-
-def soft_bc(k, theta):
-    """SO features for neural nets input, broadcast with k being an array."""
-    # multiply each element of k with theta_l, and append theta_o
-    theta_l, theta_o = theta
-    k_shape = k.shape
-    k = k.reshape(k_shape + (1,))
-    theta_l = theta_l.reshape((1,) * len(k_shape) + theta_l.shape)
-    ft = k * theta_l
-    # ft = jnp.log(jnp.where(ft != 0., jnp.abs(ft), 1.))
-    ft = jnp.concatenate((ft, jnp.broadcast_to(theta_o, k_shape+theta_o.shape)),
-                         axis=-1)
-    return ft
-
-
-def sonn_bc(k, theta, cosmo, conf, nid):
-    """Evaluate the neural net, broadcast with k being processed in one pass."""
-    ft = soft_bc(k, theta)
-    net = MLP(features=conf.so_nodes[nid])
-    return net.apply(cosmo.so_params[nid], ft)[..., 0]  # rm the trailing axis of dim one
 
 
 def sonn_vmap(k, theta, cosmo, conf, nid):
@@ -120,32 +98,45 @@ def sonn_vmap(k, theta, cosmo, conf, nid):
     return vmap(_sonn)(k.ravel()).reshape(k.shape)
 
 
-def sonn_g(kv, theta, cosmo, conf, nid):
-    # kv shape: e.g. (128, 128, 65, 3)
-    kv_shape = kv.shape
-    kv = kv.reshape(kv_shape + (1,))
-
-    theta_l, theta_o = theta
-    theta_l = theta_l.reshape((1,) * len(kv_shape) + theta_l.shape)
-    ft = (kv * theta_l).reshape(kv_shape[:-1] + (-1,))
-    ft = jnp.concatenate((ft, jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)),
-                         axis=-1)
+def sonn_k(k, theta, cosmo, conf, nid):
+    """SO net with input: (k * l, o)."""
+    theta_l, theta_o = theta  # e.g. (8,), (6,)
+    k_shape = k.shape  # e.g. (128, 1, 1)
+    k = k.reshape(k_shape + (1,))  # (128, 1, 1, 1)
+    theta_l = theta_l.reshape((1,) * len(k_shape) + theta_l.shape)  # (1, 1, 1, 8)
+    ft = k * theta_l  # (128, 1, 1, 8)
+    theta_o = jnp.broadcast_to(theta_o, k_shape+theta_o.shape)  # (128, 1, 1, 6)
+    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 1, 1, 8+6)
     net = MLP(features=conf.so_nodes[nid])
     return net.apply(cosmo.so_params[nid], ft)[..., 0]  # rm the trailing axis of dim one
 
 
-def pot_sharp(kvec, theta, pot, cosmo, conf, a):
-    """Spatial optimization of the laplace potential."""
+def sonn_kvec(kv, theta, cosmo, conf, nid):
+    """SO net with input: (k1 * l, k2 * l, k3 * l, o)."""
+    kv_shape = kv.shape  # e.g. (128, 128, 65, 3)
+    kv = kv.reshape(kv_shape + (1,))  # (128, 128, 65, 3, 1)
+
+    theta_l, theta_o = theta  # e.g. (8,), (6,)
+    theta_l = theta_l.reshape((1,) * len(kv_shape) + theta_l.shape)  # (1, 1, 1, 1, 8)
+    ft = kv * theta_l  # (128, 128, 65, 3, 8)
+    ft = ft.reshape(kv_shape[:-1] + (-1,))  # (128, 128, 65, 3*8)
+    theta_o = jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)  # (128, 128, 65, 6)
+    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 128, 65, 3*8+6)
+    net = MLP(features=conf.so_nodes[nid])
+    return net.apply(cosmo.so_params[nid], ft)[..., 0]  # rm the trailing axis of dim one
+
+
+def pot_sharp(pot, kvec, theta, cosmo, conf, a):
+    """SO of the laplace potential, function of 3D k vector."""
     kvec = map(jnp.abs, kvec)
 
     if conf.so_type == 3:
-        if conf.so_nodes[0] is not None:  # apply f net
-            f = [sonn_bc(k_, theta, cosmo, conf, 0) for k_ in kvec]
-            pot *= math.prod(f)
+        if conf.so_nodes[0] is not None:
+            pot *= math.prod([sonn_k(k_, theta, cosmo, conf, 0) for k_ in kvec])
 
-        if conf.so_nodes[1] is not None:  # apply g net
+        if conf.so_nodes[1] is not None:
             k = jnp.sqrt(sum(k_**2 for k_ in kvec))
-            g = sonn_bc(k, theta, cosmo, conf, 1)
+            g = sonn_k(k, theta, cosmo, conf, 1)
             # ks = jnp.array_split(k, 16)
             # g = []
             # for k in ks:
@@ -154,23 +145,25 @@ def pot_sharp(kvec, theta, pot, cosmo, conf, a):
             pot *= g
 
     if conf.so_type == 2:
-        kv = jnp.stack([jnp.broadcast_to(k_, pot.shape) for k_ in kvec], axis=-1)
-        kv = jnp.sort(kv, axis=-1)
-        g = sonn_g(kv, theta, cosmo, conf, 0)
-        pot *= g
+        if conf.so_nodes[0] is not None:
+            kv = jnp.stack([jnp.broadcast_to(k_, pot.shape) for k_ in kvec], axis=-1)
+            kv = jnp.sort(kv, axis=-1)  # sort for permutation symmetry
+            g = sonn_kvec(kv, theta, cosmo, conf, 0)
+            pot *= g
 
     return pot
 
 
-def grad_sharp(k, theta, grad, cosmo, conf, a):
-    """Spatial optimization of the gradient."""
+def grad_sharp(grad, k, theta, cosmo, conf, a):
+    """SO of the gradient, function of 1D k component."""
     k = jnp.abs(k)
 
     if conf.so_type == 3:
-        if conf.so_nodes[2] is not None:  # apply h net
-            grad *= sonn_bc(k, theta, cosmo, conf, 2)
+        if conf.so_nodes[2] is not None:
+            grad *= sonn_k(k, theta, cosmo, conf, 2)
 
     if conf.so_type == 2:
-        grad *= sonn_bc(k, theta, cosmo, conf, 1)
+        if conf.so_nodes[1] is not None:
+            grad *= sonn_k(k, theta, cosmo, conf, 1)
 
     return grad

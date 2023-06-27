@@ -60,14 +60,14 @@ def gravity(a, ptcl, cosmo, conf):
 
     if conf.so_type is not None:  # spatial optimization
         theta = sotheta(cosmo, conf, a)
-        pot = pot_sharp(kvec, theta, pot, cosmo, conf, a)
+        pot = pot_sharp(pot, kvec, theta, cosmo, conf, a)
 
     acc = []
     for k in kvec:
         grad = neg_grad(k, pot, conf.cell_size)
 
         if conf.so_type is not None:  # spatial optimization
-            grad = grad_sharp(k, theta, grad, cosmo, conf, a)
+            grad = grad_sharp(grad, k, theta, cosmo, conf, a)
 
         grad = fftinv(grad, shape=conf.mesh_shape)
         grad = grad.astype(conf.float_dtype)  # no jnp.complex32
