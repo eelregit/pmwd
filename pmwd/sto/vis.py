@@ -25,12 +25,13 @@ def plt_tf(k, tf, ylim=(-1.1, 1.1)):
     return fig
 
 
-def plt_cc(k, cc, ylim=(-0.011, 1.1)):
+def plt_cc(k, cc, ylim=(1e-4, 1.1)):
     """Plot the correlation coefficient."""
     fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.6), tight_layout=True)
     ax.plot(k, 1 - cc**2)
     ax.set_ylabel(r'$1-r^2$')
-    ax.set_yscale('symlog', linthresh=0.01)
+    # ax.set_yscale('symlog', linthresh=0.01)
+    ax.set_yscale('log')
     ax.set_ylim(*ylim)
     ax.set_xlabel(r'$k$')
     ax.set_xscale('log')
@@ -97,8 +98,8 @@ def vis_inspect(tgt, so_params, pmwd_params, vis_mesh_shape=1,
 
     # plot the density slab
     if p_slab:
-        norm = CosmicWebNorm(dens_t)
         slab = int(dens.shape[0] * 0.2)
+        norm = CosmicWebNorm(dens_t[:slab].mean(axis=0))
         figs['dens_target'] = simshow(dens_t[:slab].mean(axis=0), norm=norm)[0]
         figs['dens_target'].tight_layout()
         figs['dens'] = simshow(dens[:slab].mean(axis=0), norm=norm)[0]
