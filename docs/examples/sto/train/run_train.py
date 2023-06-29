@@ -25,7 +25,8 @@ from pmwd.sto.vis import vis_inspect
 from pmwd.sto.data import G4snapDataset
 from pmwd.sto.hypars import (
     n_epochs, sobol_ids_global, snap_ids, shuffle_snaps,
-    optimizer, so_type, so_nodes, so_params)
+    learning_rate, get_optimizer, lr_scheduler,
+    so_type, so_nodes, so_params)
 
 
 def _printinfo(s, flush=False):
@@ -57,7 +58,9 @@ if __name__ == "__main__":
     # keep a copy of the initial params
     so_params_init = so_params
 
+    optimizer = get_optimizer(learning_rate)
     opt_state = optimizer.init(so_params)
+    skd_state = None
 
     # load training data
     _printinfo('preparing the data loader')
@@ -121,8 +124,12 @@ if __name__ == "__main__":
                         writer.add_figure(f'{key}/epoch/snap_{snap_id}', fig, epoch+1)
                         fig.clf()
 
+        loss_epoch_mean = loss_epoch / len(g4loader)
+        learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
+        optimizer = get_optimizer(learning_rate)
+
         if procid == 0:
-            writer.add_scalar('loss/train/epoch/mean', loss_epoch/len(g4loader), epoch+1)
+            writer.add_scalar('loss/train/epoch/mean', loss_epoch_mean, epoch+1)
 
             # checkpoint SO params every epoch
             _checkpoint(epoch, so_params)
