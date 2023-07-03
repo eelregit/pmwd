@@ -124,12 +124,15 @@ if __name__ == "__main__":
                         writer.add_figure(f'{key}/epoch/snap_{snap_id}', fig, epoch+1)
                         fig.clf()
 
+        # learning rate scheduler
         loss_epoch_mean = loss_epoch / len(g4loader)
         learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
         optimizer = get_optimizer(learning_rate)
 
+        # tensorboard log
         if procid == 0:
             writer.add_scalar('loss/train/epoch/mean', loss_epoch_mean, epoch+1)
+            writer.add_scalar('lr/train/epoch', learning_rate, epoch+1)
 
             # checkpoint SO params every epoch
             _checkpoint(epoch, so_params)

@@ -76,8 +76,8 @@ def loss_func(ptcl, tgt, conf, loss_mesh_shape=1):
     loss += _loss_mse(disp, disp_t)
 
     # density field
-    # loss += _loss_power_w(dens, dens_t)
-    loss += _loss_power_ln(dens, dens_t)
+    loss += _loss_power_w(dens, dens_t)
+    # loss += _loss_power_ln(dens, dens_t)
 
     # loss /= len(conf.a_nbody)  # divided by the number of nbody steps
 
