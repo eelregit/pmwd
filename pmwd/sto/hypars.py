@@ -13,27 +13,28 @@ snap_ids = np.arange(0, 121, 3)
 shuffle_snaps = False
 
 # optimizer
-learning_rate = 1e-3
+learning_rate = 1e-2
 
 def get_optimizer(lr):
     return optax.adam(lr)
 
-def lr_scheduler(lr, skd_state, loss, patience=5, factor=0.5, threshold=1e-4, lr_min=0.):
+def lr_scheduler(lr, skd_state, loss, patience=10, factor=0.5, threshold=1e-4, lr_min=1e-4):
     """Reduce the learning rate on plateau, a mini implementation."""
     if skd_state is None:  # initialize
         return lr, (0, loss)
 
-    counter, loss_prev = skd_state
+    counter, loss_low = skd_state
 
-    if loss_prev - loss < abs(loss_prev) * threshold:
+    if loss_low - loss < abs(loss_low) * threshold:  # not better
         counter += 1
-        if counter == patience:
+        if counter == patience:  # reduce LR
             lr = max(lr * factor, lr_min)
             counter = 0
-    else:
+    else:  # is better
         counter = 0
+        loss_low = loss
 
-    skd_state = (counter, loss)
+    skd_state = (counter, loss_low)
 
     return lr, skd_state
 

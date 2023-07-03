@@ -5,7 +5,7 @@ from pmwd.nbody import nbody
 from pmwd.particles import Particles
 from pmwd.vis_util import simshow, CosmicWebNorm
 from pmwd.pm_util import rfftnfreq
-from pmwd.sto.so import sotheta, sonn_bc
+from pmwd.sto.so import sotheta, sonn_k
 from pmwd.sto.train import init_pmwd, pmodel
 from pmwd.sto.util import scatter_dens, power_tfcc
 
@@ -46,7 +46,7 @@ def plt_sofunc(nid, k, cosmo, conf):
     nid_dic = {0: 'f', 1: 'g', 2: 'h'}
 
     theta = sotheta(cosmo, conf, conf.a_out)
-    sout = sonn_bc(k, theta, cosmo, conf, nid)
+    sout = sonn_k(k, theta, cosmo, conf, nid)
 
     fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.6), tight_layout=True)
     ax.plot(k, sout)
