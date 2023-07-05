@@ -11,12 +11,12 @@ from pmwd.sto.loss import loss_func
 def pmodel(ptcl_ic, so_params, cosmo, conf):
     cosmo = cosmo.replace(so_params=so_params)
     _, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
-    return obsvbl[0], cosmo
+    return obsvbl, cosmo
 
 
-def obj(tgt, ptcl_ic, so_params, cosmo, conf):
-    ptcl, cosmo = pmodel(ptcl_ic, so_params, cosmo, conf)
-    loss = loss_func(ptcl, tgt, conf)
+def obj(tgts, ptcl_ic, so_params, cosmo, conf):
+    obsvbl, cosmo = pmodel(ptcl_ic, so_params, cosmo, conf)
+    loss = loss_func(obsvbl, tgts, conf)
     return loss
 
 
@@ -28,22 +28,22 @@ def _global_mean(loss, grad):
 
 
 def init_pmwd(pmwd_params):
-    a_out, sidx, sobol, mesh_shape, n_steps, so_type, so_nodes = pmwd_params
+    a_snaps, sidx, sobol, mesh_shape, n_steps, so_type, so_nodes = pmwd_params
 
     # generate ic, cosmo, conf
-    conf, cosmo = gen_cc(sobol, mesh_shape=(mesh_shape,)*3, a_out=a_out,
+    conf, cosmo = gen_cc(sobol, mesh_shape=(mesh_shape,)*3, a_snapshots=a_snaps,
                          a_nbody_num=n_steps, so_type=so_type, so_nodes=so_nodes)
     ptcl_ic = gen_ic(sidx, conf, cosmo)
 
     return ptcl_ic, cosmo, conf
 
 
-def train_step(tgt, so_params, pmwd_params, opt_params):
+def train_step(tgts, so_params, pmwd_params, opt_params):
     ptcl_ic, cosmo, conf = init_pmwd(pmwd_params)
 
     # loss and grad
     obj_valgrad = jax.value_and_grad(obj, argnums=2)
-    loss, grad = obj_valgrad(tgt, ptcl_ic, so_params, cosmo, conf)
+    loss, grad = obj_valgrad(tgts, ptcl_ic, so_params, cosmo, conf)
 
     # average over global devices
     loss = jnp.expand_dims(loss, axis=0)  # for pmap

@@ -45,7 +45,7 @@ def _loss_power_ln(f, g, spacing=1, cut_nyq=True):
     return loss
 
 
-def loss_func(ptcl, tgt, conf, loss_mesh_shape=1):
+def loss_snap(ptcl, tgt, conf, loss_mesh_shape=1):
 
     # get the target ptcl
     ptcl_t = pv2ptcl(*tgt, ptcl.pmid, ptcl.conf)
@@ -80,5 +80,16 @@ def loss_func(ptcl, tgt, conf, loss_mesh_shape=1):
     # loss += _loss_power_ln(dens, dens_t)
 
     # loss /= len(conf.a_nbody)  # divided by the number of nbody steps
+
+    return loss
+
+
+def loss_func(obsvbl, tgts, conf):
+    loss = 0.
+
+    for i, tgt in enumerate(tgts):
+        ptcl = obsvbl['snapshots'][i]
+        loss += loss_snap(ptcl, tgt, conf)
+    loss /= len(tgts)  # mean loss per snapshot
 
     return loss
