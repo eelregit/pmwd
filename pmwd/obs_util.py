@@ -6,6 +6,8 @@ from pmwd.cosmology import E2
 
 
 def itp_prev(ptcl0, a0, a1, a, cosmo):
+    """Cubic Hermite interpolation is a linear combination of two ptcls, this
+    function returns the disp and vel from the first ptcl at a0."""
     Da = a1 - a0
     t = (a - a0) / Da
     a3E0 = a0**3 * jnp.sqrt(E2(a0, cosmo))
@@ -24,7 +26,17 @@ def itp_prev(ptcl0, a0, a1, a, cosmo):
     return disp.astype(dtype), vel.astype(dtype)
 
 
+def itp_prev_adj(iptcl_cot, ptcl0, a0, a1, a, cosmo):
+    # iptcl_cot is the cotangent of the interpolated ptcl
+    (disp, vel), itp_prev_vjp = vjp(itp_prev, ptcl0, a0, a1, a, cosmo)
+    ptcl0_cot, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_prev_vjp(
+                                            (iptcl_cot.disp, iptcl_cot.vel))
+    return ptcl0_cot, cosmo_cot_itp
+
+
 def itp_next(ptcl1, a0, a1, a, cosmo):
+    """Cubic Hermite interpolation is a linear combination of two ptcls, this
+    function returns the disp and vel from the second ptcl at a1."""
     Da = a1 - a0
     t = (a - a0) / Da
     a3E1 = a1**3 * jnp.sqrt(E2(a1, cosmo))
@@ -43,26 +55,17 @@ def itp_next(ptcl1, a0, a1, a, cosmo):
     return disp.astype(dtype), vel.astype(dtype)
 
 
-def itp_prev_adj(iptcl_cot, ptcl, a0, a1, a, cosmo):
+def itp_next_adj(iptcl_cot, ptcl1, a0, a1, a, cosmo):
     # iptcl_cot is the cotangent of the interpolated ptcl
-    (disp, vel), itp_prev_vjp = vjp(itp_prev, ptcl, a0, a1, a, cosmo)
-    ptcl_cot_itp, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_prev_vjp(
+    (disp, vel), itp_next_vjp = vjp(itp_next, ptcl1, a0, a1, a, cosmo)
+    ptcl1_cot, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_next_vjp(
                                             (iptcl_cot.disp, iptcl_cot.vel))
-    return ptcl_cot_itp, cosmo_cot_itp  # TODO return other cotangents?
-
-
-def itp_next_adj(iptcl_cot, ptcl, a0, a1, a, cosmo):
-    # iptcl_cot is the cotangent of the interpolated ptcl
-    (disp, vel), itp_next_vjp = vjp(itp_next, ptcl, a0, a1, a, cosmo)
-    ptcl_cot_itp, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_next_vjp(
-                                            (iptcl_cot.disp, iptcl_cot.vel))
-    return ptcl_cot_itp, cosmo_cot_itp
+    return ptcl1_cot, cosmo_cot_itp
 
 
 def interptcl(ptcl0, ptcl1, a0, a1, a, cosmo):
-    """Given two ptcl snapshots, get the interpolated one
-       at a given time using cubic Hermite interpolation.
-    """
+    """Given two ptcl snapshots, get the interpolated one at a given time using
+       cubic Hermite interpolation."""
     Da = a1 - a0
     t = (a - a0) / Da
     a3E0 = a0**3 * jnp.sqrt(E2(a0, cosmo))
@@ -84,5 +87,11 @@ def interptcl(ptcl0, ptcl1, a0, a1, a, cosmo):
            h01 / Da * ptcl1.disp + h11 / a3E1 * ptcl1.vel)
     vel *= a**3 * jnp.sqrt(E2(a, cosmo))
 
-    ptcl = Particles(ptcl0.conf, ptcl0.pmid, disp, vel=vel)
-    return ptcl
+    iptcl = Particles(ptcl0.conf, ptcl0.pmid, disp, vel=vel)
+    return iptcl
+
+
+def interptcl_adj(iptcl_cot, ptcl0, ptcl1, a0, a1, a, cosmo):
+    iptcl, interptcl_vjp = vjp(interptcl, ptcl0, ptcl1, a0, a1, a, cosmo)
+    ptcl0_cot, ptcl1_cot, a0_cot, a1_cot, a_cot, cosmo_cot_itp = interptcl_vjp(iptcl_cot)
+    return ptcl0_cot, ptcl1_cot, cosmo_cot_itp
