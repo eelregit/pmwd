@@ -58,8 +58,8 @@ def scale_Sobol(fn='sobol.txt', ind=slice(None)):
     return sobol.T
 
 
-def gen_cc(sobol, mesh_shape=1, a_out=1, a_nbody_num=63, so_type=None, so_nodes=None,
-           a_start=1/16, a_stop=1+1/128):
+def gen_cc(sobol, mesh_shape=1, a_snapshots=(1,), a_nbody_num=63,
+           so_type=None, so_nodes=None, a_start=1/16, a_stop=1+1/128):
     """Setup conf and cosmo given a sobol."""
     conf = Configuration(
         ptcl_spacing = sobol[0] / 128,
@@ -68,7 +68,7 @@ def gen_cc(sobol, mesh_shape=1, a_out=1, a_nbody_num=63, so_type=None, so_nodes=
         a_stop = a_stop,
         float_dtype = jnp.float64,
         mesh_shape = mesh_shape,
-        a_out = a_out,
+        a_snapshots = a_snapshots,
         a_nbody_num = a_nbody_num,
         so_type = so_type,
         so_nodes = so_nodes,
@@ -99,7 +99,7 @@ def gen_ic(seed, conf, cosmo):
     return ptcl
 
 
-def read_g4data(sims_dir, sobol_ids, snap_ids, fn_sobol):
+def read_g4snap(sims_dir, sobol_ids, snap_ids, fn_sobol):
     data = {}
     def load_sobol(sidx):
         data[sidx] = {}
@@ -115,9 +115,11 @@ def read_g4data(sims_dir, sobol_ids, snap_ids, fn_sobol):
 
 
 class G4snapDataset(Dataset):
+    """Gadget4 dataset with each data sample being a single snapshot."""
 
     def __init__(self, sims_dir, sobol_ids, snap_ids, fn_sobol='sobol.txt'):
-        self.sims_dir = sims_dir
+
+        self.g4data = read_g4snap(sims_dir, sobol_ids, snap_ids, fn_sobol)
 
         self.sobol_ids = sobol_ids
         self.snap_ids = snap_ids
@@ -126,7 +128,6 @@ class G4snapDataset(Dataset):
         self.n_sims = len(sobol_ids)
         self.n_snaps = self.n_sims * self.snaps_per_sim
 
-        self.g4data = read_g4data(sims_dir, self.sobol_ids, self.snap_ids, fn_sobol)
 
     def __len__(self):
         return self.n_snaps
@@ -141,3 +142,40 @@ class G4snapDataset(Dataset):
 
     def getsnap(self, sidx, snap):
         return self.g4data[sidx][snap]
+
+
+def read_g4sobol(sims_dir, sobol_ids, snap_ids, fn_sobol):
+    data = {}
+    def load_sobol(sidx):
+        sobol = scale_Sobol(fn_sobol, sidx)
+        data[sidx] = {
+            'sidx': sidx,
+            'sobol': sobol,
+            'snap_ids': snap_ids,
+            'a_snaps': (),
+            'snapshots': [],
+        }
+        for snap in snap_ids:
+            snap_file = os.path.join(sims_dir, f'{sidx:03}',
+                                     'output', f'snapshot_{snap:03}')
+            pos, vel, a = read_gadget_hdf5(snap_file)
+            data[sidx]['a_snaps'] += (a,)
+            data[sidx]['snapshots'].append((pos, vel))
+    Parallel(n_jobs=min(8, len(sobol_ids)), prefer='threads', require='sharedmem')(
+        delayed(load_sobol)(sidx) for sidx in sobol_ids)
+    return data
+
+
+class G4sobolDataset(Dataset):
+    """Gadget4 dataset with each data sample including all snapshots in a sobol."""
+
+    def __init__(self, sims_dir, sobol_ids, snap_ids, fn_sobol='sobol.txt'):
+
+        self.g4data = read_g4sobol(sims_dir, sobol_ids, snap_ids, fn_sobol)
+        self.sobol_ids = sobol_ids
+
+    def __len__(self):
+        return len(self.sobol_ids)
+
+    def __getitem__(self, idx):
+        return self.g4data[self.sobol_ids[idx]]

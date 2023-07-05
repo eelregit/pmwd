@@ -22,7 +22,7 @@ import pickle
 
 from pmwd.sto.train import train_step
 from pmwd.sto.vis import vis_inspect
-from pmwd.sto.data import G4snapDataset
+from pmwd.sto.data import G4sobolDataset
 from pmwd.sto.hypars import (
     n_epochs, sobol_ids_global, snap_ids, shuffle_snaps,
     learning_rate, get_optimizer, lr_scheduler,
@@ -52,7 +52,8 @@ if __name__ == "__main__":
     tc_rng = torch.Generator().manual_seed(0)  # for dataloader shuffle
 
     # the corresponding sobol ids of training data for current proc
-    sobol_ids = np.array_split(sobol_ids_global, n_procs)[procid]
+    # each proc must have the same number of sobol ids
+    sobol_ids = np.split(sobol_ids_global, n_procs)[procid]
     _printinfo(f'local sobol ids: {sobol_ids}')
 
     # keep a copy of the initial params
@@ -63,34 +64,34 @@ if __name__ == "__main__":
     skd_state = None
 
     # load training data
-    _printinfo('preparing the data loader')
-    g4data = G4snapDataset('g4sims', sobol_ids, snap_ids)
+    _printinfo('loading gadget-4 data')
+    g4data = G4sobolDataset('g4sims', sobol_ids, snap_ids)
     g4loader = DataLoader(g4data, batch_size=None, shuffle=shuffle_snaps,
                           generator=tc_rng, num_workers=0, collate_fn=lambda x: x)
 
     _printinfo('training started ...', flush=True)
     if procid == 0:
-        print('time, epoch, step, mesh_shape, n_steps, snap_id, loss')
+        print('time, epoch, step, mesh_shape, n_steps, loss')
         writer = SummaryWriter()
 
     tic = time.perf_counter()
     for epoch in range(n_epochs):
         loss_epoch = 0.  # the sum of loss of the whole epoch
 
-        for step, g4snap in enumerate(g4loader):
-            pos, vel, a, sidx, sobol, snap_id = g4snap
+        for step, g4sobol in enumerate(g4loader):
 
             # mesh shape, 128 * [1, 2, 3, 4]
             # mesh_shape = np_rng.integers(1, 5) * 128
+            mesh_shape = 128
             # number of time steps, [10, 1000], log-uniform
             # n_steps = np.rint(10**np_rng.uniform(1, 3)).astype(int)
-            mesh_shape = 128
             n_steps = 100
 
-            tgt = (pos, vel)
-            pmwd_params = (a, sidx, sobol, mesh_shape, n_steps, so_type, so_nodes)
+            tgts = g4sobol['snapshots']
+            pmwd_params = (g4sobol['a_snaps'], g4sobol['sidx'], g4sobol['sobol'],
+                           mesh_shape, n_steps, so_type, so_nodes)
             opt_params = (optimizer, opt_state)
-            so_params, loss, opt_state = train_step(tgt, so_params, pmwd_params,
+            so_params, loss, opt_state = train_step(tgts, so_params, pmwd_params,
                                                     opt_params)
 
             loss = float(loss)
@@ -101,41 +102,47 @@ if __name__ == "__main__":
                 tt = time.perf_counter() - tic
                 tic = time.perf_counter()
                 print((f'{tt:.0f} s, {epoch}, {step:>3d}, {mesh_shape:>3d}, ' +
-                       f'{n_steps:>4d}, {snap_id:>4d}, {loss:12.3e}'), flush=True)
+                       f'{n_steps:>4d}, {loss:12.3e}'), flush=True)
 
             # tensorboard log
-            if procid == 0:
-                global_step = epoch * len(g4loader) + step + 1
-                # writer.add_scalar('loss/train/step', loss, global_step)
+            # if procid == 0:
+            #     global_step = epoch * len(g4loader) + step + 1
+            #     # writer.add_scalar('loss/train/step', loss, global_step)
 
-                # epoch: check a few snapshots
-                check_snaps = (snap_ids[i] for i in [0, len(snap_ids)//2, -1])
-                if snap_id in check_snaps:
-                    # check the status before training
-                    if epoch == 0:
-                        figs = vis_inspect(tgt, so_params_init, pmwd_params)
-                        for key, fig in figs.items():
-                            writer.add_figure(f'{key}/epoch/snap_{snap_id}', fig, 0)
-                            fig.clf()
+            #     # epoch: check a few snapshots
+            #     check_snaps = (snap_ids[i] for i in [0, len(snap_ids)//2, -1])
+            #     if snap_id in check_snaps:
+            #         # check the status before training
+            #         if epoch == 0:
+            #             figs = vis_inspect(tgt, so_params_init, pmwd_params)
+            #             for key, fig in figs.items():
+            #                 writer.add_figure(f'{key}/epoch/snap_{snap_id}', fig, 0)
+            #                 fig.clf()
 
-                    writer.add_scalar(f'loss/train/epoch/snap_{snap_id}', loss_epoch, epoch+1)
-                    figs = vis_inspect(tgt, so_params, pmwd_params)
-                    for key, fig in figs.items():
-                        writer.add_figure(f'{key}/epoch/snap_{snap_id}', fig, epoch+1)
-                        fig.clf()
+            #         writer.add_scalar(f'loss/train/epoch/snap_{snap_id}', loss_epoch, epoch+1)
+            #         figs = vis_inspect(tgt, so_params, pmwd_params)
+            #         for key, fig in figs.items():
+            #             writer.add_figure(f'{key}/epoch/snap_{snap_id}', fig, epoch+1)
+            #             fig.clf()
 
         # learning rate scheduler
         loss_epoch_mean = loss_epoch / len(g4loader)
         learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
         optimizer = get_optimizer(learning_rate)
 
-        # tensorboard log
+        # training track and checkpoint
         if procid == 0:
+            # scalars
             writer.add_scalar('loss/train/epoch/mean', loss_epoch_mean, epoch+1)
             writer.add_scalar('lr/train/epoch', learning_rate, epoch+1)
 
-            # checkpoint SO params every epoch
+            # figures TODO
+
+            # checkpoint SO params
             _checkpoint(epoch, so_params)
+
+        # test on test data
+
 
     if procid == 0:
         writer.close()
