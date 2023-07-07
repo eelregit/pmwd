@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+from jax.tree_util import tree_map
 import optax
 from functools import partial
 
@@ -20,11 +21,15 @@ def obj(tgts, ptcl_ic, so_params, cosmo, conf):
     return loss
 
 
-@partial(jax.pmap, axis_name='global', in_axes=(0, None), out_axes=None)
-def _global_mean(loss, grad):
-    loss = jax.lax.pmean(loss, axis_name='global')
-    grad = jax.lax.pmean(grad, axis_name='global')
-    return loss, grad
+def global_mean(tree):
+    """Global average of a pytree x, i.e. for all leaves."""
+    def global_mean_arr(x):
+        x = jnp.expand_dims(x, axis=0)  # leading axis for pmap
+        x = jax.pmap(lambda x: jax.lax.pmean(x, axis_name='device'),
+                     axis_name='device')(x)
+        return x[0]  # rm leading axis
+    tree = tree_map(global_mean_arr, tree)
+    return tree
 
 
 def init_pmwd(pmwd_params):
@@ -46,8 +51,7 @@ def train_step(tgts, so_params, pmwd_params, opt_params):
     loss, grad = obj_valgrad(tgts, ptcl_ic, so_params, cosmo, conf)
 
     # average over global devices
-    loss = jnp.expand_dims(loss, axis=0)  # for pmap
-    loss, grad = _global_mean(loss, grad)
+    loss, grad = global_mean((loss, grad))
 
     # optimize
     optimizer, opt_state = opt_params
