@@ -11,7 +11,7 @@ class MLP(nn.Module):
     outivator: Callable[[jnp.ndarray], jnp.ndarray] = None
 
     def setup(self):
-        self.layers = [nn.Dense(f) for f in self.features]
+        self.layers = [nn.Dense(f, param_dtype=jnp.float64) for f in self.features]
 
     def __call__(self, inputs):
         x = inputs
