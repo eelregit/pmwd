@@ -29,7 +29,7 @@ from pmwd.sto.data import G4sobolDataset
 from pmwd.sto.hypars import (
     n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
     learning_rate, get_optimizer, lr_scheduler,
-    so_type, so_nodes, so_params)
+    so_type, so_nodes, so_params, dropout_rate)
 
 
 def _printinfo(s, flush=False):
@@ -48,6 +48,7 @@ def _checkpoint(epoch, so_params):
 # RNGs with fixed seeds, for same randomness across processes
 np_rng = np.random.default_rng(0)  # for pmwd MC sampling
 tc_rng = torch.Generator().manual_seed(0)  # for dataloader shuffle
+jax_key = jax.random.PRNGKey(0)  # for dropout
 
 # the corresponding sobol ids of training data for current proc
 # each proc must have the same number of sobol ids
@@ -88,9 +89,12 @@ for epoch in range(1, n_epochs+1):
         # n_steps = np.rint(10**np_rng.uniform(1, 3)).astype(int)
         n_steps = 100
 
+        jax_key, dropout_key = jax.random.split(jax_key)
+
         tgts = g4sobol['snapshots']
         pmwd_params = (g4sobol['a_snaps'], g4sobol['sidx'], g4sobol['sobol'],
-                       mesh_shape, n_steps, so_type, so_nodes)
+                       mesh_shape, n_steps, so_type, so_nodes, dropout_rate,
+                       dropout_key)
         opt_params = (optimizer, opt_state)
         so_params, loss, opt_state = train_step(tgts, so_params, pmwd_params,
                                                 opt_params)
