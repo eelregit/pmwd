@@ -89,12 +89,23 @@ def soft(k, theta):
     return jnp.concatenate((k_theta_l, theta_o))
 
 
+def apply_net(nid, conf, cosmo, x):
+    net = MLP(features=conf.so_nodes[nid])
+    if conf.dropout_rate is not None:
+        dropout = True
+        rngs = {'dropout': jnp.asarray(conf.dropout_key, dtype=jnp.uint32)}
+    else:
+        dropout = False
+        rngs = None
+    return net.apply(cosmo.so_params[nid], x, dropout=dropout,
+                     dropout_rate=conf.dropout_rate, rngs=rngs)
+
+
 def sonn_vmap(k, theta, cosmo, conf, nid):
     """Evaluate the neural net, using vmap over k."""
-    net = MLP(features=conf.so_nodes[nid])
     def _sonn(_k):
         _ft = soft(_k, theta)
-        return net.apply(cosmo.so_params[nid], _ft)[0]
+        return apply_net(nid, conf, cosmo, _ft)[0]
     return vmap(_sonn)(k.ravel()).reshape(k.shape)
 
 
@@ -107,8 +118,7 @@ def sonn_k(k, theta, cosmo, conf, nid):
     ft = k * theta_l  # (128, 1, 1, 8)
     theta_o = jnp.broadcast_to(theta_o, k_shape+theta_o.shape)  # (128, 1, 1, 6)
     ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 1, 1, 8+6)
-    net = MLP(features=conf.so_nodes[nid])
-    return net.apply(cosmo.so_params[nid], ft)[..., 0]  # rm the trailing axis of dim one
+    return apply_net(nid, conf, cosmo, ft)[..., 0]  # rm the trailing axis of dim one
 
 
 def sonn_kvec(kv, theta, cosmo, conf, nid):
@@ -122,8 +132,7 @@ def sonn_kvec(kv, theta, cosmo, conf, nid):
     ft = ft.reshape(kv_shape[:-1] + (-1,))  # (128, 128, 65, 3*8)
     theta_o = jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)  # (128, 128, 65, 6)
     ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 128, 65, 3*8+6)
-    net = MLP(features=conf.so_nodes[nid])
-    return net.apply(cosmo.so_params[nid], ft)[..., 0]  # rm the trailing axis of dim one
+    return apply_net(nid, conf, cosmo, ft)[..., 0]  # rm the trailing axis of dim one
 
 
 def pot_sharp(pot, kvec, theta, cosmo, conf, a):

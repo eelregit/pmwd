@@ -158,6 +158,8 @@ class Configuration:
     # list of the number of nodes (no input layer) of so nn
     so_nodes: Optional[list] = None
     softening_length: Optional[float] = None
+    dropout_rate: Optional[float] = None
+    dropout_key: Optional[list] = None
 
     def __post_init__(self):
         if self._is_transforming():

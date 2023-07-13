@@ -10,18 +10,18 @@ class MLP(nn.Module):
     activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
     outivator: Callable[[jnp.ndarray], jnp.ndarray] = None
 
-    def setup(self):
-        self.layers = [nn.Dense(f, param_dtype=jnp.float64) for f in self.features]
+    @nn.compact
+    def __call__(self, x, dropout=False, dropout_rate=0.5):
+        # hidden layers
+        for i, fts in enumerate(self.features[:-1]):
+            x = nn.Dense(fts, param_dtype=jnp.float64)(x)
+            x = self.activator(x)
+            x = nn.Dropout(rate=dropout_rate, deterministic=not dropout)(x)
 
-    def __call__(self, inputs):
-        x = inputs
-        for i, lyr in enumerate(self.layers):
-            x = lyr(x)
-            if i != len(self.layers)-1:
-                x = self.activator(x)
-            else:
-                if self.outivator is not None:
-                    x = self.outivator(x)
+        # output layer
+        x = nn.Dense(self.features[-1], param_dtype=jnp.float64)(x)
+        if self.outivator is not None:
+            x = self.outivator(x)
 
         return x
 
@@ -39,9 +39,9 @@ def init_mlp_params(n_input, nodes, scheme=None):
     if scheme == 'last_w0_b1':
         for i, p in enumerate(params):
             p = unfreeze(p)
-            p['params'][f'layers_{len(nodes[i])-1}']['kernel'] = (
+            p['params'][f'Dense_{len(nodes[i])-1}']['kernel'] = (
                 jnp.zeros((nodes[i][-2], nodes[i][-1])))
-            p['params'][f'layers_{len(nodes[i])-1}']['bias'] = (
+            p['params'][f'Dense_{len(nodes[i])-1}']['bias'] = (
                 jnp.ones(nodes[i][-1]))
             params[i] = freeze(p)
 
@@ -50,9 +50,9 @@ def init_mlp_params(n_input, nodes, scheme=None):
         keys = random.split(random.PRNGKey(1), len(params))
         for i, p in enumerate(params):
             p = unfreeze(p)
-            p['params'][f'layers_{len(nodes[i])-1}']['kernel'] = (
+            p['params'][f'Dense_{len(nodes[i])-1}']['kernel'] = (
                 random.normal(keys[i], (nodes[i][-2], nodes[i][-1]))) * 1e-4
-            p['params'][f'layers_{len(nodes[i])-1}']['bias'] = (
+            p['params'][f'Dense_{len(nodes[i])-1}']['bias'] = (
                 jnp.ones(nodes[i][-1]))
             params[i] = freeze(p)
 
@@ -64,7 +64,7 @@ def mlp_size(mlp_params):
     n_input, n_nodes = [], []
     for params in mlp_params:
         dic = params['params']
-        n_input.append(dic['layers_0']['kernel'].shape[0])
-        n_nodes.append([dic[f'layers_{i}']['kernel'].shape[1] for i in range(len(dic))])
+        n_input.append(dic['Dense_0']['kernel'].shape[0])
+        n_nodes.append([dic[f'Dense_{i}']['kernel'].shape[1] for i in range(len(dic))])
 
     return n_input, n_nodes
