@@ -1,4 +1,6 @@
 import jax.numpy as jnp
+import pickle
+from pmwd.sto.mlp import mlp_size
 
 from pmwd.scatter import scatter
 from pmwd.spec_util import powspec
@@ -37,3 +39,11 @@ def power_tfcc(f, g, spacing, cut_nyq=False):
     cc = ps_cross / jnp.sqrt(ps * ps_t)
 
     return k, tf, cc
+
+
+def load_soparams(so_params):
+    if isinstance(so_params, str):
+        with open(so_params, 'rb') as f:
+            so_params = pickle.load(f)['so_params']
+    n_input, so_nodes = mlp_size(so_params)
+    return so_params, n_input, so_nodes

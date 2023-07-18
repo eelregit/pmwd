@@ -109,8 +109,8 @@ def sonn_vmap(k, theta, cosmo, conf, nid):
     return vmap(_sonn)(k.ravel()).reshape(k.shape)
 
 
-def sonn_k(k, theta, cosmo, conf, nid):
-    """SO net with input: (k * l, o)."""
+def soft_k(k, theta):
+    """Get SO input features (k * l, o)."""
     theta_l, theta_o = theta  # e.g. (8,), (6,)
     k_shape = k.shape  # e.g. (128, 1, 1)
     k = k.reshape(k_shape + (1,))  # (128, 1, 1, 1)
@@ -118,11 +118,17 @@ def sonn_k(k, theta, cosmo, conf, nid):
     ft = k * theta_l  # (128, 1, 1, 8)
     theta_o = jnp.broadcast_to(theta_o, k_shape+theta_o.shape)  # (128, 1, 1, 6)
     ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 1, 1, 8+6)
+    return ft
+
+
+def sonn_k(k, theta, cosmo, conf, nid):
+    """SO net with input: (k * l, o)."""
+    ft = soft_k(k, theta)
     return apply_net(nid, conf, cosmo, ft)[..., 0]  # rm the trailing axis of dim one
 
 
-def sonn_kvec(kv, theta, cosmo, conf, nid):
-    """SO net with input: (k1 * l, k2 * l, k3 * l, o)."""
+def soft_kvec(kv, theta):
+    """Get SO input features (k1 * l, k2 * l, k3 * l, o)."""
     kv_shape = kv.shape  # e.g. (128, 128, 65, 3)
     kv = kv.reshape(kv_shape + (1,))  # (128, 128, 65, 3, 1)
 
@@ -132,6 +138,12 @@ def sonn_kvec(kv, theta, cosmo, conf, nid):
     ft = ft.reshape(kv_shape[:-1] + (-1,))  # (128, 128, 65, 3*8)
     theta_o = jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)  # (128, 128, 65, 6)
     ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 128, 65, 3*8+6)
+    return ft
+
+
+def sonn_kvec(kv, theta, cosmo, conf, nid):
+    """SO net with input: (k1 * l, k2 * l, k3 * l, o)."""
+    ft = soft_kvec(kv, theta)
     return apply_net(nid, conf, cosmo, ft)[..., 0]  # rm the trailing axis of dim one
 
 
