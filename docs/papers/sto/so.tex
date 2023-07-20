@@ -149,7 +149,9 @@ applicable to all other cosmological simulation code.
   std acc over the std vel) of each realization.
 \item (model; YL) Change nbody for loop by lax scan and/or while loops.
   while\_loop can help to save compilation when trained on different
-  snapshots. Performance difference between scan and while?
+  snapshots. Performance difference between scan and while?\newline
+  \YZ{It seems that lax.while\_loop only supports fwd grad}
+  \href{https://jax.readthedocs.io/en/latest/notebooks/Common_Gotchas_in_JAX.html#summary}{link}
 \item (model; YL) Compare one pair of \GADGET\ and \pmwd\ (with say 100 to 1000 time
     steps) results and make sure that they agree perfectly on the large
     scales. For this purpose the box size should be large enough (in
@@ -204,7 +206,7 @@ applicable to all other cosmological simulation code.
   compare extrap PySR, extrap SO, raw pmwd, deconv pmwd, and \GADGET.
 \item (test) Generate a sample of $(X, y)$ data with the trained neural network
   for feature selection and symbolic regression.
-\item (paper) Think about what figures and tables to show in the paper. Update
+\item (paper) Think about what figures and tables to show in the paper. Up
 to 6 items could be included. Some tables could be included in the context as
 list if we have too many figures to show?\newline
   \YZ{figures:
@@ -599,7 +601,8 @@ those applicable to \pmwd\ during training.
 mesh shape and mesh cell size below, which are assumed to be sampled
 independently. \YL{I forgot why I wrote ``Mpc'' without the $h$ here.}
 In practice, we sample one conditioned on the other and the box size.
-*Number of time steps from $a=1/16$ to $a=1$.
+*Number of time steps from $a=1/16$ to $a=1+1/128$ (in order to cover the
+snapshot offset).
 }
 \label{tab:param}
 \begin{tabular}{lcccr}
@@ -641,8 +644,10 @@ training & loss grid offset in its own spacing & uniform & $[0, 1)^3$ \\
 
 
 \vspace{1em}
-\subsection{Parameters and Configurations}
+\subsection{Target Data and Configurations}
 
+We generate our target data for training and testing with the \GADGET\
+simulation code \citep{GADGET-4}.
 We run 512 \GADGET\ simulations that cover a wide range of
 configurations and cosmological parameters, as listed in
 \autoref{tab:param}.
@@ -681,11 +686,6 @@ training on GPUs.
 \end{figure*}
 
 
-\vspace{1em}
-\subsection{Target Data for Training and Testing}
-
-\citet{GADGET-4}
-
 We configure \GADGET\ with high force and time integration accuracy
 settings.
 For gravitational force, we choose pure FMM with $p=5$ and opening angle
@@ -696,21 +696,29 @@ For gravitational force, we choose pure FMM with $p=5$ and opening angle
 \vspace{1em}
 \subsection{Training of SO neural networks}
 
-Given 512 \GADGET\ simulations and 121 output snapshots each, in total
-we have 61952 snapshots for training.
-Following \autoref{tab:param}, in each iteration, we randomly sample the
-snapshots, the number of time steps, and the mesh shape (or its cell
-size), and configure \pmwd\ with the same initial coniditions,
-cosmological parameters and other common configurations.
+Following \autoref{tab:param}, in each iteration, we randomly sample the number
+of time steps and the mesh shape (or its cell size), and configure \pmwd\ with
+the same initial coniditions, cosmological parameters and other common
+configurations.
 To balance the work of GPUs during training, in each iteration we use
-the same snapshot $a$, number of time steps, and mesh shape on all GPU.
+the same number of time steps and mesh shape on all GPUs.
 
 We perform parallel training using distributed GPU devices.
-The training on each snapshot is performed on a single GPU device.
-During each training step, the gradients are collected and averaged across
-devices to update the SO parameters.
+The training on all snapshots of a single Sobol configuration is performed on a
+single GPU device.
+In each training step, the loss and gradients are collected and averaged across
+devices.
+The SO parameters are initialized to be the same for all devices, and being
+updated with the same averaged gradients.
 
 Hyperparameters:
+\YZ{
+\begin{itemize}
+  \item Model: number of hidden layers and nodes of f and g nets
+  \item Optimization: learning rate, weight decay and dropout rate etc
+\end{itemize}
+}
+
 
 \YZ{
 We implement the neural networks with \texttt{Flax} \citep{flax2020github}, and
