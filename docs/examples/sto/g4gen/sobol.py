@@ -3,29 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pmwd.sto.data import scale_Sobol
-
-
-def gen_sobol(filename, d=9, m=9, extra=9, seed=55868, seed_max=65536):
-    from scipy.stats.qmc import Sobol, discrepancy
-
-    nicer_seed = seed
-    if seed is None:
-        disc_min = np.inf
-        for s in range(seed_max):
-            sampler = Sobol(d, scramble=True, seed=s)  # d is the dimensionality
-            sample = sampler.random_base2(m)  # m is the log2 of the number of samples
-            disc = discrepancy(sample, method='MD')
-            if disc < disc_min:
-                nicer_seed = s
-                disc_min = disc
-        print(f'0 <= seed = {nicer_seed} < {seed_max}, minimizes mixture discrepancy = '
-                f'{disc_min}')
-        # nicer_seed = 55868, mixture discrepancy = 0.016109347957680598
-
-    sampler = Sobol(d, scramble=True, seed=nicer_seed)
-    sample = sampler.random(n=2**m + extra)  # extra is the additional testing samples
-    np.savetxt(filename, sample)
+from pmwd.sto.data import scale_Sobol, gen_sobol
 
 
 def plt_proj(filename, max_rows=None, max_cols=None):

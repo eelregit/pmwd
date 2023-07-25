@@ -12,9 +12,35 @@ from pmwd.lpt import lpt
 from pmwd.io_util import read_gadget_hdf5
 
 
-def scale_Sobol(fn='sobol.txt', ind=slice(None)):
+def gen_sobol(filename=None, d=9, m=9, extra=9, seed=55868, seed_max=65536):
+    from scipy.stats.qmc import Sobol, discrepancy
+
+    nicer_seed = seed
+    if seed is None:
+        disc_min = np.inf
+        for s in range(seed_max):
+            sampler = Sobol(d, scramble=True, seed=s)  # d is the dimensionality
+            sample = sampler.random_base2(m)  # m is the log2 of the number of samples
+            disc = discrepancy(sample, method='MD')
+            if disc < disc_min:
+                nicer_seed = s
+                disc_min = disc
+        print(f'0 <= seed = {nicer_seed} < {seed_max}, minimizes mixture discrepancy = '
+                f'{disc_min}')
+        # nicer_seed = 55868, mixture discrepancy = 0.016109347957680598
+
+    sampler = Sobol(d, scramble=True, seed=nicer_seed)
+    sample = sampler.random(n=2**m + extra)  # extra is the additional testing samples
+    if filename is None:
+        return sample
+    else:
+        np.savetxt(filename, sample)
+
+
+def scale_Sobol(sobol=None, fn='sobol.txt', ind=slice(None)):
     """Scale the Sobol sequence samples, refer to the Table in the paper."""
-    sobol = np.loadtxt(fn)[ind].T
+    if sobol is None:
+        sobol = np.loadtxt(fn)[ind].T
     # functions mapping uniform random samples in [0, 1] to a desired one
     f_uni = lambda x, a, b : a + x * (b - a)
     f_log_uni = lambda x, a, b : np.exp(f_uni(x, np.log(a), np.log(b)))
@@ -74,9 +100,12 @@ def gen_cc(sobol, mesh_shape=1, a_snapshots=(1,), a_nbody_num=63,
         so_type = so_type,
         so_nodes = so_nodes,
         softening_length = sobol[8],
-        dropout_rate = dropout_rate,
-        dropout_key = dropout_key.tolist(),  # array could cause ValueError in conf
     )
+
+    if dropout_rate is not None:
+        conf = conf.replace(dropout_rate=dropout_rate,
+                            dropout_key = dropout_key.tolist())
+                            # array could cause ValueError in conf
 
     cosmo = Cosmology(
         conf = conf,
@@ -182,3 +211,9 @@ class G4sobolDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.g4data[self.sobol_ids[idx]]
+
+    def getsnaps(self, sidx, snaps_idx):
+        return (tuple(self.g4data[sidx]['a_snaps'][i] for i in snaps_idx),
+                [self.g4data[sidx]['snapshots'][i] for i in snaps_idx],
+                self.g4data[sidx]['sobol'],
+                self.g4data[sidx]['snap_ids'][snaps_idx])
