@@ -135,7 +135,7 @@ def read_g4snap(sims_dir, sobol_ids, snap_ids, fn_sobol):
     data = {}
     def load_sobol(sidx):
         data[sidx] = {}
-        sobol = scale_Sobol(fn_sobol, sidx)
+        sobol = scale_Sobol(fn=fn_sobol, ind=sidx)
         for snap in snap_ids:
             snap_file = os.path.join(sims_dir, f'{sidx:03}',
                                      'output', f'snapshot_{snap:03}')
@@ -179,7 +179,7 @@ class G4snapDataset(Dataset):
 def read_g4sobol(sims_dir, sobol_ids, snap_ids, fn_sobol):
     data = {}
     def load_sobol(sidx):
-        sobol = scale_Sobol(fn_sobol, sidx)
+        sobol = scale_Sobol(fn=fn_sobol, ind=sidx)
         data[sidx] = {
             'sidx': sidx,
             'sobol': sobol,

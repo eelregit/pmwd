@@ -54,7 +54,7 @@ def plt_proj(filename, max_rows=None, max_cols=None):
 
 
 def plt_scaled(filename):
-    sample = scale_Sobol(filename).T
+    sample = scale_Sobol(fn=filename).T
     assert sample.shape[0] == 9
 
     fig, axes = plt.subplots(nrows=3, ncols=3, sharey=True, figsize=(9, 9),

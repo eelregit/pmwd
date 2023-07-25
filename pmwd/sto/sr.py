@@ -23,7 +23,7 @@ def gen_sonn_data(so_params, net='f'):
         d, m, nidx = 13, 13, 1
     m = 6
     sobol = gen_sobol(d=d, m=m, extra=0)
-    sobol_s = scale_Sobol(sobol[:, :9].T)
+    sobol_s = scale_Sobol(sobol=sobol[:, :9].T)
 
     a_s = 1/16 + (1 + 1/128 - 1/16) * sobol[:, 9]
     logk_min, logk_max = -3, 2
