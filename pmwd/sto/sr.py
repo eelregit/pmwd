@@ -8,12 +8,57 @@ from tqdm import tqdm
 from sklearn.ensemble import RandomForestRegressor
 
 from pmwd.sto.util import load_soparams
-from pmwd.sto.data import scale_Sobol, gen_cc
+from pmwd.sto.data import gen_sobol, scale_Sobol, gen_cc
 from pmwd.sto.mlp import MLP
 from pmwd.sto.so import sotheta, soft_k, soft_kvec
 
 
-def gen_sonn_data(so_params):
+def gen_sonn_data(so_params, net='f'):
+    """Generate the (input, output) samples of so neural networks, using
+    Sobol."""
+    # sample params, a and k (k1 k2 k3) using Sobol for f (g)
+    if net == 'f':
+        d, m, nidx = 11, 11, 0
+    if net == 'g':
+        d, m, nidx = 13, 13, 1
+    m = 6
+    sobol = gen_sobol(d=d, m=m, extra=0)
+    sobol_s = scale_Sobol(sobol[:, :9].T)
+
+    a_s = 1/16 + (1 + 1/128 - 1/16) * sobol[:, 9]
+    logk_min, logk_max = -3, 2
+    if net == 'f':
+        k_s = 10**(logk_min + (logk_max - logk_min) * sobol[:, 10])
+    if net == 'g':
+        k_s = 10**(logk_min + (logk_max - logk_min) * sobol[:, 10:])
+        k_s = np.sort(k_s, axis=-1)  # sort for permutation symmetry
+
+    # pmwd only params
+    mesh_shape = 1
+    n_steps = 100
+
+    # construct X for the network
+    print('constructing X')
+    X = []
+    for sob, a, k in tqdm(zip(sobol_s, a_s, k_s), total=len(sobol_s)):
+        conf, cosmo = gen_cc(sob, mesh_shape=mesh_shape, a_nbody_num=n_steps)
+        theta = sotheta(cosmo, conf, a)
+        if net == 'f':
+            X.append(soft_k(k, theta))
+        if net == 'g':
+            X.append(soft_kvec(k, theta))
+    X = jnp.asarray(X)
+
+    # evaluate y
+    print('evaluating y')
+    so_params, n_input, so_nodes = load_soparams(so_params)
+    nn = MLP(features=so_nodes[nidx])
+    y = nn.apply(so_params[nidx], X)
+
+    return X, y
+
+
+def gen_sonn_data_old(so_params):
     """Generate the (input, output) samples of so neural networks."""
     # TODO this method would give a dataset that is too large
     # maybe we should sample the input of f and g (i.e. k*scales etc.) directly
