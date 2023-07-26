@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-#SBATCH --job-name=g4sim-{job_index}
+#SBATCH --job-name=g4-{job_index}
 #SBATCH --output=%x-%j.out
 #SBATCH --partition=ccm
 #SBATCH --constraint=rome
