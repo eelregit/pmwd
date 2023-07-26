@@ -1,5 +1,6 @@
 #!/usr/bin/bash
 
+#SBATCH --job-name=trainso
 #SBATCH --partition=gpu
 #SBATCH --nodes=2
 #SBATCH --ntasks-per-node=4
