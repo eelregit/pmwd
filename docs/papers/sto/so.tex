@@ -276,6 +276,11 @@ where $\alpha := (a - a_i)/(a_{i+1} - a_i)$ and the Hermite basis functions read
   h_{11}(\alpha) &= \alpha^3 - \alpha^2.
 \end{align}
 The particle velocity is then given by the derivative $\d\vx / \d a$.
+\YZ{Notice that the interpolation is a linear combination of the particles at
+two consecutive time steps, which therefore can be done in either two steps or
+just one step by carrying the particles from the previous time step.
+We find the two-steps scheme more convenient for the backward evolution of the
+adjoint variables.}
 
 We refer to the quantities that are directly related to the objective function
 as the observables.
@@ -721,8 +726,8 @@ updated with the same averaged gradients.
 Hyperparameters:
 \YZ{
 \begin{itemize}
-  \item Model: number of hidden layers and nodes of f and g nets
-  \item Optimization: learning rate scheduler, weight decay and dropout rate etc
+  \item Model: number of hidden layers and nodes of f and g nets, activation function
+  \item Optimization: learning rate scheduler, momentum, weight decay and dropout rate etc
   \item Loss: fields to include and loss function forms
 \end{itemize}
 }
