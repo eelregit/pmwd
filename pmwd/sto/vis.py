@@ -78,7 +78,7 @@ def vis_inspect(tgt, so_params, pmwd_params, vis_mesh_shape=1,
 
     # plot power spectra
     if p_power:
-        (dens, dens_t), (vis_mesh_shape, cell_size) = scatter_dens(
+        (dens, dens_t), cell_size = scatter_dens(
                                             (ptcl, ptcl_t), conf, vis_mesh_shape)
         k, tf, cc = power_tfcc(dens, dens_t, cell_size)
         figs['tf'] = plt_tf(k, tf)
@@ -104,5 +104,20 @@ def vis_inspect(tgt, so_params, pmwd_params, vis_mesh_shape=1,
         figs['dens_target'].tight_layout()
         figs['dens'] = simshow(dens[:slab].mean(axis=0), norm=norm)[0]
         figs['dens'].tight_layout()
+
+    return figs
+
+
+def track_figs(ptcl, ptcl_t, vis_mesh_shape=1):
+    """Generate figures tracking the training."""
+    figs = {}
+    # plot T and r of density fields
+    (dens, dens_t), cell_size = scatter_dens(
+                                    (ptcl, ptcl_t), ptcl.conf, vis_mesh_shape)
+    k, tf, cc = power_tfcc(dens, dens_t, cell_size)
+    figs['tf'] = plt_tf(k, tf)
+    figs['cc'] = plt_cc(k, cc)
+
+    # TODO plot other quantities listed in the draft
 
     return figs

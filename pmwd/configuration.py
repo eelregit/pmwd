@@ -145,8 +145,8 @@ class Configuration:
 
     chunk_size: int = 2**24
 
-    # observable
-    a_snapshots: Tuple[float] = (a_stop,)
+    # observables
+    a_snapshots: Optional[Tuple[float]] = None
 
     # SO related
     # type of SO method

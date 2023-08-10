@@ -7,7 +7,7 @@ from flax.core.frozen_dict import unfreeze, freeze
 
 class MLP(nn.Module):
     features: Sequence[int]
-    activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.softplus
+    activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.leaky_relu
     outivator: Callable[[jnp.ndarray], jnp.ndarray] = None
 
     @nn.compact
