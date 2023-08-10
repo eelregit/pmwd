@@ -2,56 +2,66 @@
 import pickle
 import matplotlib.pyplot as plt
 
+from pmwd.nbody import nbody
 from pmwd.sto.train import pmodel, init_pmwd
-from pmwd.sto.data import G4snapDataset
+from pmwd.sto.data import G4snapDataset, gen_cc, gen_ic
 from pmwd.sto.mlp import mlp_size
-from pmwd.sto.util import power_tfcc, scatter_dens, pv2ptcl
+from pmwd.sto.util import power_tfcc, scatter_dens, pv2ptcl, load_soparams
 
 
-def test_snap(tgt, pmwd_params, so_params, vis_mesh_shape):
+def pmwd_fwd(so_params, sidx, sobol, a_snaps, mesh_shape, n_steps, so_type, so_nodes):
+    """End-to-end forward run of pmwd with SO."""
+    conf, cosmo = gen_cc(sobol, mesh_shape=mesh_shape, a_snapshots=a_snaps,
+                         a_nbody_num=n_steps, so_type=so_type, so_nodes=so_nodes)
+    ptcl_ic = gen_ic(sidx, conf, cosmo)
+    cosmo = cosmo.replace(so_params=so_params)
+    _, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
+    return obsvbl
+
+
+def test_snap(tgt, pmwd_params, so_params, vis_mesh_shape, vis_cut_nyq):
     ptcl_ic, cosmo, conf = init_pmwd(pmwd_params)
+    a = pmwd_params[0][0]
 
     # run pmwd w/ and w/o optimization
-    ptcl, _ = pmodel(ptcl_ic, so_params, cosmo, conf)
+    ptcl = pmodel(ptcl_ic, so_params, cosmo, conf)[0]['snapshots'][a]
     conf = conf.replace(so_type=None)
-    ptcl_o, _ = pmodel(ptcl_ic, so_params, cosmo, conf)
+    ptcl_o = pmodel(ptcl_ic, so_params, cosmo, conf)[0]['snapshots'][a]
 
     ptcl_t = pv2ptcl(*tgt, ptcl.pmid, ptcl.conf)
 
-    (dens, dens_o, dens_t), (vis_mesh_shape, cell_size) = scatter_dens(
+    (dens, dens_o, dens_t), cell_size = scatter_dens(
                                     (ptcl, ptcl_o, ptcl_t), conf, vis_mesh_shape)
 
     # compare the tf and cc
-    k, tf, cc = power_tfcc(dens, dens_t, cell_size)
-    k, tf_o, cc_o = power_tfcc(dens_o, dens_t, cell_size)
+    k, tf, cc = power_tfcc(dens, dens_t, cell_size, cut_nyq=vis_cut_nyq)
+    k, tf_o, cc_o = power_tfcc(dens_o, dens_t, cell_size, cut_nyq=vis_cut_nyq)
 
     fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.6), tight_layout=True)
     ax.plot(k, tf, c='tab:blue', label=r'$T$, w/ SO')
     ax.plot(k, cc, c='tab:orange', label=r'$r$, w/ SO')
     ax.plot(k, tf_o, ls='--', c='tab:blue', label=r'$T$, w/o SO')
     ax.plot(k, cc_o, ls='--', c='tab:orange', label=r'$r$, w/o SO')
-    ax.set_xlabel(r'$k$')
+    ax.set_xlabel(r'$k$ [$h$/Mpc]')
     ax.set_xscale('log')
     ax.set_xlim(k[0], k[-1])
-    ax.set_ylim(0.5, 1.5)
+    ax.set_ylim(0.6, 1.2)
     ax.grid(c='grey', alpha=0.5, ls=':')
-    ax.legend()
+    ax.legend(ncols=2, frameon=False)
 
-    return fig
+    return fig, ax
 
 
 def test_so(so_params, sobol_ids, snap_ids, g4sims_dir='../g4sims',
-            mesh_shape=128, n_steps=100, so_type=2, vis_mesh_shape=1):
+            mesh_shape=1, n_steps=100, so_type=2, vis_mesh_shape=1,
+            vis_cut_nyq=True):
     # load the g4data
     print('loading gadget4 data')
     g4data = G4snapDataset(g4sims_dir, sobol_ids, snap_ids)
 
     # trained so_params
     print('preparing so parameters')
-    if isinstance(so_params, str):
-        with open(so_params, 'rb') as f:
-            so_params = pickle.load(f)['so_params']
-    n_input, so_nodes = mlp_size(so_params)
+    so_params, n_input, so_nodes = load_soparams(so_params)
 
     # compare
     print('generating the figures')
@@ -60,7 +70,9 @@ def test_so(so_params, sobol_ids, snap_ids, g4sims_dir='../g4sims',
         for snap in snap_ids:
             pos, vel, a, sidx, sobol, snap_id = g4data.getsnap(sidx, snap)
             tgt = (pos, vel)
-            pmwd_params = (a, sidx, sobol, mesh_shape, n_steps, so_type, so_nodes)
-            figs.append(test_snap(tgt, pmwd_params, so_params, vis_mesh_shape))
+            pmwd_params = ((a,), sidx, sobol, mesh_shape, n_steps, so_type, so_nodes, None, None)
+            fig, ax = test_snap(tgt, pmwd_params, so_params, vis_mesh_shape, vis_cut_nyq)
+            ax.set_title(f'Sobol: {sidx}')
+            figs.append(fig)
 
     return figs

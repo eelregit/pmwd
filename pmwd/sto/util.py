@@ -15,15 +15,12 @@ def pv2ptcl(pos, vel, pmid, conf):
 
 def scatter_dens(ptcls, conf, mesh_shape):
     """A wrapper to scatter particles onto a given mesh shape for dens."""
-    if mesh_shape is None:  # the mesh in PM force
-        cell_size = conf.cell_size
-        mesh_shape = conf.mesh_shape
-    else:  # float or int
-        cell_size = conf.ptcl_spacing / mesh_shape
-        mesh_shape = tuple(round(mesh_shape * s) for s in conf.ptcl_grid_shape)
+    # mesh_shape should be int or float
+    cell_size = conf.ptcl_spacing / mesh_shape
+    mesh_shape = tuple(round(mesh_shape * s) for s in conf.ptcl_grid_shape)
     denss = (scatter(p, conf, mesh=jnp.zeros(mesh_shape, dtype=conf.float_dtype),
                      val=1, cell_size=cell_size) for p in ptcls)
-    return denss, (mesh_shape, cell_size)
+    return denss, cell_size
 
 
 def power_tfcc(f, g, spacing, cut_nyq=False):

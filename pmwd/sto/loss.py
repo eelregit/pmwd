@@ -1,6 +1,6 @@
-import jax
+from jax import jit
 import jax.numpy as jnp
-
+from functools import partial
 
 from pmwd.particles import Particles, ptcl_rpos
 from pmwd.pm_util import rfftnfreq
@@ -8,6 +8,7 @@ from pmwd.spec_util import powspec
 from pmwd.sto.util import scatter_dens, pv2ptcl
 
 
+@partial(jit, static_argnames=('log', 'norm'))
 def _loss_mse(f, g, log=True, norm=True, weights=None):
     """MSE between two arrays, with optional modifications."""
     loss = jnp.abs(f - g)**2
@@ -45,7 +46,7 @@ def _loss_power_ln(f, g, spacing=1, cut_nyq=True):
     return loss
 
 
-def loss_snap(ptcl, tgt, conf, loss_mesh_shape=1):
+def loss_snap(ptcl, tgt, a, conf, loss_mesh_shape=1):
 
     # get the target ptcl
     ptcl_t = pv2ptcl(*tgt, ptcl.pmid, ptcl.conf)
@@ -59,16 +60,10 @@ def loss_snap(ptcl, tgt, conf, loss_mesh_shape=1):
     shape_ = (-1,) + conf.ptcl_grid_shape
     disp = disp.T.reshape(shape_)
     disp_t = disp_t.T.reshape(shape_)
-    # disp_k = jnp.fft.rfftn(disp, axes=range(-3, 0))
-    # disp_t_k = jnp.fft.rfftn(disp_t, axes=range(-3, 0))
-    # kvec_disp = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
     # get the density fields
-    (dens, dens_t), (loss_mesh_shape, cell_size) = scatter_dens(
+    (dens, dens_t), cell_size = scatter_dens(
                                         (ptcl, ptcl_t), conf, loss_mesh_shape)
-    # dens_k = jnp.fft.rfftn(dens)
-    # dens_t_k = jnp.fft.rfftn(dens_t)
-    # kvec_dens = rfftnfreq(loss_mesh_shape, cell_size, dtype=conf.float_dtype)
 
     loss = 0.
 
@@ -76,10 +71,11 @@ def loss_snap(ptcl, tgt, conf, loss_mesh_shape=1):
     loss += _loss_mse(disp, disp_t)
 
     # density field
-    loss += _loss_power_w(dens, dens_t)
-    # loss += _loss_power_ln(dens, dens_t)
+    # loss += _loss_power_w(dens, dens_t)
+    loss += _loss_power_ln(dens, dens_t)
 
-    # loss /= len(conf.a_nbody)  # divided by the number of nbody steps
+    # divided by the number of nbody steps to this snap
+    loss /= (a - conf.a_start) // conf.a_nbody_step + 1
 
     return loss
 
@@ -87,9 +83,9 @@ def loss_snap(ptcl, tgt, conf, loss_mesh_shape=1):
 def loss_func(obsvbl, tgts, conf):
     loss = 0.
 
-    for i, tgt in enumerate(tgts):
-        ptcl = obsvbl['snapshots'][i]
-        loss += loss_snap(ptcl, tgt, conf)
+    for tgt, a in zip(tgts, conf.a_snapshots):
+        ptcl = obsvbl['snapshots'][a]
+        loss += loss_snap(ptcl, tgt, a, conf)
     loss /= len(tgts)  # mean loss per snapshot
 
     return loss
