@@ -3,7 +3,7 @@ import math
 
 from jax import jit, ensure_compile_time_eval
 import jax.numpy as jnp
-from jax import custom_vjp
+from jax import custom_vjp, jit, ensure_compile_time_eval
 
 from pmwd.pm_util import fftfreq, fftfwd
 
