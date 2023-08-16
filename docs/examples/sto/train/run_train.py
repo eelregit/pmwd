@@ -14,7 +14,6 @@ jax.distributed.initialize(local_device_ids=[0])
 
 import jax.numpy as jnp
 import numpy as np
-import optax
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
@@ -22,7 +21,7 @@ from datetime import datetime
 import time
 import pickle
 
-from pmwd.sto.train import train_step, train_epoch, loss_epoch, global_mean
+from pmwd.sto.train import train_epoch, loss_epoch, global_mean
 from pmwd.sto.vis import track_figs
 from pmwd.sto.data import G4sobolDataset
 from pmwd.sto.hypars import (
@@ -33,7 +32,7 @@ from pmwd.sto.util import pv2ptcl
 
 
 def printinfo(s, procid=procid, flush=False):
-    print(f"[{datetime.now().strftime('%H:%M:%S  %m-%d')}] Proc {procid}: {s}",
+    print(f"[{datetime.now().strftime('%H:%M:%S  %m-%d')}] Proc {procid:>2d}: {s}",
           flush=flush)
 
 
@@ -42,7 +41,7 @@ def jax_device_sync(verbose=False):
     x = global_mean(jnp.array(procid))
     assert round(2 * x + 1) == n_procs, 'something wrong with global mean'
     if verbose:
-        printinfo('device sync successful', flush=True)
+        printinfo(f'# global devices: {len(jax.devices())}, device sync successful', flush=True)
 
 
 def checkpoint(epoch, so_params):
@@ -82,7 +81,6 @@ def track(writer, epoch, scalars, check_sobols, check_snaps, so_params, g4data,
 
 
 # check global devices
-printinfo(f'# global devices: {len(jax.devices())}')
 jax_device_sync(verbose=True)
 
 # RNGs with fixed seeds, for same randomness across processes
@@ -93,22 +91,24 @@ jax_key = jax.random.PRNGKey(0)  # for dropout
 # the corresponding sobol ids of training data for current proc
 # each proc must have the same number of sobol ids
 sobol_ids = np.split(sobol_ids_global, n_procs)[procid]
-printinfo(f'local sobol ids: {sobol_ids}')
 
 optimizer = get_optimizer(learning_rate)
 opt_state = optimizer.init(so_params)
 skd_state = None
 
 # load training data to CPU memory
-printinfo('loading gadget-4 data', flush=True)
+printinfo(f'loading gadget-4 data, sobol ids: {sobol_ids}', flush=True)
+tic = time.perf_counter()
 g4data = G4sobolDataset('g4sims', sobol_ids, snap_ids)
 g4loader = DataLoader(g4data, batch_size=None, shuffle=shuffle_epoch,
                       generator=tc_rng, num_workers=0, collate_fn=lambda x: x)
-jax_device_sync()
+printinfo(f'loading {len(sobol_ids)} sobols takes {(time.perf_counter() - tic)/60:.1f} mins', flush=True)
 
-printinfo('training started ...', flush=True)
+
+jax_device_sync()
 if procid == 0:
-    print('time, epoch, sidx, mesh_shape, n_steps, loss')
+    print('>> devices synced, start training <<')
+    print('time, epoch, sidx, mesh_shape, n_steps, loss', flush=True)
     writer = SummaryWriter()
 
 
