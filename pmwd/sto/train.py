@@ -77,6 +77,7 @@ def train_epoch(procid, epoch, g4loader, so_params, opt_state, optimizer,
     for step, g4sobol in enumerate(g4loader):
         tgts, a_snaps, sidx, sobol = (g4sobol[k] for k in (
                                     'snapshots', 'a_snaps', 'sidx', 'sobol'))
+        tgts = jax.device_put(tgts)  # could be asynchronous
 
         # mesh shape, [1, 2, 3, 4]
         # mesh_shape = np_rng.integers(1, 5)
@@ -119,6 +120,7 @@ def loss_epoch(procid, epoch, g4loader, so_params, jax_key):
     for step, g4sobol in enumerate(g4loader):
         tgts, a_snaps, sidx, sobol = (g4sobol[k] for k in (
                                     'snapshots', 'a_snaps', 'sidx', 'sobol'))
+        tgts = jax.device_put(tgts)  # could be asynchronous
 
         # mesh shape, [1, 2, 3, 4]
         # mesh_shape = np_rng.integers(1, 5)
