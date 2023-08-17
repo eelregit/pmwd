@@ -1,38 +1,43 @@
 import jax.numpy as jnp
 from jax import random
-import flax.linen as nn
 from typing import Sequence, Callable
+import flax.linen as nn
 from flax.core.frozen_dict import unfreeze, freeze
+from flax.linen.initializers import he_normal, zeros_init
 
 
 class MLP(nn.Module):
     features: Sequence[int]
-    activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.leaky_relu
+    activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
     outivator: Callable[[jnp.ndarray], jnp.ndarray] = None
+    kernel_init: Callable = he_normal()
+    bias_init: Callable = zeros_init()
 
     @nn.compact
     def __call__(self, x, dropout=False, dropout_rate=0.5):
         # hidden layers
         for i, fts in enumerate(self.features[:-1]):
-            x = nn.Dense(fts, param_dtype=jnp.float64)(x)
+            x = nn.Dense(fts, param_dtype=jnp.float64, kernel_init=self.kernel_init,
+                         bias_init=self.bias_init)(x)
             x = self.activator(x)
             x = nn.Dropout(rate=dropout_rate, deterministic=not dropout)(x)
 
         # output layer
-        x = nn.Dense(self.features[-1], param_dtype=jnp.float64)(x)
+        x = nn.Dense(self.features[-1], param_dtype=jnp.float64,
+                     kernel_init=self.kernel_init, bias_init=self.bias_init)(x)
         if self.outivator is not None:
             x = self.outivator(x)
 
         return x
 
 
-def init_mlp_params(n_input, nodes, scheme=None):
+def init_mlp_params(n_input, nodes, kernel_init=he_normal(), bias_init=zeros_init(),
+                    scheme=None):
     """Initialize MLP parameters."""
-    nets = [MLP(features=n) for n in nodes]
+    nets = [MLP(features=n, kernel_init=kernel_init, bias_init=bias_init) for n in nodes]
     xs = [jnp.ones(n) for n in n_input]  # dummy inputs
     keys = random.split(random.PRNGKey(0), len(n_input))
 
-    # by default in flax.linen.Dense, kernel: lecun_norm, bias: 0
     params = [nn.init(key, x) for nn, key, x in zip(nets, keys, xs)]
 
     # for the last layer: set bias to one & weights to zero
