@@ -44,7 +44,7 @@ def lr_scheduler(lr, skd_state, loss, patience=20, factor=0.5, threshold=5e-4, l
 so_type = 2
 
 if so_type == 2:
-    n_input = [soft_len(l_fac=3), soft_len()]
+    n_input = [soft_len(k_fac=3), soft_len()]
 
 if so_type == 3:
     n_input = [soft_len()] * 3
