@@ -166,13 +166,7 @@ applicable to all other cosmological simulation code.
 \item (train, test) For $\vs(\vq)$, $\vv(\vq)$, $\delta(\vx)$,
   $(1+\delta)\vv(\vx)$, $(1+\delta)\vv\vv(\vx)$, show $T - 1$ in symlog
   with 0.01 linthresh, and $1-r^2$ in log at 3 different $a$'s; Show $f$
-  and $g$ (along axis and face diagonal) at 3 different $a$'s; Track
-  mean epoch loss
-\item (train) Randomize snapshots of each simulation instead of
-  sequential; alternatively accumulate their gradients; Normalize loss
-  by number of time steps\newline
-  \YZ{\textbf{Update}: Normalizing loss by number of time steps seems to halt
-  the training of late time snapshots, i.e. they stop improving.}
+  and $g$ (along axis and face diagonal) at 3 different $a$'s
 \item (train, test) 3 sets of grid for ptcl, force mesh, and loss. Add
   random offset in loss grid (see \autoref{tab:param}) to remove the
   position dependence in loss; likewise for force mesh? how about only
@@ -714,7 +708,7 @@ the same number of time steps and mesh shape on all GPUs.
 We perform distributed data-parallel training using GPU devices hosted on
 multiple CPU nodes.
 % TODO hardware details
-The 512 training data samples are uniformly distributed to the processes, with
+The training data samples are uniformly distributed to the processes, with
 each process being binded to a single GPU device.
 In each training step, a data sample is fed into the GPU from the CPU memory
 where the preloading takes place to save the reading time from the disk.
