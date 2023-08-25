@@ -4,6 +4,7 @@ os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
 n_procs = int(os.getenv('SLURM_NTASKS'))
 procid = int(os.getenv('SLURM_PROCID'))
 n_tasks_per_node = int(os.getenv('SLURM_NTASKS_PER_NODE'))
+slurm_job_id = os.getenv('SLURM_JOB_ID')
 os.environ['CUDA_VISIBLE_DEVICES'] = str(procid % n_tasks_per_node)
 
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.95'
@@ -45,8 +46,8 @@ def jax_device_sync(verbose=False):
 
 
 def checkpoint(epoch, so_params):
-    jobid = os.getenv('SLURM_JOB_ID')
-    with open(fn := f'params/j{jobid}_e{epoch:0>3d}.pickle', 'wb') as f:
+    os.makedirs(f'params/{slurm_job_id}', exist_ok=True)
+    with open(fn := f'params/{slurm_job_id}/e{epoch:0>3d}.pickle', 'wb') as f:
         dic = {'so_params': so_params}
         pickle.dump(dic, f)
     printinfo(f'epoch {epoch} done, params saved: {fn}', flush=True)
@@ -83,10 +84,13 @@ def track(writer, epoch, scalars, check_sobols, check_snaps, so_params, g4data,
 # check global devices
 jax_device_sync(verbose=True)
 
-# RNGs with fixed seeds, for same randomness across processes
-np_rng = np.random.default_rng(0)  # for pmwd MC sampling
-tc_rng = torch.Generator().manual_seed(0)  # for dataloader shuffle
-jax_key = jax.random.PRNGKey(0)  # for dropout
+# RNGs with fixed seeds
+# numpy: pmwd MC sampling;
+np_rng = np.random.default_rng(0)
+# torch: dataloader shuffle of sobols
+tc_rng = torch.Generator().manual_seed(procid)
+# jax: dropout layer
+jax_key = jax.random.PRNGKey(0)
 
 # the corresponding sobol ids of training data for current proc
 # each proc must have the same number of sobol ids
@@ -109,7 +113,7 @@ jax_device_sync()
 if procid == 0:
     print('>> devices synced, start training <<')
     print('time, epoch, sidx, mesh_shape, n_steps, loss', flush=True)
-    writer = SummaryWriter()
+    writer = SummaryWriter(log_dir=f'runs/{slurm_job_id}')
 
 
 for epoch in range(0, n_epochs+1):
