@@ -217,13 +217,16 @@ list if we have too many figures to show?\newline
 \vspace{1em}
 \section{Introduction}
 % without heading
+Keywords: AI for science, differentiable simulations, deep neural networks,
+symbolic interpretability
 
+Abbrs: vector-Jacobian product (VJP), automatic differentiation (AD),
 
 \vspace{1em}
 \section{Results}
 % Results should be divided by topical subheadings
 
-\subsection{Trained SO neural networks and symbolic expressions}
+\subsection{SO neural networks and symbolic expressions}
 
 
 \subsection{Dark matter fields}
@@ -246,18 +249,44 @@ list if we have too many figures to show?\newline
 
 The differentiable cosmological simulation with adjoint method \citep{Li2022a}
 and the corresponding PM $N$-body library \pmwd\ \citep{Li2022b} are the
-foundation of the optimization discussed in this work.
-We denote the particles' state with $\vz = (\vx, \vp)^\intercal$ and their
-adjoint variables with $\vlambda = (\vxi, \vpi)$.
+foundation of the neural optimization discussed in this work.
+Within this fully differentiable framework, we are able to embed neural networks
+in any physical process and train them for many purposes, including the
+optimization of the gravitational force field in this work.
 
+Following these two works, we denote the particles' state with $\vz = (\vx,
+\vp)^\intercal$ and their adjoint variables with $\vlambda = (\vxi, \vpi)$.
+We refer to the quantities that are directly related to the final objective
+function $\cJ$ as the observables.
+In this work, our observable $\vo$ includes multiple snapshots at given times.
+In the observation operator $O_{i}^{i-1}$, the adjoint variables are updated
+through
+\begin{align}
+  \vxi_{i-1} &:= \vxi_{i-1} + \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vx_{i-1}}, \nonumber\\
+  \vpi_{i-1} &:= \vpi_{i-1} + \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vp_{i-1}},
+\end{align}
+where the derivatives of $\vo$ with respect to $\vx_{i-1}$ and $\vp_{i-1}$ would
+be non-zero if they were used in the interpolation of any snapshots in $\vo$.
+The initial conditions are
+\begin{align}
+  \vxi_n &= \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p\vx_n}, \nonumber\\
+  \vpi_n &= \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p\vp_n},
+\end{align}
+which are zero if no snapshot in $\vo$ depends on $(\vx_n, \vp_n)$.
+The derivative of the objective function with respect to the observable and the
+VJP of the observation funciton (mainly the interpolation function discussed
+below) can be conveniently computed by AD.
 
 
 \vspace{1em}
 \subsection{Snapshot Observable}
 \label{sec:snapobs}
 
-Given two snapshots at $a_i$ and $a_{i+1}$, we get the particle displacements
-in between at $a$ using interpolation with the cubic Hermite spline,
+The N-body time integration is carried out following discrete time steps.
+Given the particle displacements and velocities at two consecutive time steps
+$a_i$ and $a_{i+1}$, we get the status of particles in between at $a$ using the
+cubic Hermite interpolation.
+The interpolated particle displacements are given by
 \begin{align}
   \vx(a) =\ &h_{00}(\alpha)\vx_i + h_{10}(\alpha)(a_{i+1} - a_i)\vv_i + \nonumber\\
            &h_{01}(\alpha)\vx_{i+1} + h_{11}(\alpha)(a_{i+1} - a_i)\vv_{i+1},
@@ -269,45 +298,39 @@ where $\alpha := (a - a_i)/(a_{i+1} - a_i)$ and the Hermite basis functions read
   h_{01}(\alpha) &= -2\alpha^3 + 3\alpha^2, \nonumber\\
   h_{11}(\alpha) &= \alpha^3 - \alpha^2.
 \end{align}
-The particle velocity is then given by the derivative $\d\vx / \d a$.
-\YZ{Notice that the interpolation is a linear combination of the particles at
-two consecutive time steps, which therefore can be done in either two steps or
-just one step by carrying the particles from the previous time step.
+The particle velocities are then given by the derivative $\d\vx / \d a$.
+Note that the interpolation is a linear combination of the particles at two
+consecutive time steps, which therefore can be done in either two steps or just
+one step by carrying the particles from the previous time step.
 We find the two-steps scheme more convenient for the backward evolution of the
-adjoint variables.}
-
-We refer to the quantities that are directly related to the objective function
-as the observables.
-Our observable $\vo$ is a snapshot $\hat\vz = (\hat\vx,
-\hat\vp)^\intercal$ at a given time $a_o$, which in general can be given by the
-interpolation of two snapshots $\vz_{k-1}$ and $\vz_k$ where $a_{k-1} \leq a_o <
-a_k$.
-Then ${\p\vo}/{\p\vz_i}$ would be zero except for the relevant $\vz_{k-1}$
-and $\vz_k$. We have in the initial conditions of the adjoint equations
-\begin{align}
-  \vxi_n &= \frac{\p\cJ}{\p\vo} \cdot \frac{\p\vo}{\p\vx_n}, \nonumber\\
-  \vpi_n &= \frac{\p\cJ}{\p\vo} \cdot \frac{\p\vo}{\p\vp_n}.
-\end{align}
-In the reverse time evolution of the adjoint equations, these adjoint varibales
-remain zero until the time stepping from $a_{k+1}$ to $a_k$.
+adjoint variables.
 
 
 \vspace{1em}
 \subsection{Optimization of Dynamics}
 \label{sec:so}
 
-In Fourier space, the gravitational force field reads
+In cosmological $N$-body simulations, the dynamics of the particles is governed
+by the Poisson equation
+%
+\begin{equation}
+  \nabla^2 \varphi(\vx) = \frac32 \Omegam H_0^2 \delta(\vx),
+\end{equation}
+%
+In Fourier space, the gravitational force field $- \vnabla \varphi$ reads
+%
 \begin{equation}
 - i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
 \end{equation}
-Force sharpening
+%
+We introduce force sharpening through
 %
 \begin{equation}
 \frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
   f(k_i; \vvartheta) g(k_1, k_2, k_3; \vvartheta),
 \end{equation}
 %
-where $f$, $g$ are neural networks, each approximating a nonlinear
+where $f$ and $g$ are neural networks, each approximating a nonlinear
 function of the wavevector components and all possible relevant features
 $\vvartheta$ summarized in \autoref{tab:feat} and discussed below.
 
@@ -350,29 +373,32 @@ dimensionless factors & $\Omegam(a)$ \\
 \end{tabular}
 \end{table}
 
-The dimensionless power spectrum
-%
-\begin{equation}
-\Delta^2(k) \triangleq \frac{k^3 P(k)}{2 \pi^2}.
-\end{equation}
-
-Variance of linear matter overdensity in a top-hat window
-%
-\begin{equation}
-\sigma_\tophat^2(R) = \int_0^\infty \frac{\d k}k
-  \Delta_\linear^2(k) W_\tophat^2(kR),
-\end{equation}
-where $W_\tophat(kR) = 3[\sin(kR) - kR\cos(kR)] / (kR)^3$ is the
-Fourier transform of the top-hat window.
-Likewise $\sigma_\gauss^2(R)$ is defined with a Gaussian window
-$W_\gauss(kR) = e^{-(kR)^2/2}$.
-
-The RMS linear displacement
+Relevant typical scales are defined through
+\begin{itemize}
+\item The RMS linear displacement is given by
 %
 \begin{equation}
 R_\mathrm{d} = \int \frac{k P_\linear}{6\pi^2} \d\lnk.
 \end{equation}
 %
+\item The dimensionless power spectrum is defined as
+%
+\begin{equation}
+\Delta^2(k) \triangleq \frac{k^3 P(k)}{2 \pi^2}.
+\end{equation}
+%
+\item The variance of linear matter overdensity in a top-hat window is given by
+%
+\begin{equation}
+\sigma_\tophat^2(R) = \int_0^\infty \frac{\d k}k
+  \Delta_\linear^2(k) W_\tophat^2(kR),
+\end{equation}
+%
+where $W_\tophat(kR) = 3[\sin(kR) - kR\cos(kR)] / (kR)^3$ is the
+Fourier transform of the top-hat window.
+\item Likewise $\sigma_\gauss^2(R)$ is defined with a Gaussian window
+$W_\gauss(kR) = e^{-(kR)^2/2}$.
+\end{itemize}
 
 Relevant scale-independent dimensionless factors are
 \begin{itemize}
@@ -387,7 +413,8 @@ Relevant scale-independent dimensionless factors are
 
 We combine the above list of parameters in $\vvartheta$.
 
-Dimensionless combinations, e.g.,
+Dimensionless combinations by multiplying the wavevector components with the
+scales, e.g.,
 %
 \begin{equation}
 f(k_i; \vvartheta) = f(k_iR_d, k_iR_\tophat, \cdots; G_m, \Omegam, \cdots)
@@ -415,19 +442,21 @@ We take the absolute value for the evenness, and sort the 3 wavevector
 compontents to achieve the permutation equivariance.
 
 \YZ{
-The parameters of the neural networks, which enter every force evaluation in
+The parameters of the neural networks, which enter the force evaluation in
 every time integration step, can be treated just the same as other cosmological
 parameters.
 The objective gradients are accumulated, based on which the parameters are then
 optimized.
-For both $f$ and $g$ neural networks, we adopt the multilayer perceptron (MLP)
-structure, each with one input layer, two hidden layers and one output layer.
+For both $f$ and $g$ neural networks, we adopt multilayer perceptron (MLP, i.e.
+fully connected) structures.
 }
 
 
 \vspace{1em}
 \subsection{Loss Function}
 
+The loss function is constructed by comparing the simulated field $\hat f$ with
+the target field $f$.
 \YL{
 For a field $f$ in either Lagrangian or Eulerian space, we have thought
 of 3 forms of MSE-inspired loss:
@@ -438,10 +467,10 @@ of 3 forms of MSE-inspired loss:
        {\sum_{\vq'} f(\vq')^2},
 \end{equation}
 %
-where $N_a$ is the time steps it take to generate the snapshot for each
-iteration.
+where $N_a$ is the number of time steps it takes to generate the snapshot for
+each iteration
 (or with $\vq$ replaced by $\vx$ for Eulerian fields, or equivalently by
-their Fourier wavevector $\vk$ in both cases)
+their Fourier wavevector $\vk$ in both cases).
 %
 \begin{equation}
 \cL_f = \frac1{N_a N_K} \sum_i \ln
@@ -516,6 +545,14 @@ This is because a PM solver gradually loses small scale information step
 by step, and without $w$ setting the priority, the loss function could
 encourage the network to fit the small scales at the cost of the
 intermediate scales.
+Note that $\cL_\vs$ is on the displacement field $\vs(\vq)$ in the
+Lagrangian space, while the density field is in the Eulerian space:
+%
+\begin{equation}
+1 + \delta(\vx) = \int\!\d^3\vq\, \deltaD[ \vx - \vq - \vs(\vq)],
+\end{equation}
+%
+which we compute by scattering particles to the choice of grid for loss.
 
 To understand the form of the loss function, let's introduce for each
 mode the square root ratio of power
@@ -565,16 +602,6 @@ We combine Lagrangian and Eulerian fields to form the total loss:
 \cJ = \cL_\vs + [\cL_\vv] + \cL_\delta.
 \end{equation}
 %
-
-\YL{TODO move this above:}
-Note that $\cL_\vs$ is on the displacement field $\vs(\vq)$ in the
-Lagrangian space, while the density field is in the Eulerian space:
-%
-\begin{equation}
-1 + \delta(\vx) = \int\!\d^3\vq\, \deltaD[ \vx - \vq - \vs(\vq)],
-\end{equation}
-%
-which we compute by scattering particles to the choice of grid for loss.
 
 \YZ{We further sum the loss of all snapshots across a single forward simulation
 at different times, i.e.
@@ -643,7 +670,7 @@ training & loss grid offset in its own spacing & uniform & $[0, 1)^3$ \\
 
 
 \vspace{1em}
-\subsection{Configurations and Data for Training and Testing}
+\subsection{Configurations and Training Data}
 
 We generate our target data for training and testing with the \GADGET\
 simulation code \citep{GADGET-4}.
@@ -696,7 +723,7 @@ future training projects.}
 
 
 \vspace{1em}
-\subsection{Training of SO neural networks}
+\subsection{Training of SO Neural Networks}
 
 Following \autoref{tab:param}, in each iteration, we randomly sample the number
 of time steps and the mesh shape (or its cell size), and configure \pmwd\ with
@@ -730,6 +757,9 @@ Hyperparameters:
   \item Loss: fields to include and loss function forms
 \end{itemize}
 }
+
+We empoly a learning rate scheduler that reduces the learning rate on plateau
+where the loss function stops decreasing.
 
 
 \YZ{
