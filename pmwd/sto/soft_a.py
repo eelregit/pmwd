@@ -43,16 +43,20 @@ def soft(k, theta):
     return jnp.concatenate((jnp.atleast_1d(k), theta))
 
 
-def soft_k(k, theta, log=False):
+def soft_k(k, theta, logk=True):
     """Get SO input features (k, theta)."""
     theta = jnp.broadcast_to(theta, k.shape+theta.shape)
     k = k.reshape(k.shape + (1,))
+    if logk:
+        k = jnp.log(jnp.where(k > 0., k, 1.))
     ft = jnp.concatenate((k, theta), axis=-1)
     return ft
 
 
-def soft_kvec(kv, theta, log=False):
+def soft_kvec(kv, theta, logk=True):
     """Get SO input features (k1, k2, k3, theta)."""
     theta = jnp.broadcast_to(theta, kv.shape[:-1]+theta.shape)
+    if logk:
+        kv = jnp.log(jnp.where(kv > 0., kv, 1.))
     ft = jnp.concatenate((kv, theta), axis=-1)
     return ft
