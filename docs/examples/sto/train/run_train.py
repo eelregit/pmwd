@@ -22,14 +22,14 @@ from datetime import datetime
 import time
 import pickle
 
-from pmwd.sto.train import train_epoch, loss_epoch, global_mean
+from pmwd.sto.train import train_epoch, loss_epoch
 from pmwd.sto.vis import track_figs
 from pmwd.sto.data import G4sobolDataset
 from pmwd.sto.hypars import (
     n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
     learning_rate, get_optimizer, so_params)
 from pmwd.sto.post import pmwd_fwd
-from pmwd.sto.util import pv2ptcl
+from pmwd.sto.util import pv2ptcl, global_mean
 
 
 def printinfo(s, procid=procid, flush=False):
