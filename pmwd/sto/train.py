@@ -1,6 +1,5 @@
 import jax
 import jax.numpy as jnp
-from jax.tree_util import tree_map
 import optax
 from functools import partial
 import time
@@ -10,6 +9,7 @@ from pmwd.sto.data import gen_cc, gen_ic
 from pmwd.sto.loss import loss_func
 from pmwd.sto.hypars import (
     so_type, so_nodes, lr_scheduler, get_optimizer, dropout_rate)
+from pmwd.sto.util import global_mean
 
 
 def pmodel(ptcl_ic, so_params, cosmo, conf):
@@ -22,17 +22,6 @@ def obj(tgts, ptcl_ic, so_params, cosmo, conf):
     obsvbl, cosmo = pmodel(ptcl_ic, so_params, cosmo, conf)
     loss = loss_func(obsvbl, tgts, conf)
     return loss
-
-
-def global_mean(tree):
-    """Global average of a pytree x, i.e. for all leaves."""
-    def global_mean_arr(x):
-        x = jnp.expand_dims(x, axis=0)  # leading axis for pmap
-        x = jax.pmap(lambda x: jax.lax.pmean(x, axis_name='device'),
-                     axis_name='device')(x)
-        return x[0]  # rm leading axis
-    tree = tree_map(global_mean_arr, tree)
-    return tree
 
 
 def init_pmwd(pmwd_params):
