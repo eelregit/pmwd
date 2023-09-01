@@ -200,6 +200,7 @@ applicable to all other cosmological simulation code.
   compare extrap PySR, extrap SO, raw pmwd, deconv pmwd, and \GADGET.
 \item (test) Generate a sample of $(X, y)$ data with the trained neural network
   for feature selection and symbolic regression.
+\item \YZ{Do we also consider pruning and distilling of the trained networks?}
 \item (paper) Think about what figures and tables to show in the paper. Up
 to 6 items could be included. Some tables could be included in the context as
 list if we have too many figures to show?\newline
@@ -218,21 +219,40 @@ list if we have too many figures to show?\newline
 \section{Introduction}
 % without heading
 Keywords: AI for science, differentiable simulations, deep neural networks,
-symbolic interpretability
+symbolic interpretability, fast cosmological simulations
 
-Abbrs: vector-Jacobian product (VJP), automatic differentiation (AD),
+Abbrs: vector-Jacobian product (VJP), automatic differentiation (AD), neural
+network (NN)
+
+% introduce PM and its limitation on small scales
+Using a hybrid embedding of neural networks in differentiable physical
+simulations, we improve the performance of PM method on small scales in
+cosmological $N$-body simulations by sharpening the gravitational force.
+
 
 \vspace{1em}
 \section{Results}
 % Results should be divided by topical subheadings
 
-\subsection{SO neural networks and symbolic expressions}
+\subsection{SO Neural Networks and Symbolic Expressions}
+
+% visualization & comparison of neural nets & symbolic functions
+For the $f(k_i; \vvartheta)$ NN, we show it as a function of $k_i$ at multiple
+different $\vvartheta$ values.
+
+For the $g(k_1,k_2,k_3;\vvartheta)$ NN, which is permutationally symmetric about
+$(k_1, k_2, k_3)$, we show it as a function of $k_i$ along axis and face
+diagonal directions.
 
 
-\subsection{Dark matter fields}
+\subsection{Dark Matter Density Fields}
+
+% transfer function & correlation coefficient for different confs
+
+% density field with zoom in (with halos painted as circles?)
 
 
-\subsection{Halo catalogs}
+\subsection{Dark Matter Halo Catalogs}
 
 
 \vspace{1em}
@@ -259,8 +279,8 @@ Following these two works, we denote the particles' state with $\vz = (\vx,
 We refer to the quantities that are directly related to the final objective
 function $\cJ$ as the observables.
 In this work, our observable $\vo$ includes multiple snapshots at given times.
-In the observation operator $O_{i}^{i-1}$, the adjoint variables are updated
-through
+For the observation operator $O_{i}^{i-1}$ in the adjoint equations from time
+step $a_i$ back to $a_{i-1}$, the adjoint variables are updated through
 \begin{align}
   \vxi_{i-1} &:= \vxi_{i-1} + \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vx_{i-1}}, \nonumber\\
   \vpi_{i-1} &:= \vpi_{i-1} + \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vp_{i-1}},
