@@ -218,23 +218,80 @@ list if we have too many figures to show?\newline
 \vspace{1em}
 \section{Introduction}
 % without heading
-Keywords: AI for science, differentiable simulations, deep neural networks,
-symbolic interpretability, fast cosmological simulations
 
 Abbrs: vector-Jacobian product (VJP), automatic differentiation (AD), neural
-network (NN)
+network (NN), particle-mesh (PM), fast-Fourier transform (FFT)
+
+% AI for science and cosmology
+
+% a brief review of (differentiable) cosmological simulations
+BORG, ELUCID, and BORG-PM \citep{BORG, ELUCID, BORG-PM}
+\texttt{FastPM} and \texttt{FlowPM} \citep{FastPM, vmad, SeljakEtAl2017, FlowPM}
+
 
 % introduce PM and its limitation on small scales
-Using a hybrid embedding of neural networks in differentiable physical
-simulations, we improve the performance of PM method on small scales in
-cosmological $N$-body simulations by sharpening the gravitational force.
+The PM method solves the Poisson equation by scattering the particles onto a
+mesh, on which FFT is performed and the Laplacian operator reduces to simple
+multiplication of wavenumbers in Fourier space.
+Although being computationally efficient, the PM method is mainly limited by its
+resolution on small scales, i.e. scales around the mesh cell size.
+This is due to the loss of information during the scattering process of
+continuously distributed particles onto the discrete mesh.
+We use the cloud-in-cell (CIC) scheme \citep{HockneyEastwood1988} to compute the
+mass fractions of a particle scattered to nearby grid points.
+Other schemes include the nearest grid point (NGP) and triangle shaped cloud
+(TSC) etc.
+
+Using a hybrid embedding of NNs in differentiable physical simulations, we
+optimize the performance of PM method on small scales in cosmological $N$-body
+simulations by sharpening the gravitational force.
 
 
 \vspace{1em}
 \section{Results}
 % Results should be divided by topical subheadings
+% Put main ideas in Results first, then more technical details in Methods.
 
-\subsection{SO Neural Networks and Symbolic Expressions}
+\subsection{Optimization of Dynamics}
+In cosmological $N$-body simulations, the dynamics of the particles is governed
+by the Poisson equation
+%
+\begin{equation}
+  \nabla^2 \varphi(\vx) = \frac32 \Omegam H_0^2 \delta(\vx),
+\end{equation}
+%
+In Fourier space, the gravitational force field $- \vnabla \varphi$ reads
+%
+\begin{equation}
+- i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
+\end{equation}
+%
+We introduce force sharpening through
+%
+\begin{equation}
+\frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
+  f(k_i; \vvartheta) g(k_1, k_2, k_3; \vvartheta),
+\end{equation}
+%
+where $f$ and $g$ are NNs, each approximating a nonlinear function of the
+wavevector components and all possible relevant features $\vvartheta$ discussed
+in \autoref{sec:features}.
+Being embedded in the differentiable simulation, the NNs can be trained using
+gradient-based optimization methods as in usual deep learning tasks.
+The parameters of the neural networks, which enter the force evaluation in
+every time integration step, can be treated just the same as other cosmological
+parameters.
+The objective gradients are accumulated, based on which the parameters are then
+optimized.
+For both $f$ and $g$ neural networks, we adopt multilayer perceptron (MLP, i.e.
+fully connected) structures.
+
+We generate our target data for training and testing with the \GADGET\
+simulation code \citep{GADGET-4}.
+
+
+
+\subsection{Trained Neural Networks}
 
 % visualization & comparison of neural nets & symbolic functions
 For the $f(k_i; \vvartheta)$ NN, we show it as a function of $k_i$ at multiple
@@ -245,12 +302,47 @@ $(k_1, k_2, k_3)$, we show it as a function of $k_i$ along axis and face
 diagonal directions.
 
 
+\subsection{Symbolic Expressions}
+
+We use the random forest regressor for feature selection using impurity-based
+importance.
+\YZ{Maybe we can add another column in \autoref{tab:feat} for feature
+importance?}
+We use the \texttt{scikit-learn} \citep{scikit-learn} code for this.
+% more details on the hyperparams in random forest
+
+The selected important features are then used for SR.
+We use the \texttt{PySR} \citep{PySR} SR code to fit for analytic
+function expressions of the trained SO neural networks.
+
+
 \subsection{Dark Matter Density Fields}
 
 % transfer function & correlation coefficient for different confs
+To compare two fields $\hat f$ and $f$, we introduce for each mode the square
+root ratio of power
+%
+\begin{equation}
+T(\vk) \triangleq
+\sqrt{\frac{|\hat f(\vk)|^2}{|f(\vk)|^2}},
+\label{T}
+\end{equation}
+%
+which is also referred to as the transfer function, and the cross correlation
+coefficient
+%
+\begin{equation}
+r(\vk) \triangleq
+\frac{\Re \bigl[ \hat f(\vk) f^*(\vk) \bigr]}
+     {\sqrt{|\hat f(\vk)|^2 |f(\vk)|^2}}.
+\label{r}
+\end{equation}
+%
+The two fields are identical when both $T$ and $r$ are unity.
 
 % density field with zoom in (with halos painted as circles?)
-
+The effect of force sharpening can also be visually shown by looking directly at
+the density field.
 
 \subsection{Dark Matter Halo Catalogs}
 
@@ -327,32 +419,8 @@ adjoint variables.
 
 
 \vspace{1em}
-\subsection{Optimization of Dynamics}
-\label{sec:so}
-
-In cosmological $N$-body simulations, the dynamics of the particles is governed
-by the Poisson equation
-%
-\begin{equation}
-  \nabla^2 \varphi(\vx) = \frac32 \Omegam H_0^2 \delta(\vx),
-\end{equation}
-%
-In Fourier space, the gravitational force field $- \vnabla \varphi$ reads
-%
-\begin{equation}
-- i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
-\end{equation}
-%
-We introduce force sharpening through
-%
-\begin{equation}
-\frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
-  f(k_i; \vvartheta) g(k_1, k_2, k_3; \vvartheta),
-\end{equation}
-%
-where $f$ and $g$ are neural networks, each approximating a nonlinear
-function of the wavevector components and all possible relevant features
-$\vvartheta$ summarized in \autoref{tab:feat} and discussed below.
+\subsection{Input Features}
+\label{sec:features}
 
 \begin{table}
 \centering
@@ -461,16 +529,6 @@ space.
 We take the absolute value for the evenness, and sort the 3 wavevector
 compontents to achieve the permutation equivariance.
 
-\YZ{
-The parameters of the neural networks, which enter the force evaluation in
-every time integration step, can be treated just the same as other cosmological
-parameters.
-The objective gradients are accumulated, based on which the parameters are then
-optimized.
-For both $f$ and $g$ neural networks, we adopt multilayer perceptron (MLP, i.e.
-fully connected) structures.
-}
-
 
 \vspace{1em}
 \subsection{Loss Function}
@@ -574,24 +632,8 @@ Lagrangian space, while the density field is in the Eulerian space:
 %
 which we compute by scattering particles to the choice of grid for loss.
 
-To understand the form of the loss function, let's introduce for each
-mode the square root ratio of power
-%
-\begin{equation}
-T(\vk) \triangleq
-\sqrt{\frac{|\hat f(\vk)|^2}{|f(\vk)|^2}},
-\end{equation}
-%
-and the cross correlation coefficient
-%
-\begin{equation}
-r(\vk) \triangleq
-\frac{\Re \bigl[ \hat f(\vk) f^*(\vk) \bigr]}
-     {\sqrt{|\hat f(\vk)|^2 |f(\vk)|^2}}.
-\end{equation}
-%
-Now, under the mild assumptions that $T$ and $r$ are smooth and
-isotropic, we can show
+Under the mild assumptions that $T$ \eqref{T} and $r$ \eqref{r} are smooth
+and isotropic, we can show
 %
 \begin{equation}
 \cL_\delta \propto \int \!\d\ln\!k\, \ln
@@ -692,8 +734,6 @@ training & loss grid offset in its own spacing & uniform & $[0, 1)^3$ \\
 \vspace{1em}
 \subsection{Configurations and Training Data}
 
-We generate our target data for training and testing with the \GADGET\
-simulation code \citep{GADGET-4}.
 We run 512 \GADGET\ simulations that cover a wide range of
 configurations and cosmological parameters, as listed in
 \autoref{tab:param}.
@@ -795,17 +835,6 @@ use the optimizers in \texttt{Optax}, part of the DeepMind JAX Ecosystem
 We generate a sample of (input, output) data with the trained neural network to
 perform feature selection and SR.
 
-We use the random forest regressor for feature selection using impurity-based
-importance.
-\YZ{Maybe we can add another column in \autoref{tab:feat} for feature
-importance?}
-We use the \texttt{scikit-learn} \citep{scikit-learn} code for this.
-% more details on the hyperparams in random forest
-
-The selected important features are then used for SR.
-
-We use the \texttt{PySR} \citep{Cranmer2023} SR code to fit for analytic
-function expressions of the trained SO neural networks.
 
 \YL{It is interesting to symbolically regress $f$, $k_i f$, and $f g$
 etc to see which one gives simpler expression, given the possible
