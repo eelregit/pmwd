@@ -286,8 +286,80 @@ optimized.
 For both $f$ and $g$ neural networks, we adopt multilayer perceptron (MLP, i.e.
 fully connected) structures.
 
+
+\begin{table*}
+  \centering
+  \caption{Ranges of \GADGET\ and \pmwd\ configuration and cosmological
+  parameters.
+  Note that the grid ratio need next fast len to determine the mesh shape
+  for fast FFT.
+  Given the box size, the mesh shape determines the cell size.
+  The softening parameter gives the ratio of the comoving softening length
+  to the mean particle spacing.
+  The curvature $\Omega_k$ is related to the separate universe simulation.
+  We sample parameters applicable to \GADGET\ during data generation, and
+  those applicable to \pmwd\ during training.
+  \textsuperscript\dag{}The box size is determined jointly by the \pmwd\
+  mesh shape and mesh cell size below, which are assumed to be sampled
+  independently. \YL{I forgot why I wrote ``Mpc'' without the $h$ here.}
+  In practice, we sample one conditioned on the other and the box size.
+  *Number of time steps from $a=1/16$ to $a=1+1/128$ (in order to cover the
+  snapshot offset).
+  }
+  \label{tab:param}
+  \begin{tabular}{lcccr}
+  \toprule
+  applicability & parameter & distribution & range & sampling \\
+  \midrule
+  & $128^3$ white noise & $\mathcal{N}(\vzero, \vI)$ & 512 realizations & MC \\
+  \cmidrule(lr){2-5}
+  & 121 snapshots, $a$ & uniform & [1/16, 1] & deterministic \\
+  \cmidrule(lr){2-5}
+  & box size in Mpc\textsuperscript\dag & log-trapezoidal & [25.6, 2560) \\
+  \cmidrule(lr){2-4}
+  & snapshot offset, $\Delta\!a$ & uniform & [0, 1/128) \\
+  \cmidrule(lr){2-4}
+  \GADGET\ & $\As \times 10^9$ & log-uniform & [1, 4) \\
+  \cmidrule(lr){2-4}
+  \& \pmwd\ & $\ns$ & log-uniform & [0.75, 1.25) & RQMC \\
+  \cmidrule(lr){2-4}
+  & $\Omegam$ & log-uniform & [1/5, 1/2) & see \autoref{fig:sobol} \\
+  \cmidrule(lr){2-4}
+  & $\Omegab / \Omegam$ & log-uniform & [1/8, 1/4) \\
+  \cmidrule(lr){2-4}
+  & $\Omega_k / (1 - \Omega_k)$ & uniform & [-1/3, 1/3) \\
+  \cmidrule(lr){2-4}
+  & $h$ & log-uniform & [0.5, 1) \\
+  \cmidrule(lr){1-4}
+  \GADGET\ & softening ratio & log-uniform & [1/50, 1/20) \\
+  \cmidrule(lr){1-5}
+  & mesh shape & log-uniform & [128, 512] \\
+  \cmidrule(lr){2-4}
+  \pmwd\ & mesh cell size in Mpc & log-uniform & [0.2, 5] & MC \\
+  \cmidrule(lr){2-4}
+  & number of time steps* & log-uniform & [10, 1000] \\
+  \cmidrule(lr){1-4}
+  training & loss grid offset in its own spacing & uniform & $[0, 1)^3$ \\
+  \bottomrule
+  \end{tabular}
+  \end{table*}
+
 We generate our target data for training and testing with the \GADGET\
 simulation code \citep{GADGET-4}.
+We run 512 \GADGET\ simulations that cover a wide range of
+configurations and cosmological parameters, as listed in
+\autoref{tab:param}.
+Each simulation has $128^3$ particles and writes 121 snapshots linearly
+spaced in scale factor from $1/16 + \Delta a$ to $1 + \Delta a$, with
+spacing $1/128$.
+$\Delta a$ is an offset, common for all snapshots in each simulation,
+that varies as in \autoref{tab:param} and helps to sample different
+alignment between snapshot and start/stop times.
+In our \pmwd\ model, we generate the snapshot at an arbitrary given time using
+the cubic Hermite interpolation, with more details in \autoref{sec:snapobs}.
+
+The curvature $\Omega_k$ is related to the separate universe simulation
+\citep{LiEtAl2014, WagnerEtAl2015}.
 
 
 
@@ -358,6 +430,7 @@ the density field.
 
 \vspace{1em}
 \subsection{Differentiable Simulation}
+\label{sec:pmwd}
 
 The differentiable cosmological simulation with adjoint method \citep{Li2022a}
 and the corresponding PM $N$-body library \pmwd\ \citep{Li2022b} are the
@@ -673,79 +746,8 @@ at different times, i.e.
 }
 
 
-\begin{table*}
-\centering
-\caption{Ranges of \GADGET\ and \pmwd\ configuration and cosmological
-parameters.
-Note that the grid ratio need next fast len to determine the mesh shape
-for fast FFT.
-Given the box size, the mesh shape determines the cell size.
-The softening parameter gives the ratio of the comoving softening length
-to the mean particle spacing.
-The curvature $\Omega_k$ is related to the separate universe simulation.
-We sample parameters applicable to \GADGET\ during data generation, and
-those applicable to \pmwd\ during training.
-\textsuperscript\dag{}The box size is determined jointly by the \pmwd\
-mesh shape and mesh cell size below, which are assumed to be sampled
-independently. \YL{I forgot why I wrote ``Mpc'' without the $h$ here.}
-In practice, we sample one conditioned on the other and the box size.
-*Number of time steps from $a=1/16$ to $a=1+1/128$ (in order to cover the
-snapshot offset).
-}
-\label{tab:param}
-\begin{tabular}{lcccr}
-\toprule
-applicability & parameter & distribution & range & sampling \\
-\midrule
-& $128^3$ white noise & $\mathcal{N}(\vzero, \vI)$ & 512 realizations & MC \\
-\cmidrule(lr){2-5}
-& 121 snapshots, $a$ & uniform & [1/16, 1] & deterministic \\
-\cmidrule(lr){2-5}
-& box size in Mpc\textsuperscript\dag & log-trapezoidal & [25.6, 2560) \\
-\cmidrule(lr){2-4}
-& snapshot offset, $\Delta\!a$ & uniform & [0, 1/128) \\
-\cmidrule(lr){2-4}
-\GADGET\ & $\As \times 10^9$ & log-uniform & [1, 4) \\
-\cmidrule(lr){2-4}
-\& \pmwd\ & $\ns$ & log-uniform & [0.75, 1.25) & RQMC \\
-\cmidrule(lr){2-4}
-& $\Omegam$ & log-uniform & [1/5, 1/2) & see \autoref{fig:sobol} \\
-\cmidrule(lr){2-4}
-& $\Omegab / \Omegam$ & log-uniform & [1/8, 1/4) \\
-\cmidrule(lr){2-4}
-& $\Omega_k / (1 - \Omega_k)$ & uniform & [-1/3, 1/3) \\
-\cmidrule(lr){2-4}
-& $h$ & log-uniform & [0.5, 1) \\
-\cmidrule(lr){1-4}
-\GADGET\ & softening ratio & log-uniform & [1/50, 1/20) \\
-\cmidrule(lr){1-5}
-& mesh shape & log-uniform & [128, 512] \\
-\cmidrule(lr){2-4}
-\pmwd\ & mesh cell size in Mpc & log-uniform & [0.2, 5] & MC \\
-\cmidrule(lr){2-4}
-& number of time steps* & log-uniform & [10, 1000] \\
-\cmidrule(lr){1-4}
-training & loss grid offset in its own spacing & uniform & $[0, 1)^3$ \\
-\bottomrule
-\end{tabular}
-\end{table*}
-
-
 \vspace{1em}
 \subsection{Configurations and Training Data}
-
-We run 512 \GADGET\ simulations that cover a wide range of
-configurations and cosmological parameters, as listed in
-\autoref{tab:param}.
-Each simulation has $128^3$ particles and writes 121 snapshots linearly
-spaced in scale factor from $1/16 + \Delta a$ to $1 + \Delta a$, with
-spacing $1/128$.
-$\Delta a$ is an offset, common for all snapshots in each simulation,
-that varies as in \autoref{tab:param} and helps to sample different
-alignment between snapshot and start/stop times.
-
-The curvature $\Omega_k$ is related to the separate universe simulation
-\citep{LiEtAl2014, WagnerEtAl2015}.
 
 We have verified IC generation on GPUs is deterministic though different
 from those on CPUs, so we generate ICs for both training data and
