@@ -253,6 +253,46 @@ simulations by sharpening the gravitational force.
 % Put main ideas in Results first, then more technical details in Methods.
 
 \subsection{Optimization of Dynamics}
+
+\begin{table}
+  \centering
+  \caption{Possible features that can affect force sharpening.
+  All scales are then multiplied by the wavenumber $k$ to form dimensionless
+  factors.}
+  \label{tab:feat}
+  \begin{tabular}{rl}
+  \toprule
+  type & feature \\
+  \midrule
+  & $R_\mathrm{d}$: RMS linear displacement \\
+  \cmidrule(lr){2-2}
+  & $R_P$: $\Delta_\linear^2(R_P^{-1}) \triangleq 1$ \\
+  \cmidrule(lr){2-2}
+  nonlinear scales & $R_\tophat$: $\sigma_\tophat^2(R_\tophat) \triangleq 1$ \\
+  \cmidrule(lr){2-2}
+  & $R_\gauss$: $\sigma_\gauss^2(R_\gauss) \triangleq 1$ \\
+  \cmidrule(lr){2-2}
+  & $\d R / \d\lna$: time derivatives of the above \\
+  \midrule
+  & particle spacing \\
+  \cmidrule(lr){2-2}
+  other scales & $l$: PM force mesh cell size \\
+  \cmidrule(lr){2-2}
+  & softening length \\
+  \midrule
+  & $G_m(a) \triangleq D_m(a) / a^m, m \in \{1, 2, \YL{3's?}\}$ \\
+  \cmidrule(lr){2-2}
+  & $\d\ln G_m / \d\lna$ \\
+  \cmidrule(lr){2-2}
+  dimensionless factors & $\Omegam(a)$ \\
+  \cmidrule(lr){2-2}
+  & $\d\ln\!H / \d\lna$ \\
+  \cmidrule(lr){2-2}
+  & $\Delta\lna$: time step size in $\lna$ \\
+  \bottomrule
+  \end{tabular}
+  \end{table}
+
 In cosmological $N$-body simulations, the dynamics of the particles is governed
 by the Poisson equation
 %
@@ -274,8 +314,22 @@ We introduce force sharpening through
 \end{equation}
 %
 where $f$ and $g$ are NNs, each approximating a nonlinear function of the
-wavevector components and all possible relevant features $\vvartheta$ discussed
-in \autoref{sec:features}.
+wavevector components and all possible relevant features $\vvartheta$ summarized
+in \autoref{tab:feat} and more details discussed in \autoref{sec:features}.
+Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is however
+broken by the PM solver to the O\textsubscript{h} discrete symmetry with
+48 elements involving permutations and reversals of the 3 principal axes
+of the simulation box.
+The PM evaluation of each force component can further break the symmetry
+along that axis, leaving the remaining 2 permutationally symmetric.
+Therefore, we implement $f$ and $g$ to be even functions of the
+wavevector components, and $g$ to be permutation equivariant in all 3
+components, so that $f g$ is the most general modification to the force
+kernel.
+An even and real kernel in configuration space is also even in Fourier
+space.
+We take the absolute value for the evenness, and sort the 3 wavevector
+compontents to achieve the permutation equivariance.
 Being embedded in the differentiable simulation, the NNs can be trained using
 gradient-based optimization methods as in usual deep learning tasks.
 The parameters of the neural networks, which enter the force evaluation in
@@ -437,7 +491,7 @@ and the corresponding PM $N$-body library \pmwd\ \citep{Li2022b} are the
 foundation of the neural optimization discussed in this work.
 Within this fully differentiable framework, we are able to embed neural networks
 in any physical process and train them for many purposes, including the
-optimization of the gravitational force field in this work.
+optimization of the gravitational force evaluation in this work.
 
 Following these two works, we denote the particles' state with $\vz = (\vx,
 \vp)^\intercal$ and their adjoint variables with $\vlambda = (\vxi, \vpi)$.
@@ -495,59 +549,29 @@ adjoint variables.
 \subsection{Input Features}
 \label{sec:features}
 
-\begin{table}
-\centering
-\caption{TODO Possible features that can affect force sharpening.
-All scales are then multiplied by the wavenumber $k$ to form dimensionless
-factors.}
-\label{tab:feat}
-\begin{tabular}{rl}
-\toprule
-type & feature \\
-\midrule
-& $R_\mathrm{d}$: RMS linear displacement \\
-\cmidrule(lr){2-2}
-& $R_P$: $\Delta_\linear^2(R_P^{-1}) \triangleq 1$ \\
-\cmidrule(lr){2-2}
-nonlinear scales & $R_\tophat$: $\sigma_\tophat^2(R_\tophat) \triangleq 1$ \\
-\cmidrule(lr){2-2}
-& $R_\gauss$: $\sigma_\gauss^2(R_\gauss) \triangleq 1$ \\
-\cmidrule(lr){2-2}
-& $\d R / \d\lna$: time derivatives of the above \\
-\midrule
-& particle spacing \\
-\cmidrule(lr){2-2}
-other scales & $l$: PM force mesh cell size \\
-\cmidrule(lr){2-2}
-& softening length \\
-\midrule
-& $G_m(a) \triangleq D_m(a) / a^m, m \in \{1, 2, \YL{3's?}\}$ \\
-\cmidrule(lr){2-2}
-& $\d\ln G_m / \d\lna$ \\
-\cmidrule(lr){2-2}
-dimensionless factors & $\Omegam(a)$ \\
-\cmidrule(lr){2-2}
-& $\d\ln\!H / \d\lna$ \\
-\cmidrule(lr){2-2}
-& $\Delta\lna$: time step size in $\lna$ \\
-\bottomrule
-\end{tabular}
-\end{table}
+Multiple scales and dimensionless factors could possibly affect force
+sharpening, which are denoted as $\vvartheta$ and enter the NNs of $f(k_i;
+\vvartheta)$ and $g(k_1, k_2, k_3; \vvartheta)$ as input features.
+A list of these features is summarized in \autoref{tab:feat}, and here we
+present relevant definations and more details.
 
-Relevant typical scales are defined through
+Below are some definations related to the typical scales.
 \begin{itemize}
-\item The RMS linear displacement is given by
+\item The root-mean-square (RMS) linear displacement is given by
 %
 \begin{equation}
-R_\mathrm{d} = \int \frac{k P_\linear}{6\pi^2} \d\lnk.
+R_\mathrm{d} = \int \frac{k P_\linear(k)}{6\pi^2} \d\lnk,
 \end{equation}
 %
-\item The dimensionless power spectrum is defined as
+where $P_\linear(k)$ is the linear power spectrum.
+\item The dimensionless linear power spectrum is defined as
 %
 \begin{equation}
-\Delta^2(k) \triangleq \frac{k^3 P(k)}{2 \pi^2}.
+\Delta^2_\linear(k) \triangleq \frac{k^3 P_\linear(k)}{2 \pi^2},
 \end{equation}
 %
+based on which we define a nonlinear scale $R_P$ through
+$\Delta_\linear^2(R_P^{-1}) \triangleq 1$.
 \item The variance of linear matter overdensity in a top-hat window is given by
 %
 \begin{equation}
@@ -557,9 +581,17 @@ R_\mathrm{d} = \int \frac{k P_\linear}{6\pi^2} \d\lnk.
 %
 where $W_\tophat(kR) = 3[\sin(kR) - kR\cos(kR)] / (kR)^3$ is the
 Fourier transform of the top-hat window.
+Then we have $R_\tophat$: $\sigma_\tophat^2(R_\tophat) \triangleq 1$.
 \item Likewise $\sigma_\gauss^2(R)$ is defined with a Gaussian window
-$W_\gauss(kR) = e^{-(kR)^2/2}$.
+$W_\gauss(kR) = e^{-(kR)^2/2}$, and $R_\gauss$: $\sigma_\gauss^2(R_\gauss)
+\triangleq 1$.
 \end{itemize}
+These nonlinear scales are functions of time since the linear power spectrum
+evolves with time through the growth factor $D(a)$, we also take the time
+derivatives of these scales as input features.
+Other relevant scales include the particle spacing in Lagrangian space, the cell
+size of the chosen mesh grid for force evaluation, and the softening length in
+the target \GADGET\ simulations.
 
 Relevant scale-independent dimensionless factors are
 \begin{itemize}
@@ -572,35 +604,17 @@ Relevant scale-independent dimensionless factors are
 \item $\Delta\lna$: time step size in $\lna$.
 \end{itemize}
 
-We combine the above list of parameters in $\vvartheta$.
-
-Dimensionless combinations by multiplying the wavevector components with the
-scales, e.g.,
+Dimensionless combinations are formed by multiplying the wavevector components
+with the scales, i.e.,
 %
 \begin{equation}
-f(k_i; \vvartheta) = f(k_iR_d, k_iR_\tophat, \cdots; G_m, \Omegam, \cdots)
+f(k_i; \vvartheta) = f(k_iR_d, k_iR_P, \cdots; G_m, \Omegam, \cdots),
 \end{equation}
 %
 \begin{equation}
-g(k_1, k_2, k_3; \vvartheta) = g(\{k_jR_d, k_jR_\tophat, \cdots\}_{j=1,2,3}; G_m, \Omegam, \cdots)
+g(k_1, k_2, k_3; \vvartheta) = g(\{k_jR_d, k_jR_P, \cdots\}_{j=1,2,3}; G_m, \Omegam, \cdots).
 \end{equation}
 %
-$f$ and $g$ are optimized during training to correct and sharpen the
-gravitational forces.
-Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is however
-broken by the PM solver to the O\textsubscript{h} discrete symmetry with
-48 elements involving permutations and reversals of the 3 principal axes
-of the simulation box.
-The PM evaluation of each force component can further break the symmetry
-along that axis, leaving the remaining 2 permutationally symmetric.
-Therefore, we implement $f$ and $g$ to be even functions of the
-wavevector components, and $g$ to be permutation equivariant in all 3
-components, so that $f g$ is the most general modification to the force
-kernel.
-An even and real kernel in configuration space is also even in Fourier
-space.
-We take the absolute value for the evenness, and sort the 3 wavevector
-compontents to achieve the permutation equivariance.
 
 
 \vspace{1em}
