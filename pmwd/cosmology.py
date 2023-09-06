@@ -75,7 +75,7 @@ class Cosmology:
 
     varlin_g: Optional[jnp.ndarray] = field(default=None, compare=False)
 
-    # list of parameters of SO neural nets, order: f, g, h
+    # list of parameters of SO neural nets
     so_params: Optional[list[FrozenDict]] = None
 
     def __post_init__(self):
