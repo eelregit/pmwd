@@ -315,7 +315,7 @@ We introduce force sharpening through
 %
 where $f$ and $g$ are NNs, each approximating a nonlinear function of the
 wavevector components and all possible relevant features $\vvartheta$ summarized
-in \autoref{tab:feat} and more details discussed in \autoref{sec:features}.
+in \autoref{tab:feat} with more details discussed in \autoref{sec:features}.
 Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is however
 broken by the PM solver to the O\textsubscript{h} discrete symmetry with
 48 elements involving permutations and reversals of the 3 principal axes
@@ -428,12 +428,14 @@ $(k_1, k_2, k_3)$, we show it as a function of $k_i$ along axis and face
 diagonal directions.
 
 
-\subsection{Symbolic Expressions}
-
+\subsection{Feature Importance}
 We use the random forest regressor for feature selection using impurity-based
 importance.
 \YZ{Maybe we can add another column in \autoref{tab:feat} for feature
 importance?}
+
+
+\subsection{Symbolic Expressions}
 We use the \texttt{scikit-learn} \citep{scikit-learn} code for this.
 % more details on the hyperparams in random forest
 
@@ -745,10 +747,11 @@ loss, while our modification is important to balance among all scales so
 that the neural network does not focus too much on either high or low
 $k$'s.
 
-We combine Lagrangian and Eulerian fields to form the total loss:
+We combine Lagrangian and Eulerian fields to form the total loss for a single
+snapshot:
 %
 \begin{equation}
-\cJ = \cL_\vs + [\cL_\vv] + \cL_\delta.
+\cJ = \cL_\vs + \cL_\delta.
 \end{equation}
 %
 
@@ -762,11 +765,6 @@ at different times, i.e.
 
 \vspace{1em}
 \subsection{Configurations and Training Data}
-
-We have verified IC generation on GPUs is deterministic though different
-from those on CPUs, so we generate ICs for both training data and
-training on GPUs.
-
 
 \begin{figure*}
   \centering
@@ -787,15 +785,17 @@ training on GPUs.
   \label{fig:sobol}
 \end{figure*}
 
+Small numerical differences in initial conditions (ICs) could become more
+significant with the $N$-body evolution.
+We have verified that the IC generation on GPUs is deterministic though
+different from those on CPUs, therefore we generate ICs for both the training
+data and the model on GPUs.
 
 We configure \GADGET\ with high force and time integration accuracy
 settings.
 For gravitational force, we choose pure FMM with $p=5$ and opening angle
 0.4.
 %FIXME list other from Config.sh and param.txt
-
-\YZ{Do we give this dataset a name and release it? This could be useful for
-future training projects.}
 
 
 \vspace{1em}
@@ -846,10 +846,14 @@ use the optimizers in \texttt{Optax}, part of the DeepMind JAX Ecosystem
 
 
 \vspace{1em}
-\subsection{Symbolic Regression}
+\subsection{Feature Importance Analysis}
 
 We generate a sample of (input, output) data with the trained neural network to
-perform feature selection and SR.
+perform feature importance analysis.
+
+
+\vspace{1em}
+\subsection{Symbolic Regression}
 
 
 \YL{It is interesting to symbolically regress $f$, $k_i f$, and $f g$
@@ -866,17 +870,29 @@ The Flatiron Institute is supported by the Simons Foundation.
 
 
 \vspace{1em}
+\textit{\large Data Availability:}
+\YZ{Do we give \GADGET\ Sobol 512 dataset a name and make it public? This could
+be useful for future training projects.}
+
+
+\vspace{1em}
 \textit{\large Code Availability:}
 \pmwd\ \citep{Li2022b} is open-source on GitHub
-\href{https://github.com/eelregit/pmwd}{\faGithub}, including the source
-files and scripts of this paper
+\href{https://github.com/eelregit/pmwd}{\faGithub}, including the source files
+and scripts of this paper
 \href{https://github.com/eelregit/pmwd/tree/master/docs/papers/sto}{\faFile}.
+\GADGET\ \citep{GADGET-4}, which can be obtained through a public git-repository
+\href{http://gitlab.mpcdf.mpg.de/vrs/gadget4}{\faGitlab}, hosted by a gitlab
+server at the Max-Planck Computing and Data Facility (MPCDF).
 
 
 
 \bibliographystyle{aasjournal}
 \bibliography{sto}
 
+
+\appendix
+% supplementary information of Nat. Mach. Intell.
 
 
 %\listofchanges
