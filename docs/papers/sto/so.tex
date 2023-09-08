@@ -897,13 +897,13 @@ server at the Max-Planck Computing and Data Facility (MPCDF).
 
 
 \vspace{1em}
-\section{Tests on the Gradients of NN Parameters}
+\section{Tests of Snapshots Observation in Adjoint Method}
 As discussed in the main text, our objective loss function is defined on
 multiple snapshots at given times, which are constructed through interpolation
 during the observation operation.
 Here we perform tests on the gradients of NN parameters to check our
-implementation of the observation inside the adjoint method of the $N$-body time
-integration.
+implementation of the snapshots observation inside the adjoint method of the
+$N$-body time integration.
 The gradients given by the adjoint method are compared against those given by
 the AD where we disable the custom VJP of the $N$-body function, see
 \autoref{fig:nn_grads_cmp}.
@@ -911,9 +911,8 @@ the AD where we disable the custom VJP of the $N$-body function, see
 \begin{figure*}
   \centering
   \includegraphics[width=0.5\linewidth]{nn_grads_cmp.pdf}
-  \caption{\YZ{TODO make this figure better}.
-  A comparison of adjoint gradients of all parameters in the $f$ and $g$ NNs to
-  those by AD.
+  \caption{A comparison of adjoint gradients of all parameters in the $f$ and
+  $g$ NNs to those by AD.
   This test runs a \pmwd\ simulation of $128^3$ particles, with a $128^3$ mesh
   and 15 time steps.
   The size and time steps of this test case is mainly limited by the memory cost
