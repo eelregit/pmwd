@@ -803,20 +803,22 @@ For gravitational force, we choose pure FMM with $p=5$ and opening angle
 \vspace{1em}
 \subsection{Training of SO Neural Networks}
 
+% hardware setups
+We perform distributed data-parallel training using GPU devices hosted on
+multiple CPU nodes.
+With each process being binded to a single GPU device, the training data samples
+are uniformly distributed to the processes.
+In total, we use [...] \GPU\ GPUs, each accompanied with [...] CPU cores and
+[...] GB CPU memory mainly for preloading the training data.
+In each training step, a data sample is fed into the GPU from the CPU memory
+where the preloading takes place to save the reading time from the disk.
+
 Following \autoref{tab:param}, in each iteration, we randomly sample the number
 of time steps and the mesh shape (or its cell size), and configure \pmwd\ with
 the same initial coniditions, cosmological parameters and other common
 configurations.
 To balance the work of GPUs during training, in each iteration we use
 the same number of time steps and mesh shape on all GPUs.
-
-We perform distributed data-parallel training using GPU devices hosted on
-multiple CPU nodes.
-% TODO hardware details
-The training data samples are uniformly distributed to the processes, with
-each process being binded to a single GPU device.
-In each training step, a data sample is fed into the GPU from the CPU memory
-where the preloading takes place to save the reading time from the disk.
 
 The loss and gradients are collected and averaged across the GPU devices.
 The SO parameters are initialized to be the same for all devices, and being
