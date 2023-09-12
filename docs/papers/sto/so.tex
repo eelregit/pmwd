@@ -355,7 +355,9 @@ fully connected) structures.
   those applicable to \pmwd\ during training.
   \textsuperscript\dag{}The box size is determined jointly by the \pmwd\
   mesh shape and mesh cell size below, which are assumed to be sampled
-  independently. \YL{I forgot why I wrote ``Mpc'' without the $h$ here.}
+  independently.
+  \YL{I forgot why I wrote ``Mpc'' without the $h$ here.}
+  \YZ{We are using ``Mpc/h'' in the code.}
   In practice, we sample one conditioned on the other and the box size.
   *Number of time steps from $a=1/16$ to $a=1+1/128$ (in order to cover the
   snapshot offset).
@@ -369,7 +371,7 @@ fully connected) structures.
   \cmidrule(lr){2-5}
   & 121 snapshots, $a$ & uniform & [1/16, 1] & deterministic \\
   \cmidrule(lr){2-5}
-  & box size in Mpc\textsuperscript\dag & log-trapezoidal & [25.6, 2560) \\
+  & box size in Mpc\YZ{/h}\textsuperscript\dag & log-trapezoidal & [25.6, 2560) \\
   \cmidrule(lr){2-4}
   & snapshot offset, $\Delta\!a$ & uniform & [0, 1/128) \\
   \cmidrule(lr){2-4}
@@ -389,7 +391,7 @@ fully connected) structures.
   \cmidrule(lr){1-5}
   & mesh shape & log-uniform & [128, 512] \\
   \cmidrule(lr){2-4}
-  \pmwd\ & mesh cell size in Mpc & log-uniform & [0.2, 5] & MC \\
+  \pmwd\ & mesh cell size in Mpc\YZ{/h} & log-uniform & [0.2, 5] & MC \\
   \cmidrule(lr){2-4}
   & number of time steps* & log-uniform & [10, 1000] \\
   \cmidrule(lr){1-4}
