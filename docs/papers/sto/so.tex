@@ -22,6 +22,7 @@
 
 \newcommand{\pmwd}{{\usefont{T1}{nova}{m}{sl}pmwd}}
 \newcommand{\GADGET}{{{\fontsize{10pt}{12pt}\selectfont GADGET}-4}}
+\newcommand{\GSDATA}{{GS512}}
 
 %\renewcommand{\sectionautorefname}{Sec.}
 %\renewcommand{\subsectionautorefname}{Sec.}
@@ -413,10 +414,10 @@ that varies as in \autoref{tab:param} and helps to sample different
 alignment between snapshot and start/stop times.
 In our \pmwd\ model, we generate the snapshot at an arbitrary given time using
 the cubic Hermite interpolation, with more details in \autoref{sec:snapobs}.
-
 The curvature $\Omega_k$ is related to the separate universe simulation
 \citep{LiEtAl2014, WagnerEtAl2015}.
-
+\YZ{We refer to this training dataset of 512 \GADGET\ simulations sampled with
+Sobol sequence as \GSDATA.}
 
 
 \subsection{Trained Neural Networks}
@@ -623,6 +624,7 @@ g(k_1, k_2, k_3; \vvartheta) = g(\{k_jR_d, k_jR_P, \cdots\}_{j=1,2,3}; G_m, \Ome
 
 \vspace{1em}
 \subsection{Loss Function}
+\label{sec:loss}
 
 The loss function is constructed by comparing the simulated field $\hat f$ with
 the target field $f$.
@@ -814,13 +816,18 @@ In each training step, a data sample is fed into the GPU from the CPU memory
 where the preloading takes place to save the reading time from the disk.
 
 Following \autoref{tab:param}, in each iteration, we randomly sample the number
-of time steps and the mesh shape (or its cell size), and configure \pmwd\ with
-the same initial coniditions, cosmological parameters and other common
-configurations.
+of time steps and the mesh shape, and configure \pmwd\ with the same initial
+coniditions, cosmological parameters and other common configurations.
 To balance the work of GPUs during training, in each iteration we use
 the same number of time steps and mesh shape on all GPUs.
 
-The loss and gradients are collected and averaged across the GPU devices.
+As discussed in \autoref{sec:loss}, the loss in a single simulation sums over
+all snapshots.
+Our batch size is [...], i.e. the number of GPU devices since one simulation is
+run on a given GPU and compared to the corresponding training data sample for
+loss.
+For each training step, the loss and gradients are collected and averaged across
+all GPU devices.
 The SO parameters are initialized to be the same for all devices, and being
 updated with the same averaged gradients.
 
@@ -830,23 +837,19 @@ We achieve this by setting the kernel of the output layer to be very small
 random values and the bias to be one.
 
 Hyperparameters:
-\YZ{
 \begin{itemize}
   \item Model: number of hidden layers and nodes of f and g nets, activation function
   \item Optimization: learning rate scheduler, momentum, weight decay and dropout rate etc
   \item Loss: fields to include and loss function forms
 \end{itemize}
-}
 
 We empoly a learning rate scheduler that reduces the learning rate on plateau
 where the loss function stops decreasing.
 
 
-\YZ{
 We implement the neural networks with \texttt{Flax} \citep{flax2020github}, and
 use the optimizers in \texttt{Optax}, part of the DeepMind JAX Ecosystem
 \citep{deepmind2020jax}.
-}
 
 
 \vspace{1em}
@@ -875,8 +878,7 @@ The Flatiron Institute is supported by the Simons Foundation.
 
 \vspace{1em}
 \textit{\large Data Availability:}
-\YZ{Do we give \GADGET\ Sobol 512 dataset a name and make it public? This could
-be useful for future training projects.}
+\YZ{Do we make the \GSDATA\ data public?}
 
 
 \vspace{1em}
