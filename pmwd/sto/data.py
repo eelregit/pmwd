@@ -59,6 +59,7 @@ def scale_Sobol(sobol=None, fn='sobol.txt', ind=slice(None)):
         return np.exp(y)
 
     # 0: box size, log-trapezoidal
+    # the trapezoid shape is given by the product of the mesh shape and cell size
     sobol[0] = f_log_trap(sobol[0], np.log(128)+np.log(0.2),
                           np.log(512)+np.log(0.2), np.log(128)+np.log(5))
     # 1: snapshot offset, uniform
