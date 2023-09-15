@@ -129,8 +129,9 @@ New York, New York 10010, USA}
 \begin{abstract}
 % up to 150 words
 
-We sharpen the PM force with first neural networks and then symbolic
-regression, taking symmetry and dimensional analysis in consideration.
+We optimize the spatial resolution of cosmological particle-mesh (PM)
+simulations by sharpening the PM force with first neural networks and then
+symbolic regression, taking symmetry and dimensional analysis in consideration.
 
 We combine differentiable simulation, deep learning, [decision tree
 (feature selection)], and symbolic regression to extract the final kernel
@@ -307,7 +308,7 @@ In Fourier space, the gravitational force field $- \vnabla \varphi$ reads
 - i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
 \end{equation}
 %
-We introduce force sharpening through
+where we introduce force sharpening for spatial optimization through
 %
 \begin{equation}
 \frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
@@ -449,7 +450,17 @@ function expressions of the trained SO neural networks.
 
 \subsection{Dark Matter Density Fields}
 
-% transfer function & correlation coefficient for different confs
+\begin{figure*}
+  \centering
+  \includegraphics[width=.8\columnwidth]{sobol0snap120epoch300.pdf}
+  \caption{The transfer function $T$ and correlation coefficient $r$ of the
+  \GADGET\ and \pmwd\ simulated density fields, with and without force
+  sharpening.
+  Sobol 0 snap 120}
+  \label{fig:tfcc}
+\end{figure*}
+
+% transfer function & correlation coefficient
 To compare two fields $\hat f$ and $f$, we introduce for each mode the square
 root ratio of power
 %
@@ -470,10 +481,22 @@ r(\vk) \triangleq
 \end{equation}
 %
 The two fields are identical when both $T$ and $r$ are unity.
+With force sharpening,
+
+
+\begin{figure*}
+  \centering
+  \includegraphics[width=.8\columnwidth]{denslab_0_120_e300.pdf}
+  \caption{Projected dark matter density fields of \GADGET, \pmwd\ without and
+  with force sharpening.
+  Sobol 0 snap 120}
+  \label{fig:denslab}
+\end{figure*}
 
 % density field with zoom in (with halos painted as circles?)
 The effect of force sharpening can also be visually shown by looking directly at
 the density field.
+
 
 \subsection{Dark Matter Halo Catalogs}
 
@@ -845,6 +868,8 @@ Hyperparameters:
 
 We empoly a learning rate scheduler that reduces the learning rate on plateau
 where the loss function stops decreasing.
+The initial learning rate is set at [...] with a reduction factor of [...] after
+[...] epochs of no decreasing on loss.
 
 
 We implement the neural networks with \texttt{Flax} \citep{flax2020github}, and
