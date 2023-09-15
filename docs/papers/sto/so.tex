@@ -516,43 +516,49 @@ the density field.
 
 The differentiable cosmological simulation with adjoint method \citep{Li2022a}
 and the corresponding PM $N$-body library \pmwd\ \citep{Li2022b} are the
-foundation of the neural optimization discussed in this work.
+foundation of the gradient-based optimization discussed in this work.
 Within this fully differentiable framework, we are able to embed neural networks
-in any physical process and train them for many purposes, including the
-optimization of the gravitational force evaluation in this work.
+in physical processes and train them for many purposes, including the
+optimization of spatial resolution by sharpening the gravitational force in this
+work.
 
-Following these two works, we denote the particles' state with $\vz = (\vx,
+Here we briefly recap the equations that are closely related to our
+extensions to the original framework, and setup the notations of the variables.
+Following \cite{Li2022a}, we denote the particles' state with $\vz = (\vx,
 \vp)^\intercal$ and their adjoint variables with $\vlambda = (\vxi, \vpi)$.
 We refer to the quantities that are directly related to the final objective
-function $\cJ$ as the observables.
-In this work, our observable $\vo$ includes multiple snapshots at given times.
-For the observation operator $O_{i}^{i-1}$ in the adjoint equations from time
-step $a_i$ back to $a_{i-1}$, the adjoint variables are updated through
+function $\cJ$ as the observable $\vo$.
+In this work, our observable includes multiple snapshots at given times.
+For the observation operator $O_{i}^{i-1}$ in the adjoint equations (check
+Eq.(18) in \cite{Li2022a}) from time step $a_i$ back to $a_{i-1}$, the adjoint
+variables are updated through
 \begin{align}
   \vxi_{i-1} &:= \vxi_{i-1} + \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vx_{i-1}}, \nonumber\\
   \vpi_{i-1} &:= \vpi_{i-1} + \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vp_{i-1}},
 \end{align}
 where the derivatives of $\vo$ with respect to $\vx_{i-1}$ and $\vp_{i-1}$ would
-be non-zero if they were used in the interpolation of any snapshots in $\vo$.
-The initial conditions are
+be non-zero only if they were used in the generation of any snapshots in $\vo$.
+The initial conditions of these adjoint variables are given by
 \begin{align}
   \vxi_n &= \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p\vx_n}, \nonumber\\
   \vpi_n &= \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p\vp_n},
 \end{align}
 which are zero if no snapshot in $\vo$ depends on $(\vx_n, \vp_n)$.
-The derivative of the objective function with respect to the observable and the
-VJP of the observation funciton (mainly the interpolation function discussed
-below) can be conveniently computed by AD.
+The derivative of the objective function with respect to the observable
+($\p\cJ/\p\vo$) and the VJPs of the observation operation ($\p\vo/\p\vx_n$ and
+$\p\vo/\p\vp_n$, mainly the interpolation function discussed in
+\autoref{sec:snapobs} below) can be conveniently computed by AD.
 
 
 \vspace{1em}
 \subsection{Snapshot Observable}
 \label{sec:snapobs}
 
-The N-body time integration is carried out following discrete time steps.
-Given the particle displacements and velocities at two consecutive time steps
-$a_i$ and $a_{i+1}$, we get the status of particles in between at $a$ using the
-cubic Hermite interpolation.
+The N-body time integration is carried out following discrete time steps. Given
+the particle displacements $\vx$ and velocities $\vv = \vp/(a^3H)$ at two
+consecutive time steps $a_i$ and $a_{i+1}$, we get the snapshot of particles in
+between at $a$ using
+the cubic Hermite interpolation.
 The interpolated particle displacements are given by
 \begin{align}
   \vx(a) =\ &h_{00}(\alpha)\vx_i + h_{10}(\alpha)(a_{i+1} - a_i)\vv_i + \nonumber\\
@@ -566,11 +572,14 @@ where $\alpha := (a - a_i)/(a_{i+1} - a_i)$ and the Hermite basis functions read
   h_{11}(\alpha) &= \alpha^3 - \alpha^2.
 \end{align}
 The particle velocities are then given by the derivative $\d\vx / \d a$.
-Note that the interpolation is a linear combination of the particles at two
-consecutive time steps, which therefore can be done in either two steps or just
-one step by carrying the particles from the previous time step.
+Note that the interpolation is a linear combination of the particle snapshots at
+two consecutive time steps, which therefore can be done in either two steps or
+just one step by carrying the particles from the previous time step.
 We find the two-steps scheme more convenient for the backward evolution of the
 adjoint variables.
+The interpolated snapshots at different times make the observable in this work,
+and the VJPs of the interpolation operation are computed by AD and put into the
+adjoint equations as mentioned in \autoref{sec:pmwd}.
 
 
 \vspace{1em}
