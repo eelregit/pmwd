@@ -433,15 +433,21 @@ diagonal directions.
 
 
 \subsection{Feature Importance}
+
+We generate a sample of (input, output) data of the trained neural network to
+perform feature importance analysis.
+We use Sobol sequence to generate the sample of (parameters in
+\autoref{tab:param}, $k$, $a$).
+
 We use the random forest regressor for feature selection using impurity-based
 importance.
+We use the \texttt{scikit-learn} \citep{scikit-learn} code for this.
+% more details on the hyperparams in random forest
 \YZ{Maybe we can add another column in \autoref{tab:feat} for feature
 importance?}
 
 
 \subsection{Symbolic Expressions}
-We use the \texttt{scikit-learn} \citep{scikit-learn} code for this.
-% more details on the hyperparams in random forest
 
 The selected important features are then used for SR.
 We use the \texttt{PySR} \citep{PySR} SR code to fit for analytic
@@ -889,8 +895,6 @@ use the optimizers in \texttt{Optax}, part of the DeepMind JAX Ecosystem
 \vspace{1em}
 \subsection{Feature Importance Analysis}
 
-We generate a sample of (input, output) data with the trained neural network to
-perform feature importance analysis.
 
 
 \vspace{1em}
