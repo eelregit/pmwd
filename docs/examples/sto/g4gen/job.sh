@@ -19,7 +19,8 @@ module load fftw/3.3.10
 module load hdf5/1.12.1
 
 
-cd $HOME/gadget4
+cd /mnt/home/yzhang/gadget4
+# git checkout c838e262
 export SYSTYPE=Generic-gcc
 make -j 64 DIR=$SLURM_SUBMIT_DIR
 cd $SLURM_SUBMIT_DIR
