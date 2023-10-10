@@ -3,6 +3,7 @@ import numpy as np
 import jax.numpy as jnp
 from torch.utils.data import Dataset
 from joblib import Parallel, delayed
+import h5py
 
 from pmwd.configuration import Configuration
 from pmwd.cosmology import Cosmology
@@ -199,12 +200,33 @@ def read_g4sobol(sims_dir, sobol_ids, snap_ids, fn_sobol):
     return data
 
 
+def read_gsdata(sims_dir, sobol_ids, snap_ids, fn_sobol):
+    data = {}
+    def load_sobol(sidx):
+        sobol = scale_Sobol(fn=fn_sobol, ind=sidx)
+        data[sidx] = {
+            'sidx': sidx,
+            'sobol': sobol,
+            'snap_ids': snap_ids,
+        }
+        with h5py.File(os.path.join(sims_dir, f'{sidx:03}.hdf5'), 'r') as f:
+            data[sidx]['a_snaps'] = tuple(f['a'][snap_ids])
+            pos = list(f['pos'][snap_ids])
+            # vel = list(f['vel'][snap_ids])
+            vel = [None] * len(snap_ids)
+        data[sidx]['snapshots'] = list(zip(pos, vel))
+    for sidx in sobol_ids:
+        load_sobol(sidx)
+    return data
+
+
 class G4sobolDataset(Dataset):
     """Gadget4 dataset with each data sample including all snapshots in a sobol."""
 
     def __init__(self, sims_dir, sobol_ids, snap_ids, fn_sobol='sobol.txt'):
 
-        self.g4data = read_g4sobol(sims_dir, sobol_ids, snap_ids, fn_sobol)
+        # self.g4data = read_g4sobol(sims_dir, sobol_ids, snap_ids, fn_sobol)
+        self.g4data = read_gsdata(sims_dir, sobol_ids, snap_ids, fn_sobol)
         self.sobol_ids = sobol_ids
 
     def __len__(self):

@@ -42,7 +42,8 @@ def jax_device_sync(verbose=False):
     x = global_mean(jnp.array(procid))
     assert round(2 * x + 1) == n_procs, 'something wrong with global mean'
     if verbose:
-        printinfo(f'# global devices: {len(jax.devices())}, device sync successful', flush=True)
+        printinfo(f'# global devices: {len(jax.devices())}, device sync successful',
+                  flush=True)
 
 
 def checkpoint(epoch, so_params):
@@ -101,12 +102,13 @@ opt_state = optimizer.init(so_params)
 skd_state = None
 
 # load training data to CPU memory
-printinfo(f'loading gadget-4 data, sobol ids: {sobol_ids}', flush=True)
+printinfo(f'loading gadget-4 data, {len(sobol_ids)} sobol ids:\n {sobol_ids}', flush=True)
 tic = time.perf_counter()
-g4data = G4sobolDataset('g4sims', sobol_ids, snap_ids)
+g4data = G4sobolDataset('gs512', sobol_ids, snap_ids)
 g4loader = DataLoader(g4data, batch_size=None, shuffle=shuffle_epoch,
                       generator=tc_rng, num_workers=0, collate_fn=lambda x: x)
-printinfo(f'loading {len(sobol_ids)} sobols takes {(time.perf_counter() - tic)/60:.1f} mins', flush=True)
+printinfo(f'loading {len(sobol_ids)} sobols takes {(time.perf_counter() - tic)/60:.1f} mins',
+          flush=True)
 
 
 jax_device_sync()
