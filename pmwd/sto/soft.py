@@ -65,12 +65,6 @@ def _sotheta(cosmo, conf, a):
     return (theta_l, theta_o)
 
 
-def _sotheta_names():
-    # str names of the variables returned by the sotheta function above
-    # currently hardcoded, should be updated along with sotheta function
-    pass
-
-
 def _soft_len(k_fac=1):
     # get the length of SO input features with dummy conf and cosmo
     conf = Configuration(1., (128,)*3)
@@ -111,3 +105,25 @@ def soft_kvec(kv, theta):
     theta_o = jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)  # (128, 128, 65, 6)
     ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 128, 65, 3*8+6)
     return ft
+
+
+def _soft_names(net):
+    # str names of input features of the SO neural nets
+    # currently hardcoded, should be updated along with functions above
+    theta_l = '1/k_P, R_TH, R_G, Rd, -dk_P/k_P**2, dR_TH, dR_G, dRd'.split(', ')
+    theta_l += ['ptcl spacing', 'cell size', 'softening length']
+    theta_l_k = []
+    if net == 'f':
+        for i, v in enumerate(theta_l):
+            theta_l_k.append(f'{i}: k * {v}')
+    if net == 'g':
+        for n in range(3):
+            for i, v in enumerate(theta_l):
+                theta_l_k.append(f'{i}: k_{n} * {v}')
+
+    theta_o = ['D1/a', 'D2/a**2', 'dlnD1-1', 'dlnD2-2', 'Omega_m_a', 'H_deriv',
+               'dlna~da/a']
+    for j, v in enumerate(theta_o):
+        theta_o[j] = f'{len(theta_l_k)+1+j}: {v}'
+
+    return theta_l_k + theta_o

@@ -4,15 +4,15 @@ import math
 
 from pmwd.sto.mlp import MLP
 from pmwd.sto.soft import (
-    _sotheta, _sotheta_names, _soft_len, soft, soft_k, soft_kvec)
+    _sotheta, _soft_names, _soft_len, soft, soft_k, soft_kvec)
 
 
 def sotheta(cosmo, conf, a):
     return _sotheta(cosmo, conf, a)
 
 
-def sotheta_names():
-    return _sotheta_names()
+def soft_names():
+    return _soft_names()
 
 
 def soft_len(k_fac=1):
@@ -40,13 +40,14 @@ def sonn_vmap(k, theta, cosmo, conf, nid):
 
 
 def sonn_k(k, theta, cosmo, conf, nid):
-    """SO net with 1D k input."""
+    """SO net of 1D k input."""
     ft = soft_k(k, theta)
     return apply_net(nid, conf, cosmo, ft)[..., 0]  # rm the trailing axis of dim one
 
 
 def sonn_kvec(kv, theta, cosmo, conf, nid):
-    """SO net with 3D k input."""
+    """SO net of 3D k input, with permutation symmetry."""
+    kv = jnp.sort(kv, axis=-1)  # sort for permutation symmetry of kv components
     ft = soft_kvec(kv, theta)
     return apply_net(nid, conf, cosmo, ft)[..., 0]  # rm the trailing axis of dim one
 
@@ -72,7 +73,6 @@ def pot_sharp(pot, kvec, theta, cosmo, conf, a):
     if conf.so_type == 2:
         if conf.so_nodes[0] is not None:
             kv = jnp.stack([jnp.broadcast_to(k_, pot.shape) for k_ in kvec], axis=-1)
-            kv = jnp.sort(kv, axis=-1)  # sort for permutation symmetry
             g = sonn_kvec(kv, theta, cosmo, conf, 0)
             pot *= g
 
