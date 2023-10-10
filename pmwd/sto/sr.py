@@ -4,8 +4,9 @@ import jax.numpy as jnp
 import numpy as np
 from pysr import PySRRegressor
 import itertools
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 from sklearn.ensemble import RandomForestRegressor
+import pickle
 
 from pmwd.sto.util import load_soparams
 from pmwd.sto.data import gen_sobol, scale_Sobol, gen_cc
@@ -13,15 +14,16 @@ from pmwd.sto.mlp import MLP
 from pmwd.sto.so import sotheta, soft_k, soft_kvec
 
 
-def gen_sonn_data(so_params, net='f'):
-    """Generate the (input, output) samples of so neural networks, using
-    Sobol."""
-    # sample params, a and k (k1 k2 k3) using Sobol for f (g)
+def gen_sonn_data(so_params, net='f', m=None, fn=None):
+    """Generate the (input, output) samples of so neural networks, using Sobol."""
+    # sample theta params [:, :9], a [:, 9] and k (k1 k2 k3) [:, 10:]
+    # using Sobol for f and g neural nets
     if net == 'f':
-        d, m, nidx = 11, 11, 0
+        d, nidx = 11, 1
     if net == 'g':
-        d, m, nidx = 13, 13, 1
-    m = 6
+        d, nidx = 13, 0
+    if m is None:
+        m = d
     sobol = gen_sobol(d=d, m=m, extra=0)
     sobol_s = scale_Sobol(sobol=sobol[:, :9].T)
 
@@ -53,7 +55,13 @@ def gen_sonn_data(so_params, net='f'):
     print('evaluating y')
     so_params, n_input, so_nodes = load_soparams(so_params)
     nn = MLP(features=so_nodes[nidx])
-    y = nn.apply(so_params[nidx], X)
+    y = nn.apply(so_params[nidx], X).ravel()
+
+    # save the data to file simply with pickle
+    if fn is not None:
+        with open(fn, 'wb') as f:
+            pickle.dump([X, y], f)
+        print(f'[X, y] saved: {fn}')
 
     return X, y
 
@@ -99,11 +107,24 @@ def gen_sonn_data_old(so_params):
     return X, y, X_names
 
 
-def get_feature_importance(X, y, n_estimators=100, max_depth=3, random_state=None):
-    """Get the feature importance and indices, from high to low."""
+def rf_feature_importance(X, y, n_estimators=100, max_depth=3, random_state=None):
+    """Get the feature importance and indices using random forest, from high to low."""
     clf = RandomForestRegressor(n_estimators=n_estimators, max_depth=max_depth,
                                 random_state=random_state)
     clf.fit(X, y)
     idx = np.argsort(clf.feature_importances_)[::-1]  # high to low
 
     return clf.feature_importances_[idx], idx
+
+
+def run_pysr(X, y):
+    """Run PySR on the data and return the LaTeX expressions."""
+    model = PySRRegressor(
+        niterations=40,
+        binary_operators=['+', '-', '*', '/'],
+        unary_operators=['exp', 'log'],
+        loss='loss(prediction, target) = (prediction - target)^2'
+    )
+    model.fit(X, y)
+    tex_tab_str = model.latex_table()
+    return tex_tab_str
