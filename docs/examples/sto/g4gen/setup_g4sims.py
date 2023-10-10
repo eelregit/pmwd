@@ -86,4 +86,4 @@ if __name__ == "__main__":
         gen_g4files(sim_dir, sidx)
 
         # submit the job (compile + run)
-        os.system(f'cd {sim_dir} && sbatch job.sh')
+        # os.system(f'cd {sim_dir} && sbatch job.sh')
