@@ -1,9 +1,10 @@
 from functools import partial
 
+import jax
 from jax import value_and_grad, jit, vjp, custom_vjp
 import jax.numpy as jnp
 from jax.tree_util import tree_map
-from jax.lax import cond
+from jax.lax import cond, fori_loop, scan
 
 from pmwd.boltzmann import growth
 from pmwd.cosmology import E2, H_deriv
@@ -186,15 +187,17 @@ def coevolve_init(a, ptcl, cosmo, conf):
 
 
 def observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
-    def itp(a, obsvbl):
-        snap = interptcl(obsvbl['ptcl_prev'], ptcl, a_prev, a_next, a, cosmo)
-        obsvbl['snapshots'][a] = snap
-        return obsvbl
+    def itp(a_snap, snap):
+        snap_itp = interptcl(obsvbl['ptcl_prev'], ptcl, a_prev, a_next, a_snap, cosmo)
+        return snap_itp
 
-    if conf.a_snapshots is not None:
-        for a in conf.a_snapshots:
-            obsvbl = cond(jnp.logical_and(a_prev < a, a <= a_next),
-                          partial(itp, a), lambda *args: obsvbl, obsvbl)
+    def f_cond(carry, x):
+        a_snap, snap = x
+        y = cond(jnp.logical_and(a_prev < a_snap, a_snap <= a_next),
+                 itp, lambda *args: snap, a_snap, snap)
+        return None, y
+
+    carry, obsvbl['snaps'] = scan(f_cond, None, (obsvbl['a_snaps'], obsvbl['snaps']))
 
     obsvbl['ptcl_prev'] = ptcl
 
@@ -209,12 +212,13 @@ def observe_init(a, ptcl, obsvbl, cosmo, conf):
     obsvbl['ptcl_prev'] = ptcl
 
     if conf.a_snapshots is not None:
-        # all output snapshots
-        obsvbl['snapshots'] = {
-            a_snap: Particles(ptcl.conf, ptcl.pmid, jnp.zeros_like(ptcl.disp),
-                              vel=jnp.zeros_like(ptcl.vel))
-            for a_snap in conf.a_snapshots
-        }
+        obsvbl['a_snaps'] = jnp.array(conf.a_snapshots)
+        # all output snapshots, at times given by conf.a_snapshots
+        obsvbl['snaps'] = [Particles(ptcl.conf, ptcl.pmid, jnp.zeros_like(ptcl.disp),
+                           vel=jnp.zeros_like(ptcl.vel))] * len(conf.a_snapshots)
+        # transposed pytree with leading axis for scan
+        obsvbl['snaps'] = tree_map(lambda *xs: jnp.stack(xs), *obsvbl['snaps'])
+
         # the nbody a step of output snapshots, (,]
         idx = jnp.searchsorted(conf.a_nbody, jnp.asarray(conf.a_snapshots), side='left')
         obsvbl['snap_a_step'] = jnp.array((conf.a_nbody[idx-1], conf.a_nbody[idx])).T
