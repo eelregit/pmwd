@@ -191,13 +191,13 @@ def observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
         snap_itp = interptcl(obsvbl['ptcl_prev'], ptcl, a_prev, a_next, a_snap, cosmo)
         return snap_itp
 
-    def f_cond(carry, x):
+    def itp_cond(carry, x):
         a_snap, snap = x
         y = cond(jnp.logical_and(a_prev < a_snap, a_snap <= a_next),
                  itp, lambda *args: snap, a_snap, snap)
         return None, y
 
-    carry, obsvbl['snaps'] = scan(f_cond, None, (obsvbl['a_snaps'], obsvbl['snaps']))
+    obsvbl['snaps'] = scan(itp_cond, None, (obsvbl['a_snaps'], obsvbl['snaps']))[1]
 
     obsvbl['ptcl_prev'] = ptcl
 
@@ -220,7 +220,7 @@ def observe_init(a, ptcl, obsvbl, cosmo, conf):
         obsvbl['snaps'] = tree_map(lambda *xs: jnp.stack(xs), *obsvbl['snaps'])
 
         # the nbody a step of output snapshots, (,]
-        idx = jnp.searchsorted(conf.a_nbody, jnp.asarray(conf.a_snapshots), side='left')
+        idx = jnp.searchsorted(conf.a_nbody, jnp.array(conf.a_snapshots), side='left')
         obsvbl['snap_a_step'] = jnp.array((conf.a_nbody[idx-1], conf.a_nbody[idx])).T
 
     return obsvbl
@@ -228,29 +228,43 @@ def observe_init(a, ptcl, obsvbl, cosmo, conf):
 
 def observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo_cot, conf):
 
+    def itp_cond_adj(carry, x):
+        ptcl_cot, cosmo_cot = carry
+        a_snap, a_step, snap_cot = x
+        ptcl_cot, cosmo_cot = cond(a_step[1] == a_next, itp_next_adj,
+                                   lambda *args: (ptcl_cot, cosmo_cot),
+                                   ptcl_cot, cosmo_cot, snap_cot, ptcl,
+                                   a_step[0], a_step[1], a_snap, cosmo)
+        ptcl_cot, cosmo_cot = cond(a_step[1] == a_prev, itp_prev_adj,
+                                   lambda *args: (ptcl_cot, cosmo_cot),
+                                   ptcl_cot, cosmo_cot, snap_cot, ptcl,
+                                   a_step[0], a_step[1], a_snap, cosmo)
+        return (ptcl_cot, cosmo_cot), None
+
     if conf.a_snapshots is not None:
-        for a_snap, a_step in zip(conf.a_snapshots, obsvbl['snap_a_step']):
-            ptcl_cot, cosmo_cot = cond(a_step[1] == a_next, itp_next_adj,
-                                       lambda *args: (ptcl_cot, cosmo_cot),
-                                       ptcl_cot, cosmo_cot, obsvbl_cot['snapshots'][a_snap],
-                                       ptcl, a_step[0], a_step[1], a_snap, cosmo)
-            ptcl_cot, cosmo_cot = cond(a_step[1] == a_prev, itp_prev_adj,
-                                       lambda *args: (ptcl_cot, cosmo_cot),
-                                       ptcl_cot, cosmo_cot, obsvbl_cot['snapshots'][a_snap],
-                                       ptcl, a_step[0], a_step[1], a_snap, cosmo)
+        ptcl_cot, cosmo_cot = scan(itp_cond_adj, (ptcl_cot, cosmo_cot),
+                                   (obsvbl['a_snaps'], obsvbl['snap_a_step'],
+                                   obsvbl_cot['snaps']))[0]
 
     return ptcl_cot, cosmo_cot
 
 
 def observe_adj_init(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo_cot, conf):
 
+    def itp_cond_adj(carry, x):
+        ptcl_cot, cosmo_cot = carry
+        a_snap, a_step, snap_cot = x
+        ptcl_cot, cosmo_cot = cond(a_step[1] == a, itp_next_adj,
+                                   lambda *args: (ptcl_cot, cosmo_cot),
+                                   ptcl_cot, cosmo_cot, snap_cot, ptcl,
+                                   a_step[0], a_step[1], a_snap, cosmo)
+        return (ptcl_cot, cosmo_cot), None
+
     if conf.a_snapshots is not None:
         # check if the last ptcl is used in interpolation
-        for a_snap, a_step in zip(conf.a_snapshots, obsvbl['snap_a_step']):
-            ptcl_cot, cosmo_cot = cond(a_step[1] == a, itp_next_adj,
-                                       lambda *args: (ptcl_cot, cosmo_cot),
-                                       ptcl_cot, cosmo_cot, obsvbl_cot['snapshots'][a_snap],
-                                       ptcl, a_step[0], a_step[1], a_snap, cosmo)
+        ptcl_cot, cosmo_cot = scan(itp_cond_adj, (ptcl_cot, cosmo_cot),
+                                   (obsvbl['a_snaps'], obsvbl['snap_a_step'],
+                                   obsvbl_cot['snaps']))[0]
 
     return ptcl_cot, cosmo_cot
 
