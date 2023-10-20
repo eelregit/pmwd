@@ -15,8 +15,6 @@ jax.distributed.initialize(local_device_ids=[0])
 
 import jax.numpy as jnp
 import numpy as np
-import torch
-from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import time
@@ -24,7 +22,7 @@ import pickle
 
 from pmwd.sto.train import train_epoch, loss_epoch
 from pmwd.sto.vis import track_figs
-from pmwd.sto.data import G4sobolDataset
+from pmwd.sto.data import read_gsdata
 from pmwd.sto.hypars import (
     n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
     learning_rate, get_optimizer, so_params)
@@ -54,14 +52,14 @@ def checkpoint(epoch, so_params):
     printinfo(f'epoch {epoch} done, params saved: {fn}', flush=True)
 
 
-def track(writer, epoch, scalars, check_sobols, check_snaps, so_params, g4data,
+def track(writer, epoch, scalars, check_sobols, check_snaps, so_params, gsdata,
            mesh_shape, n_steps):
     if scalars is not None:
         for k, v in scalars.items():
             writer.add_scalar(k, v, epoch)
 
     # check a few training sobols and snaps
-    # TODO memory issue
+    # FIXME memory issue
     # for sidx in check_sobols:
     #     # get g4 snap and sobol
     #     a_snaps, tgts, sobol, snap_ids = g4data.getsnaps(sidx, check_snaps)
@@ -86,16 +84,17 @@ def track(writer, epoch, scalars, check_sobols, check_snaps, so_params, g4data,
 jax_device_sync(verbose=True)
 
 # RNGs with fixed seeds
-# numpy: pmwd MC sampling;
+# pmwd MC sampling
 np_rng = np.random.default_rng(0)
-# torch: dataloader shuffle of sobols
-tc_rng = torch.Generator().manual_seed(procid)
+# shuffle of data samples across epoch
+np_rng_shuffle = np.random.default_rng(procid)
 # jax: dropout layer
 jax_key = jax.random.PRNGKey(0)
 
 # the corresponding sobol ids of training data for current proc
 # each proc must have the same number of sobol ids
 sobol_ids = np.split(sobol_ids_global, n_procs)[procid]
+sobol_ids_epoch = sobol_ids.copy()
 
 optimizer = get_optimizer(learning_rate)
 opt_state = optimizer.init(so_params)
@@ -104,9 +103,7 @@ skd_state = None
 # load training data to CPU memory
 printinfo(f'loading gadget-4 data, {len(sobol_ids)} sobol ids:\n {sobol_ids}', flush=True)
 tic = time.perf_counter()
-g4data = G4sobolDataset('gs512', sobol_ids, snap_ids)
-g4loader = DataLoader(g4data, batch_size=None, shuffle=shuffle_epoch,
-                      generator=tc_rng, num_workers=0, collate_fn=lambda x: x)
+gsdata = read_gsdata('gs512', sobol_ids, snap_ids, 'sobol.txt')
 printinfo(f'loading {len(sobol_ids)} sobols takes {(time.perf_counter() - tic)/60:.1f} mins',
           flush=True)
 
@@ -120,13 +117,17 @@ if procid == 0:
 
 for epoch in range(0, n_epochs+1):
 
+    # shuffle the data samples across epoch
+    if shuffle_epoch:
+        np_rng_shuffle.shuffle(sobol_ids_epoch)
+
     if epoch == 0:  # evaluate the loss before training, with init so_params
         loss_epoch_mean = loss_epoch(
-            procid, epoch, g4loader, so_params, jax_key)
+            procid, epoch, gsdata, sobol_ids_epoch, so_params, jax_key)
     else:
         (loss_epoch_mean, so_params, opt_state, optimizer, learning_rate, skd_state
         ) = train_epoch(
-            procid, epoch, g4loader, so_params, opt_state, optimizer,
+            procid, epoch, gsdata, sobol_ids_epoch, so_params, opt_state, optimizer,
             learning_rate, skd_state, jax_key)
 
     # test on test data
@@ -146,7 +147,7 @@ for epoch in range(0, n_epochs+1):
         check_snaps = [0, len(snap_ids)//2, -1]
         mesh_shape_track = 1
         n_steps_track = 100
-        track(writer, epoch, scalars, check_sobols, check_snaps, so_params, g4data,
+        track(writer, epoch, scalars, check_sobols, check_snaps, so_params, gsdata,
               mesh_shape_track, n_steps_track)
 
 
