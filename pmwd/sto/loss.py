@@ -92,12 +92,6 @@ def loss_func(obsvbl, tgts, conf):
         return loss, None
 
     loss = scan(f_loss, loss, (tgts, obsvbl['a_snaps'], obsvbl['snaps']))[0]
-    loss /= len(tgts[0])
-
-    # for i, (tgt, a_snap) in enumerate(zip(tgts, obsvbl['a_snaps'])):
-    #     snap = obsvbl['snaps'][i]
-    #     ptcl_t = pv2ptcl(*tgt, snap.pmid, snap.conf)  # get the target snap
-    #     loss += loss_snap(snap, snap_t, a_snap, conf)
-    # loss /= len(tgts)  # mean loss per snapshot
+    loss /= len(tgts[0])  # mean loss per snapshot
 
     return loss
