@@ -46,7 +46,7 @@ def loss_power_ln(f, g, spacing=1, cut_nyq=False):
     return loss
 
 
-def loss_snap_disp(ptcl, ptcl_t, conf):
+def loss_ptcl_disp(ptcl, ptcl_t, conf):
     # get the disp from particles' grid Lagrangian positions
     # may be necessary since we have it divided in the mse
     disp, disp_t = (ptcl_rpos(p, Particles.gen_grid(p.conf), p.conf)
@@ -60,7 +60,7 @@ def loss_snap_disp(ptcl, ptcl_t, conf):
     return loss
 
 
-def loss_snap_dens(ptcl, ptcl_t, conf, loss_mesh_shape):
+def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_mesh_shape):
     # get the density fields
     (dens, dens_t), cell_size = scatter_dens((ptcl, ptcl_t), conf, loss_mesh_shape)
 
@@ -69,36 +69,35 @@ def loss_snap_dens(ptcl, ptcl_t, conf, loss_mesh_shape):
     return loss
 
 
-@jit
-def loss_snap(ptcl, ptcl_t, a, conf, loss_mesh_shape=1):
+def loss_snap(snap, snap_t, a_snap, conf, loss_mesh_shape=1):
     loss = 0.
     # displacement
-    loss += loss_snap_disp(ptcl, ptcl_t, conf)
+    loss += loss_ptcl_disp(snap, snap_t, conf)
     # density field
-    loss += loss_snap_dens(ptcl, ptcl_t, conf, loss_mesh_shape)
+    loss += loss_ptcl_dens(snap, snap_t, conf, loss_mesh_shape)
     # divided by the number of nbody steps to this snap
     # loss /= (a - conf.a_start) // conf.a_nbody_step + 1
     return loss
 
 
+@jit
 def loss_func(obsvbl, tgts, conf):
     loss = 0.
 
-    # TODO adapt the structure of tgts for scan
-    # def f_loss(carry, x):
-    #     loss = carry
-    #     tgt, a_snap, snap = x
-    #     ptcl_t = pv2ptcl(*tgt, ptcl.pmid, ptcl.conf)
-    #     loss += loss_snap(ptcl, ptcl_t, a_snap, conf)
-    #     return loss, None
+    def f_loss(carry, x):
+        loss = carry
+        tgt, a_snap, snap = x
+        snap_t = pv2ptcl(*tgt, snap.pmid, snap.conf)
+        loss += loss_snap(snap, snap_t, a_snap, conf)
+        return loss, None
 
-    # loss = scan(f_loss, loss, (tgts, obsvbl['a_snaps'], obsvbl['snaps']))[0]
-    # loss /= len(tgts)
+    loss = scan(f_loss, loss, (tgts, obsvbl['a_snaps'], obsvbl['snaps']))[0]
+    loss /= len(tgts[0])
 
-    for i, (tgt, a_snap) in enumerate(zip(tgts, obsvbl['a_snaps'])):
-        ptcl = obsvbl['snaps'][i]
-        ptcl_t = pv2ptcl(*tgt, ptcl.pmid, ptcl.conf)  # get the target ptcl
-        loss += loss_snap(ptcl, ptcl_t, a_snap, conf)
-    loss /= len(tgts)  # mean loss per snapshot
+    # for i, (tgt, a_snap) in enumerate(zip(tgts, obsvbl['a_snaps'])):
+    #     snap = obsvbl['snaps'][i]
+    #     ptcl_t = pv2ptcl(*tgt, snap.pmid, snap.conf)  # get the target snap
+    #     loss += loss_snap(snap, snap_t, a_snap, conf)
+    # loss /= len(tgts)  # mean loss per snapshot
 
     return loss

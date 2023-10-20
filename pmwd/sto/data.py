@@ -211,10 +211,10 @@ def read_gsdata(sims_dir, sobol_ids, snap_ids, fn_sobol):
         }
         with h5py.File(os.path.join(sims_dir, f'{sidx:03}.hdf5'), 'r') as f:
             data[sidx]['a_snaps'] = tuple(f['a'][snap_ids])
-            pos = list(f['pos'][snap_ids])
-            # vel = list(f['vel'][snap_ids])
-            vel = [None] * len(snap_ids)
-        data[sidx]['snapshots'] = list(zip(pos, vel))
+            pos = f['pos'][snap_ids]
+            # vel = f['vel'][snap_ids]
+            vel = np.full(len(snap_ids), 0.)  # not using vel in loss now, saving mem
+        data[sidx]['pv'] = (pos, vel)
     for sidx in sobol_ids:
         load_sobol(sidx)
     return data

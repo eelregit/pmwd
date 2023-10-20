@@ -58,14 +58,14 @@ def train_step(tgts, so_params, pmwd_params, opt_params):
     return so_params, loss, opt_state
 
 
-def train_epoch(procid, epoch, g4loader, so_params, opt_state, optimizer,
+def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_params, opt_state, optimizer,
                 learning_rate, skd_state, jax_key):
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
     tic = time.perf_counter()
-    for step, g4sobol in enumerate(g4loader):
-        tgts, a_snaps, sidx, sobol = (g4sobol[k] for k in (
-                                    'snapshots', 'a_snaps', 'sidx', 'sobol'))
+    for step, sidx in enumerate(sobol_ids_epoch):
+        tgts, a_snaps, sidx, sobol = (gsdata[sidx][k] for k in (
+                                      'pv', 'a_snaps', 'sidx', 'sobol'))
         tgts = jax.device_put(tgts)  # could be asynchronous
 
         # mesh shape, [1, 2, 3, 4]
@@ -94,21 +94,21 @@ def train_epoch(procid, epoch, g4loader, so_params, opt_state, optimizer,
                    f'{n_steps:>4d}, {loss:12.3e}'), flush=True)
 
     # learning rate scheduler
-    loss_epoch_mean = loss_epoch / len(g4loader)
+    loss_epoch_mean = loss_epoch / len(gsdata)
     learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
     optimizer = get_optimizer(learning_rate)
 
     return loss_epoch_mean, so_params, opt_state, optimizer, learning_rate, skd_state
 
 
-def loss_epoch(procid, epoch, g4loader, so_params, jax_key):
+def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_params, jax_key):
     """Simply evaluate the loss w/o grad."""
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
     tic = time.perf_counter()
-    for step, g4sobol in enumerate(g4loader):
-        tgts, a_snaps, sidx, sobol = (g4sobol[k] for k in (
-                                    'snapshots', 'a_snaps', 'sidx', 'sobol'))
+    for step, sidx in enumerate(sobol_ids_epoch):
+        tgts, a_snaps, sidx, sobol = (gsdata[sidx][k] for k in (
+                                      'pv', 'a_snaps', 'sidx', 'sobol'))
         tgts = jax.device_put(tgts)  # could be asynchronous
 
         # mesh shape, [1, 2, 3, 4]
@@ -135,5 +135,5 @@ def loss_epoch(procid, epoch, g4loader, so_params, jax_key):
             print((f'{tt:.0f} s, {epoch}, {sidx:>3d}, {mesh_shape:>3d}, ' +
                    f'{n_steps:>4d}, {loss:12.3e}'), flush=True)
 
-    loss_epoch_mean = loss_epoch / len(g4loader)
+    loss_epoch_mean = loss_epoch / len(gsdata)
     return loss_epoch_mean
