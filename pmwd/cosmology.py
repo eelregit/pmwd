@@ -1,18 +1,15 @@
 from dataclasses import field
 from functools import partial
 from operator import add, sub
-from typing import ClassVar, Optional, Union
+from typing import ClassVar, Optional
 
-import numpy as np
-from jax import value_and_grad
+from jax import Array, value_and_grad
+from jax.typing import ArrayLike
 import jax.numpy as jnp
 from jax.tree_util import tree_map
 
 from pmwd.tree_util import pytree_dataclass
 from pmwd.configuration import Configuration
-
-
-FloatParam = Union[float, jnp.ndarray]
 
 
 @partial(pytree_dataclass, aux_fields="conf", frozen=True)
@@ -34,45 +31,45 @@ class Cosmology:
     ----------
     conf : Configuration
         Configuration parameters.
-    A_s_1e9 : float or jax.numpy.ndarray
+    A_s_1e9 : float ArrayLike
         Primordial scalar power spectrum amplitude, multiplied by 1e9.
-    n_s : float or jax.numpy.ndarray
+    n_s : float ArrayLike
         Primordial scalar power spectrum spectral index.
-    Omega_m : float or jax.numpy.ndarray
+    Omega_m : float ArrayLike
         Total matter density parameter today.
-    Omega_b : float or jax.numpy.ndarray
+    Omega_b : float ArrayLike
         Baryonic matter density parameter today.
-    Omega_k_ : None, float, or jax.numpy.ndarray, optional
+    Omega_k_ : None or float ArrayLike, optional
         Spatial curvature density parameter today. Default is None.
-    w_0_ : None, float, or jax.numpy.ndarray, optional
+    w_0_ : None or float ArrayLike, optional
         Dark energy equation of state constant parameter. Default is None.
-    w_a_ : None, float, or jax.numpy.ndarray, optional
+    w_a_ : None or float ArrayLike, optional
         Dark energy equation of state linear parameter. Default is None.
-    h : float or jax.numpy.ndarray
+    h : float ArrayLike
         Hubble constant in unit of 100 [km/s/Mpc].
 
     """
 
     conf: Configuration = field(repr=False)
 
-    A_s_1e9: FloatParam
-    n_s: FloatParam
-    Omega_m: FloatParam
-    Omega_b: FloatParam
-    h: FloatParam
+    A_s_1e9: ArrayLike
+    n_s: ArrayLike
+    Omega_m: ArrayLike
+    Omega_b: ArrayLike
+    h: ArrayLike
 
-    Omega_k_: Optional[FloatParam] = None
+    Omega_k_: Optional[ArrayLike] = None
     Omega_k_fixed: ClassVar[float] = 0
-    w_0_: Optional[FloatParam] = None
+    w_0_: Optional[ArrayLike] = None
     w_0_fixed: ClassVar[float] = -1
-    w_a_: Optional[FloatParam] = None
+    w_a_: Optional[ArrayLike] = None
     w_a_fixed: ClassVar[float] = 0
 
-    transfer: Optional[jnp.ndarray] = field(default=None, compare=False)
+    transfer: Optional[Array] = field(default=None, compare=False)
 
-    growth: Optional[jnp.ndarray] = field(default=None, compare=False)
+    growth: Optional[Array] = field(default=None, compare=False)
 
-    varlin: Optional[jnp.ndarray] = field(default=None, compare=False)
+    varlin: Optional[Array] = field(default=None, compare=False)
 
     def __post_init__(self):
         if self._is_transforming():
@@ -191,13 +188,13 @@ def E2(a, cosmo):
 
     Parameters
     ----------
-    a : array_like
+    a : ArrayLike
         Scale factors.
     cosmo : Cosmology
 
     Returns
     -------
-    E2 : jax.numpy.ndarray of cosmo.conf.cosmo_dtype
+    E2 : jax.Array of cosmo.conf.cosmo_dtype
         Squared Hubble parameter time scaling factors.
 
     Notes
@@ -229,13 +226,13 @@ def H_deriv(a, cosmo):
 
     Parameters
     ----------
-    a : array_like
+    a : ArrayLike
         Scale factors.
     cosmo : Cosmology
 
     Returns
     -------
-    dlnH_dlna : jax.numpy.ndarray of cosmo.conf.cosmo_dtype
+    dlnH_dlna : jax.Array of cosmo.conf.cosmo_dtype
         Hubble parameter derivatives.
 
     """
@@ -250,13 +247,13 @@ def Omega_m_a(a, cosmo):
 
     Parameters
     ----------
-    a : array_like
+    a : ArrayLike
         Scale factors.
     cosmo : Cosmology
 
     Returns
     -------
-    Omega : jax.numpy.ndarray of cosmo.conf.cosmo_dtype
+    Omega : jax.Array of cosmo.conf.cosmo_dtype
         Matter density parameters.
 
     Notes

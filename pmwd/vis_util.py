@@ -16,7 +16,7 @@ def simshow(x, figsize=(9, 7), dpi=72, cmap='inferno', norm=None, colorbar=True,
 
     Parameters
     ----------
-    x : array_like
+    x : ArrayLike
         2D field.
     figsize : 2-tuple of float, optional
         Width and height in inches.
@@ -80,7 +80,7 @@ class CosmicWebNorm(FuncNorm):
 
     Parameters
     ----------
-    x : array_like
+    x : ArrayLike
         Density field.
     q : float, optional
         Underdensity fraction in colormap.

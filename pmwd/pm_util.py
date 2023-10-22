@@ -36,32 +36,32 @@ def enmesh(i1, d1, a1, s1, b12, a2, s2, grad):
 
     Parameters
     ----------
-    i1 : (num, dim) array_like
+    i1 : (num, dim) ArrayLike
         Integer coordinates of points on grid 1.
-    d1 : (num, dim) array_like
+    d1 : (num, dim) ArrayLike
         Float displacements from the points on grid 1.
     a1 : float
         Cell size of grid 1.
     s1 : dim-tuple of int, or None
         Periodic boundary shape of grid 1. If None, no wrapping.
-    b12 : array_like
+    b12 : ArrayLike
         Offset of origin of grid 2 to that of grid 1.
     a2 : float or None
         Cell size of grid 2. If None, ``a2`` is the same as ``a1``.
     s2 : dim-tuple of int, or None
         Shape of grid 2. If not None, negative out-of-bounds indices of ``i2`` are set
         to ``s2``, avoiding some of them being treated as in bounds, thus allowing them
-        to be dropped by ``add()`` and ``get()`` of ``jax.numpy.ndarray.at``.
+        to be dropped by ``add()`` and ``get()`` of ``jax.Array.at``.
     grad : bool
         Whether to return gradients of ``f2``.
 
     Returns
     -------
-    i2 : (num, 2**dim, dim) jax.numpy.ndarray
+    i2 : (num, 2**dim, dim) jax.Array
         Mesh indices on grid 2.
-    f2 : (num, 2**dim) jax.numpy.ndarray
+    f2 : (num, 2**dim) jax.Array
         Multilinear fractions on grid 2.
-    f2_grad : (num, 2**dim, dim) jax.numpy.ndarray
+    f2_grad : (num, 2**dim, dim) jax.Array
         Multilinear fraction gradients on grid 2.
 
     Notes
@@ -166,11 +166,11 @@ def rfftnfreq(shape, spacing, dtype=jnp.float64):
         Shape of ``rfftn`` input.
     spacing : float or None, optional
         Grid spacing. None is equivalent to a 2π spacing, with a wavevector period of 1.
-    dtype : dtype_like
+    dtype : DTypeLike
 
     Returns
     -------
-    kvec : list of jax.numpy.ndarray
+    kvec : list of jax.Array
         Wavevectors.
 
     """

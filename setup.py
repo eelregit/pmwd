@@ -25,7 +25,6 @@ setup(
     python_requires='>=3.7',
     install_requires=[
         'jax>=0.4.7',
-        'numpy>=1.20',  # numpy.typing
         'mcfit>=0.0.18',  # jax backend
     ],
     extras_require={

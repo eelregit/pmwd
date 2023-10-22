@@ -12,18 +12,18 @@ def gather(ptcl, conf, mesh, val=0, offset=0, cell_size=None):
     ----------
     ptcl : Particles
     conf : Configuration
-    mesh : array_like
+    mesh : ArrayLike
         Input mesh.
-    val : array_like, optional
+    val : ArrayLike, optional
         Input values, can be 0D.
-    offset : array_like, optional
+    offset : ArrayLike, optional
         Offset of mesh to particle grid. If 0D, the value is used in each dimension.
     cell_size : float, optional
         Mesh cell size in [L]. Default is ``conf.cell_size``.
 
     Returns
     -------
-    val : jax.numpy.ndarray
+    val : jax.Array
         Output values.
 
     """

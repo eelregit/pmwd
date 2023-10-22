@@ -27,7 +27,7 @@ def white_noise(seed, conf, real=False, unit_abs=False, negate=False):
 
     Returns
     -------
-    modes : jax.numpy.ndarray of conf.float_dtype
+    modes : jax.Array of conf.float_dtype
         White noise modes.
 
     """
@@ -75,7 +75,7 @@ def linear_modes(modes, cosmo, conf, a=None):
 
     Parameters
     ----------
-    modes : jax.numpy.ndarray
+    modes : jax.Array
         Fourier or real modes with white noise prior.
     cosmo : Cosmology
     conf : Configuration
@@ -84,7 +84,7 @@ def linear_modes(modes, cosmo, conf, a=None):
 
     Returns
     -------
-    modes : jax.numpy.ndarray of conf.float_dtype
+    modes : jax.Array of conf.float_dtype
         Linear matter overdensity Fourier modes in [L^3].
 
     Notes

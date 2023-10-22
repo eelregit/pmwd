@@ -81,7 +81,7 @@ def levi_civita(indices):
 
     Parameters
     ----------
-    indices : array_like
+    indices : ArrayLike
 
     Returns
     -------
@@ -140,7 +140,7 @@ def lpt(modes, cosmo, conf):
 
     Parameters
     ----------
-    modes : jax.numpy.ndarray
+    modes : jax.Array
         Linear matter overdensity Fourier modes in [L^3].
     cosmo : Cosmology
     conf : Configuration

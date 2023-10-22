@@ -13,17 +13,17 @@ def powspec(f, spacing, bins=1j/3, g=None, deconv=0, cut_zero=True, cut_nyq=True
 
     Parameters
     ----------
-    f : array_like
+    f : ArrayLike
         The field, with the last 3 axes for FFT and the other summed over.
     spacing : float
         Field grid spacing.
-    bins : float, complex, or 1D array_like, optional
+    bins : float, complex, or 1D ArrayLike, optional
         Wavenumber bins. A real number sets the linear spaced bin width in unit of the
         smallest fundamental in 3D (right edge inclusive starting from zero); an
         imaginary number sets the log spaced bin width in octave (left edge inclusive
         starting from the smallest fundamental in 3D); and an array sets the bin edges
         directly (right edge inclusive and must starting from zero).
-    g : array_like, optional
+    g : ArrayLike, optional
         Another field of the same shape for cross correlation.
     deconv : int, optional
         Power of sinc factors to deconvolve in the power spectrum.
@@ -31,18 +31,18 @@ def powspec(f, spacing, bins=1j/3, g=None, deconv=0, cut_zero=True, cut_nyq=True
         Whether to discard the bin containing the zero or DC mode.
     cut_nyq : bool, optional
         Whether to discard the bins beyond the Nyquist.
-    int_dtype : dtype_like, optional
+    int_dtype : DTypeLike, optional
         Integer dtype for the number of modes.
 
     Returns
     -------
-    k : jax.numpy.ndarray
+    k : jax.Array
         Wavenumber.
-    P : jax.numpy.ndarray
+    P : jax.Array
         Power spectrum.
-    N : jax.numpy.ndarray
+    N : jax.Array
         Number of modes.
-    bins : jax.numpy.ndarray
+    bins : jax.Array
         Wavenumber bins.
 
     """
