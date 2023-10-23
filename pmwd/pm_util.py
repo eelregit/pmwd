@@ -157,35 +157,44 @@ def enmesh(i1, d1, a1, s1, b12, a2, s2, grad):
         return i2, f2
 
 
-def rfftnfreq(shape, spacing, dtype=jnp.float64):
-    """Broadcastable "``sparse``" wavevectors for ``numpy.fft.rfftn``.
+def rfftnfreq(shape, spacing, dtype=jnp.float64, sparse=True):
+    """(Angular) wavevectors for ``numpy.fft.rfftn``.
 
     Parameters
     ----------
     shape : tuple of int
         Shape of ``rfftn`` input.
     spacing : float or None, optional
-        Grid spacing. None is equivalent to a 2π spacing, with a wavevector period of 1.
+        Grid spacing. None is equivalent to spacing of 2π with angular wavevector period
+        of 1, or equivalently spacing of 1 with (non-angular) wavevector period of 1.
     dtype : DTypeLike
+    sparse : bool, optional
+        Whether to return sparse broadcastable or dense wavevector grids.
 
     Returns
     -------
     kvec : list of jax.Array
         Wavevectors.
 
+    Notes
+    -----
+
+    The angular wavevectors differ from the numpy ``fftfreq`` and ``rfftfreq`` by a
+    multiplicative factor of 2π.
+
     """
-    freq_period = 1
+    period = 1
     if spacing is not None:
-        freq_period = 2 * jnp.pi / spacing
+        period = 2 * jnp.pi / spacing
 
     kvec = []
     for axis, s in enumerate(shape[:-1]):
-        k = jnp.fft.fftfreq(s).astype(dtype) * freq_period
-        kvec.append(k)
+        k = jnp.fft.fftfreq(s) * period
+        kvec.append(k.astype(dtype))
 
-    k = jnp.fft.rfftfreq(shape[-1]).astype(dtype) * freq_period
-    kvec.append(k)
+    k = jnp.fft.rfftfreq(shape[-1]) * period
+    kvec.append(k.astype(dtype))
 
-    kvec = jnp.meshgrid(*kvec, indexing='ij', sparse=True)
+    kvec = jnp.meshgrid(*kvec, sparse=sparse, indexing='ij')
 
     return kvec
