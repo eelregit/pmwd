@@ -64,8 +64,7 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_params, opt_state, op
 
     tic = time.perf_counter()
     for step, sidx in enumerate(sobol_ids_epoch):
-        tgts, a_snaps, sidx, sobol = (gsdata[sidx][k] for k in (
-                                      'pv', 'a_snaps', 'sidx', 'sobol'))
+        tgts, a_snaps, sobol = (gsdata[sidx][k] for k in ('pv', 'a_snaps', 'sobol'))
         tgts = jax.device_put(tgts)  # could be asynchronous
 
         # mesh shape, [1, 2, 3, 4]
@@ -107,8 +106,7 @@ def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_params, jax_key):
 
     tic = time.perf_counter()
     for step, sidx in enumerate(sobol_ids_epoch):
-        tgts, a_snaps, sidx, sobol = (gsdata[sidx][k] for k in (
-                                      'pv', 'a_snaps', 'sidx', 'sobol'))
+        tgts, a_snaps, sobol = (gsdata[sidx][k] for k in ('pv', 'a_snaps', 'sobol'))
         tgts = jax.device_put(tgts)  # could be asynchronous
 
         # mesh shape, [1, 2, 3, 4]

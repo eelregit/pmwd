@@ -63,11 +63,6 @@ def pot_sharp(pot, kvec, theta, cosmo, conf, a):
         if conf.so_nodes[1] is not None:
             k = jnp.sqrt(sum(k_**2 for k_ in kvec))
             g = sonn_k(k, theta, cosmo, conf, 1)
-            # ks = jnp.array_split(k, 16)
-            # g = []
-            # for k in ks:
-            #     g.append(sonn_vmap(k, theta, cosmo, conf, 1))
-            # g = jnp.concatenate(g, axis=0)
             pot *= g
 
     if conf.so_type == 2:

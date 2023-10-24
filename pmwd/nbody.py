@@ -197,6 +197,7 @@ def observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
                  itp, lambda *args: snap, a_snap, snap)
         return None, y
 
+    # TODO maybe two copies of obsvbl['snaps'] exist here? use donate to save mem?
     obsvbl['snaps'] = scan(itp_cond, None, (obsvbl['a_snaps'], obsvbl['snaps']))[1]
 
     obsvbl['ptcl_prev'] = ptcl

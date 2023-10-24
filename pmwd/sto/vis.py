@@ -5,7 +5,7 @@ from pmwd.nbody import nbody
 from pmwd.particles import Particles
 from pmwd.vis_util import simshow, CosmicWebNorm
 from pmwd.pm_util import rfftnfreq
-from pmwd.sto.so import sotheta, sonn_k
+from pmwd.sto.so import sotheta, sonn_k, sonn_kvec
 from pmwd.sto.train import init_pmwd, pmodel
 from pmwd.sto.util import scatter_dens, power_tfcc
 
@@ -39,6 +39,60 @@ def plt_cc(k, cc, ylim=(1e-4, 1.1)):
     # ax.axhline(y=0, ls='--', c='grey')
     ax.grid(c='grey', alpha=0.5, ls=':')
     return fig
+
+
+def plt_fnet(theta, cosmo, conf):
+    k = jnp.logspace(-3, 2, 100)
+    fs = sonn_k(k, theta, cosmo, conf, 1)
+
+    fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.6), tight_layout=True)
+    ax.plot(k, fs)
+    ax.set_xscale('log')
+    ax.set_xlabel(r'$k_i$')
+    ax.set_ylabel(r'$f$')
+    ax.grid(c='grey', alpha=0.5, ls=':')
+    return fig
+
+
+def plt_gnet(theta, cosmo, conf):
+    k = jnp.logspace(-3, 2, 100)
+    zeros = jnp.zeros_like(k)
+
+    kv_axis = jnp.stack([k, zeros, zeros], axis=-1)
+    kv_axis = jnp.sort(kv_axis, axis=-1)
+    gs_axis = sonn_kvec(kv_axis, theta, cosmo, conf, 0)
+
+    kv_face = jnp.stack([k, k, zeros], axis=-1)
+    kv_face = jnp.sort(kv_face, axis=-1)
+    gs_face = sonn_kvec(kv_face, theta, cosmo, conf, 0)
+
+    fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.6), tight_layout=True)
+    ax.plot(k, gs_axis, label='axis')
+    ax.plot(k, gs_face, label='face')
+    ax.set_xscale('log')
+    ax.set_xlabel(r'$k_i$')
+    ax.set_ylabel(r'$g$')
+    ax.grid(c='grey', alpha=0.5, ls=':')
+    ax.legend()
+    return fig
+
+
+def track_figs(ptcl, ptcl_t, cosmo, conf, a, vis_mesh_shape=1):
+    """Generate figures tracking the training."""
+    figs = {}
+    # plot T and r of density fields
+    (dens, dens_t), cell_size = scatter_dens(
+                                    (ptcl, ptcl_t), ptcl.conf, vis_mesh_shape)
+    k, tf, cc = power_tfcc(dens, dens_t, cell_size)
+    figs['T'] = plt_tf(k, tf)
+    figs['r'] = plt_cc(k, cc)
+
+    # plot f and g nets
+    theta = sotheta(cosmo, conf, a)
+    figs['f'] = plt_fnet(theta, cosmo, conf)
+    figs['g'] = plt_gnet(theta, cosmo, conf)
+
+    return figs
 
 
 def plt_sofunc(nid, k, cosmo, conf):
@@ -104,20 +158,5 @@ def vis_inspect(tgt, so_params, pmwd_params, vis_mesh_shape=1,
         figs['dens_target'].tight_layout()
         figs['dens'] = simshow(dens[:slab].mean(axis=0), norm=norm)[0]
         figs['dens'].tight_layout()
-
-    return figs
-
-
-def track_figs(ptcl, ptcl_t, vis_mesh_shape=1):
-    """Generate figures tracking the training."""
-    figs = {}
-    # plot T and r of density fields
-    (dens, dens_t), cell_size = scatter_dens(
-                                    (ptcl, ptcl_t), ptcl.conf, vis_mesh_shape)
-    k, tf, cc = power_tfcc(dens, dens_t, cell_size)
-    figs['tf'] = plt_tf(k, tf)
-    figs['cc'] = plt_cc(k, cc)
-
-    # TODO plot other quantities listed in the draft
 
     return figs
