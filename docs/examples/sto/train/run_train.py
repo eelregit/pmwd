@@ -25,7 +25,7 @@ from pmwd.sto.vis import track_figs
 from pmwd.sto.data import read_gsdata
 from pmwd.sto.hypars import (
     n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
-    learning_rate, get_optimizer, so_params)
+    learning_rate, get_optimizer, so_params, so_type, so_nodes)
 from pmwd.sto.post import pmwd_fwd
 from pmwd.sto.util import pv2ptcl, global_mean
 
@@ -53,29 +53,33 @@ def checkpoint(epoch, so_params):
 
 
 def track(writer, epoch, scalars, check_sobols, check_snaps, so_params, gsdata,
-           mesh_shape, n_steps):
+          mesh_shape, n_steps):
     if scalars is not None:
         for k, v in scalars.items():
             writer.add_scalar(k, v, epoch)
 
     # check a few training sobols and snaps
-    # FIXME memory issue
-    # for sidx in check_sobols:
-    #     # get g4 snap and sobol
-    #     a_snaps, tgts, sobol, snap_ids = g4data.getsnaps(sidx, check_snaps)
+    for sidx in check_sobols:
+        # get target snap and sobol
+        tgts, a_snaps, sobol, snap_ids = (gsdata[sidx][k] for k in (
+                                          'pv', 'a_snaps', 'sobol', 'snap_ids'))
+        a_snaps = tuple(a_snaps[i] for i in check_snaps)
+        tgts = tuple(t[check_snaps] for t in tgts)
+        snap_ids = snap_ids[check_snaps]
 
-    #     # run pmwd
-    #     obsvbl = pmwd_fwd(so_params, sidx, sobol, a_snaps, mesh_shape, n_steps,
-    #                       so_type, so_nodes)
+        # run pmwd
+        obsvbl, cosmo, conf = pmwd_fwd(so_params, sidx, sobol, a_snaps,
+                                       mesh_shape, n_steps, so_type, so_nodes)
 
-    #     # compare
-    #     for i in range(len(a_snaps)):
-    #         ptcl = obsvbl['snapshots'][i]
-    #         ptcl_t = pv2ptcl(*tgts[i], ptcl.pmid, ptcl.conf)
-    #         figs = track_figs(ptcl, ptcl_t)
-    #         for key, fig in figs.items():
-    #             writer.add_figure(f'{key}/sobol_{sidx}/snap_{snap_ids[i]}', fig, epoch)
-    #             fig.clf()
+        # compare
+        for i in range(len(a_snaps)):
+            ptcl = obsvbl['snaps'][i]
+            tgt = tuple(t[i] for t in tgts)
+            ptcl_t = pv2ptcl(*tgt, ptcl.pmid, ptcl.conf)
+            figs = track_figs(ptcl, ptcl_t, cosmo, conf, a_snaps[i])
+            for key, fig in figs.items():
+                writer.add_figure(f'{key}/sobol_{sidx}/snap_{snap_ids[i]}', fig, epoch)
+                fig.clf()
 
     # check the test sobols and snaps
 
@@ -121,6 +125,7 @@ for epoch in range(0, n_epochs+1):
     if shuffle_epoch:
         np_rng_shuffle.shuffle(sobol_ids_epoch)
 
+    # training for one epoch
     if epoch == 0:  # evaluate the loss before training, with init so_params
         loss_epoch_mean = loss_epoch(
             procid, epoch, gsdata, sobol_ids_epoch, so_params, jax_key)
@@ -130,7 +135,7 @@ for epoch in range(0, n_epochs+1):
             procid, epoch, gsdata, sobol_ids_epoch, so_params, opt_state, optimizer,
             learning_rate, skd_state, jax_key)
 
-    # test on test data
+    # TODO test on test data
     # also distribute to multiple devices, evaluate and collect the loss
 
     # checkpoint and track
@@ -143,12 +148,14 @@ for epoch in range(0, n_epochs+1):
             # TODO add the mean test loss, could plot together with training
             # loss using add_scalars
         }
-        check_sobols = sobol_ids
+        # the sobols and snaps to track
+        check_sobols = sobol_ids[:3]
         check_snaps = [0, len(snap_ids)//2, -1]
         mesh_shape_track = 1
         n_steps_track = 100
         track(writer, epoch, scalars, check_sobols, check_snaps, so_params, gsdata,
               mesh_shape_track, n_steps_track)
+        printinfo('logged for tensorboard')
 
 
 if procid == 0:

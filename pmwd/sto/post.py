@@ -16,7 +16,7 @@ def pmwd_fwd(so_params, sidx, sobol, a_snaps, mesh_shape, n_steps, so_type, so_n
     ptcl_ic = gen_ic(sidx, conf, cosmo)
     cosmo = cosmo.replace(so_params=so_params)
     _, obsvbl = nbody(ptcl_ic, None, cosmo, conf)
-    return obsvbl
+    return obsvbl, cosmo, conf
 
 
 def test_snap(tgt, pmwd_params, so_params, vis_mesh_shape, vis_cut_nyq):
@@ -45,7 +45,7 @@ def test_snap(tgt, pmwd_params, so_params, vis_mesh_shape, vis_cut_nyq):
     ax.set_xlabel(r'$k$ [$h$/Mpc]')
     ax.set_xscale('log')
     ax.set_xlim(k[0], k[-1])
-    ax.set_ylim(0.6, 1.2)
+    ax.set_ylim(0.4, 1.5)
     ax.grid(c='grey', alpha=0.5, ls=':')
     ax.legend(ncols=2, frameon=False)
 
@@ -54,7 +54,7 @@ def test_snap(tgt, pmwd_params, so_params, vis_mesh_shape, vis_cut_nyq):
 
 def test_so(so_params, sobol_ids, snap_ids, g4sims_dir='../g4sims',
             mesh_shape=1, n_steps=100, so_type=2, vis_mesh_shape=1,
-            vis_cut_nyq=True):
+            vis_cut_nyq=False):
     # load the g4data
     print('loading gadget4 data')
     g4data = G4snapDataset(g4sims_dir, sobol_ids, snap_ids)
