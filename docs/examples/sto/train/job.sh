@@ -14,7 +14,7 @@
 module purge
 
 source ~/mambaforge/bin/activate
-srun --cpu-bind=cores  python run_train.py
+srun python run_train.py
 
 
 # Notes:
