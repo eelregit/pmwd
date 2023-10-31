@@ -68,7 +68,7 @@ if not os.path.exists(fname):
 exec_times = np.loadtxt(fname)
 
 
-plt.style.use('font.mplstyle')
+plt.style.use('adjoint.mplstyle')
 
 fig, ax = plt.subplots(figsize=(4, 3))
 

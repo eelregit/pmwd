@@ -1,0 +1,19 @@
+lines.dash_joinstyle:   round
+lines.dash_capstyle:    round
+lines.solid_joinstyle:  round
+lines.solid_capstyle:   round
+
+font.family:            serif
+font.serif:             Palatino
+text.usetex:            True
+
+xtick.top:              True
+xtick.direction:        in
+ytick.right:            True
+ytick.direction:        in
+
+legend.frameon:         False
+
+savefig.bbox:           tight
+savefig.pad_inches:     0.05
+savefig.transparent:    True

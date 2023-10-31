@@ -86,6 +86,8 @@ modes = white_noise(seed, conf, real=True)
 cosmo = boltzmann(cosmo, conf)
 
 
+plt.style.use('adjoint.mplstyle')
+
 ptcl, obsvbl = lpt(linear_modes(modes, cosmo, conf), cosmo, conf)
 fig, _ = pmwdshow(scatter_2d(ptcl, conf))
 fig.savefig('optim_ini.pdf')

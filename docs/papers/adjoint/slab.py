@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-plt.style.use('font.mplstyle')
+plt.style.use('adjoint.mplstyle')
 
 from pmwd import (
     Configuration,

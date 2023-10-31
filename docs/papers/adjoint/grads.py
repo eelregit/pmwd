@@ -87,7 +87,7 @@ else:  # making plots
     gad = np.stack([np.load(fname_ad.format(i)) for i in range(n)], axis=0)
 
     from matplotlib.colors import SymLogNorm, LogNorm
-    plt.style.use('font.mplstyle')
+    plt.style.use('adjoint.mplstyle')
 
     fig, _ = simshow(gam[0, 32], cmap='RdBu_r',
                      norm=SymLogNorm(0.01, vmin=-0.1, vmax=0.1), colorbar=False)
