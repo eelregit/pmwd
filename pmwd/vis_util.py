@@ -10,7 +10,7 @@ except NameError:
     pass  # if not plotting in Jupyter
 
 
-def simshow(x, figsize=(9, 7), dpi=72, cmap='inferno', norm=None, colorbar=True,
+def simshow(x, figsize=(6.3, 4.9), dpi=96, cmap='inferno', norm=None, colorbar=True,
             interpolation='lanczos', interpolation_stage='rgba', **kwargs):
     """Plot a 2D view of simulation with ``imshow``.
 
@@ -66,8 +66,8 @@ def simshow(x, figsize=(9, 7), dpi=72, cmap='inferno', norm=None, colorbar=True,
             cb.set_ticks(ticks, labels=ticklabels)
         except AttributeError:
             pass
-        cb.ax.tick_params(which='both', length=0,
-                          labelsize=figsize[1] * 72 / 36, labelcolor='grey')
+        cb.ax.tick_params(which='both', labelcolor='grey',
+                          bottom=False, top=False, left=False, right=False)
         cb.outline.set_visible(False)
 
     return fig, ax
