@@ -7,8 +7,7 @@ import time
 from pmwd.nbody import nbody
 from pmwd.sto.data import gen_cc, gen_ic
 from pmwd.sto.loss import loss_func
-from pmwd.sto.hypars import (
-    so_type, so_nodes, lr_scheduler, get_optimizer, dropout_rate)
+from pmwd.sto.hypars import lr_scheduler, get_optimizer, dropout_rate
 from pmwd.sto.util import global_mean
 
 
@@ -58,8 +57,8 @@ def train_step(tgts, so_params, pmwd_params, opt_params):
     return so_params, loss, opt_state
 
 
-def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_params, opt_state, optimizer,
-                learning_rate, skd_state, jax_key):
+def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
+                opt_state, optimizer, learning_rate, skd_state, jax_key):
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
     tic = time.perf_counter()
@@ -92,15 +91,16 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_params, opt_state, op
             print((f'{tt:.0f} s, {epoch}, {sidx:>3d}, {mesh_shape:>3d}, ' +
                    f'{n_steps:>4d}, {loss:12.3e}'), flush=True)
 
-    # learning rate scheduler
     loss_epoch_mean = loss_epoch / len(gsdata)
-    learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
-    optimizer = get_optimizer(learning_rate)
+
+    # learning rate scheduler
+    # learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
+    # optimizer = get_optimizer(learning_rate)
 
     return loss_epoch_mean, so_params, opt_state, optimizer, learning_rate, skd_state
 
 
-def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_params, jax_key):
+def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params, jax_key):
     """Simply evaluate the loss w/o grad."""
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
