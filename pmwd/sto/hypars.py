@@ -14,6 +14,7 @@ shuffle_epoch = True  # shuffle the order of sobols across epochs
 
 # optimizer
 learning_rate = 1e-5
+optimizer = optax.adam(learning_rate)
 
 def get_optimizer(lr):
     return optax.adam(lr)
