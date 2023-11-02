@@ -23,7 +23,8 @@ def model(modes, cosmo, conf):
     modes = linear_modes(modes, cosmo, conf)
     ptcl, obsvbl = lpt(modes, cosmo, conf)
     ptcl, obsvbl = nbody(ptcl, obsvbl, cosmo, conf)
-    return ptcl
+    dens = scatter_2d(ptcl, conf)
+    return dens
 
 
 def scatter_2d(ptcl, conf):
@@ -32,12 +33,13 @@ def scatter_2d(ptcl, conf):
     return dens.sum(axis=2)
 
 
-pmwdshow = partial(simshow, figsize=(27/2, 8), cmap='cividis', colorbar=False)
+pmwdshow = partial(simshow, figsize=(2.7, 1.6), cmap='cividis', colorbar=False,
+                   interpolation='none')
+modeshow = partial(simshow, figsize=(3.2, 1.6), colorbar=True, interpolation='none')
 
 
 def obj(tgt, modes, cosmo, conf):
-    ptcl = model(modes, cosmo, conf)
-    dens = scatter_2d(ptcl, conf)
+    dens = model(modes, cosmo, conf)
     return (dens - tgt).var() / tgt.var()
 
 obj_valgrad = jax.value_and_grad(obj, argnums=1)
@@ -62,7 +64,7 @@ def optim(tgt, modes, cosmo, conf, iters=100, lr=0.1):
 
 
 text = 'pmwd'
-font = ImageFont.truetype('../nova/NovaRoundSlim-BookOblique.ttf', 32)
+font = ImageFont.truetype('../../nova/NovaRoundSlim-BookOblique.ttf', 32)
 
 ptcl_spacing = 10.
 ptcl_grid_shape = (16, 27, 16)
@@ -87,6 +89,7 @@ cosmo = boltzmann(cosmo, conf)
 
 
 plt.style.use('adjoint.mplstyle')
+plt.rcParams['savefig.pad_inches'] = 0
 
 ptcl, obsvbl = lpt(linear_modes(modes, cosmo, conf), cosmo, conf)
 fig, _ = pmwdshow(scatter_2d(ptcl, conf))
@@ -98,22 +101,32 @@ fig, _ = pmwdshow(scatter_2d(ptcl, conf))
 fig.savefig('optim_0.pdf')
 plt.close(fig)
 
+fig, _ = modeshow(modes.mean(axis=2), cmap='RdBu_r', vmin=-1.2, vmax=1.2)
+fig.savefig('optim_modes_mean_0.pdf')
+plt.close(fig)
+
+fig, _ = modeshow(modes.std(axis=2), cmap='viridis', vmin=0.2, vmax=1.8)
+fig.savefig('optim_modes_std_0.pdf')
+plt.close(fig)
+
 ptcl, obsvbl = nbody(ptcl, obsvbl, cosmo, conf, reverse=True)
 fig, _ = pmwdshow(scatter_2d(ptcl, conf))
 fig.savefig('optim_rev.pdf')
 plt.close(fig)
 
-loss, modes_optim = optim(im_tgt, modes, cosmo, conf, iters=10)
-fig, _ = pmwdshow(scatter_2d(model(modes_optim, cosmo, conf), conf))
-fig.savefig('optim_10.pdf')
-plt.close(fig)
 
-loss, modes_optim = optim(im_tgt, modes, cosmo, conf, iters=100)
-fig, _ = pmwdshow(scatter_2d(model(modes_optim, cosmo, conf), conf))
-fig.savefig('optim_100.pdf')
-plt.close(fig)
+for iters in [10, 100, 1000]:
+    loss, modes_optim = optim(im_tgt, modes, cosmo, conf, iters=iters)
+    print(f'{iters} iters: {loss}')
 
-loss, modes_optim = optim(im_tgt, modes, cosmo, conf, iters=1000)
-fig, _ = pmwdshow(scatter_2d(model(modes_optim, cosmo, conf), conf))
-fig.savefig('optim_1000.pdf')
-plt.close(fig)
+    fig, _ = pmwdshow(model(modes_optim, cosmo, conf))
+    fig.savefig(f'optim_{iters}.pdf')
+    plt.close(fig)
+
+    fig, _ = modeshow(modes_optim.mean(axis=2), cmap='RdBu_r', vmin=-1.2, vmax=1.2)
+    fig.savefig(f'optim_modes_mean_{iters}.pdf')
+    plt.close(fig)
+
+    fig, _ = modeshow(modes_optim.std(axis=2), cmap='viridis', vmin=0.2, vmax=1.8)
+    fig.savefig(f'optim_modes_std_{iters}.pdf')
+    plt.close(fig)

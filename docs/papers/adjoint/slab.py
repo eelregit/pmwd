@@ -18,7 +18,8 @@ def model(modes, cosmo, conf):
     modes = linear_modes(modes, cosmo, conf)
     ptcl, obsvbl = lpt(modes, cosmo, conf)
     ptcl, obsvbl = nbody(ptcl, obsvbl, cosmo, conf)
-    return ptcl, obsvbl
+    dens = scatter(ptcl, conf)
+    return dens
 
 
 ptcl_spacing = 1.
@@ -30,9 +31,8 @@ cosmo = SimpleLCDM(conf)
 seed = 0
 modes = white_noise(seed, conf)
 
-ptcl, obsvbl = model(modes, cosmo, conf)
+dens = model(modes, cosmo, conf)
 
-dens = scatter(ptcl, conf)
 fig, _ = simshow(dens[:16].mean(axis=0), norm='CosmicWebNorm')
 fig.savefig('slab.pdf')
 plt.close(fig)

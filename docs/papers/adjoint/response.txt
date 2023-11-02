@@ -1,0 +1,322 @@
+We thank the referee for the careful review, which really helped improve
+the manuscript. And YL apologize for the delay in this response, due to
+mostly job related reasons. We address each point below.
+
+
+> The authors present a novel framework for differentiable cosmological
+> simulations based on the adjoint method, implemented in the code
+> package “pmwd”. A great advantage of their method is that the memory
+> usage is independent of the number of timesteps performed; hence, this
+> paper is pioneering in the development of differentiable simulations
+> with a large number of timesteps. The authors achieve this by
+> computing the gradients of some objective function w.r.t. the
+> cosmological parameters and the initial white noise field via the
+> adjoint equations, unlike previous differentiable simulations that
+> backpropagate the gradients through all time steps of the simulation
+> with automatic differentiation. Using the adjoint method for
+> cosmological N-body simulations is an excellent idea, and while the
+> authors only consider a simple toy example as the only application in
+> this work, which does not reveal the full potential of the method, I
+> am certain that their framework will find use in many applications in
+> the context of forward modeling.
+>
+> The paper is generally well written and mostly well structured;
+> however, the presentation of the adjoint method could still be
+> improved, so I would suggest the authors to restructure that section.
+> Altogether, I am confident that the manuscript will eventually merit
+> publication in ApJS, but I would like to kindly ask the authors to
+> address my detailed comments below.
+>
+> General comment:
+> • For readers unfamiliar with the adjoint method, the intuitive
+> meaning of the adjoint variables is somewhat opaque, and the adjoint
+> equations are not well motivated in the main text. When the adjoint
+> equation is introduced above l.239, it is unclear how the adjoint
+> variables xi and pi relate to x, p, and to the objective function J,
+> and why they are needed in the first place. I would suggest to state
+> the initial conditions for the adjoint variables xi and pi (i.e.
+> ∂J/∂x_n and ∂J/∂p_n) already before the detailed equations for their
+> evolution. In this way, it immediately becomes clear that xi and pi
+> are needed for tracking the gradient of the objective function J
+> w.r.t. to x and p backwards from the final time to the initial
+> conditions. Also, it might be more pedagogical to start Sec. 2.5 with
+> Eq. (20) to emphasize that your aim is to compute the total derivative
+> dJ/dθ, which can be expressed in terms of auxiliary variables (namely
+> the adjoint variables) and only then provide the detailed equations
+> (18) that the adjoint variables satisfy. It should be highlighted
+> that, crucially, the definition of the adjoint variables depends on
+> the objective J (and changing the objective requires re-computing the
+> backward pass of the simulation with a different set of adjoint
+> variables).
+
+We have expanded the introduction section extensively with a high-level
+introduction of the adjoint method, including some intuition on the
+adjoint variables, the adjoint equations, their initial conditions, and
+the gradients on parameters. We also think following through the
+pedagogical development in the previous App. B is probably the best way
+to get a better understanding of the method, since the formalism there
+is both simpler and more generic than its specific application in Sec.
+2.5. So we have moved that appendix before the previous Sec. 2.5 and
+merge them into a new Sec. 3.
+
+
+> Comments:
+> • Introduction: the authors emphasize the use of automatic
+> differentiation in their framework (as compared to analytic
+> derivatives used in earlier works). For completeness, could the
+> authors please add a brief explanation (1-2 sentences) of how AD works
+> and how it compares to analytic and numerical differentiation?
+
+Explanations of the analytic and automatic differentiations are added.
+
+
+> • l.67: Could the authors please define the “discretize-then-optimize”
+> approach (in comparison to the “optimize-then-discretize” approach)?
+
+Explanations of both approaches added.
+
+
+> • l.192: When the authors mention that FastPM chooses G_D and G_K
+> “according to the ZA growth history”, they should make the connection
+> to the 2LPT equation (2) to emphasize that the ZA is actually 1LPT.
+
+Connection added.
+
+
+> • Sec. 2.4: The observations “on our past light cone” seem somewhat of
+> an overkill because the authors only consider a toy example in the
+> results section, where the observable is given by the density field in
+> the simulation box at final time. But I guess the authors are planning
+> on using their framework in more complex settings in future work, so
+> this is probably fine.
+
+Indeed, we have derived the formalism for the light cone in Sec. 2.4 and
+Sec. 3.4-3.6. And we have implemented snapshots as pmwd "observables"
+and hopefully will have on-the-fly light cones and even post-Born ray
+tracing available very soon.
+
+
+> • Sec. 2.5: The authors should clearly state the meaning of the
+> adjoint variables when they appear for the first time (see my comment
+> above). In fact, this should already be mentioned in the introduction.
+> I think it would already provide a lot of intuition for the somewhat
+> abstract notion of adjoint variables and equations if the authors
+> explained earlier in the paper that the adjoint variables are
+> initialized as the gradient of the objective function J w.r.t. the
+> state variables (x, p), i.e. the first two expressions in Eq. (19).
+> Note that the expression that the adjoint method aims to compute,
+> namely dJ/dθ, only appears at the very end of Sec. 2.5, rather than at
+> the beginning.
+
+Clarified in the introduction.
+
+
+> • l.239: “...and left the ∂J/∂z_i term to the O operator”: based on
+> the main text alone, it is unclear which ∂J/∂z_i term the authors are
+> referring to here.
+
+Some intuition added.
+
+
+> • l.262: “Also note that θ can stand for both itself and ω, which we
+> have omitted for brevity”: Given that the authors emphasize the
+> distinction between θ and ω in Fig. 1, I would suggest changing the
+> notation to e.g. θ* := (θ, ω) for clarity and consistency.
+
+Equation for ω added explicitly.
+
+
+> • l.280: “Because GPUs are inherently parallel devices, they can
+> output different results for identical inputs.” This is not clear to
+> me – where does the non- determinism come from specifically? I was
+> under the impression that at least in the newer versions of Jax (or
+> when setting TF_CUDNN_DETERMINISTIC) Jax is deterministic even on a
+> GPU, see the discussion here:
+> https://github.com/google/jax/issues/565. Could the authors please
+> comment on this?
+
+The non-determinism result for example from the different orders in
+reduction operations among multiple processors. Enforcing determinism on
+GPUs hurt the performance of those opertators. Some later issue
+(https://github.com/google/jax/issues/13672) mentioned the flag to set
+is now XLA_FLAGS='--xla_gpu_deterministic_ops=true'. A test run on a
+problem 32768 times smaller than that in Fig. 2 (with 16^3 particles)
+takes 10s to finish, so the deterministic run seems be more than 10^5
+times slower (also accounting for the logN factor).
+
+
+> • l.296: “... in practice the reconstructed trajectory can differ from
+> the forward one due to loss of small-scale information”. What exactly
+> do the authors mean by “small-scale information” here? As the authors
+> state, the N-body equations themselves are time- reversible, so any
+> non-reversibility should be caused by numerical errors, and the
+> authors should be more specific as to what exactly causes the
+> non-reversibility.
+
+Clarified following the suggestion.
+
+
+> • Tables 1 and 2: since the number of particles seems to be fixed at
+> 384^3 in the reproducibility and forward-vs-backward experiments, the
+> authors vary the particle mass by effectively varying the box size if
+> I am not mistaken. For completeness, it would be good to state the box
+> size that belongs to each particle mass.
+
+Clarified following the suggestion. The pmwd API actually ask user to
+provide the Lagrangian particle spacing first, which is directly related
+to the particle mass. This allows us to specify a non-cubic box more
+easily.
+
+
+> • Table 2: The relative difference in the backwards-in-time
+> displacement and velocity field towards the 2LPT ICs can be quite
+> large, e.g. 5.2% / 7.1% for the first case. It would be interesting to
+> mention how this error compares to the magnitude of the 2LPT
+> displacement component s^(2) in Eq. (3). For example, if one starts
+> with 2LPT at z = z_ini, evolves the system forward in time to z = 0,
+> then goes backwards in time again and finally ends up with an error on
+> the same order of magnitude as the 2LPT correction to the Zel’dovich
+> term or even larger at z = z_ini, it might be questionable if the
+> accuracy of the backward evolution is sufficient.
+
+An interesting point. Since high-order LPTs affect the forward model
+accuracy of the late time observables, and reversibility affects the
+gradient accuracy on the simulation inputs, it seems to me that they are
+orthogonal effects and a fair comparison is more complicated than one at
+the 2LPT level. Ideally, we want both accuracy. And we are implementing
+the 3LPT which can directly help the former, and indirectly the latter
+too. We plan to test their impacts on the inference in future works.
+
+
+> • Caption of Table 2: “Their smallness contributes partly to the fact
+> that the quoted relative differences here being much greater than
+> those in Table 1.” If this is indeed the problem, the authors could
+> modify / expand their time reversibility experiment and evolve their
+> backwards-in-time solution at the initial time once again forward in
+> time and compare the difference at the final time (i.e. forward vs.
+> forward-backward- forward) to make Tables 1 and 2 more comparable.
+
+A fairer and more direct comparison is actually already in Fig. 3, where
+the adjoint gradients suffer from both the reproducibility and the
+reversibility, while the AD results only from the former. We have edited
+the caption and the text to highlight this.
+
+
+> • l.307: in the AD vs. adjoint gradient comparison, it is unclear to
+> me which gradients are compared. From the text, I understand the
+> gradients are w.r.t. the white noise field and the cosmological
+> parameters, but what is the objective function J for this comparison?
+> Please add this information.
+
+Added in the caption of Fig. 3.
+
+
+> • l.314: “we perform both adjoint and AD runs for 8 times”: I assume
+> these 8 runs are done with the same cosmological parameters, but with
+> different white noise fields – could the authors please comment on
+> this and add this information to their manuscript?
+
+Actually we repeated 8 times with the same cosmology and the same white
+noise modes. This allows us to compare not only just the adjoint and AD
+gradients, but also the adjoint or AD with itself, i.e., the
+reproducibility of either gradients. We have clarified this in the text.
+
+
+> • l.323: “possible breaking of order- or time-invariance in AD”: what
+> exactly do the authors mean by this (in particular by “order
+> invariance in AD”)?
+
+This is related to the last point and should hopefully be clearer now.
+The 8 AD runs give slightly different results that correlate with their
+order, so that their asymmetric differences has asymmetric tails in the
+histogram. However, with a new combination of JAX, CUDA and GPU, this
+problem has disappeared, which we have further verified by increasing
+the repetition to 64 times. So we have removed this comment.
+
+
+> • Fig. 3: Could the authors please provide a description of the
+> red-blue graphic and also add a color bar?
+
+Description of the upper panel and color bar are added.
+
+
+> • Fig. 4: The toy example is very illustrative; however, it would be
+> interesting to also see the optimized ICs (i.e., the ICs for which the
+> forward simulation leads to the “pmwd” pattern) – I encourage the
+> authors to add them to the figure.
+
+We found that the variance of the modes became bigger than 1 (that of
+the standard normal white noise) after the optimization. We plot the
+projected mean and standard deviation of these modes confirming that
+trend. In addition, the mean figures show some level of spatial
+correlation not present in the white noise modes. We have added these
+figures to the repository
+(https://github.com/eelregit/pmwd/tree/master/docs/papers/adjoint
+optim_modes_{mean,std}_{0,10,100,1000}.pdf) and summarize the finding in
+the text.
+
+
+> Minor comments:
+> • l.40: “rapid advances ... opens” → “open”
+> • l.53: “..., thus requires saving the states...” → “..., which
+>   requires saving the states...”?
+> • l.56: “much smaller than” → “much less than”?
+> • l.62: “these variables evolves” → “evolve”
+> • l.192: “thereby improves” → “thereby improving”
+> • l.245: “but enter” → “but enters”
+> • l.256: “we can accumulate objective gradient following” → “the
+>   objective gradient”?
+> • l.271: it seems as if an equal sign “=” is missing here: “θ(As = 2 ×
+>   10−9” → “θ = (As = ...)
+> • l.293: “To save memory, trajectory of the model state” → “the
+>   trajectory”?
+> • Caption of Table 2: “... that the quoted relative differences here
+>   being much greater than those in Table 1.” → “...are much greater”?
+> • l.313: “To compensate for good statistics” → this sounds somewhat
+>   odd to me (shouldn’t it rather be “to compensate for bad
+>   statistics”?), maybe reformulate
+> • l.318: “agree very well, and so are their gradients” → “so do their
+>   gradients”?
+> • l.441: “...using the facts that d(M^{−1}) = −M^{−1} dM M^{−1}”: it
+>   took me a second to realize that M stands for an arbitrary matrix
+>   here – maybe mention this briefly
+> • l.444: “when one optimize” → “optimizes”
+
+Corrected following the referee's suggestions.
+
+
+We have also updated the results, especially Fig. 5, using an H100 GPU
+instead of the previous A100.
+
+
+
+> Data/Software Review:
+
+We thank the data editor for suggestions. And YL apologize for the delay
+in this response, due to mostly job related reasons.
+
+
+> I. It is not clear the state of the pmwd JOSS submission. Is there a
+> submission/review link started at JOSS? Do you wish this to be a joint
+> AAS+JOSS review article [1]? This information would be useful both for
+> the editing of the manuscript and for the eventual reader to
+> understand how pmwd relates to the ApJS article. Please reply to this
+> in the reply to science editor indicating if you want these journal
+> articles related.
+> [1] https://blog.joss.theoj.org/2018/12/a-new-collaboration-with-aas-publishing
+
+I have not submitted to JOSS yet as there are still some unit testing,
+documentation, and cleaning to be done. This is also my first AAS+JOSS
+attempt. Should the two reviewing processes be coordinated? I will do my
+best to submit to JOSS as soon as possible.
+
+
+> II. I would suggest depositing the specific scripts related to this
+> ApJS submission into a DOI-issuing repository and linking the text to
+> that DOI -- in addition to, but not replacing the current GitHub
+> script link. More information on this can be found in our tutorial [2]
+> [2] https://github.com/AASJournals/Tutorials/tree/master/Repositories
+
+To accommodate some new features, we plan to change the API slightly
+in the following weeks. I will then modify the scripts accordingly for
+the permanent repository and provide the DOI.
