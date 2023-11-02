@@ -7,7 +7,7 @@ import time
 from pmwd.nbody import nbody
 from pmwd.sto.data import gen_cc, gen_ic
 from pmwd.sto.loss import loss_func
-from pmwd.sto.hypars import lr_scheduler, get_optimizer, dropout_rate
+from pmwd.sto.hypars import dropout_rate
 from pmwd.sto.util import global_mean
 
 
@@ -58,7 +58,7 @@ def train_step(tgts, so_params, pmwd_params, opt_params):
 
 
 def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-                opt_state, optimizer, learning_rate, skd_state, jax_key):
+                opt_state, optimizer, jax_key):
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
     tic = time.perf_counter()
@@ -93,11 +93,7 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_pa
 
     loss_epoch_mean = loss_epoch / len(gsdata)
 
-    # learning rate scheduler
-    # learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
-    # optimizer = get_optimizer(learning_rate)
-
-    return loss_epoch_mean, so_params, opt_state, optimizer, learning_rate, skd_state
+    return loss_epoch_mean, so_params, opt_state, optimizer
 
 
 def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params, jax_key):

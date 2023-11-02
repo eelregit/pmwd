@@ -19,12 +19,14 @@ from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import time
 import pickle
+import optax
 
 from pmwd.sto.train import train_epoch, loss_epoch
 from pmwd.sto.vis import track_figs
 from pmwd.sto.data import read_gsdata
 from pmwd.sto.post import pmwd_fwd
 from pmwd.sto.util import pv2ptcl, global_mean
+from pmwd.sto.hypars import lr_scheduler
 
 
 def printinfo(s, procid=procid, flush=False):
@@ -41,16 +43,19 @@ def jax_device_sync(verbose=False):
                   flush=True)
 
 
-def checkpoint(epoch, so_params):
-    os.makedirs(f'params/{slurm_job_id}', exist_ok=True)
-    with open(fn := f'params/{slurm_job_id}/e{epoch:0>3d}.pickle', 'wb') as f:
+def checkpoint(epoch, so_params, log_id=None):
+    dir = f'params/{slurm_job_id}'
+    if log_id is not None:
+        dir += f'_{log_id}'
+    os.makedirs(dir, exist_ok=True)
+    with open(fn := f'{dir}/e{epoch:0>3d}.pickle', 'wb') as f:
         dic = {'so_params': so_params}
         pickle.dump(dic, f)
     printinfo(f'epoch {epoch} done, params saved: {fn}', flush=True)
 
 
-def track(writer, epoch, scalars, check_sobols, check_snaps, so_params, gsdata,
-          mesh_shape, n_steps):
+def track(writer, epoch, scalars, check_sobols, check_snaps,
+          so_type, so_nodes, so_params, gsdata, mesh_shape, n_steps):
     if scalars is not None:
         for k, v in scalars.items():
             writer.add_scalar(k, v, epoch)
@@ -81,10 +86,27 @@ def track(writer, epoch, scalars, check_sobols, check_snaps, so_params, gsdata,
     # check the test sobols and snaps
 
 
-def run_train(n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
-              learning_rate, get_optimizer, so_type, so_nodes, so_params):
+def prep_train(sobol_ids_global, snap_ids):
     # check global devices
     jax_device_sync(verbose=True)
+
+    # the corresponding sobol ids of training data for current proc
+    # each proc must have the same number of sobol ids
+    sobol_ids = np.split(sobol_ids_global, n_procs)[procid]
+
+    # load training data to CPU memory
+    printinfo(f'loading gadget-4 data, {len(sobol_ids)} sobol ids: {sobol_ids}', flush=True)
+    tic = time.perf_counter()
+    gsdata = read_gsdata('gs512', sobol_ids, snap_ids, 'sobol.txt')
+    printinfo(f'loading {len(sobol_ids)} sobols takes {(time.perf_counter() - tic)/60:.1f} mins',
+              flush=True)
+
+    return sobol_ids, gsdata
+
+
+def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
+              learning_rate, optimizer, so_type, so_nodes, so_params,
+              ret=False, log_id=None):
 
     # RNGs with fixed seeds
     # pmwd MC sampling
@@ -94,29 +116,20 @@ def run_train(n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
     # jax: dropout layer
     jax_key = jax.random.PRNGKey(0)
 
-    # the corresponding sobol ids of training data for current proc
-    # each proc must have the same number of sobol ids
-    sobol_ids = np.split(sobol_ids_global, n_procs)[procid]
-    sobol_ids_epoch = sobol_ids.copy()
-
-    optimizer = get_optimizer(learning_rate)
     opt_state = optimizer.init(so_params)
     skd_state = None
-
-    # load training data to CPU memory
-    printinfo(f'loading gadget-4 data, {len(sobol_ids)} sobol ids:\n {sobol_ids}', flush=True)
-    tic = time.perf_counter()
-    gsdata = read_gsdata('gs512', sobol_ids, snap_ids, 'sobol.txt')
-    printinfo(f'loading {len(sobol_ids)} sobols takes {(time.perf_counter() - tic)/60:.1f} mins',
-            flush=True)
-
 
     jax_device_sync()
     if procid == 0:
         print('>> devices synced, start training <<')
         print('time, epoch, sidx, mesh_shape, n_steps, loss', flush=True)
-        writer = SummaryWriter(log_dir=f'runs/{slurm_job_id}')
+        log_dir = f'runs/{slurm_job_id}'
+        if log_id is not None:
+            log_dir += f'_{log_id}'
+        writer = SummaryWriter(log_dir=log_dir)
 
+    loss_epoch_all = []  # to collect the loss of all epochs
+    sobol_ids_epoch = sobol_ids.copy()
 
     for epoch in range(0, n_epochs+1):
 
@@ -129,17 +142,20 @@ def run_train(n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
             loss_epoch_mean = loss_epoch(
                 procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params, jax_key)
         else:
-            (loss_epoch_mean, so_params, opt_state, optimizer, learning_rate, skd_state
-            ) = train_epoch(
+            loss_epoch_mean, so_params, opt_state, optimizer = train_epoch(
                 procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-                opt_state, optimizer, learning_rate, skd_state, jax_key)
+                opt_state, optimizer, jax_key)
+
+            # learning rate scheduler
+            # learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
+            # optimizer = get_optimizer(learning_rate)
 
         # TODO test on test data
         # also distribute to multiple devices, evaluate and collect the loss
 
         # checkpoint and track
         if procid == 0:
-            checkpoint(epoch, so_params)
+            checkpoint(epoch, so_params, log_id=log_id)
 
             scalars = {
                 'loss': loss_epoch_mean,
@@ -152,20 +168,26 @@ def run_train(n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
             check_snaps = [0, len(snap_ids)//2, -1]
             mesh_shape_track = 1
             n_steps_track = 100
-            track(writer, epoch, scalars, check_sobols, check_snaps, so_params, gsdata,
-                mesh_shape_track, n_steps_track)
-            printinfo('logged for tensorboard')
+            track(writer, epoch, scalars, check_sobols, check_snaps,
+                  so_type, so_nodes, so_params, gsdata, mesh_shape_track, n_steps_track)
+            # printinfo('logged for tensorboard')
 
+        loss_epoch_all.append(loss_epoch_mean)
 
     if procid == 0:
         writer.close()
+
+    if ret:
+        return loss_epoch_all
 
 
 if __name__ == "__main__":
 
     from pmwd.sto.hypars import (
         n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
-        learning_rate, get_optimizer, so_type, so_nodes, so_params)
+        learning_rate, optimizer, so_type, so_nodes, so_params)
 
-    run_train(n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
-              learning_rate, get_optimizer, so_type, so_nodes, so_params)
+    sobol_ids, gsdata = prep_train(sobol_ids_global, snap_ids)
+
+    run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
+              learning_rate, optimizer, so_type, so_nodes, so_params)
