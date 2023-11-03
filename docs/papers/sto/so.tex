@@ -490,7 +490,10 @@ r(\vk) \triangleq
 \end{equation}
 %
 The two fields are identical when both $T$ and $r$ are unity.
-With force sharpening,
+The PM method is accurate on scales much larger than the cell size, therefore we
+expect $T$ and $r$ to be very close to being unity both before and after force
+sharpening optimization.
+
 
 
 \begin{figure*}
@@ -883,6 +886,8 @@ Hyperparameters:
   \item Optimization: learning rate scheduler, momentum, weight decay and dropout rate etc
   \item Loss: fields to include and loss function forms
 \end{itemize}
+
+We use Optuna \citep{optuna_2019} to search for the optimal Hyperparameters.
 
 We empoly a learning rate scheduler that reduces the learning rate on plateau
 where the loss function stops decreasing.
