@@ -7,7 +7,7 @@ from pmwd.particles import Particles
 from pmwd.cosmology import E2
 from pmwd.boltzmann import growth
 from pmwd.gravity import laplace, neg_grad
-from pmwd.pm_util import rfftnfreq
+from pmwd.pm_util import fftfreq, fftfwd, fftinv
 
 
 def _strain(kvec, i, j, pot, conf):
@@ -31,7 +31,7 @@ def _strain(kvec, i, j, pot, conf):
 
     strain = -k_i * k_j * pot
 
-    strain = jnp.fft.irfftn(strain, s=conf.ptcl_grid_shape)
+    strain = fftinv(strain, shape=conf.ptcl_grid_shape)
     strain = strain.astype(conf.float_dtype)  # no jnp.complex32
 
     return strain
@@ -163,7 +163,7 @@ def lpt(modes, cosmo, conf):
 
     modes /= conf.ptcl_cell_vol  # remove volume factor first for convenience
 
-    kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
+    kvec = fftfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
 
     pot = []
 
@@ -176,7 +176,7 @@ def lpt(modes, cosmo, conf):
     if conf.lpt_order > 1:
         src_2 = _L(kvec, pot_1, None, conf)
 
-        src_2 = jnp.fft.rfftn(src_2)
+        src_2 = fftfwd(src_2)
 
         pot_2 = laplace(kvec, src_2, cosmo)
         pot.append(pot_2)
@@ -198,7 +198,7 @@ def lpt(modes, cosmo, conf):
         for i, k in enumerate(kvec):
             grad = neg_grad(k, pot[order-1], conf.ptcl_spacing)
 
-            grad = jnp.fft.irfftn(grad, s=conf.ptcl_grid_shape)
+            grad = fftinv(grad, shape=conf.ptcl_grid_shape)
             grad = grad.astype(conf.float_dtype)  # no jnp.complex32
 
             grad = grad.ravel()

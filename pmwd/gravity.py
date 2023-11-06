@@ -3,7 +3,7 @@ from jax import custom_vjp
 
 from pmwd.scatter import scatter
 from pmwd.gather import gather
-from pmwd.pm_util import rfftnfreq
+from pmwd.pm_util import fftfreq, fftfwd, fftinv
 
 
 @custom_vjp
@@ -46,14 +46,14 @@ def neg_grad(k, pot, spacing):
 
 def gravity(a, ptcl, cosmo, conf):
     """Gravitational accelerations of particles in [H_0^2], solved on a mesh with FFT."""
-    kvec = rfftnfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
+    kvec = fftfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
 
     dens = scatter(ptcl, conf)
     dens -= 1  # overdensity
 
     dens *= 1.5 * cosmo.Omega_m.astype(conf.float_dtype)
 
-    dens = jnp.fft.rfftn(dens)  # normalization canceled by that of irfftn below
+    dens = fftfwd(dens)  # normalization canceled by that of irfftn below
 
     pot = laplace(kvec, dens, cosmo)
 
@@ -61,7 +61,7 @@ def gravity(a, ptcl, cosmo, conf):
     for k in kvec:
         grad = neg_grad(k, pot, conf.cell_size)
 
-        grad = jnp.fft.irfftn(grad, s=conf.mesh_shape)
+        grad = fftinv(grad, shape=conf.mesh_shape)
         grad = grad.astype(conf.float_dtype)  # no jnp.complex32
 
         grad = gather(ptcl, conf, grad)

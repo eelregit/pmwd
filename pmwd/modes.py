@@ -5,7 +5,7 @@ from jax import random
 import jax.numpy as jnp
 
 from pmwd.boltzmann import linear_power
-from pmwd.pm_util import rfftnfreq
+from pmwd.pm_util import fftfreq, fftfwd, fftinv
 
 
 #TODO follow pmesh to fill the modes in Fourier space
@@ -39,7 +39,7 @@ def white_noise(seed, conf, real=False, unit_abs=False, negate=False):
     if real and not unit_abs and not negate:
         return modes
 
-    modes = jnp.fft.rfftn(modes, norm='ortho')
+    modes = fftfwd(modes, norm='ortho')
 
     if unit_abs:
         modes /= jnp.abs(modes)
@@ -48,7 +48,7 @@ def white_noise(seed, conf, real=False, unit_abs=False, negate=False):
         modes = -modes
 
     if real:
-        modes = jnp.fft.irfftn(modes, s=conf.ptcl_grid_shape, norm='ortho')
+        modes = fftinv(modes, shape=conf.ptcl_grid_shape, norm='ortho')
 
     return modes
 
@@ -95,7 +95,7 @@ def linear_modes(modes, cosmo, conf, a=None):
         \delta(\mathbf{k}) = \sqrt{V P_\mathrm{lin}(k)} \omega(\mathbf{k})
 
     """
-    kvec = rfftnfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
+    kvec = fftfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
     k = jnp.sqrt(sum(k**2 for k in kvec))
 
     if a is not None:
@@ -104,7 +104,7 @@ def linear_modes(modes, cosmo, conf, a=None):
     Plin = linear_power(k, a, cosmo, conf)
 
     if jnp.isrealobj(modes):
-        modes = jnp.fft.rfftn(modes, norm='ortho')
+        modes = fftfwd(modes, norm='ortho')
 
     modes *= _safe_sqrt(Plin * conf.box_vol)
 

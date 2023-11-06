@@ -66,7 +66,6 @@ def enmesh(i1, d1, a1, s1, b12, a2, s2, grad):
 
     Notes
     -----
-
     Consider position :math:`\bm{P}` along the j-th axis
 
     .. math::
@@ -157,13 +156,13 @@ def enmesh(i1, d1, a1, s1, b12, a2, s2, grad):
         return i2, f2
 
 
-def rfftnfreq(shape, spacing, dtype=jnp.float64, sparse=True):
-    """(Angular) wavevectors for ``numpy.fft.rfftn``.
+def fftfreq(shape, spacing, dtype=jnp.float64, sparse=True):
+    """(Angular) wavevectors for FFT.
 
     Parameters
     ----------
     shape : tuple of int
-        Shape of ``rfftn`` input.
+        Shape of the real field.
     spacing : float or None, optional
         Grid spacing. None is equivalent to spacing of 2π with angular wavevector period
         of 1, or equivalently spacing of 1 with (non-angular) wavevector period of 1.
@@ -198,3 +197,148 @@ def rfftnfreq(shape, spacing, dtype=jnp.float64, sparse=True):
     kvec = jnp.meshgrid(*kvec, sparse=sparse, indexing='ij')
 
     return kvec
+
+
+def rfftnfreq(shape, spacing, dtype=jnp.float64):
+    import warnings
+    warnings.warn('Deprecated, name changed to ``fftfreq`` for API consistency.',
+                  DeprecationWarning)  # TODO
+    return fftfreq(shape, spacing, dtype)
+
+
+def fft(f, shape=None, axes=None, norm=None):
+    """FFT between real and Hermitian complex fields, calling ``fftfwd`` or ``fftinv``.
+
+    Parameters
+    ----------
+    f : ArrayLike
+        Input field. See ``a`` in ``numpy.fft.rfftn`` and ``numpy.fft.irfftn``.
+    shape : sequence of int, optional
+        See ``s`` in ``numpy.fft.rfftn`` and ``numpy.fft.irfftn``.
+    axes : sequence of int, optional
+        See ``numpy.fft.rfftn`` and ``numpy.fft.irfftn``.
+    norm : float or {'backward', 'ortho', 'forward'}, optional
+        Grid spacing for normalization if float, otherwise passed to
+        ``jax.numpy.fft.rfftn`` or ``jax.numpy.fft.irfftn``.
+
+    Returns
+    -------
+    f : jax.Array
+        Output field. See ``out`` in ``numpy.fft.rfftn`` and ``numpy.fft.irfftn``.
+
+    """
+    if jnp.isrealobj(f):
+        return fftfwd(f, shape, axes, norm)
+
+    return fftinv(f, shape, axes, norm)
+
+
+def fftfwd(f, shape=None, axes=None, norm=None):
+    r"""Forward FFT from real to Hermitian complex fields, wrapping
+    ``jax.numpy.fft.rfftn``.
+
+    Parameters
+    ----------
+    f : ArrayLike
+        Input field. See ``a`` in ``numpy.fft.rfftn``.
+    shape : sequence of int, optional
+        See ``s`` in ``numpy.fft.rfftn``.
+    axes : sequence of int, optional
+        See ``numpy.fft.rfftn``.
+    norm : float or {'backward', 'ortho', 'forward'}, optional
+        Grid spacing for normalization if float, otherwise passed to
+        ``jax.numpy.fft.rfftn``.
+
+    Returns
+    -------
+    f : jax.Array
+        Output field. See ``out`` in ``numpy.fft.rfftn``.
+
+    Raises
+    ------
+    ValueError
+        If input field is not real.
+
+    Notes
+    -----
+    Given the grid spacing, the normalization convention is
+
+    .. math::
+
+        f(\bm{k}) = \int \mathrm{d}\bm{x} f(\bm(x}) e^{-i \bm{k} \cdot \bm{x}}
+                    \approx \frac{V}{N} \sum_\bm{x} f(\bm{x}) e^{-i \bm{k} \cdot \bm{x}}
+
+    where :math:`V/N` is the cell volume, :math:`V` is the box volume, :math:`N` is the
+    number of grid points/cells to be summed over.
+
+    """
+    f = jnp.asarray(f)
+
+    if not jnp.isrealobj(f):
+        raise ValueError('input field must be real')
+
+    if norm in {None, 'backward', 'ortho', 'forward'}:
+        return jnp.fft.rfftn(f, s=shape, axes=axes, norm=norm)
+
+    d = f.ndim
+    if shape is not None:  # len(shape) == len(axes) if both are not None
+        d = len(shape)
+    if axes is not None:
+        d = len(axes)
+
+    return norm**d * jnp.fft.rfftn(f, s=shape, axes=axes, norm='backward')
+
+
+def fftinv(f, shape=None, axes=None, norm=None):
+    r"""Inverse FFT from Hermitian completx to real fields, wrapping
+    ``jax.numpy.fft.irfftn``.
+
+    Parameters
+    ----------
+    f : ArrayLike
+        Input field. See ``a`` in ``numpy.fft.irfftn``.
+    shape : sequence of int, optional
+        See ``s`` in ``numpy.fft.irfftn``.
+    axes : sequence of int, optional
+        See ``numpy.fft.irfftn``.
+    norm : float or {'backward', 'ortho', 'forward'}, optional
+        Grid spacing for normalization if float, otherwise passed to
+        ``jax.numpy.fft.irfftn``.
+
+    Returns
+    -------
+    f : jax.Array
+        Output field. See ``out`` in ``numpy.fft.irfftn``.
+
+    Raises
+    ------
+    ValueError
+        If input field is not complex.
+
+    Notes
+    -----
+    Given the grid spacing, the normalization convention is
+
+    .. math::
+
+        f(\bm{x}) = \int \frac{\mathrm{d}\bm{k}}{(2\pi)^d} f(\bm(k}) e^{i \bm{k} \cdot \bm{x}}
+                    \approx \frac{1}{V} \sum_\bm{k} f(\bm{k}) e^{i \bm{k} \cdot \bm{x}}
+
+    where :math:`d` is the FFT dimension, :math:`V` is the box volume.
+
+    """
+    f = jnp.asarray(f)
+
+    if not jnp.iscomplexobj(f):
+        raise ValueError('input field must be Hermitian complex')
+
+    if norm in {None, 'backward', 'ortho', 'forward'}:
+        return jnp.fft.irfftn(f, s=shape, axes=axes, norm=norm)
+
+    d = f.ndim
+    if shape is not None:  # len(shape) == len(axes) if both are not None
+        d = len(shape)
+    if axes is not None:
+        d = len(axes)
+
+    return norm**-d * jnp.fft.irfftn(f, s=shape, axes=axes, norm='backward')

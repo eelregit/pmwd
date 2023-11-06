@@ -4,7 +4,7 @@ import math
 from jax import jit, ensure_compile_time_eval
 import jax.numpy as jnp
 
-from pmwd.pm_util import rfftnfreq
+from pmwd.pm_util import fftfreq, fftfwd
 from pmwd.util import bincount
 
 
@@ -80,18 +80,18 @@ def powspec(f, spacing, bins=1j/3, g=None, deconv=None, cut_zero=True, cut_nyq=T
             bcut = bin_num + 1  # no trim otherwise hard to jit
 
     last_three = range(-3, 0)
-    f = jnp.fft.rfftn(f, axes=last_three)
+    f = fftfwd(f, axes=last_three)
     if g is None:
         P = f.real**2 + f.imag**2
     else:
         g = jnp.asarray(g)
-        g = jnp.fft.rfftn(g, axes=last_three)
+        g = fftfwd(g, axes=last_three)
         P = f * g.conj()
 
     if P.ndim > 3:
         P = P.sum(tuple(range(P.ndim-3)))
 
-    kvec = rfftnfreq(grid_shape, None, dtype=P.real.dtype)
+    kvec = fftfreq(grid_shape, None, dtype=P.real.dtype)
     k = jnp.sqrt(sum(k**2 for k in kvec))
 
     if deconv is not None:
