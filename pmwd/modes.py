@@ -28,7 +28,8 @@ def white_noise(seed, conf, real=False, unit_abs=False, negate=False):
     Returns
     -------
     modes : jax.Array of conf.float_dtype
-        White noise modes.
+        White noise Fourier or real modes, both dimensionless with zero mean and unit
+        variance.
 
     """
     key = random.PRNGKey(seed)
@@ -70,8 +71,8 @@ _safe_sqrt.defvjp(_safe_sqrt_fwd, _safe_sqrt_bwd)
 
 @jit
 @checkpoint
-def linear_modes(modes, cosmo, conf, a=None):
-    """Linear matter overdensity Fourier modes.
+def linear_modes(modes, cosmo, conf, a=None, real=False):
+    """Linear matter overdensity Fourier or real modes.
 
     Parameters
     ----------
@@ -81,11 +82,14 @@ def linear_modes(modes, cosmo, conf, a=None):
     conf : Configuration
     a : float or None, optional
         Scale factors. Default (None) is to not scale the output modes by growth.
+    real : bool, optional
+        Whether to return real or Fourier modes.
 
     Returns
     -------
     modes : jax.Array of conf.float_dtype
-        Linear matter overdensity Fourier modes in [L^3].
+        Linear matter overdensity Fourier or real modes, in [L^3] or dimensionless,
+        respectively.
 
     Notes
     -----
@@ -107,5 +111,8 @@ def linear_modes(modes, cosmo, conf, a=None):
         modes = fftfwd(modes, norm='ortho')
 
     modes *= _safe_sqrt(Plin * conf.box_vol)
+
+    if real:
+        modes = fftinv(modes, shape=conf.ptcl_grid_shape, norm=conf.ptcl_spacing)
 
     return modes
