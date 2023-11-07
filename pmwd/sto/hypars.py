@@ -8,12 +8,12 @@ from pmwd.sto.mlp import init_mlp_params
 n_epochs = 3
 
 # data
-sobol_ids_global = np.arange(0, 16)
+sobol_ids_global = np.arange(0, 64)
 snap_ids = np.arange(0, 121, 1)
 shuffle_epoch = True  # shuffle the order of sobols across epochs
 
 # optimizer
-learning_rate = 1e-5
+learning_rate = 2e-4
 optimizer = optax.adam(learning_rate)
 
 def get_optimizer(lr):
