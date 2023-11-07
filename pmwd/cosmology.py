@@ -1,20 +1,27 @@
 from dataclasses import field
 from functools import partial
+import math
 from operator import add, sub
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, Tuple, Union
 
-from jax import Array, value_and_grad
-from jax.typing import ArrayLike
+from jax import Array, ensure_compile_time_eval, value_and_grad
+from jax.typing import ArrayLike, DTypeLike
 import jax.numpy as jnp
 from jax.tree_util import tree_map
+from mcfit import TophatVar
 
+from pmwd import boltzmann
 from pmwd.tree_util import pytree_dataclass
-from pmwd.configuration import Configuration
 
 
-@partial(pytree_dataclass, aux_fields="conf", frozen=True)
+@partial(pytree_dataclass,
+         aux_fields=["A_s_1e9", "n_s", "Omega_m", "Omega_b", "h",
+                     "T_cmb_", "Omega_k_", "w_0_", "w_a_",
+                     "transfer", "growth", "varlin"],
+         aux_invert=True,
+         frozen=True)
 class Cosmology:
-    """Cosmological and configuration parameters, "immutable" as a frozen dataclass.
+    r"""Cosmological parameters and related configurations.
 
     Cosmological parameters with trailing underscores ("foo_") can be set to None, in
     which case they take some fixed values (set by class variable "foo_fixed") and will
@@ -24,39 +31,104 @@ class Cosmology:
     Linear operators (addition, subtraction, and scalar multiplication) are defined for
     Cosmology tangent and cotangent vectors.
 
-    Float parameters are converted to JAX arrays of conf.cosmo_dtype at instantiation,
-    to avoid possible JAX weak type problems.
+    Float parameters are converted to JAX arrays at instantiation, to avoid possible JAX
+    weak type problems.
 
     Parameters
     ----------
-    conf : Configuration
-        Configuration parameters.
     A_s_1e9 : float ArrayLike
-        Primordial scalar power spectrum amplitude, multiplied by 1e9.
+        Primordial scalar power spectrum amplitude :math:`A_\mathrm{s} \times 10^9`.
     n_s : float ArrayLike
-        Primordial scalar power spectrum spectral index.
+        Primordial scalar power spectrum spectral index :math:`n_\mathrm{s}`.
     Omega_m : float ArrayLike
-        Total matter density parameter today.
+        Total matter density parameter today :math:`\Omega_\mathrm{m}`.
     Omega_b : float ArrayLike
-        Baryonic matter density parameter today.
-    Omega_k_ : None or float ArrayLike, optional
-        Spatial curvature density parameter today. Default is None.
-    w_0_ : None or float ArrayLike, optional
-        Dark energy equation of state constant parameter. Default is None.
-    w_a_ : None or float ArrayLike, optional
-        Dark energy equation of state linear parameter. Default is None.
+        Baryonic matter density parameter today :math:`\Omega_\mathrm{b}`.
     h : float ArrayLike
-        Hubble constant in unit of 100 [km/s/Mpc].
+        Hubble constant in unit of 100 km/s/Mpc :math:`h`.
+    T_cmb_ : None or float ArrayLike, optional
+        CMB temperature in Kelvin today :math:`T_\mathrm{CMB}`. Default is None.
+    Omega_k_ : None or float ArrayLike, optional
+        Spatial curvature density parameter today :math:`Omega_k`. Default is None.
+    w_0_ : None or float ArrayLike, optional
+        Dark energy equation of state constant parameter :math:`w_0`. Default is None.
+    w_a_ : None or float ArrayLike, optional
+        Dark energy equation of state linear parameter :math:`w_a`. Default is None.
+    transfer_fit : bool, optional
+        Whether to use Eisenstein & Hu fit to transfer function. Default is True
+        (subject to change when False is implemented).
+    transfer_fit_nowiggle : bool, optional
+        Whether to use non-oscillatory transfer function fit.
+    transfer_lgk_min : float, optional
+        Minimum transfer function wavenumber in :math:`1/L` in log10.
+    transfer_lgk_max : float, optional
+        Maximum transfer function wavenumber in :math:`1/L` in log10.
+    transfer_lgk_maxstep : float, optional
+        Maximum transfer function wavenumber step size in :math:`1/L` in log10. It
+        determines the number of wavenumbers ``transfer_k_num``, the actual step size
+        ``transfer_lgk_step``, and the wavenumbers ``transfer_k``.
+    growth_rtol : float, optional
+        Relative tolerance for solving the growth ODEs.
+    growth_atol : float, optional
+        Absolute tolerance for solving the growth ODEs.
+    growth_inistep: float, None, or 2-tuple of float or None, optional
+        The initial step size for solving the growth ODEs. If None, use estimation. If a
+        tuple, use the two step sizes for forward and reverse integrations,
+        respectively.
+    growth_lga_min : float, optional
+        Minimum growth function scale factor in log10.
+    growth_lga_max : float, optional
+        Maximum growth function scale factor in log10.
+    growth_lga_maxstep : float, optional
+        Maximum growth function scale factor step size in log10. It determines the
+        number of scale factors ``growth_a_num``, the actual step size
+        ``growth_lga_step``, and the scale factors ``growth_a``.
+    dtype : DTypeLike, optional
+        Parameter float dtype.
+
+    Class Variables
+    ---------------
+    T_cmb_fixed : float
+        Fixed value if ``T_cmb_`` is not specified.
+    Omega_k_fixed : float
+        Fixed value if ``Omega_k_`` is not specified.
+    w_0_fixed : float
+        Fixed value if ``w_0_`` is not specified.
+    w_a_fixed : float
+        Fixed value if ``w_a_`` is not specified.
+    M_sun_SI : float
+        Solar mass :math:`M_\odot` in kg.
+    Mpc_SI : float
+        Mpc in m.
+    H_0_SI : float
+        Hubble constant :math:`H_0` in :math:`h`/s.
+    c_SI : int
+        Speed of light :math:`c` in m/s.
+    G_SI : float
+        Gravitational constant :math:`G` in m:math:`^3`/kg/s:math:`^2`
+    M : float
+        Mass unit :math:`M` defined in kg/:math:`h`. Default is :math:`10^{10}
+        M_\odot/h`.
+    L : float
+        Length unit :math:`L` defined in m/:math:`h`. Default is Mpc/:math:`h`.
+    T : float
+        Time unit :math:`T` defined in s/:math:`h`. Default is Hubble time :math:`1/H_0 \sim
+        10^{10}` years/:math:`h \sim` age of the Universe.
+    k_pivot_Mpc : float
+        Primordial scalar power spectrum pivot scale :math:`k_\mathrm{pivot}` in 1/Mpc.
 
     """
 
-    conf: Configuration = field(repr=False)
+    # TODO keyword-only for python>=3.10
 
     A_s_1e9: ArrayLike
     n_s: ArrayLike
     Omega_m: ArrayLike
     Omega_b: ArrayLike
     h: ArrayLike
+
+    T_cmb_: Optional[ArrayLike] = None
+    T_cmb_fixed: ClassVar[float] = 2.7255  # Fixsen 2009, arXiv:0911.1955
 
     Omega_k_: Optional[ArrayLike] = None
     Omega_k_fixed: ClassVar[float] = 0
@@ -65,20 +137,65 @@ class Cosmology:
     w_a_: Optional[ArrayLike] = None
     w_a_fixed: ClassVar[float] = 0
 
+    # constants in SI units
+    M_sun_SI: ClassVar[float] = 1.98847e30
+    Mpc_SI: ClassVar[float] = 3.0856775815e22
+    H_0_SI: ClassVar[float] = 1e5 / Mpc_SI
+    c_SI: ClassVar[int] = 299792458
+    G_SI: ClassVar[float] = 6.67430e-11
+
+    # Units
+    M: ClassVar[float] = 1e10 * M_sun_SI
+    L: ClassVar[float] = Mpc_SI
+    T: ClassVar[float] = 1 / H_0_SI
+
+    k_pivot_Mpc: ClassVar[float] = 0.05
+
+    transfer_fit: bool = True
+    transfer_fit_nowiggle: bool = False
+    transfer_lgk_min: float = -4
+    transfer_lgk_max: float = 3
+    transfer_lgk_maxstep: float = 1/128
     transfer: Optional[Array] = field(default=None, compare=False)
 
+    growth_rtol: Optional[float] = None
+    growth_atol: Optional[float] = None
+    growth_inistep: Union[float, None,
+                          Tuple[Optional[float], Optional[float]]] = (1, None)
+    growth_lga_min: float = -3
+    growth_lga_max: float = 1
+    growth_lga_maxstep: float = 1/128
     growth: Optional[Array] = field(default=None, compare=False)
 
     varlin: Optional[Array] = field(default=None, compare=False)
+
+    dtype: DTypeLike = jnp.float64
 
     def __post_init__(self):
         if self._is_transforming():
             return
 
-        dtype = self.conf.cosmo_dtype
+        object.__setattr__(self, 'dtype', jnp.dtype(self.dtype))
+        if not jnp.issubdtype(self.dtype, jnp.floating):
+            raise ValueError('dtype must be floating point numbers')
+
         for name, value in self.named_children():
-            value = tree_map(lambda x: jnp.asarray(x, dtype=dtype), value)
+            value = tree_map(partial(jnp.asarray, dtype=self.dtype), value)
             object.__setattr__(self, name, value)
+
+        with ensure_compile_time_eval():
+            object.__setattr__(
+                self,
+                'var_tophat',
+                TophatVar(self.transfer_k[1:], lowring=True, backend='jax'),
+            )
+
+        # ~ 1.5e-8 for float64, 3.5e-4 for float32
+        growth_tol = math.sqrt(jnp.finfo(self.dtype).eps)
+        if self.growth_rtol is None:
+            object.__setattr__(self, 'growth_rtol', growth_tol)
+        if self.growth_atol is None:
+            object.__setattr__(self, 'growth_atol', growth_tol)
 
     def __add__(self, other):
         return tree_map(add, self, other)
@@ -93,72 +210,132 @@ class Cosmology:
         return self.__mul__(other)
 
     @classmethod
-    def from_sigma8(cls, conf, sigma8, *args, **kwargs):
-        """Construct cosmology with sigma8 instead of A_s."""
-        from pmwd.boltzmann import boltzmann
-
-        cosmo = cls(conf, 1, *args, **kwargs)
-        cosmo = boltzmann(cosmo, conf)
+    def from_sigma8(cls, sigma8, *args, **kwargs):
+        r"""Construct cosmology with :math:`\sigma_8` instead of :math:`A_s`."""
+        cosmo = cls(1, *args, **kwargs)
+        cosmo = boltzmann.boltz(cosmo)
 
         A_s_1e9 = (sigma8 / cosmo.sigma8)**2
 
-        return cls(conf, A_s_1e9, *args, **kwargs)
+        return cls(A_s_1e9, *args, **kwargs)
 
     def astype(self, dtype):
-        """Cast parameters to dtype by changing conf.cosmo_dtype."""
-        conf = self.conf.replace(cosmo_dtype=dtype)
-        return self.replace(conf=conf)  # calls __post_init__
+        """Cast parameters to dtype."""
+        return self.replace(dtype=dtype)  # calls __init__ and then __post_init__
 
     @property
     def k_pivot(self):
-        """Primordial scalar power spectrum pivot scale in [1/L].
-
-        Pivot scale is defined h-less unit, so needs h to convert its unit to [1/L].
-
-        """
-        return self.conf.k_pivot_Mpc / (self.h * self.conf.Mpc_SI) * self.conf.L
+        r"""Primordial scalar power spectrum pivot scale :math:`k_\mathrm{pivot}` in :math:`1/L`."""
+        return self.k_pivot_Mpc / (self.h * self.Mpc_SI) * self.L
 
     @property
     def A_s(self):
-        """Primordial scalar power spectrum amplitude."""
+        r"""Primordial scalar power spectrum amplitude :math:`A_\mathrm{s}`."""
         return self.A_s_1e9 * 1e-9
 
     @property
     def Omega_c(self):
-        """Cold dark matter density parameter today."""
+        r"""Cold dark matter density parameter today :math:`\Omega_\mathrm{c}`."""
         return self.Omega_m - self.Omega_b
 
     @property
+    def T_cmb(self):
+        r"""CMB temperature in Kelvin today :math:`T_\mathrm{CMB}."""
+        return self.T_cmb_fixed if self.T_cmb_ is None else self.T_cmb_
+
+    @property
     def Omega_k(self):
-        """Spatial curvature density parameter today."""
+        r"""Spatial curvature density parameter today :math:`\Omega_k`."""
         return self.Omega_k_fixed if self.Omega_k_ is None else self.Omega_k_
 
     @property
     def Omega_de(self):
-        """Dark energy density parameter today."""
+        r"""Dark energy density parameter today :math:`\Omega_\mathrm{de}`."""
         return 1 - (self.Omega_m + self.Omega_k)
 
     @property
     def w_0(self):
-        """Dark energy equation of state constant parameter."""
+        """Dark energy equation of state constant parameter :math:`w_0`."""
         return self.w_0_fixed if self.w_0_ is None else self.w_0_
 
     @property
     def w_a(self):
-        """Dark energy equation of state linear parameter."""
+        """Dark energy equation of state linear parameter :math:`w_a`."""
         return self.w_a_fixed if self.w_a_ is None else self.w_a_
 
     @property
     def sigma8(self):
-        """Linear matter rms overdensity within a tophat sphere of 8 Mpc/h radius at a=1."""
-        from pmwd.boltzmann import varlin
-        R = 8 * self.conf.Mpc_SI / self.conf.L
-        return jnp.sqrt(varlin(R, 1, self, self.conf))
+        r"""Linear matter rms overdensity within a tophat sphere of 8 Mpc/:math:`h` radius today :math:`\sigma_8`."""
+        R = 8 * self.Mpc_SI / self.L
+        return jnp.sqrt(boltzmann.varlin(R, 1, self))
 
     @property
-    def ptcl_mass(self):
-        """Particle mass in [M]."""
-        return self.conf.rho_crit * self.Omega_m * self.conf.ptcl_cell_vol
+    def V(self):
+        r"""Velocity unit :math:`V \triangleq L/T`. Default is 100 km/s."""
+        return self.L / self.T
+
+    @property
+    def H_0(self):
+        """Hubble constant :math:`H_0` in :math:`1/T`."""
+        return self.H_0_SI * self.T
+
+    @property
+    def c(self):
+        """Speed of light :math:`c` in :math:`L/T`."""
+        return self.c_SI / self.V
+
+    @property
+    def G(self):
+        """Gravitational constant :math:`G` in :math:`L^3 / M / T^2`."""
+        return self.G_SI * self.M / (self.L * self.V**2)
+
+    @property
+    def rho_crit(self):
+        r"""Critical density :math:`\rho_\mathrm{crit}` in :math:`M / L^3`."""
+        return 3 * self.H_0**2 / (8 * jnp.pi * self.G)
+
+    @property
+    def transfer_k_num(self):
+        """Number of transfer function wavenumbers, including a leading 0."""
+        return 1 + math.ceil((self.transfer_lgk_max - self.transfer_lgk_min)
+                             / self.transfer_lgk_maxstep) + 1
+
+    @property
+    def transfer_lgk_step(self):
+        """Transfer function wavenumber step size in :math:`1/L` in log10."""
+        return ((self.transfer_lgk_max - self.transfer_lgk_min)
+                / (self.transfer_k_num - 2))
+
+    @property
+    def transfer_k(self):
+        """Transfer function wavenumbers in :math:`1/L`."""
+        k = jnp.logspace(self.transfer_lgk_min, self.transfer_lgk_max,
+                         num=self.transfer_k_num - 1, dtype=self.dtype)
+        return jnp.concatenate((jnp.array([0]), k))
+
+    @property
+    def growth_a_num(self):
+        """Number of growth function scale factors, including a leading 0."""
+        return 1 + math.ceil((self.growth_lga_max - self.growth_lga_min)
+                             / self.growth_lga_maxstep) + 1
+
+    @property
+    def growth_lga_step(self):
+        """Growth function scale factor step size in log10."""
+        return ((self.growth_lga_max - self.growth_lga_min)
+                / (self.growth_a_num - 2))
+
+    @property
+    def growth_a(self):
+        """Growth function scale factors."""
+        a = jnp.logspace(self.growth_lga_min, self.growth_lga_max,
+                         num=self.growth_a_num - 1, dtype=self.dtype)
+        return jnp.concatenate((jnp.array([0]), a))
+
+    @property
+    def varlin_R(self):
+        """Radii of tophat spheres in :math:`L` for linear matter overdensity variance."""
+        return self.var_tophat.y
 
 
 SimpleLCDM = partial(
@@ -183,8 +360,7 @@ Planck18.__doc__ = "Planck 2018 cosmology, arXiv:1807.06209 Table 2 last column.
 
 
 def E2(a, cosmo):
-    r"""Squared Hubble parameter time scaling factors, :math:`E^2`, at given scale
-    factors.
+    r"""Squared Hubble parameter time scaling factors, :math:`E^2`.
 
     Parameters
     ----------
@@ -194,7 +370,7 @@ def E2(a, cosmo):
 
     Returns
     -------
-    E2 : jax.Array of cosmo.conf.cosmo_dtype
+    E2 : jax.Array of cosmo.dtype
         Squared Hubble parameter time scaling factors.
 
     Notes
@@ -213,7 +389,7 @@ def E2(a, cosmo):
                  + \Omega_\mathrm{de} a^{-3 (1 + w_0 + w_a)} e^{-3 w_a (1 - a)}.
 
     """
-    a = jnp.asarray(a, dtype=cosmo.conf.cosmo_dtype)
+    a = jnp.asarray(a, dtype=cosmo.dtype)
 
     de_a = a**(-3 * (1 + cosmo.w_0 + cosmo.w_a)) * jnp.exp(-3 * cosmo.w_a * (1 - a))
     return cosmo.Omega_m * a**-3 + cosmo.Omega_k * a**-2 + cosmo.Omega_de * de_a
@@ -221,8 +397,7 @@ def E2(a, cosmo):
 
 @partial(jnp.vectorize, excluded=(1,))
 def H_deriv(a, cosmo):
-    r"""Hubble parameter derivatives, :math:`\mathrm{d}\ln H / \mathrm{d}\ln a`, at
-    given scale factors.
+    r"""Hubble parameter derivatives, :math:`\mathrm{d}\ln H / \mathrm{d}\ln a`.
 
     Parameters
     ----------
@@ -232,18 +407,18 @@ def H_deriv(a, cosmo):
 
     Returns
     -------
-    dlnH_dlna : jax.Array of cosmo.conf.cosmo_dtype
+    dlnH_dlna : jax.Array of cosmo.dtype
         Hubble parameter derivatives.
 
     """
-    a = jnp.asarray(a, dtype=cosmo.conf.cosmo_dtype)
+    a = jnp.asarray(a, dtype=cosmo.dtype)
 
     E2_value, E2_grad = value_and_grad(E2)(a, cosmo)
     return 0.5 * a * E2_grad / E2_value
 
 
 def Omega_m_a(a, cosmo):
-    r"""Matter density parameters, :math:`\Omega_\mathrm{m}(a)`, at given scale factors.
+    r"""Matter density parameters, :math:`\Omega_\mathrm{m}(a)`.
 
     Parameters
     ----------
@@ -253,7 +428,7 @@ def Omega_m_a(a, cosmo):
 
     Returns
     -------
-    Omega : jax.Array of cosmo.conf.cosmo_dtype
+    Omega : jax.Array of cosmo.dtype
         Matter density parameters.
 
     Notes
@@ -264,6 +439,6 @@ def Omega_m_a(a, cosmo):
         \Omega_\mathrm{m}(a) = \frac{\Omega_\mathrm{m} a^{-3}}{E^2(a)}
 
     """
-    a = jnp.asarray(a, dtype=cosmo.conf.cosmo_dtype)
+    a = jnp.asarray(a, dtype=cosmo.dtype)
 
     return cosmo.Omega_m / (a**3 * E2(a, cosmo))

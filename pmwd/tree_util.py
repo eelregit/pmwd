@@ -7,16 +7,16 @@ from jax.tree_util import register_pytree_node, tree_leaves
 def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
     """Register python dataclasses as custom pytree nodes.
 
-    Also added are methods that return children and aux_data iterators, and pretty
-    string representation, and a method that replace fields with changes.
+    Also added are methods that return children and aux_data iterators, pretty string
+    representation, and a method that replace fields with changes.
 
     Parameters
     ----------
     cls : type
         Class to be registered, not a python dataclass yet.
-    aux_fields : str, sequence of str, or Ellipsis, optional
-        Pytree aux_data fields. Default is none; unrecognized ones are ignored;
-        ``Ellipsis`` uses all.
+    aux_fields : str, iterable of str, or Ellipsis, optional
+        Pytree aux_data fields, or child (leaf) fields if ``aux_invert``. Default is
+        none; unrecognized ones are ignored; ``Ellipsis`` uses all.
     aux_invert : bool, optional
         Whether to invert ``aux_fields`` selections, convenient when most but not all
         fields are aux_data.
