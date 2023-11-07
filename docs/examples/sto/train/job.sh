@@ -8,7 +8,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --constraint=a100-80gb
 #SBATCH --mem-per-gpu=250G
-#SBATCH --time=2-0
+#SBATCH --time=7-0
 #SBATCH --output=outs/%j.out
 
 module purge

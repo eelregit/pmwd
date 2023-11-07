@@ -58,7 +58,7 @@ def train_step(tgts, so_params, pmwd_params, opt_params):
 
 
 def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-                opt_state, optimizer, jax_key):
+                opt_state, optimizer, jax_key, verbose):
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
     tic = time.perf_counter()
@@ -85,7 +85,7 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_pa
         loss_epoch += loss
 
         # runtime print information
-        if procid == 0:
+        if procid == 0 and verbose:
             tt = time.perf_counter() - tic
             tic = time.perf_counter()
             print((f'{tt:.0f} s, {epoch}, {sidx:>3d}, {mesh_shape:>3d}, ' +
@@ -96,7 +96,8 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_pa
     return loss_epoch_mean, so_params, opt_state, optimizer
 
 
-def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params, jax_key):
+def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
+               jax_key, verbose):
     """Simply evaluate the loss w/o grad."""
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
@@ -123,7 +124,7 @@ def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_par
         loss_epoch += float(loss)
 
         # runtime print information
-        if procid == 0:
+        if procid == 0 and verbose:
             tt = time.perf_counter() - tic
             tic = time.perf_counter()
             print((f'{tt:.0f} s, {epoch}, {sidx:>3d}, {mesh_shape:>3d}, ' +

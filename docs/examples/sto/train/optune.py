@@ -11,7 +11,7 @@ from pmwd.sto.mlp import init_mlp_params
 
 
 def objective(trial, sobol_ids, gsdata, snap_ids):
-    n_epochs = 3
+    n_epochs = 100
     shuffle_epoch = True
     so_type = 2
 
@@ -22,7 +22,7 @@ def objective(trial, sobol_ids, gsdata, snap_ids):
         n_input = [soft_len()] * 3
 
     # hypars to search
-    learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-4, log=True)
+    learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-3, log=True)
     optimizer = optax.adam(learning_rate)
 
     n_layers = trial.suggest_int('n_layers', 2, 5)
@@ -32,7 +32,7 @@ def objective(trial, sobol_ids, gsdata, snap_ids):
     # train for a fixed number of epochs and get the lowest loss as the obj
     losses = run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
                        learning_rate, optimizer, so_type, so_nodes, so_params,
-                       ret=True, log_id=trial.number)
+                       ret=True, log_id=trial.number, verbose=False)
     losses = np.array(losses)
 
     return losses.min()
@@ -40,7 +40,13 @@ def objective(trial, sobol_ids, gsdata, snap_ids):
 
 def optune(n_trials):
     sampler = TPESampler(seed=0)  # to make the pars suggested by Optuna the same for all procs
-    study = optuna.create_study(sampler=sampler)
+    if procid == 0:
+        storage_name = f'sqlite:///study/{slurm_job_id}.db'
+    else:
+        storage_name = None
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+    study = optuna.create_study(sampler=sampler, study_name=f'{slurm_job_id}',
+                                storage=storage_name)
 
     sobol_ids_global = np.arange(0, 16)
     snap_ids = np.arange(0, 121, 1)
@@ -52,6 +58,6 @@ def optune(n_trials):
 
 
 if __name__ == "__main__":
-    study = optune(5)
+    study = optune(20)
     if procid == 0:
         joblib.dump(study, f'study/{slurm_job_id}.pkl')

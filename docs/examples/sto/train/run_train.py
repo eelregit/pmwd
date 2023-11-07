@@ -43,7 +43,7 @@ def jax_device_sync(verbose=False):
                   flush=True)
 
 
-def checkpoint(epoch, so_params, log_id=None):
+def checkpoint(epoch, so_params, log_id=None, verbose=True):
     dir = f'params/{slurm_job_id}'
     if log_id is not None:
         dir += f'_{log_id}'
@@ -51,7 +51,8 @@ def checkpoint(epoch, so_params, log_id=None):
     with open(fn := f'{dir}/e{epoch:0>3d}.pickle', 'wb') as f:
         dic = {'so_params': so_params}
         pickle.dump(dic, f)
-    printinfo(f'epoch {epoch} done, params saved: {fn}', flush=True)
+    if verbose:
+        printinfo(f'epoch {epoch} done, params saved: {fn}', flush=True)
 
 
 def track(writer, epoch, scalars, check_sobols, check_snaps,
@@ -106,7 +107,7 @@ def prep_train(sobol_ids_global, snap_ids):
 
 def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
               learning_rate, optimizer, so_type, so_nodes, so_params,
-              ret=False, log_id=None):
+              ret=False, log_id=None, verbose=True):
 
     # RNGs with fixed seeds
     # pmwd MC sampling
@@ -121,8 +122,9 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
 
     jax_device_sync()
     if procid == 0:
-        print('>> devices synced, start training <<')
-        print('time, epoch, sidx, mesh_shape, n_steps, loss', flush=True)
+        if verbose:
+            print('>> devices synced, start training <<')
+            print('time, epoch, sidx, mesh_shape, n_steps, loss', flush=True)
         log_dir = f'runs/{slurm_job_id}'
         if log_id is not None:
             log_dir += f'_{log_id}'
@@ -140,11 +142,12 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
         # training for one epoch
         if epoch == 0:  # evaluate the loss before training, with init so_params
             loss_epoch_mean = loss_epoch(
-                procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params, jax_key)
+                procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
+                jax_key, verbose)
         else:
             loss_epoch_mean, so_params, opt_state, optimizer = train_epoch(
                 procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-                opt_state, optimizer, jax_key)
+                opt_state, optimizer, jax_key, verbose)
 
             # learning rate scheduler
             # learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
@@ -155,7 +158,7 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
 
         # checkpoint and track
         if procid == 0:
-            checkpoint(epoch, so_params, log_id=log_id)
+            checkpoint(epoch, so_params, log_id=log_id, verbose=verbose)
 
             scalars = {
                 'loss': loss_epoch_mean,
