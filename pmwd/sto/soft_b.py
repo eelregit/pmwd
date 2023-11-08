@@ -1,3 +1,4 @@
+"""SO input features consists of simple Sobol parameters, a and k etc."""
 import jax.numpy as jnp
 
 from pmwd.configuration import Configuration
@@ -21,12 +22,6 @@ def _sotheta(cosmo, conf, a):
         conf.softening_length,
     ])
     return theta
-
-
-def _sotheta_names():
-    # str names of the variables returned by the sotheta function above
-    # currently hardcoded, should be updated along with sotheta function
-    pass
 
 
 def _soft_len(k_fac=1):
@@ -60,3 +55,9 @@ def soft_kvec(kv, theta, logk=True):
         kv = jnp.log(jnp.where(kv > 0., kv, 1.))
     ft = jnp.concatenate((kv, theta), axis=-1)
     return ft
+
+
+def _soft_names(net):
+    # str names of input features of the SO neural nets
+    # currently hardcoded, should be updated along with functions above
+    pass
