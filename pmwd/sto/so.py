@@ -3,7 +3,7 @@ from jax import vmap
 import math
 
 from pmwd.sto.mlp import MLP
-from pmwd.sto.soft import (
+from pmwd.sto.soft_a import (
     _sotheta, _soft_names, _soft_len, soft, soft_k, soft_kvec)
 
 

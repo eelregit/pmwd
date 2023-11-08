@@ -1,3 +1,4 @@
+"""SO input features consists of all kinds of nonlinear scales etc."""
 import jax
 import jax.numpy as jnp
 
