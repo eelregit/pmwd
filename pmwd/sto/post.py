@@ -6,7 +6,7 @@ from pmwd.nbody import nbody
 from pmwd.sto.train import pmodel, init_pmwd
 from pmwd.sto.data import G4snapDataset, gen_cc, gen_ic
 from pmwd.sto.mlp import mlp_size
-from pmwd.sto.util import power_tfcc, scatter_dens, pv2ptcl, load_soparams
+from pmwd.sto.util import power_tfcc, scatter_dens, pv2ptcl, load_soparams, tree_unstack
 
 
 def pmwd_fwd(so_params, sidx, sobol, a_snaps, mesh_shape, n_steps, so_type, so_nodes):
@@ -24,9 +24,11 @@ def test_snap(tgt, pmwd_params, so_params, vis_mesh_shape, vis_cut_nyq):
     a = pmwd_params[0][0]
 
     # run pmwd w/ and w/o optimization
-    ptcl = pmodel(ptcl_ic, so_params, cosmo, conf)[0]['snapshots'][a]
+    ptcl = pmodel(ptcl_ic, so_params, cosmo, conf)[0]['snaps']
+    ptcl = tree_unstack(ptcl)[0]
     conf = conf.replace(so_type=None)
-    ptcl_o = pmodel(ptcl_ic, so_params, cosmo, conf)[0]['snapshots'][a]
+    ptcl_o = pmodel(ptcl_ic, so_params, cosmo, conf)[0]['snaps']
+    ptcl_o = tree_unstack(ptcl_o)[0]
 
     ptcl_t = pv2ptcl(*tgt, ptcl.pmid, ptcl.conf)
 
