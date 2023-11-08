@@ -5,7 +5,7 @@ import optax
 from pmwd.sto.so import soft_len
 from pmwd.sto.mlp import init_mlp_params
 
-n_epochs = 3
+n_epochs = 300
 
 # data
 sobol_ids_global = np.arange(0, 64)
@@ -43,13 +43,8 @@ def lr_scheduler(lr, skd_state, loss, patience=15, factor=0.5, threshold=1e-4, l
 
 
 # so neural nets
-so_type = 2
-
-if so_type == 2:
-    n_input = [soft_len(k_fac=3), soft_len()]
-
-if so_type == 3:
-    n_input = [soft_len()] * 3
+so_type = 'NN'
+n_input = [soft_len(k_fac=3), soft_len()]
 
 so_nodes = [[n, n, n, 1] for n in n_input]
 so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')

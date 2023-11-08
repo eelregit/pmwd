@@ -56,16 +56,7 @@ def pot_sharp(pot, kvec, theta, cosmo, conf, a):
     """SO of the laplace potential, function of 3D k vector."""
     kvec = map(jnp.abs, kvec)
 
-    if conf.so_type == 3:
-        if conf.so_nodes[0] is not None:
-            pot *= math.prod([sonn_k(k_, theta, cosmo, conf, 0) for k_ in kvec])
-
-        if conf.so_nodes[1] is not None:
-            k = jnp.sqrt(sum(k_**2 for k_ in kvec))
-            g = sonn_k(k, theta, cosmo, conf, 1)
-            pot *= g
-
-    if conf.so_type == 2:
+    if conf.so_type == 'NN':
         if conf.so_nodes[0] is not None:
             kv = jnp.stack([jnp.broadcast_to(k_, pot.shape) for k_ in kvec], axis=-1)
             g = sonn_kvec(kv, theta, cosmo, conf, 0)
@@ -78,11 +69,7 @@ def grad_sharp(grad, k, theta, cosmo, conf, a):
     """SO of the gradient, function of 1D k component."""
     k = jnp.abs(k)
 
-    if conf.so_type == 3:
-        if conf.so_nodes[2] is not None:
-            grad *= sonn_k(k, theta, cosmo, conf, 2)
-
-    if conf.so_type == 2:
+    if conf.so_type == 'NN':
         if conf.so_nodes[1] is not None:
             grad *= sonn_k(k, theta, cosmo, conf, 1)
 

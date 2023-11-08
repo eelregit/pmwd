@@ -151,10 +151,9 @@ class Configuration:
     # SO related
     # type of SO method
     # None: no SO applied
-    # 0: fitting of NN given by SR
-    # 2: f(k_i) * g(k_1, k_2, k_3)
-    # 3: h(k_i) * g(k) * [f(k_1) * f(k_2) * f(k_3)]
-    so_type: Optional[int] = None
+    # 'SR': Symbolic Regression expression
+    # 'NN': Neural Net: f(k_i) * g(k_1, k_2, k_3)
+    so_type: Optional[str] = None
     # list of the number of nodes (no input layer) of so nn
     so_nodes: Optional[list] = None
     softening_length: Optional[float] = None
