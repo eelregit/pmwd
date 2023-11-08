@@ -1,12 +1,23 @@
 import jax
 import jax.numpy as jnp
-from jax.tree_util import tree_map
+from jax.tree_util import tree_map, tree_flatten
 import pickle
 from pmwd.sto.mlp import mlp_size
 
 from pmwd.scatter import scatter
 from pmwd.spec_util import powspec
 from pmwd.particles import Particles
+
+
+def tree_stack(trees):
+    """Stack a list of pytrees into a single pytree."""
+    return tree_map(lambda *xs: jnp.stack(xs), *trees)
+
+
+def tree_unstack(tree):
+    """Unstack a single pytree into a list of pytrees."""
+    leaves, treedef = tree_flatten(tree)
+    return [treedef.unflatten(leaf) for leaf in zip(*leaves, strict=True)]
 
 
 def global_mean(tree):
