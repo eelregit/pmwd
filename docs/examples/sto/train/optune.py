@@ -13,19 +13,14 @@ from pmwd.sto.mlp import init_mlp_params
 def objective(trial, sobol_ids, gsdata, snap_ids):
     n_epochs = 100
     shuffle_epoch = True
-    so_type = 2
-
-    if so_type == 2:
-        n_input = [soft_len(k_fac=3), soft_len()]
-
-    if so_type == 3:
-        n_input = [soft_len()] * 3
+    so_type = 'NN'
+    n_input = [soft_len(k_fac=3), soft_len()]
 
     # hypars to search
     learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-3, log=True)
     optimizer = optax.adam(learning_rate)
-
     n_layers = trial.suggest_int('n_layers', 2, 5)
+
     so_nodes = [[n] * n_layers + [1] for n in n_input]
     so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
 

@@ -55,7 +55,7 @@ def test_snap(tgt, pmwd_params, so_params, vis_mesh_shape, vis_cut_nyq):
 
 
 def test_so(so_params, sobol_ids, snap_ids, g4sims_dir='../g4sims',
-            mesh_shape=1, n_steps=100, so_type=2, vis_mesh_shape=1,
+            mesh_shape=1, n_steps=100, so_type='NN', vis_mesh_shape=1,
             vis_cut_nyq=False):
     # load the g4data
     print('loading gadget4 data')
