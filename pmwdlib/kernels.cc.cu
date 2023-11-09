@@ -674,15 +674,19 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     uint32_t *pmid = reinterpret_cast<uint32_t *>(buffers[0]);
     T *disp = reinterpret_cast<T *>(buffers[1]);
     T *particle_values = reinterpret_cast<T *>(buffers[2]);
-    void *work_d = buffers[4];
-    T *grid_values = reinterpret_cast<T *>(buffers[5]);
-    char *work_i_d = static_cast<char *>(work_d);
+    T *grid_values = reinterpret_cast<T *>(buffers[4]);
+    //void *work_d = buffers[5];
+    //char *work_i_d = static_cast<char *>(work_d);
+    char *work_i_d;
+
 
     // parameters for shared mem using bins to group cells
     uint32_t bin_size = BINSIZE;
     uint32_t nbinx = static_cast<uint32_t>(std::ceil(1.0*stride[0]/bin_size));
     uint32_t nbiny = static_cast<uint32_t>(std::ceil(1.0*stride[1]/bin_size));
     uint32_t nbinz = static_cast<uint32_t>(std::ceil(1.0*stride[2]/bin_size));
+
+    CUDA_SAFE_CALL(cudaMalloc((void**)&work_i_d, sizeof(uint32_t)*(n_particle*4+2*nbinx*nbiny*nbinz+1)+temp_storage_bytes));
 
     uint32_t npts_mem_size = sizeof(uint32_t) * n_particle;
     uint32_t nbins_mem_size = sizeof(uint32_t) * nbinx*nbiny*nbinz;
@@ -797,6 +801,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("cuda kernel scatter: %f milliseconds\n", milliseconds);
 #endif
+    cudaFree(work_i_d);
 
 }
 
@@ -814,9 +819,9 @@ void gather_sm(cudaStream_t stream, void** buffers, const char* opaque, std::siz
 
     // parameters for shared mem using bins to group cells
     uint32_t bin_size = BINSIZE;
-    uint32_t nbinx = stride[0]/bin_size+1;
-    uint32_t nbiny = stride[1]/bin_size+1;
-    uint32_t nbinz = stride[2]/bin_size+1;
+    uint32_t nbinx = static_cast<uint32_t>(std::ceil(1.0*stride[0]/bin_size));
+    uint32_t nbiny = static_cast<uint32_t>(std::ceil(1.0*stride[1]/bin_size));
+    uint32_t nbinz = static_cast<uint32_t>(std::ceil(1.0*stride[2]/bin_size));
 
     uint32_t* d_bin_count;
     uint32_t* d_sortidx;
@@ -922,7 +927,10 @@ int64_t get_workspace_size(int64_t n_ptcls, uint32_t stride_x, uint32_t stride_y
     // 1 array of nbins of uint32_t
     // 1 array of (nbins+1) of uint32_t
     int64_t bin_size = BINSIZE;
-    int64_t nbins = (stride_x/bin_size+1)*(stride_y/bin_size+1)*(stride_z/bin_size+1);
+    uint32_t nbinx = static_cast<uint32_t>(std::ceil(1.0*stride_x/bin_size));
+    uint32_t nbiny = static_cast<uint32_t>(std::ceil(1.0*stride_y/bin_size));
+    uint32_t nbinz = static_cast<uint32_t>(std::ceil(1.0*stride_z/bin_size));
+    int64_t nbins = nbinx*nbiny*nbinz;
     int64_t npts_mem_size = sizeof(uint32_t) * n_ptcls * 4;
     int64_t nbins_mem_size = sizeof(uint32_t) * (2*nbins+1);
 
