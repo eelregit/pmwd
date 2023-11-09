@@ -17,8 +17,17 @@ def objective(trial, sobol_ids, gsdata, snap_ids):
     n_input = [soft_len(k_fac=3), soft_len()]
 
     # hypars to search
+    opt_name = trial.suggest_categorical('optimizer', ['Adam', 'AdamW', 'SGD'])
     learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-3, log=True)
-    optimizer = optax.adam(learning_rate)
+    if opt_name == 'Adam':
+        b1 = trial.suggest_float('b1', 0.5, 0.9)
+        optimizer = optax.adam(learning_rate, b1=b1)
+    if opt_name == 'AdamW':
+        b1 = trial.suggest_float('b1', 0.5, 0.9)
+        weight_decay = trial.suggest_float('weight_decay', 1e-5, 1e-3, log=True)
+        optimizer = optax.adamw(learning_rate, b1=b1, weight_decay=weight_decay)
+    if opt_name == 'SGD':
+        optimizer = optax.sgd(learning_rate)
     n_layers = trial.suggest_int('n_layers', 2, 5)
 
     so_nodes = [[n] * n_layers + [1] for n in n_input]
