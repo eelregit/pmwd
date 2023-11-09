@@ -6,7 +6,7 @@ import jaxlib.mlir.ir as ir
 from jax import core, dtypes, lax
 from jax.core import Primitive
 from jax import numpy as jnp
-from jax.abstract_arrays import ShapedArray
+from jax.core import ShapedArray
 from jax._src.interpreters import ad, batching, mlir, xla
 from jax import jit
 from jax.lib import xla_client
@@ -73,7 +73,7 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_grid, ptcl_spa
         result = custom_call(
             op_name,
             # Output types
-            out_types=[out_type],
+            result_types=[out_type],
             # The inputs:
             operands=[pmid,disp,val,mesh,workspace],
             # Layout specification:
@@ -147,7 +147,7 @@ def _gather_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_s
         result = custom_call(
             op_name,
             # Output types
-            out_types=[out_type],
+            result_types=[out_type],
             # The inputs:
             operands=[pmid,disp,val,mesh],
             # Layout specification:
@@ -222,7 +222,7 @@ def _sort_keys_lowering(ctx, keys, *, platform="gpu"):
         result = custom_call(
             op_name,
             # Output types
-            out_types=[out_type],
+            result_types=[out_type],
             # The inputs:
             operands=[keys, workspace],
             # Layout specification:
@@ -297,7 +297,7 @@ def _argsort_lowering(ctx, keys, *, platform="gpu"):
         return custom_call(
             op_name,
             # Output types
-            out_types=[out_type, in_type],
+            result_types=[out_type, in_type],
             # The inputs:
             operands=[keys, workspace],
             # Layout specification:
@@ -376,7 +376,7 @@ def _enmesh_lowering(ctx, pmid, disp, mesh, *, offset, ptcl_grid, ptcl_spacing, 
         return custom_call(
             op_name,
             # Output types
-            out_types=[ptcl_out_type, mesh_out_type, mesh_out_type],
+            result_types=[ptcl_out_type, mesh_out_type, mesh_out_type],
             # The inputs:
             operands=[pmid,disp,mesh,workspace],
             # Layout specification:
