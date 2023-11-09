@@ -9,10 +9,3 @@ def is_float0_array(x):
 
 def float0_like(x):
     return np.empty(x.shape, dtype=float0)  # see jax issue #4433
-
-
-def bincount(x, weights, *, length, dtype=None):
-    """Quick fix before is released."""
-    if dtype is None:
-        dtype = jnp.dtype(weights)
-    return jnp.zeros(length, dtype=dtype).at[jnp.clip(x, 0)].add(weights)

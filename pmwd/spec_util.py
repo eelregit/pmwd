@@ -5,7 +5,6 @@ from jax import jit, ensure_compile_time_eval
 import jax.numpy as jnp
 
 from pmwd.pm_util import fftfreq, fftfwd
-from pmwd.util import bincount
 
 
 @partial(jit, static_argnames=('bins', 'cut_zero', 'cut_nyq', 'dtype', 'int_dtype'))
@@ -97,7 +96,8 @@ def powspec(f, spacing, bins=1j/3, g=None, deconv=None, cut_zero=True, cut_nyq=T
     if deconv is not None:
         P = math.prod((jnp.sinc(k) ** -deconv for k in kvec), start=P)  # numpy sinc has pi
 
-    N = jnp.full_like(P, 2, dtype=jnp.uint8)
+    #N = jnp.full_like(P, 2, dtype=jnp.uint8)
+    N = jnp.full_like(P, 2, dtype=int_dtype)  # FIXME after google/jax/issues/18440
     N = N.at[..., 0].set(1)
     if grid_shape[-1] % 2 == 0:
         N = N.at[..., -1].set(1)
@@ -106,9 +106,11 @@ def powspec(f, spacing, bins=1j/3, g=None, deconv=None, cut_zero=True, cut_nyq=T
     P = P.ravel()
     N = N.ravel()
     b = jnp.digitize(k, bins, right=right)
-    k = bincount(b, weights=k * N, length=1+bin_num, dtype=dtype)  # k=0 goes to b=0
-    P = bincount(b, weights=P * N, length=1+bin_num, dtype=dtype)
-    N = bincount(b, weights=N, length=1+bin_num, dtype=int_dtype)
+    k = (k * N).astype(dtype)
+    P = (P * N).astype(dtype)  # FIXME after google/jax/issues/18440
+    k = jnp.bincount(b, weights=k, length=1+bin_num)  # only k=0 goes to b=0
+    P = jnp.bincount(b, weights=P, length=1+bin_num)
+    N = jnp.bincount(b, weights=N, length=1+bin_num)
 
     k = k[cut_zero:bcut]
     P = P[cut_zero:bcut]
