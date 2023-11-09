@@ -1,6 +1,7 @@
 import os
 
 import numpy as np
+import jax
 import matplotlib.pyplot as plt
 
 
@@ -9,7 +10,7 @@ ptcl_grid_sizes = [2**n for n in range(5, 10)]
 
 
 number = 1
-repeat = 8
+repeat = 16
 exec_times = np.empty((2 + len(mesh_shapes), len(ptcl_grid_sizes)))
 fname = 'perf.txt'
 
@@ -39,28 +40,26 @@ if not os.path.exists(fname):
             modes = white_noise(seed, conf)
 
 
-            boltzmann(cosmo, conf)  # do not overwrite cosmo
-            t = timeit.repeat('boltzmann(cosmo, conf).h.block_until_ready()',
+            t = timeit.repeat('jax.block_until_ready(boltzmann(cosmo, conf, varlin=False))',
                               repeat=repeat, number=number, globals=globals())
             t = min(t) / number
+            print(f'growth {t}')
             exec_times[0, j] = t
-            print(f'boltz {t}')
-            cosmo = boltzmann(cosmo, conf)  # overwrite cosmo
+            cosmo = boltzmann(cosmo, conf)
 
 
-            ptcl, obsvbl = lpt(linear_modes(modes, cosmo, conf), cosmo, conf)  # do not overwrite modes
-            t = timeit.repeat('lpt(linear_modes(modes, cosmo, conf), cosmo, conf)[0].vel.block_until_ready()',
+            t = timeit.repeat('jax.block_until_ready(lpt(linear_modes(modes, cosmo, conf), cosmo, conf))',
                               repeat=repeat, number=number, globals=globals())
             t = min(t) / number
-            print(f'  lpt {t}')
+            print(f'   lpt {t}')
             exec_times[1, j] = t
+            ptcl, obsvbl = lpt(linear_modes(modes, cosmo, conf), cosmo, conf)
 
 
-            nbody(ptcl, obsvbl, cosmo, conf)  # do not overwrite ptcl and obsvbl
-            t = timeit.repeat('nbody(ptcl, obsvbl, cosmo, conf)[0].vel.block_until_ready()',
+            t = timeit.repeat('jax.block_until_ready(nbody(ptcl, obsvbl, cosmo, conf))',
                               repeat=repeat, number=number, globals=globals())
             t = min(t) / number / (1 + conf.a_nbody_num)
-            print(f'nbody {t}')
+            print(f' nbody {t}')
             exec_times[2+i, j] = t
 
     np.savetxt(fname, exec_times)
@@ -68,7 +67,7 @@ if not os.path.exists(fname):
 exec_times = np.loadtxt(fname)
 
 
-plt.style.use('font.mplstyle')
+plt.style.use('adjoint.mplstyle')
 
 fig, ax = plt.subplots(figsize=(4, 3))
 

@@ -27,11 +27,7 @@ def model(modes, cosmo, conf):
 
 
 def obj(tgt_dens, modes, cosmo, conf):
-    cosmo = boltzmann(cosmo, conf)
-    modes = linear_modes(modes, cosmo, conf)
-    ptcl, obsvbl = lpt(modes, cosmo, conf)
-    ptcl, obsvbl = nbody(ptcl, obsvbl, cosmo, conf)
-    dens = scatter(ptcl, conf)
+    dens = model(modes, cosmo, conf)
     return (dens - tgt_dens).var()
 
 obj_grad = jax.grad(obj, argnums=(1, 2))
@@ -65,7 +61,7 @@ if not os.path.exists(fname):
 modes = jnp.load(fname)
 
 
-n = 8
+n = 64
 fname_am = 'grads_am{}.npy'  # adjoint mode gradients
 fname_ad = 'grads_ad{}.npy'  # AD mode gradients
 
@@ -87,10 +83,11 @@ else:  # making plots
     gad = np.stack([np.load(fname_ad.format(i)) for i in range(n)], axis=0)
 
     from matplotlib.colors import SymLogNorm, LogNorm
-    plt.style.use('font.mplstyle')
+    plt.style.use('adjoint.mplstyle')
 
-    fig, _ = simshow(gam[0, 32], cmap='RdBu_r',
-                     norm=SymLogNorm(0.01, vmin=-0.1, vmax=0.1), colorbar=False)
+    fig, _ = simshow(gam[0, 32], figsize=(3.5, 2.7), cmap='RdBu_r',
+                     norm=SymLogNorm(0.01, vmin=-0.1, vmax=0.1), colorbar=True,
+                     interpolation='none')
     fig.savefig('grads.pdf')
     plt.close(fig)
 
@@ -128,7 +125,7 @@ else:  # making plots
     print('AD-AD:  ', gd.std())
     ax.hist(gd, color='gray', ls=':', lw=1.5, label='AD-AD', **kwargs)
     ax.set_xlim(bins[0], bins[-1])
-    ax.set_ylim(5e2, 5e7)
+    ax.set_ylim(2e4, 5e9)
     ax.set_yscale('log')
     ax.ticklabel_format(axis='x', scilimits=(0, 0))
     ax.tick_params(axis='y', which='minor', left=False, right=False)

@@ -4,7 +4,7 @@ from scipy.integrate import ode
 
 class LPT3(object) :
     
-    def __init__(self, box_length, num_mesh_1d, Omega_m) :
+    def __init__(self, box_length, num_mesh_1d, Omega_m, Omega_k=0) :
         '''
             Class for computing 3rd order Lagrangian perturbation theory displacement potentials and displacements up to third order.
             
@@ -14,6 +14,8 @@ class LPT3(object) :
         self.box_length = box_length
         self.num_mesh_1d = num_mesh_1d
         self.Omega_m = Omega_m
+        self.Omega_k = Omega_k
+        self.Omega_de = 1 - self.Omega_m - self.Omega_k
         self.half_num_mesh_1d = np.uint32(np.floor(num_mesh_1d / 2))
         self.num_modes_last_d = self.half_num_mesh_1d + 1
         self.bin_volume = (self.box_length / self.num_mesh_1d) ** 3
@@ -22,14 +24,32 @@ class LPT3(object) :
         self.field_shape = [self.num_mesh_1d, self.num_mesh_1d, self.num_mesh_1d]
         self.modes_shape = [self.num_mesh_1d, self.num_mesh_1d, self.num_modes_last_d]
         self._initializeGrowthTables()
+        
+        self.H0 = 1. / 2.99792458e3 # in units of h / Mpc
 
+    def _getESquared(self, a) :
+        '''Returns Hubble rate squared in units of H_0^2 at scale factor a.'''
+        return self.Omega_m * a ** -3 + self.Omega_k * a ** -2 + self.Omega_de
+        
+    def _getE(self, a) :
+        '''Returns Hubble rate squared in units of H_0^2 at scale factor a.'''
+        return np.sqrt(self._getESquared(a))
+    
+    def _getHSquared(self, a) :
+        '''Returns Hubble rate squared in units of (h / Mpc) ** 2 at scale factor a.'''
+        return self.H0 ** 2 * self._getESquared(a)
+        
     def _getH(self, a) :
-        '''Returns Hubble rate in units f h / Mpc at scale factor a.'''
-        return 1. / 2.99792458e3 * np.sqrt(self.Omega_m / a ** 3 + (1. - self.Omega_m))
+        '''Returns Hubble rate in units of h / Mpc at scale factor a.'''
+        return self.H0 * self._getE(a)
+    
+    def _getDiffLogH(self, a) :
+        '''Returns d log Hubble / d log a.'''
+        return -0.5 * (3 * self.Omega_m * a ** -3 + 2 * self.Omega_k * a ** -2) / self._getESquared(a)
     
     def _getBeta(self, a) :
         '''Returns 1.5 * Omega_m(a) at scale factor a.'''
-        return 1.5 / (1. + (1. / self.Omega_m - 1.) * a ** 3) 
+        return 1.5 * self.Omega_m * a ** -3 / self._getESquared(a)
     
     def _fft(self, field) :
         '''Returns normalized forward Fourier transform of field so the modes has units [field] * [volume].'''
@@ -151,15 +171,19 @@ class LPT3(object) :
         #
         # Initial conditions assuming matter domination (radiation is ignored)
         #
-        D1 = np.exp(self.log_a[0])
-        dD1 = D1
-        D2 = 3. / 7. * D1 ** 2
-        dD2 = 2. * D2
-        D3a = 1. / 6. * D1 ** 3
-        dD3a = 3. * D3a
-        D3b = 1. / 6. * D1 * D2
-        dD3b = 3. * D3b
-        initials = [D1, dD2, D2, dD2, D3a, dD3a, D3b, dD3b]
+        a = np.exp(self.log_a[0])
+        D1 = a - 2 / 77 * (22 * a ** 2 * self.Omega_k + 7 * a ** 4 * self.Omega_de) / self.Omega_m
+        dD1 = a - 8 / 77 * (11 * a ** 2 * self.Omega_k + 7 * a ** 4 * self.Omega_de) / self.Omega_m
+        D2 = 3 / 7 * a ** 2 - 1 / 3003 * (1430 * a ** 3 * self.Omega_k + 459 * a ** 5 * self.Omega_de) / self.Omega_m
+        dD2 = 6 / 7 * a ** 2 - 1 / 3003 * (4290 * a ** 3 * self.Omega_k + 2295 * a ** 5 * self.Omega_de) / self.Omega_m
+        D3a = 1 / 14 * a ** 3 - 2 / 525525 * (30875 * a ** 4 * self.Omega_k + 9933 * a ** 6 * self.Omega_de) / self.Omega_m
+        dD3a = 3 / 14 * a ** 3 - 4 / 525525 * (61750 * a ** 4 * self.Omega_k + 29799 * a ** 6 * self.Omega_de) / self.Omega_m
+        D3b = 1 / 6 * a ** 3 - 1 / 5775 * (1600 * a ** 4 * self.Omega_k + 511 * a ** 6 * self.Omega_de) / self.Omega_m
+        dD3b = 1 / 2 * a ** 3 - 1 / 5775 * (6400 * a ** 4 * self.Omega_k + 3066 * a ** 6 * self.Omega_de) / self.Omega_m
+        D3c = 1 / 7 * a ** 3 - 1 / 3003 * (715 * a ** 4 * self.Omega_k + 228 * a ** 6 * self.Omega_de) / self.Omega_m
+        dD3c = 3 / 7 * a ** 3 - 4 / 3003 * (715 * a ** 4 * self.Omega_k + 342 * a ** 6 * self.Omega_de) / self.Omega_m
+        
+        initials = [D1, dD2, D2, dD2, D3a, dD3a, D3b, dD3b, D3c, dD3c]
         #
         # ODEs for LPT growth factors up to order 3 assuming flat LCDM
         #
@@ -167,8 +191,8 @@ class LPT3(object) :
             D1, dD1, D2, dD2, D3a, dD3a, D3b, dD3b = t_state
             t_a = np.exp(t_log_a)
             beta = self._getBeta(t_a)
-            alpha = 2. - beta
-            deqs = np.zeros(8)
+            alpha = 2. + self._getDiffLogH(t_a)
+            deqs = np.zeros(10)
             deqs[0] = dD1
             deqs[1] = alpha * dD1 + beta * D1
             deqs[2] = dD2
@@ -177,6 +201,8 @@ class LPT3(object) :
             deqs[5] = alpha * dD3a + beta * (D3a + D1 ** 3)
             deqs[6] = dD3b
             deqs[7] = alpha * dD3b + beta * (D3b + D1 * D2)
+            deqs[8] = dD3c
+            deqs[9] = alpha * dD3c + beta * D1 ** 3
             return deqs
         #
         # Initialize integrator
@@ -196,7 +222,7 @@ class LPT3(object) :
                     warnings.warn("LPT3.initializeGrowthTables failed to integrate at log(a) = %.6e." % (growth_odes.t))
                 break
             self.growth_factors.append(growth_odes.y[::2])
-            self.growth_rates.append(self._getH(np.exp(t_log_a)) * growth_odes.y[::2])
+            self.growth_rates.append(self._getH(np.exp(t_log_a)) * growth_odes.y[1::2])
         #
         # Define interal interpolators
         #
@@ -206,10 +232,13 @@ class LPT3(object) :
         self._getD2 = interp1d(self.log_a, self.growth_factors[1])
         self._getD3a = interp1d(self.log_a, self.growth_factors[2])
         self._getD3b = interp1d(self.log_a, self.growth_factors[3])
+        self._getD3c = interp1d(self.log_a, self.growth_factors[4])
         self._getdD1 = interp1d(self.log_a, self.growth_rates[0])
         self._getdD2 = interp1d(self.log_a, self.growth_rates[1])
         self._getdD3a = interp1d(self.log_a, self.growth_rates[2])
-        self._getdD3b = interp1d(self.log_a, self.growth_rates[3])         
+        self._getdD3b = interp1d(self.log_a, self.growth_rates[3])
+        self._getdD3c = interp1d(self.log_a, self.growth_rates[4])         
+
         return
     
     def getD1(self, z) :
@@ -228,6 +257,10 @@ class LPT3(object) :
         '''Returns third order growth factor sourced by D1 * D2 interpolated at redshift z.'''
         return self._getD3b(-np.log(1. + z))
 
+    def getD3c(self, z) :
+        '''Returns transverse third order growth factor sourced by D1 ** 3 interpolated at redshift z.'''
+        return self._getD3c(-np.log(1. + z))
+    
     def getdD1(self, z) :
         '''Returns first order growth rate interpolated at redshift z.'''
         return self._getdD1(-np.log(1. + z))
@@ -244,6 +277,10 @@ class LPT3(object) :
         '''Returns third order growth rate sourced by D1 * D2 interpolated at redshift z.'''
         return self._getdD3b(-np.log(1. + z)) 
 
+    def getdD3c(self, z) :
+        '''Returns transverse third order growth rate sourced by D1 ** 3 interpolated at redshift z.'''
+        return self._getdD3c(-np.log(1. + z)) 
+    
     def getDisplacements(self, delta, z, t_order = 3, z_delta = None):
         '''
             Computes phi and A, the 3rd order LPT displacement scalar and vector potentials respectively at z.
@@ -324,8 +361,8 @@ class LPT3(object) :
                 j = (i + 1) % 3
                 k = (i + 2) % 3
                 curl = self._ifft(self.getGrad3D(A[k], j) - self.getGrad3D(A[j], k))
-                t_dis += self.getD3a(z) * curl
-                t_vel += self.getdD3a(z) * curl
+                t_dis += self.getD3c(z) * curl
+                t_vel += self.getdD3c(z) * curl
             dis.append(t_dis)
             vel.append(t_vel)
         return np.array(dis), np.array(vel)

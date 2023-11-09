@@ -1,5 +1,6 @@
 demo animations脚本，实际结果稍有不同。见assets branch里张宇澄制作的
-`assets/{time_evolution,pmwd_optim}.mp4`
+`assets/{time_evolution,pmwd_optim}.mp4`和code
+`./demo_{data_pmwd_optim,data_time_evo,make_videos}.py`
 
 1. 时间反演
   (a) 向前模拟，演化时间为a（宇宙大小），初始a=1/64，结束a=1，

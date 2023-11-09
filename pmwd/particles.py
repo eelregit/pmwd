@@ -2,9 +2,9 @@ from dataclasses import field
 from functools import partial
 from itertools import accumulate
 from operator import itemgetter, mul
-from typing import Optional, Any, Union
+from typing import Optional, Any
 
-from numpy.typing import ArrayLike
+from jax.typing import ArrayLike
 import jax.numpy as jnp
 from jax.tree_util import tree_map
 
@@ -15,37 +15,34 @@ from pmwd.util import is_float0_array
 from pmwd.pm_util import enmesh
 
 
-ArrayLike = Union[ArrayLike, jnp.ndarray]
-
-
 @partial(pytree_dataclass, aux_fields="conf", frozen=True)
 class Particles:
     """Particle state.
 
     Particles are indexable.
 
-    Array-likes are converted to ``jax.numpy.ndarray`` of ``conf.pmid_dtype`` or
+    Array-likes are converted to ``jax.Array`` of ``conf.pmid_dtype`` or
     ``conf.float_dtype`` at instantiation.
 
     Parameters
     ----------
     conf : Configuration
         Configuration parameters.
-    pmid : array_like
+    pmid : ArrayLike
         Particle IDs by mesh indices, of signed int dtype. They are the nearest mesh
         grid points from particles' Lagrangian positions. It can save memory compared to
         the raveled particle IDs, e.g., 6 bytes for 3 times int16 versus 8 bytes for
         uint64. Call ``raveled_id`` for the raveled IDs.
-    disp : array_like
+    disp : ArrayLike
         # FIXME after adding the CUDA scatter and gather ops
         Particle comoving displacements from pmid in [L]. For displacements from
         particles' grid Lagrangian positions, use ``ptcl_rpos(ptcl,
         Particles.gen_grid(ptcl.conf), ptcl.conf)``. It can save the particle locations
         with much more uniform precision than positions, whereever they are. Call
         ``pos`` for the positions.
-    vel : array_like, optional
+    vel : ArrayLike, optional
         Particle canonical velocities in [H_0 L].
-    acc : array_like, optional
+    acc : ArrayLike, optional
         Particle accelerations in [H_0^2 L].
     attr : pytree, optional
         Particle attributes (custom features).
@@ -90,7 +87,7 @@ class Particles:
         Parameters
         ----------
         conf : Configuration
-        pos : array_like
+        pos : ArrayLike
             Particle positions in [L].
         wrap : bool, optional
             Whether to wrap around the periodic boundaries.
@@ -161,14 +158,14 @@ class Particles:
 
         Parameters
         ----------
-        dtype : dtype_like, optional
+        dtype : DTypeLike, optional
             Output int dtype.
         wrap : bool, optional
             Whether to wrap around the periodic boundaries.
 
         Returns
         -------
-        raveled_id : jax.numpy.ndarray
+        raveled_id : jax.Array
             Particle raveled IDs.
 
         """
@@ -189,14 +186,14 @@ class Particles:
 
         Parameters
         ----------
-        dtype : dtype_like, optional
+        dtype : DTypeLike, optional
             Output float dtype.
         wrap : bool, optional
             Whether to wrap around the periodic boundaries.
 
         Returns
         -------
-        pos : jax.numpy.ndarray
+        pos : jax.Array
             Particle positions in [L].
 
         """
@@ -222,7 +219,7 @@ def ptcl_enmesh(ptcl, conf, offset=0, cell_size=None, mesh_shape=None,
     ----------
     ptcl : Particles
     conf : Configuration
-    offset : array_like, optional
+    offset : ArrayLike, optional
         Offset of mesh to particle grid. If 0D, the value is used in each dimension.
     cell_size : float, optional
         Mesh cell size in [L]. Default is ``conf.cell_size``.
@@ -233,17 +230,17 @@ def ptcl_enmesh(ptcl, conf, offset=0, cell_size=None, mesh_shape=None,
     drop : bool, optional
         Whether to set negative out-of-bounds indices of ``ind`` to ``mesh_shape``,
         avoiding some of them being treated as in bounds, thus allowing them to be
-        dropped by ``add()`` and ``get()`` of ``jax.numpy.ndarray.at``.
+        dropped by ``add()`` and ``get()`` of ``jax.Array.at``.
     grad : bool, optional
         Whether to return ``frac_grad``, gradients of ``frac``.
 
     Returns
     -------
-    ind : (ptcl_num, 2**dim, dim) jax.numpy.ndarray
+    ind : (ptcl_num, 2**dim, dim) jax.Array
         Mesh indices.
-    frac : (ptcl_num, 2**dim) jax.numpy.ndarray
+    frac : (ptcl_num, 2**dim) jax.Array
         Multilinear fractions on the mesh.
-    frac_grad : (ptcl_num, 2**dim, dim) jax.numpy.ndarray
+    frac_grad : (ptcl_num, 2**dim, dim) jax.Array
         Multilinear fraction gradients on the mesh.
 
     """
@@ -267,7 +264,7 @@ def ptcl_rpos(ptcl, ref, conf, wrap=True):
     Parameters
     ----------
     ptcl : Particles
-    ref : array_like or Particles
+    ref : ArrayLike or Particles
         Reference points or particles.
     conf : Configuration
     wrap : bool, optional
@@ -275,7 +272,7 @@ def ptcl_rpos(ptcl, ref, conf, wrap=True):
 
     Returns
     -------
-    rpos : jax.numpy.ndarray of conf.float_dtype
+    rpos : jax.Array of conf.float_dtype
         Particle relative positions in [L].
 
     """
@@ -300,16 +297,16 @@ def ptcl_rsd(ptcl, los, a, cosmo):
     Parameters
     ----------
     ptcl : Particles
-    los : array_like
+    los : ArrayLike
         Line-of-sight **unit vectors**, global or per particle. Vector norms are *not*
         checked.
-    a : array_like
+    a : ArrayLike
         Scale factors, global or per particle.
     cosmo : Cosmology
 
     Returns
     -------
-    rsd : jax.numpy.ndarray of cosmo.conf.float_dtype
+    rsd : jax.Array of cosmo.conf.float_dtype
         Particle redshift-space distortion displacements in [L].
 
     """
@@ -333,13 +330,13 @@ def ptcl_los(ptcl, obs, conf):
     Parameters
     ----------
     ptcl : Particles
-    obs : array_like or Particles
+    obs : ArrayLike or Particles
         Observer position.
     conf : Configuration
 
     Returns
     -------
-    los : jax.numpy.ndarray of conf.float_dtype
+    los : jax.Array of conf.float_dtype
         Particles line-of-sight unit vectors.
 
     """

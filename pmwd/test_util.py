@@ -115,11 +115,11 @@ def check_custom_vjp(fun, primals, partial_args=(), partial_kwargs={},
 
     Returns
     -------
-    cot : jax.numpy.ndarray
+    cot : jax.Array
         Input cotangents by custom vjp.
-    cot_orig : jax.numpy.ndarray
+    cot_orig : jax.Array
         Input cotangents by automatic vjp.
-    cot_diff : jax.numpy.ndarray
+    cot_diff : jax.Array
         Input cotangent differences.
 
     Raises

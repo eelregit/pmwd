@@ -2,9 +2,9 @@ from functools import partial
 import math
 from typing import ClassVar, Optional, Tuple, Union
 
-from numpy.typing import DTypeLike
 import jax
 from jax import ensure_compile_time_eval
+from jax.typing import DTypeLike
 import jax.numpy as jnp
 from jax.tree_util import tree_map
 from mcfit import TophatVar
@@ -33,11 +33,11 @@ class Configuration:
         ratio, to determine the mesh shape from that of the particle grid. The mesh grid
         cannot be smaller than the particle grid (int or float values must not be
         smaller than 1) and the two grids must have the same aspect ratio.
-    cosmo_dtype : dtype_like, optional
+    cosmo_dtype : DTypeLike, optional
         Float dtype for Cosmology and Configuration.
-    pmid_dtype : dtype_like, optional
+    pmid_dtype : DTypeLike, optional
         Signed integer dtype for particle or mesh grid indices.
-    float_dtype : dtype_like, optional
+    float_dtype : DTypeLike, optional
         Float dtype for other particle and mesh quantities.
     k_pivot_Mpc : float, optional
         Primordial scalar power spectrum pivot scale in 1/Mpc.

@@ -12,18 +12,18 @@ def scatter(ptcl, conf, mesh=None, val=None, offset=0, cell_size=None):
     ----------
     ptcl : Particles
     conf : Configuration
-    mesh : array_like, optional
+    mesh : ArrayLike, optional
         Input mesh. Default is a ``zeros`` array of ``conf.mesh_shape + val.shape[1:]``.
-    val : array_like, optional
+    val : ArrayLike, optional
         Input values, can be 0D. Default is ``conf.mesh_size / conf.ptcl_num``.
-    offset : array_like, optional
+    offset : ArrayLike, optional
         Offset of mesh to particle grid. If 0D, the value is used in each dimension.
     cell_size : float, optional
         Mesh cell size in [L]. Default is ``conf.cell_size``.
 
     Returns
     -------
-    mesh : jax.numpy.ndarray
+    mesh : jax.Array
         Output mesh.
 
     """

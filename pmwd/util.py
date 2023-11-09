@@ -1,5 +1,6 @@
 import numpy as np
 from jax import float0
+import jax.numpy as jnp
 
 
 def is_float0_array(x):

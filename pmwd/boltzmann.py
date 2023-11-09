@@ -34,14 +34,14 @@ def transfer_fit(k, cosmo, conf):
 
     Parameters
     ----------
-    k : array_like
+    k : ArrayLike
         Wavenumbers in [1/L].
     cosmo : Cosmology
     conf : Configuration
 
     Returns
     -------
-    T : jax.numpy.ndarray of (k * 1.).dtype
+    T : jax.Array of (k * 1.).dtype
         Matter transfer function.
 
     .. _Transfer Function:
@@ -129,14 +129,14 @@ def transfer(k, cosmo, conf):
 
     Parameters
     ----------
-    k : array_like
+    k : ArrayLike
         Wavenumbers in [1/L].
     cosmo : Cosmology
     conf : Configuration
 
     Returns
     -------
-    T : jax.numpy.ndarray of (k * 1.).dtype
+    T : jax.Array of (k * 1.).dtype
         Matter transfer function.
 
     Raises
@@ -238,7 +238,7 @@ def growth(a, cosmo, conf, order=1, deriv=0):
 
     Parameters
     ----------
-    a : array_like
+    a : ArrayLike
         Scale factors.
     cosmo : Cosmology
     conf : Configuration
@@ -249,7 +249,7 @@ def growth(a, cosmo, conf, order=1, deriv=0):
 
     Returns
     -------
-    D : jax.numpy.ndarray of (a * 1.).dtype
+    D : jax.Array of (a * 1.).dtype
         Growth functions or derivatives.
 
     Raises
@@ -297,16 +297,16 @@ def varlin(R, a, cosmo, conf):
 
     Parameters
     ----------
-    R : array_like
+    R : ArrayLike
         Scales in [L].
-    a : array_like or None
+    a : ArrayLike or None
         Scale factors. If None, output is not scaled by growth.
     cosmo : Cosmology
     conf : Configuration
 
     Returns
     -------
-    sigma2 : jax.numpy.ndarray of (k * a * 1.).dtype
+    sigma2 : jax.Array of (k * a * 1.).dtype
         Linear matter overdensity variance.
 
     Raises
@@ -401,16 +401,16 @@ def linear_power(k, a, cosmo, conf):
 
     Parameters
     ----------
-    k : array_like
+    k : ArrayLike
         Wavenumbers in [1/L].
-    a : array_like or None
+    a : ArrayLike or None
         Scale factors. If None, output is not scaled by growth.
     cosmo : Cosmology
     conf : Configuration
 
     Returns
     -------
-    Plin : jax.numpy.ndarray of (k * a * 1.).dtype
+    Plin : jax.Array of (k * a * 1.).dtype
         Linear matter power spectrum in [L^3].
 
     Raises

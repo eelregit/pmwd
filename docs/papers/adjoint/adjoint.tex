@@ -1,4 +1,4 @@
-\documentclass[modern, trackchanges, dvipsnames]{aastex631}
+\documentclass[modern, dvipsnames]{aastex631}
   \urlstyle{sf}
 
 
@@ -70,9 +70,9 @@
 \newcommand{\ic}{\mathrm{i}}
 \newcommand{\Plin}{P_\mathrm{lin}}
 
-\newcommand{\GPU}{NVIDIA A100 80GB SXM4}
+\newcommand{\GPU}{NVIDIA H100 PCIe}
 
-\newcommand{\HL}[1]{\textcolor{Bittersweet}{#1}}
+\newcommand{\HL}[1]{\textcolor{Bittersweet}{\textbf{#1}}}
 
 
 
@@ -144,16 +144,16 @@ scientific research.
 In particular, automatic differentiation (AD) tools and computational
 accelerators like GPUs have facilitated forward modeling of the Universe
 with differentiable simulations.
-Current differentiable cosmological simulations are limited by memory,
-thus are subject to a trade-off between time and space/mass resolution.
-They typically integrate for only tens of time steps, unlike the
-standard non-differentiable simulations.
+Based on analytic or automatic backpropagation, current differentiable
+cosmological simulations are limited by memory, and thus are subject to
+a trade-off between time and space/mass resolution, usually sacrificing
+both.
 We present a new approach free of such constraints, using the adjoint
 method and reverse time integration.
-It enables larger and more accurate forward modeling, and will improve
-gradient based optimization and inference.
-We implement it in a particle-mesh (PM) $N$-body library \pmwd\
-(particle-mesh with derivatives).
+It enables larger and more accurate forward modeling at the field level,
+and will improve gradient based optimization and inference.
+We implement it in an open-source particle-mesh (PM) $N$-body library
+\pmwd\ (particle-mesh with derivatives).
 Based on the powerful AD system \texttt{JAX}, \pmwd\ is fully
 differentiable, and is highly performant on GPUs.
 
@@ -178,7 +178,7 @@ cross-correlation of different observables, and can easily incorporate
 systematic errors.
 This approach has been intractable due to the large computational costs
 on conventional CPU clusters, but rapid advances in accelerator
-technology like GPUs opens the possibility of simulation-based modeling
+technology like GPUs open the possibility of simulation-based modeling
 and inference \citep{CranmerEtAl2020}.
 Furthermore, model differentiability enabled by AD libraries can
 accelerate parameter constraint with gradient-based optimization and
@@ -189,41 +189,71 @@ conditions of the Universe.
 
 The first differentiable cosmological simulations, such as BORG, ELUCID,
 and BORG-PM \citep{BORG, ELUCID, BORG-PM}, were developed before the
-advent of modern AD systems, and were based on implementations of
-analytic derivatives \citep[see e.g.,][App.~D]{SeljakEtAl2017}).
+advent of modern AD systems, and were based on \HL{the analytic derivatives,
+which involve first convoluted derivation by hand using the chain rule
+\citep[see e.g.,][App.~D]{SeljakEtAl2017} before implementing them in
+code.}
 Later codes including \texttt{FastPM} and \texttt{FlowPM} \citep{FastPM,
-vmad, SeljakEtAl2017, FlowPM} compute gradients using AD engines, namely
-\texttt{vmad} (written by the same authors) and \texttt{TensorFlow},
-respectively.
+vmad, SeljakEtAl2017, FlowPM} compute gradients using the AD engines,
+namely \texttt{vmad} (written by the same authors) and
+\texttt{TensorFlow}, respectively.
+\HL{The AD frameworks automatically apply the chain rule to the primitive
+operations that comprise the whole simulation, relieving the burden of
+derivation and implementation of the derivatives.}
 Both analytic differentiation and AD backpropagate the gradients through
-the whole history, thus requires saving the states at all time steps in
+the whole history, which requires saving the states at all time steps in
 memory.
 Therefore, they are subject to a trade-off between time and space/mass
-resolution, and typically can integrate for only tens of time steps,
-much smaller than the standard non-differentiable simulations.
+resolution, usually sacrificing both.
 As a result, they lose accuracy on small scales and in dense regions
 where the time resolution is important, e.g., in weak lensing
 \citep{MADLens}.
 
-Alternatively, the adjoint method provides systematic ways of deriving
-model gradients under constraints \citep{Pontryagin1962}, such as those
-imposed by the $N$-body equations of motion in a simulated Universe.
-It identifies a set of adjoint variables, dual to the state variables in
-the simulation.
-For time-dependent problems, these variables evolves backward in time by
-a dual set of equations, known as the adjoint equations.
-Their evolution depends on the states in the forward run, which can be
-re-simulated with reverse time integration if the dynamics is
-reversible, thereby dramatically reducing the memory cost
+\HL{Alternatively, the adjoint method provides systematic ways of deriving
+the gradients of an objective function $\cJ$ under constraints
+\citep{Pontryagin1962}, such as those imposed by the $N$-body equations
+of motion in a simulated Universe.
+It identifies a set of \emph{adjoint variables} $\vlambda$, dual to the
+state variables $\vz$ of the model, and carrying the gradient
+information of the objective function with respect to the model state
+$\p\cJ / \p\vz$.
+For time-dependent problems, the adjoint variables evolve
+\emph{backward} in time by a set of equations dual to that of the
+forward evolution, known as the \emph{adjoint equations}.
+For continuous time, the adjoint equations are a set of differential
+equations, while in the discrete case they become difference equations
+which are practically a systematic way to structure the chain rule or
+backpropagation.
+Their initial conditions are set by the explicit dependence of the
+objective on the simulation state, e.g., $\vlambda_n = \p\cJ / \p\vz_n$
+if $\cJ$ is a function of the final state $\vz_n$.
+Solving the adjoint equations can help us to propagate the gradient
+information via the adjoint variables to the input parameters $\vtheta$,
+to compute the objective gradients $\d\cJ / \d\vtheta$.
+And we will see later that the propagated and accumulated gradients on
+parameters come naturally from multiple origins, each reflecting a
+$\vtheta$-dependence at one stage of the modeling in
+\autoref{fig:model}.}
+
+The backward adjoint evolutions depend on the states in the forward run,
+which we can re-simulate with reverse time integration if the dynamics
+is reversible, thereby dramatically reducing the memory cost
 \citep{NeuralODE}.
-Furthermore, we take the discretize-then-optimize approach
-\citep[e.g.,][]{ANODE} to ensure gradients propagate backward along the
-\emph{same} discrete trajectory as taken by the forward time
+Furthermore, we \HL{derive the discrete adjoint equations dual to the
+discrete forward time integration, known as the discretize-then-optimize
+approach \citep[e.g.,][]{ANODE}, to ensure gradients propagate backward
+along the \emph{same} trajectory as taken by the forward time
 integration.
+This is in contrast with the optimize-then-discretize approach, that
+numerically integrates the continuous adjoint equations, and is prone to
+larger deviations between the forward and the backward trajectories due
+to different discretizations \citep{LanzieriLanusseEtAl2022}.}
 In brief, to compute the gradient we only need to evolve a simulation
 forward, and then backward jointly with its dual adjoint equations.
-We introduce the adjoint method for generic time-dependent problems in
-both continuous and discrete cases in \autoref{app:adj}.
+We introduce the adjoint method first for generic time-dependent
+problems in both continuous and discrete cases in \autoref{sec:bwd}, and
+then present its application on cosmological simulation in
+\autoref{sec:adj}.
 
 We implement the adjoint method with reverse time integration in a new
 differentiable PM library \pmwd\ using \texttt{JAX} \citep{pmwd}.
@@ -321,13 +351,13 @@ efficient when running on GPUs.
 \caption{Simulation-based forward model of the Universe.
 \subref{fig:model} shows the overall model structure.
 Single arrows from the cosmological parameters $\vtheta$ and white noise
-field $\vomega$ indicate dependence on $\vtheta$ only, while double
+modes $\vomega$ indicate dependence on $\vtheta$ only, while double
 arrows imply dependence on both.
 The time integration loop in \subref{fig:loop} expands the solid box in
 \subref{fig:model}, and a single time step in \subref{fig:step} further
 expands the dashed box in \subref{fig:loop}.
-We describe different operators in \autoref{sec:method}: Boltzmann
-solver (``Boltz'') and initial condition generator (``IC'') in
+We describe different operators in \autoref{sec:fwd}: Boltzmann solver
+(``Boltz'') and initial condition generator (``IC'') in
 \autoref{sec:ic}; force solver ($F$) in \autoref{sec:force}; time
 integration (``Integ''), kick ($K$), and drift ($D$) in
 \autoref{sec:integ}; observation (``Obs'' and $O$) and objective
@@ -338,13 +368,11 @@ Gradients flow backward with all arrows reversed (\autoref{sec:adj}).
 
 
 \vspace{1em}
-\section{Methods}
-\label{sec:method}
+\section{Forward Simulation}
+\label{sec:fwd}
 
-We first review all components of the $N$-body simulation-based forward
-model of the cosmological structure formation, and then introduce the
-adjoint method for each part, and how they can be combined to
-differentiate a whole simulation at low memory cost.
+We first review and formulate all components of the $N$-body
+simulation-based forward model of the cosmological structure formation.
 
 
 \vspace{1em}
@@ -368,7 +396,7 @@ The expansion rate is described by the Hubble parameter $H \triangleq \d
 
 The initial conditions of particles can be set perturbatively when
 $|\vnabla \cdot \vs|$, the linear approximation of the density
-fluctuation, is much smaller than 1.
+fluctuation, is much less than 1.
 We compute the initial displacements and momenta using the second order
 Lagrangian perturbation theory \citep[2LPT,][]{BouchetEtAl1995}:
 %
@@ -376,7 +404,7 @@ Lagrangian perturbation theory \citep[2LPT,][]{BouchetEtAl1995}:
 \vs &= D_1 \vs^{(1)} + D_2 \vs^{(2)}, \nonumber\\
 \vp &= a^2 \dot\vx = a^2 \dot\vs
   = a^2 H \bigl( D_1' \vs^{(1)} + D_2' \vs^{(2)} \bigr),
-\label{ic}
+\label{lpt}
 \end{align}
 %
 where $\vp$ is the canonical momentum\footnote{We omit the particle mass
@@ -398,9 +426,7 @@ Both the first and second order displacements are potential flows,
 \vs^{(2)} = - \vnabla_\vq \phi_\vs^{(2)},
 \end{equation}
 %
-with the scalar potentials sourced by\footnote{Note the difference in
-the sign of the source of $\phi_\vs^{(2)}$ from the usual LPT
-convention.}
+with the scalar potentials sourced by
 %
 \begin{align}
 \nabla_\vq^2 \phi_\vs^{(1)} &= \delta^{(1)}(\vq), \nonumber\\
@@ -449,7 +475,7 @@ transform of a real white noise field $\omega(\vq)$.
 
 Cosmological perturbation theory gives the linear power spectrum
 as\footnote{Here the time dependence of the linear power, $\Plin(k, a) =
-\Plin(k) D_1^2(a)$, has been left to \eqref{ic}}
+\Plin(k) D_1^2(a)$, has been left to \eqref{lpt}}
 %
 \begin{equation}
 \frac{k^3}{2\pi^2} \Plin(k)
@@ -532,11 +558,11 @@ $\vx'$ going to a grid point at $\vx$,
 %
 \begin{equation}
 W(\vx, \vx') = \prod_{i=1}^3
-  \max \Bigl( 1 - \frac{|x_i-x'_i|}{l_\mathrm{cell}}, 0 \Bigr),
+  \max \Bigl( 1 - \frac{|x_i-x'_i|}{l}, 0 \Bigr),
 \label{cic}
 \end{equation}
 %
-where $l_\mathrm{cell}$ is the mesh cell size.
+where $l$ is the mesh cell size.
 
 The gravitational field, $- \vnabla \varphi$, can then be readily
 computed on the mesh with the fast Fourier transform (FFT), as the above
@@ -570,10 +596,10 @@ $N$-body particles move by the following equations of motion
 \end{align}
 %
 We use the \texttt{FastPM} time stepping \citep{FastPM}, designed to
-reproduce the first order Lagrangian perturbation theory, also known as
-the Zel'dovich approximation (hereafter ZA), in the linear regime.
+reproduce in the linear regime the linear Lagrangian perturbation
+theory, i.e., the 1LPT as the first order in \eqref{lpt}, also known as
+the the Zel'dovich approximation (hereafter ZA).
 We present a simplified derivation below.
-
 
 $N$-body simulations integrate \eqref{eom} in discrete steps
 (\autoref{fig:loop}), typically with a symplectic integrator that
@@ -609,7 +635,7 @@ However, in most codes $G_D$ and $G_K$ are simply set to 1
 steps are limited.
 
 \texttt{FastPM} chooses $G_D$ and $G_K$ according to the ZA growth
-history, thereby improves the accuracy on large scales and at early
+history, thereby improving the accuracy on large scales and at early
 times.
 In ZA, the displacements are proportional to the linear growth factor,
 $\vs \propto D_1$, which determines the time dependences of the momenta
@@ -634,7 +660,6 @@ D(t_c, t_a, t_b) &=
 K(t_c, t_a, t_b) &=
   \frac{G_D(t_b) - G_D(t_a)}{G_K(t_c)}.
 \end{align}
-%
 
 While these operators are generally applicable in any symplectic
 integrator, we use them in the second order kick-drift-kick leapfrog, or
@@ -681,7 +706,7 @@ $\hat\vz$.
 The solution can even be analytic if the light propagation is also
 approximated cubically.
 Note that we only ``observe'' the dark matter phase space here, and
-leave more realistic observables to a future work, including the forward
+leave more realistic observables to future works, including the forward
 modeling of real observational effects.
 \autoref{fig:step} illustrates the observation operator $O$ and its
 dependencies on the previous and the current time step.
@@ -711,630 +736,18 @@ steps, so we model all these cases as observations in \pmwd.
 
 
 \vspace{1em}
-\subsection{Adjoint Method}
-\label{sec:adj}
+\section{Backward Differentiation -- the Adjoint Method}
+\label{sec:bwd}
 
-The adjoint method provides systematic ways of deriving the objective
-gradient under constraints \citep{Pontryagin1962}, here imposed by the
-$N$-body equations of motion.
-In \autoref{app:adj} we introduce the adjoint method for generic
-time-dependent problems in both continuous and discrete cases.
-The continuous case is easier to understand and has pedagogical values,
-while the discrete case is the useful one in our application, for we
-want to propagate the gradients backward along the \emph{same} path as
-that of the forward time integration.
-
-For the $N$-body particles, the state variable\footnote{State and
-adjoint vectors in the adjoint equations include enumeration of
-particles, e.g., $\vnabla\vvarphi$ includes the $\vnabla\varphi$ of each
-particle.} is $\vz = (\vx, \vp)^\intercal$.
-Their adjoint variables help to accumulate the objective gradient while
-evolving backward in time by the adjoint equation.
-Let's denote them by $\vlambda = (\vxi, \vpi)$.
-We can compare each step of \eqref{KDFK} and \eqref{O} to
-\eqref{explicit}, and write down its adjoint equation following
-\eqref{explicit_adj}.
-Taking $D_{i-1}^i$ for example, we can write it explicitly as
-%
-\begin{equation*}
-\begin{pmatrix} \vx_i \\ \vp_{i-\half} \end{pmatrix}
-= \begin{pmatrix} \vx_{i-1} \\ \vp_{i-\half} \end{pmatrix}
-+ \begin{pmatrix}
-    \vp_{i-\half} D(t_{i-\half}, t_{i-1}, t_i) \\ \vzero
-  \end{pmatrix},
-\end{equation*}
-%
-in the form of \eqref{explicit}.
-By \eqref{explicit_adj}, its adjoint equation is
-%
-\begin{align*}
-\begin{pmatrix} \vxi_{i-\half} & \vpi_{i-1} \end{pmatrix}
-&= \begin{pmatrix} \vxi_{i-\half} & \vpi_i \end{pmatrix}
-+ \begin{pmatrix} \vxi_{i-\half} & \vpi_i \end{pmatrix}
-  \begin{pmatrix}
-    \vzero & \vI \, D(t_{i-\half}, t_{i-1}, t_i) \\
-    \vzero & \vzero \\
-  \end{pmatrix} \\
-%
-&= \begin{pmatrix} \vxi_{i-\half} & \vpi_i \end{pmatrix}
-- \begin{pmatrix}
-    \vzero & \vxi_{i-\half} D(t_{i-\half}, t_i, t_{i-1})
-  \end{pmatrix},
-\end{align*}
-%
-where we have used the fact that $D(t_c, t_a, t_b) = - D(t_c, t_b,
-t_a)$, and left the $\p\cJ / \p\vz_i$ term to the $O$ operator.
-This also naturally determines the subscripts of $\xi$ and $\pi$.
-
-Repeating the derivation for $K$ and $O$, and flipping the arrow of
-time, we present the adjoint equation time stepping for \eqref{KDFK}
-from $t_i$ to $t_{i-1}$:
-%
-\begin{alignat}{2}
-&K_i^{i-\half}: &\qquad \vp_{i-\half} &= \vp_i
-  + \va_i K(t_i, t_i, t_{i-\half}), \nonumber\\
-&& \vxi_{i-\half} &= \vxi_i
-  - \valpha_i K(t_i, t_i, t_{i-\half}), \nonumber\\
-%
-&D_i^{i-1}: & \vx_{i-1} &= \vx_i
-  + \vp_{i-\half} D(t_{i-\half}, t_i, t_{i-1}), \nonumber\\
-&& \vpi_{i-1} &= \vpi_i
-  - \vxi_{i-\half} D(t_{i-\half}, t_i, t_{i-1}), \nonumber\\
-%
-&F_{i-1}: & \va_{i-1} &= -\vnabla\vvarphi(\vx_{i-1}), \nonumber\\
-&& \valpha_{i-1} &\triangleq - \vpi_{i-1}
-  \cdot \frac{\p\vnabla\vvarphi_{i-1}}{\p\vx_{i-1}}, \nonumber\\
-&& \vzeta_{i-1} &\triangleq - \vpi_{i-1}
-  \cdot \frac{\p\vnabla\vvarphi_{i-1}}{\p\vtheta}, \nonumber\\
-%
-&K_{i-\half}^{i-1}: & \vp_{i-1} &= \vp_{i-\half}
-  + \va_{i-1} K(t_{i-1}, t_{i-\half}, t_{i-1}), \nonumber\\
-&& \vxi_{i-1} &= \vxi_{i-\half}
-  - \valpha_{i-1} K(t_{i-1}, t_{i-\half}, t_{i-1}), \nonumber\\
-%
-&O_i^{i-1}: &\qquad \vxi_{i-1} :\:\!\!\!&= \vxi_{i-1}
-  + \frac{\p\cJ}{\p\vx_{i-1}}, \nonumber\\
-&& \vpi_{i-1} :\:\!\!\!&= \vpi_{i-1} + \frac{\p\cJ}{\p\vp_{i-1}}.
-\label{KDFKO_adj}
-\end{alignat}
-%
-Like $\va$, we have introduced $\valpha$ and $\vzeta$ to cache the
-vector-Jacobian products (VJPs) on their right-hand sides, for the next
-time step in the kick operator and the objective gradient (see below),
-respectively.
-Note that in the reverse order, the $F$ operator is at $t_{i-1}$ instead
-of $t_i$ as in \eqref{KDFK}, and we need to initialize $\va_n$,
-$\valpha_n$, and $\vzeta_n$ with $F_n$ before stepping from $t_n$ to
-$t_{n-1}$.
-Likewise, the gradient of $O_n^{n-1}$ at $t_n$ is absent in
-\eqref{KDFKO_adj} but enter via the initial conditions following
-\eqref{explicit_adj}.
-Explicitly, the initial conditions of \eqref{KDFKO_adj} are
-%
-\begin{equation}
-\vxi_n = \frac{\p\cJ}{\p\vx_n},
-\vpi_n = \frac{\p\cJ}{\p\vp_n},
-\va_n = -\vnabla\vvarphi(\vx_n),
-\valpha_n = - \vpi_n \cdot \frac{\p\vnabla\vvarphi_n}{\p\vx_n},
-\vzeta_n = - \vpi_n \cdot \frac{\p\vnabla\vvarphi_n}{\p\vtheta}.
-\end{equation}
-
-The VJPs in $F$ and the $\p\cJ / \p\vz$'s in $O$ can be computed by AD
-if the whole forward integration and observation history of \eqref{KDFK}
-and \eqref{O} has been saved.
-However, this can be too costly spatially for GPUs, whose memories are
-much smaller than those of CPUs.
-Alternatively, we take advantage of the reversibility of the $N$-body
-dynamics and the leapfrog integrator, and recover the history by reverse
-time integration, which we have already included on the first lines of
-the $K$ and $D$ operators in \eqref{KDFKO_adj}.
-We can integrate the leapfrog and the adjoint equations jointly backward
-in time, and still benefit from the convenience of AD in computing VJPs
-and $\p\cJ / \p\vz$'s.
-In practice, the numerical reversibility can be challenged by the
-chaotic $N$-body dynamics, which we find is generally not a concern for
-our applications in the result section.
-
-Finally, during the reverse time integration, we can accumulate
-objective gradient following \eqref{explicit_grad}:
-%
-\begin{multline}
-\frac{\d\cJ}{\d\vtheta} = \frac{\p\cJ}{\p\vtheta}
-%
-+ \frac{\p\cJ}{\p\hat\vx} \cdot \frac{\p\hat\vx}{\p\vtheta}
-+ \frac{\p\cJ}{\p\hat\vp} \cdot \frac{\p\hat\vp}{\p\vtheta}
-%
-+ \vxi_0 \cdot \frac{\p\vx_0}{\p\vtheta}
-+ \vpi_0 \cdot \frac{\p\vp_0}{\p\vtheta} \\
-%
-- \sum_{i=1}^n \Bigl[
-  \bigl( \vpi_i \cdot\va_i \frac\p{\p\vtheta} + \vzeta_i
-    \bigr) K(t_i, t_i, t_{i-\half}) \\
-  + \vxi_i \cdot \vp_{i-\half}
-    \frac{\p D(t_{i-\half}, t_i, t_{i-1})}{\p\vtheta} \\
-  + \bigl( \vpi_{i-1} \cdot \va_{i-1} \frac\p{\p\vtheta} + \vzeta_{i-1}
-    \bigr) K(t_{i-1}, t_{i-\half}, t_{i-1})
-  \Bigr],
-\label{KDFKO_grad}
-\end{multline}
-%
-in which the derivatives and VJPs of the regularization/prior, the
-observation, the initial conditions, the kick and drift factors, and the
-growth and transfer functions can all be conveniently computed by AD.
-Also note that $\vtheta$ can stand for both itself and $\vomega$, which
-we have omitted for brevity.
-To implement \eqref{KDFKO_adj}-\eqref{KDFKO_grad} in \pmwd\ with
-\texttt{JAX}, we only need to write custom VJP operators for the
-high-level $N$-body integration-observation loop.
-
-Other than that, we also implement custom VJPs for the scatter and
-gather operations in \autoref{sec:force} following \citet{Feng2017}, and
-these further save memory in gradient computations of those nonlinear
-functions.
-
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.85\linewidth]{slab.pdf}
-\caption{Relative matter density field, $1+\delta$, at $a=1$, projected
-from an $8\,\Mpc/h$ thick slab in a \pmwd\ simulation, that has evolved
-$512^3$ particles with single precision and a $1024^3$ mesh in a
-$(512\,\Mpc/h)^3$ box for 63 time steps.
-The simulation takes only 20 seconds to finish on a \GPU\ GPU.
-}
-\label{fig:slab}
-\end{figure*}
-
-
-\vspace{1em}
-\section{Results}
-
-We implement the forward simulation and backward adjoint method in the
-PM code \pmwd.
-All results assume a simple $\Lambda$CDM cosmology: $\vtheta (\As =
-2\times10^{-9}, \ns = 0.96, \Omegam = 0.3, \Omegab = 0.05, h = 0.7)$,
-and use a \GPU\ GPU.
-
-As in \texttt{FastPM}, the choice of time steps is flexible, and in fact
-with \pmwd\ it can even be optimized in non-parametric ways to improve
-simulation accuracy at fixed computation cost.
-Here we use time steps linearly spaced in scale factor $a$, and leave
-such optimization in a follow-up work.
-
-
-\vspace{1em}
-\subsection{Simulation}
-
-We first test the forward simulations of \pmwd.
-\autoref{fig:slab} shows the cosmic web in the final snapshot of a
-fairly large simulation for the size of GPU memories.
-
-Because GPUs are inherently parallel devices, they can output different
-results for identical inputs.
-To test the reproducibility, in \autoref{tab:rep} we compare the
-root-mean-square deviations (RMSDs) of particle displacements and
-velocities between two runs, relative to their respective standard
-deviations, with different floating-point precisions, mesh sizes,
-particle masses, and numbers of time steps.
-Other than the precision, mesh size is the most important factor,
-because a finer mesh can better resolve the most nonlinear and dense
-structures, which can affect reproducibility as the order of many
-operations can change easily.
-The particle mass plays a similar role and less massive particles
-generally take part in nonlinear motions at earlier times.
-The number of time steps has very small impact except in the most
-nonlinear cases.
-And interestingly, more time steps improves the reproducibility most of
-the time.
-
-
-\begin{table*}[t]
-\centering
-\caption{\pmwd\ reproducibility on GPU.
-GPUs can output different results for identical inputs.
-We simulate $384^3$ particles from $a=1/64$ to $a=1$, with two
-floating-point precisions, two mesh sizes, two particle masses, and two
-time step sizes.
-We take the root-mean-square deviations (RMSDs) of particle
-displacements and velocities between two runs at $a=1$, and quote their
-ratios to the respective standard deviations, about $6 \, \Mpc / h$ and
-$3\times10^2 \, \mathrm{km} / \mathrm{s}$.
-In general, the factors on the left of the left four columns affect the
-reproducibility more than the those on the right, and lower rows are
-more reproducible than the upper ones.
-}
-\label{tab:rep}
-\begin{tabular}{cccccc}
-  \toprule
-  precision & cell/ptcl & ptcl mass $[10^{10} M_\odot]$ & time steps
-    & disp rel diff & vel rel diff \\
-  \midrule
-  single & 8 & 1 &  63 & $1.6\times10^{-6}$  & $4.8\times10^{-5}$  \\
-  single & 8 & 1 & 126 & $5.1\times10^{-7}$  & $1.3\times10^{-5}$  \\
-  single & 8 & 8 &  63 & $3.1\times10^{-7}$  & $2.4\times10^{-6}$  \\
-  single & 8 & 8 & 126 & $3.1\times10^{-7}$  & $2.3\times10^{-6}$  \\
-  single & 1 & 1 &  63 & $1.4\times10^{-7}$  & $1.5\times10^{-6}$  \\
-  single & 1 & 1 & 126 & $1.3\times10^{-7}$  & $1.4\times10^{-6}$  \\
-  single & 1 & 8 &  63 & $1.1\times10^{-7}$  & $4.5\times10^{-7}$  \\
-  single & 1 & 8 & 126 & $9.9\times10^{-8}$  & $4.4\times10^{-7}$  \\
-  double & 8 & 1 &  63 & $1.4\times10^{-15}$ & $3.6\times10^{-14}$ \\
-  double & 8 & 1 & 126 & $8.3\times10^{-16}$ & $1.7\times10^{-14}$ \\
-  double & 8 & 8 &  63 & $5.4\times10^{-16}$ & $4.1\times10^{-15}$ \\
-  double & 8 & 8 & 126 & $5.9\times10^{-16}$ & $4.3\times10^{-15}$ \\
-  double & 1 & 1 &  63 & $2.4\times10^{-16}$ & $2.3\times10^{-15}$ \\
-  double & 1 & 1 & 126 & $2.3\times10^{-16}$ & $2.3\times10^{-15}$ \\
-  double & 1 & 8 &  63 & $1.9\times10^{-16}$ & $7.9\times10^{-16}$ \\
-  double & 1 & 8 & 126 & $1.8\times10^{-16}$ & $7.8\times10^{-16}$ \\
-  \bottomrule
-\end{tabular}
-\end{table*}
-
-
-\vspace{1em}
-\subsection{Differentiation}
-
-Model differentiation evolves the adjoint equations backward in time.
-To save memory, trajectory of the model state in the forward run is not
-saved, but re-simulated together with the adjoint equations.
-Even though in principle the $N$-body systems are reversible, in
-practice the reconstructed trajectory can differ from the forward one
-due to loss of small-scale information.
-To test the reversibility, in \autoref{tab:rev} we compare the RMSDs of
-the forward-then-reversed particle displacements and velocities from the
-LPT initial conditions, relative to their respective standard
-deviations, that are very small at the \emph{initial} time.
-As before, we vary the floating-point precision, the mesh size, the
-particle mass, and the number of time steps.
-The order of factor importance and their effects are the same as in the
-reproducibility test.
-This is because more nonlinear structures are more difficult to reverse.
-One way to improve reversibility is use higher order LPT to initialize
-the $N$-body simulations at later times, when the displacements and
-velocities are not as small.
-We leave this for future development.
-
-
-\begin{table*}[t]
-\centering
-\caption{\pmwd\ reversibility on GPU.
-Our adjoint method reduces memory cost by reconstructing the forward
-evolution with reverse time integration.
-We test the numerical reversibility by comparing the displacements and
-velocities of particles that have evolved to $a=1$ and then reversed to
-$a=1/64$, to those of the LPT initial conditions at $a=1/64$, in RMSDs.
-We take their ratios to the respective standard deviations, about $0.1
-\, \Mpc / h$ and $0.7 \, \mathrm{km} / \mathrm{s}$.
-Their smallness contributes partly to the fact that the quoted relative
-differences here being much greater than those in \autoref{tab:rep}.
-With the same setup as that in \autoref{tab:rep}, we see the same
-general trend---left factors are more important than the right ones,
-and lower rows are more reversible than the upper ones.
-}
-\label{tab:rev}
-\begin{tabular}{cccccc}
-  \toprule
-  precision & cell/ptcl & ptcl mass $[10^{10} M_\odot]$ & time steps
-    & disp rel diff & vel rel diff \\
-  \midrule
-  single & 8 & 1 &  63 & $5.2\times10^{-2}$  & $7.1\times10^{-2}$  \\
-  single & 8 & 1 & 126 & $2.1\times10^{-2}$  & $3.6\times10^{-2}$  \\
-  single & 8 & 8 &  63 & $3.3\times10^{-3}$  & $7.6\times10^{-3}$  \\
-  single & 8 & 8 & 126 & $3.7\times10^{-3}$  & $7.0\times10^{-3}$  \\
-  single & 1 & 1 &  63 & $1.4\times10^{-3}$  & $2.2\times10^{-3}$  \\
-  single & 1 & 1 & 126 & $1.3\times10^{-3}$  & $1.7\times10^{-3}$  \\
-  single & 1 & 8 &  63 & $4.3\times10^{-4}$  & $7.3\times10^{-4}$  \\
-  single & 1 & 8 & 126 & $4.4\times10^{-4}$  & $6.3\times10^{-4}$  \\
-  double & 8 & 1 &  63 & $5.4\times10^{-11}$ & $1.3\times10^{-10}$ \\
-  double & 8 & 1 & 126 & $3.5\times10^{-11}$ & $7.0\times10^{-11}$ \\
-  double & 8 & 8 &  63 & $5.8\times10^{-12}$ & $1.4\times10^{-11}$ \\
-  double & 8 & 8 & 126 & $6.4\times10^{-12}$ & $1.2\times10^{-11}$ \\
-  double & 1 & 1 &  63 & $2.2\times10^{-12}$ & $3.4\times10^{-12}$ \\
-  double & 1 & 1 & 126 & $2.1\times10^{-12}$ & $2.9\times10^{-12}$ \\
-  double & 1 & 8 &  63 & $7.2\times10^{-13}$ & $1.2\times10^{-12}$ \\
-  double & 1 & 8 & 126 & $6.9\times10^{-13}$ & $9.4\times10^{-13}$ \\
-  \bottomrule
-\end{tabular}
-\end{table*}
-
-
-Next, we want to verify that our adjoint method yields the same
-gradients as those computed by AD.
-As explained in \autoref{sec:adj}, \pmwd\ already utilizes AD on most of
-the differentiation tasks.
-To get the AD gradients we disable our custom VJP implementations on the
-$N$-body time integration, and the scatter and gather operations.
-In \autoref{fig:grads}, we compare the adjoint and AD gradients on a
-smaller problem, because AD already runs out of memory if we double the
-number of time steps or increase the space/mass resolution by
-$2^3\times$.
-To compensate for good statistics, we perform both adjoint and AD runs
-for 8 times, and compare their results by an asymmetric difference of
-$X_i - Y_j$ only for $j<i$, where $i$ and $j$ index the 8 runs.
-We can set $X$ and $Y$ to adjoint and AD respectively for comparison, or
-set both to either adjoint or AD to check their respective
-reproducibility.
-The adjoint and AD gradients on the real white noise agree very well,
-and so are their gradients on cosmological parameters.
-We find both gradients are consistent among different runs, with AD
-being more reproducible without the uncertainty from reverse time
-integration.
-Interestingly, the asymmetric difference of AD gradients is not
-symmetric about 0, implying some difference between the early and late
-AD runs, i.e., possible breaking of order- or time-invariance in AD.
-
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.4\linewidth]{grads.pdf}
-\\
-\vspace{1em}
-\includegraphics[height=0.45\linewidth]{grads_cmp.pdf}
-\hfill
-\includegraphics[height=0.45\linewidth]{grads_diff.pdf}
-\caption{Adjoint gradients of a $128\times128$ slice of the real white
-noise fields, in a \pmwd\ simulation of $128^3$ particles in a
-$(128\,\Mpc/h)^3$ box, with a $256^3$ mesh, 15 time steps, and single
-precision.
-We compare the adjoint gradients to those by AD, for which we have
-disabled the custom gradient implementation on the scatter, gather, and
-$N$-body time stepping operators.
-The adjoint and AD gradients agree as expected, with a RMSD of $\approx
-4\times10^{-5}$, 3 orders of magnitude smaller than the standard
-deviation of the gradients itself, $\approx 0.015$.
-It is also comparable to the difference between two different adjoint
-gradients, with a RMSD $\approx 5\times10^{-5}$.
-Different AD gradients are more consistent, with a tighter RMSD of
-$\approx 1\times10^{-5}$ due to the absence of uncertainty from reverse
-time integration.
-}
-\label{fig:grads}
-\end{figure*}
-
-
-Our last test on the adjoint gradients uses them in a toy optimization
-problem in \autoref{fig:optim}.
-We use a simple mean squared error loss between the projected density at
-$a=1$ and a target image, and the Adam optimizer \citep{Adam} with a
-learning rate of $0.1$ and other default hyperparameters.
-Holding the cosmological parameters fixed, we can optimize the real
-white noise field to source initial particles to evolve into our target
-pattern, in hundreds to thousands of iterations.
-
-
-\begin{figure*}[t]
-\centering
-\subfloat[initial conditions at $a=1/64$]{
-  \includegraphics[width=0.45\linewidth]{optim_ini.pdf}
-}
-\hfill
-\subfloat[final snapshot at $a=1$]{
-  \includegraphics[width=0.45\linewidth]{optim_0.pdf}
-}
-\\
-\subfloat[reverse evolution back to $a=1/64$]{
-  \includegraphics[width=0.45\linewidth]{optim_rev.pdf}
-}
-\hfill
-\subfloat[optimization for 10 iterations at $a=1$]{
-  \includegraphics[width=0.45\linewidth]{optim_10.pdf}
-}
-\\
-\subfloat[optimization for 100 iterations at $a=1$]{
-  \includegraphics[width=0.45\linewidth]{optim_100.pdf}
-}
-\hfill
-\subfloat[optimization for 1000 iterations at $a=1$]{
-  \includegraphics[width=0.45\linewidth]{optim_1000.pdf}
-}
-\\
-\caption{A toy problem where we optimize the initial conditions by
-gradient descent to make some interesting pattern after projection.
-The particles originally fill a $16\times27\times16$ grid, and then
-evolve from $a=1/64$ to $a=1$ for 63 time steps with \emph{single
-precision} and a $32\times54\times32$ mesh in a $160\times270\times160
-\, \Mpc^3/h^3$ box.
-We use the adjoint method and reverse time integration, assuming the
-latter can reconstruct the forward evolution history accurately.
-We validate this by demonstrating that the particles evolve backward to
-align on the initial grid.
-The optimized initial conditions successfully evolve into the target
-pattern, which improves with more iterations.
-Also see the animated reverse time evolution
-\href{https://youtu.be/Epsgh6vr0qs}{\faYoutubePlay} and initial
-condition optimization
-\href{https://youtu.be/vD6lbjHP3SY}{\faYoutubePlay} on YouTube.
-}
-\label{fig:optim}
-\end{figure*}
-
-
-\vspace{1em}
-\subsection{Performance}
-
-\pmwd\ benefits from GPU accelerations and efficient CUDA
-implementations of scatter and gather operations.
-In \autoref{fig:perf}, we present performance test of \pmwd, and find
-both the LPT and the $N$-body parts scale well except for very small
-problems.
-The growth function solution has a constant cost, and generally does not
-affect problem of moderate sizes.
-However, for a small number of particles and few time steps, it can
-dominate the computation, in which case one can accelerate the growth
-computation with an emulator \citep{KwanModiEtAl2022}.
-
-
-\begin{figure*}[t]
-\centering
-\includegraphics[width=0.7\linewidth]{perf.pdf}
-\caption{Performance of \pmwd. Both the 2LPT and $N$-body components
-scale well from $512^3$ particles to $64^3$ particles, below which they
-become overhead dominated.
-Solving the growth ODEs takes a constant time, and can dominate the cost
-for small numbers of particles and few time steps, but generally does
-not affect problems with more than $128^3$ particles.
-}
-\label{fig:perf}
-\end{figure*}
-
-
-\vspace{1em}
-\section{Conclusions}
-
-In this work, we develop the adjoint method for memory efficient
-differentiable cosmological simulations, exploiting the reversible
-nature of $N$-body Hamiltonian dynamics, and implement it with
-\texttt{JAX} in a new PM library, \pmwd{}.
-We have validated the numerical reversibility and the accuracy of the
-adjoint gradients.
-
-Being both computation and memory efficient, \pmwd\ enables larger and
-more accurate cosmological dark matter simulations.
-The next step involves modeling cosmological observables such as
-galaxies.
-One can achieve this with analytic, semi-analytic, and deep learning
-components running based on or in parallel with \pmwd.
-In the future, it can also facilitate the simultaneous modeling of
-multiple observables and the understanding of the astrophysics at play.
-
-\pmwd\ will benefit all the forward modeling approaches in cosmology,
-and will improve gradient based optimization and field-level inference
-to simultaneously constrain the cosmological parameters and the initial
-conditions of the Universe.
-The efficiency of \pmwd{} also makes it a promising route to generate
-the large amount of training data needed by the likelihood-free
-inference frameworks \citep{CranmerEtAl2020, DELFI}.
-
-Currently, these applications require more development, including
-distributed parallel capability on multiple GPUs \citep{FlowPM},
-optimization of spatiotemporal resolution of the PM solvers \citep{LDL,
-LanzieriLanusseEtAl2022, ZhangLiEtAl}, short-range supplement by direct
-summation of the particle-particle (PP) forces on GPUs \citep{HACC,
-PKDGRAV3, ABACUS}, differentiable models for observables, etc.
-We plan to pursue these in the future.
-
-
-
-\vspace{1em}
-\textit{\large Acknowledgements:}
-YL is grateful to all organizers of the 2013 KICP Summer School on
-Computational Cosmology \citep{KICPsummer2013}, especially Andrey
-Kravtsov and Nick Gnedin.
-We thank Alex Barnett, Biwei Dai, Boris Leistedt, ChangHoon Hahn,
-Daisuke Nagai, Dan Foreman-Mackey, Dan Fortunato, David Duvenaud, David
-Spergel, Dhairya Malhotra, Erik Thiede, Francisco Villaescusa-Navarro,
-Fruzsina Agocs, Giulio Fabbian, Jens St\"ucker, Kaze Wong, Kazuyuki
-Akitsu, Lehman Garrison, Manas Rachh, Ra\'ul Angulo, Shirley Ho, Simon
-White, Teppei Okumura, Tomomi Sunayama, Ulrich Steinwandel, Uro\v{s}
-Seljak, Wen Yan, Wenda Zhou, William Coulton, Xiangchong Li, and Yueying
-Ni for interesting discussions.
-YL and YZ were supported by The Major Key Project of PCL.
-The Flatiron Institute is supported by the Simons Foundation.
-
-
-\vspace{1em}
-\textit{\large Code Availability:}
-\pmwd\ is open-source on GitHub
-\href{https://github.com/eelregit/pmwd}{\faGithub}, including the source
-files and scripts of this paper
-\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/adjoint}{\faFile}.
-Also see the companion code paper \citep{pmwd}
-\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/pmwd}{\faFile}.
-
-
-\vspace{1em}
-\textit{\large Software:}
-\texttt{JAX} \citep{JAX}, \texttt{NumPy} \citep{NumPy}, \texttt{SciPy}
-\citep{SciPy}, and \texttt{matplotlib} \citep{matplotlib}.
-
-
-
-\vspace{1em}
-\appendix
-
-
-\vspace{1em}
-\section{Growth equations}
-\label{app:growth}
-
-The 2LPT growth functions follow the following ODEs:
-\begin{align}
-  D_1'' + \Bigl( 2 + \frac{H'}H \Bigr) D_1' - \frac32 \Omegam(a) D_1
-  &= 0, \nonumber\\
-  D_2'' + \Bigl( 2 + \frac{H'}H \Bigr) D_2' - \frac32 \Omegam(a) D_2
-  &= \frac32 \Omegam(a) D_1^2,
-\end{align}
-where
-\begin{equation}
-    \Omegam(a) = \frac{\Omegam H_0^2}{a^3 H^2}
-\end{equation}
-If the universe has been sufficiently matter dominated at $a_\ic$, with
-$\Omegam(a_\ic) \to 1$ and $H'/H \to -3/2$, the initial conditions of
-the ODEs can be set as the growing mode in this limiting case
-\begin{align}
-    D_1(a_\ic) &= a_\ic, \nonumber\\
-    D_1'(a_\ic) &= a_\ic, \nonumber\\
-    D_2(a_\ic) &= \frac37 a_\ic^2, \nonumber\\
-    D_2'(a_\ic) &= \frac67 a_\ic^2.
-\end{align}
-$D_1 \approx a$ in the matter dominated era, before being suppressed by
-dark energy.
-
-The above growth equations can be written in such suppression factors,
-\begin{equation}
-  G_m \triangleq D_m / a^m,
-\end{equation}
-for $m \in \{1, 2\}$, as
-\begin{align}
-  G_1'' + \Bigl( 4 + \frac{H'}H \Bigr) G_1'
-  + \Bigl( 3 + \frac{H'}H - \frac32 \Omegam(a) \Bigr) G_1
-  &= 0, \nonumber\\
-  G_2'' + \Bigl( 6 + \frac{H'}H \Bigr) G_2'
-  + \Bigl( 8 + 2\frac{H'}H - \frac32 \Omegam(a) \Bigr) G_2
-  &= \frac32 \Omegam(a) G_1^2,
-\end{align}
-with initial conditions
-\begin{align}
-    G_1(a_\ic) &= 1, \nonumber\\
-    G_1'(a_\ic) &= 0, \nonumber\\
-    G_2(a_\ic) &= \frac37, \nonumber\\
-    G_2'(a_\ic) &= 0.
-\end{align}
-We solve the growth equations in $G_m$ instead of $D_m$, with the
-\texttt{JAX} adaptive ODE integrator implementing the adjoint
-method\footnote{The growth equation adjoint method aims to solve the
-ODEs in their continuous limit, i.e., with the optimize-then-discretize
-approach, this is different from our discretize-then-optimize $N$-body
-adjoint method.}.
-This is because the former can be integrated backward in time more
-accurately for early times, which can improve the adjoint gradients.
-
-We can then evaluate the \texttt{FastPM} time integration factors in
-\eqref{G_ZA} by
-\begin{align}
-  G_D &= a^2 \dot D_1 = a^2 H D_1', \nonumber\\
-  G_K &= a \dot G_D = a^3 H^2 \Bigl[
-    D_1'' + \Bigl(2 + \frac{H'}H \Bigr) D_1'
-  \Bigr],
-  \label{G_eval}
-\end{align}
-and
-\begin{align}
-  D_m &= a^m G_m \nonumber\\
-  D_m' &= a^m \bigl( m G_m + G_1' \Bigr), \nonumber\\
-  D_m'' &= a^m \bigl( m^2 G_1 + 2m G_1' + G_1'' \Bigr).
-\end{align}
-
-
-\vspace{1em}
-\section{Adjoint Method}
-\label{app:adj}
-
-We introduce the adjoint method for generic time-dependent ODEs, and
-derive the adjoint equations following a pedagogical tutorial by
+We first introduce the adjoint method for generic time-dependent ODEs,
+and derive the adjoint equations following a pedagogical tutorial by
 \citet{Bradley2019}.
 We then adopt the discretize-then-optimize approach, and derive the
 discrete adjoint equations, that is more suitable for the $N$-body
 symplectic time integration.
+Finally we apply them to derive the adjoint equations and the gradients
+for cosmological simulations described in \autoref{sec:fwd}, and couple
+them with the reverse time integration to reduce the space complexity.
 
 
 \vspace{1em}
@@ -1399,9 +812,9 @@ It can be derived from the time-invariance of $\vLambda \cdot \vDelta$:
 \end{equation}
 
 Alternatively, the adjoint equation can be derived from the variational
-equation, using the facts that $\d (\bm{M}^{-1}) = - \bm{M}^{-1} \, \d
-\bm{M} \, \bm{M}^{-1}$ and $(\p\vz / \p\tilde\vz)^{-1} = \p\tilde\vz /
-\p\vz$.
+equation, using the facts that $\d \bm{M}^{-1} / \d t = - \bm{M}^{-1} \,
+\dot{\bm{M}} \, \bm{M}^{-1}$ \HL{for any invertible matrix $\bm{M}$}, and
+$(\p\vz / \p\tilde\vz)^{-1} = \p\tilde\vz / \p\vz$.
 Like \eqref{variational} and \eqref{adjoint}
 %
 \begin{equation}
@@ -1411,8 +824,9 @@ Like \eqref{variational} and \eqref{adjoint}
 \frac\d{\d t} \frac{\p\tilde\vz}{\p\vz}
 = - \frac{\p\tilde\vz}{\p\vz} \cdot \frac{\p\vf}{\p\vz}.
 \end{equation}
+%
 As we can see next, the adjoint equation takes a similar form when one
-optimize an objective function of the state.
+optimizes an objective function of the state.
 
 
 \vspace{1em}
@@ -1505,6 +919,7 @@ their solutions are related by
 = \frac{\p\cJ}{\p\vz_1} \cdot \frac{\p\vz_1}{\p\vz}
 = \frac{\p\cJ}{\p\vz}.
 \end{equation}
+%
 And like $\vLambda \cdot \vDelta$, $\vlambda \cdot \vDelta$ is
 time-invariant:
 %
@@ -1606,13 +1021,13 @@ so
 
 \vspace{1em}
 \subsection{Objective on the Observables}
-\label{app:lightcone}
+\label{sec:lightcone}
 
 Now let's consider an objective that depends on different state
 components at different times, e.g., in the Universe where further
 objects intersected our past light cone earlier.
-It falls between the previous scenarios, and we can derive its adjoint
-equation similarly.
+It falls between the previous two scenarios, and we can derive its
+adjoint equation similarly.
 
 We denote the observables by $\hat\vz$, with different components $\hat
 z_j$ affecting the objective $\cJ(\hat\vz, \vtheta)$ at different times
@@ -1767,11 +1182,12 @@ gradient:
 + \sum_{i=1}^n \vlambda_i \cdot \frac{\p\vF_{i-1}}{\p\vtheta}.
 \label{explicit_grad}
 \end{equation}
+%
 These equations are readily adaptable to simulated observables.
 For snapshots at $t_n$ or interpolated between $t_{n-1}$ and $t_n$,
 all $\p\cJ / \p\vz_i$ vanish except for the last one or two,
 respectively.
-For light cones, as discussed in \autoref{app:lightcone}, each component
+For light cones, as discussed in \autoref{sec:lightcone}, each component
 of $\hat\vz$ is interpolated at different times, thus all $\p\cJ /
 \p\vz_i$ vanish except for those times relevant for its interpolation,
 and the corresponding $\lambda_i$ can be set to zero for $i$ greater
@@ -1793,6 +1209,670 @@ floating-point numbers and/or save multiple checkpoints\footnote{This is
 different from the checkpointing in the Revolve algorithm, which needs
 to rerun the forward iterations.} during the forward evolution, from
 which the backward evolution can be resumed piecewise.
+
+
+\vspace{1em}
+\subsection{Application to Simulation}
+\label{sec:adj}
+
+The adjoint method provides systematic ways of deriving the objective
+gradient under constraints \citep{Pontryagin1962}, here imposed by the
+$N$-body equations of motion.
+We have introduced above the adjoint method for generic time-dependent
+problems in both continuous and discrete cases.
+The continuous case is easier to understand and has pedagogical values,
+while the discrete case is the useful one in our application, for we
+want to propagate numerically the gradients backward along the
+\emph{same} path as that of the forward time integration.
+
+For the $N$-body particles, the state variable\footnote{State and
+adjoint vectors in the adjoint equations include enumeration of
+particles, e.g., $\vnabla\vvarphi$ includes the $\vnabla\varphi$ of each
+particle.} is $\vz = (\vx, \vp)^\intercal$.
+Their adjoint variables help to accumulate the objective gradient while
+evolving backward in time by the adjoint equation.
+Let's denote them by $\vlambda = (\vxi, \vpi)$.
+We can compare each step of \eqref{KDFK} and \eqref{O} to
+\eqref{explicit}, and write down its adjoint equation following
+\eqref{explicit_adj}.
+Taking $D_{i-1}^i$ for example, we can write it explicitly as
+%
+\begin{equation*}
+\begin{pmatrix} \vx_i \\ \vp_{i-\half} \end{pmatrix}
+= \begin{pmatrix} \vx_{i-1} \\ \vp_{i-\half} \end{pmatrix}
++ \begin{pmatrix}
+    \vp_{i-\half} D(t_{i-\half}, t_{i-1}, t_i) \\ \vzero
+  \end{pmatrix},
+\end{equation*}
+%
+in the form of \eqref{explicit}.
+By \eqref{explicit_adj}, its adjoint equation is
+%
+\begin{align*}
+\begin{pmatrix} \vxi_{i-\half} & \vpi_{i-1} \end{pmatrix}
+&= \begin{pmatrix} \vxi_{i-\half} & \vpi_i \end{pmatrix}
++ \begin{pmatrix} \vxi_{i-\half} & \vpi_i \end{pmatrix}
+  \begin{pmatrix}
+    \vzero & \vI \, D(t_{i-\half}, t_{i-1}, t_i) \\
+    \vzero & \vzero \\
+  \end{pmatrix} \\
+%
+&= \begin{pmatrix} \vxi_{i-\half} & \vpi_i \end{pmatrix}
+- \begin{pmatrix}
+    \vzero & \vxi_{i-\half} D(t_{i-\half}, t_i, t_{i-1})
+  \end{pmatrix},
+\end{align*}
+%
+where we have used the fact that $D(t_c, t_a, t_b) = - D(t_c, t_b,
+t_a)$, and left the $\p\cJ / \p\vz_i$ term, \HL{the explicit dependence of
+the objective on the intermediate states (from, e.g., observables on the
+light cone), to the observation operator $O$ below.}
+This also naturally determines the subscripts of $\xi$ and $\pi$.
+
+Repeating the derivation for $K$ and $O$, and flipping the arrow of
+time, we present the adjoint equation time stepping for \eqref{KDFK}
+from $t_i$ to $t_{i-1}$:
+%
+\begin{alignat}{2}
+&K_i^{i-\half}: &\qquad \vp_{i-\half} &= \vp_i
+  + \va_i K(t_i, t_i, t_{i-\half}), \nonumber\\
+&& \vxi_{i-\half} &= \vxi_i
+  - \valpha_i K(t_i, t_i, t_{i-\half}), \nonumber\\
+%
+&D_i^{i-1}: & \vx_{i-1} &= \vx_i
+  + \vp_{i-\half} D(t_{i-\half}, t_i, t_{i-1}), \nonumber\\
+&& \vpi_{i-1} &= \vpi_i
+  - \vxi_{i-\half} D(t_{i-\half}, t_i, t_{i-1}), \nonumber\\
+%
+&F_{i-1}: & \va_{i-1} &= -\vnabla\vvarphi(\vx_{i-1}), \nonumber\\
+&& \valpha_{i-1} &\triangleq - \vpi_{i-1}
+  \cdot \frac{\p\vnabla\vvarphi_{i-1}}{\p\vx_{i-1}}, \nonumber\\
+&& \vzeta_{i-1} &\triangleq - \vpi_{i-1}
+  \cdot \frac{\p\vnabla\vvarphi_{i-1}}{\p\vtheta}, \nonumber\\
+%
+&K_{i-\half}^{i-1}: & \vp_{i-1} &= \vp_{i-\half}
+  + \va_{i-1} K(t_{i-1}, t_{i-\half}, t_{i-1}), \nonumber\\
+&& \vxi_{i-1} &= \vxi_{i-\half}
+  - \valpha_{i-1} K(t_{i-1}, t_{i-\half}, t_{i-1}), \nonumber\\
+%
+&O_i^{i-1}: &\qquad \vxi_{i-1} :\:\!\!\!&= \vxi_{i-1}
+  + \frac{\p\cJ}{\p\vx_{i-1}}, \nonumber\\
+&& \vpi_{i-1} :\:\!\!\!&= \vpi_{i-1} + \frac{\p\cJ}{\p\vp_{i-1}}.
+\label{KDFKO_adj}
+\end{alignat}
+%
+Like $\va$, we have introduced $\valpha$ and $\vzeta$ to cache the
+vector-Jacobian products on their right-hand sides, for the next time
+step in the kick operator and the objective gradient (see below),
+respectively.
+Note that in the reverse order, the $F$ operator is at $t_{i-1}$ instead
+of $t_i$ as in \eqref{KDFK}, and we need to initialize $\va_n$,
+$\valpha_n$, and $\vzeta_n$ with $F_n$ before stepping from $t_n$ to
+$t_{n-1}$.
+Likewise, the gradient of $O_n^{n-1}$ at $t_n$ is absent in
+\eqref{KDFKO_adj} but enters via the initial conditions following
+\eqref{explicit_adj}.
+Explicitly, the initial conditions of \eqref{KDFKO_adj} are
+%
+\begin{equation}
+\vxi_n = \frac{\p\cJ}{\p\vx_n},
+\vpi_n = \frac{\p\cJ}{\p\vp_n},
+\va_n = -\vnabla\vvarphi(\vx_n),
+\valpha_n = - \vpi_n \cdot \frac{\p\vnabla\vvarphi_n}{\p\vx_n},
+\vzeta_n = - \vpi_n \cdot \frac{\p\vnabla\vvarphi_n}{\p\vtheta}.
+\end{equation}
+
+The VJPs in $F$ and the $\p\cJ / \p\vz$'s in $O$ can be computed by AD
+if the whole forward integration and observation history of \eqref{KDFK}
+and \eqref{O} has been saved.
+However, this can be too costly spatially for GPUs, whose memories are
+much smaller than those of CPUs.
+Alternatively, we take advantage of the reversibility of the $N$-body
+dynamics and the leapfrog integrator, and recover the history by reverse
+time integration, which we have already included on the first lines of
+the $K$ and $D$ operators in \eqref{KDFKO_adj}.
+We can integrate the leapfrog and the adjoint equations jointly backward
+in time, and still benefit from the convenience of AD in computing VJPs
+and $\p\cJ / \p\vz$'s.
+In practice, the numerical reversibility suffers from the finite
+precision and the chaotic $N$-body dynamics, which we find is generally
+not a concern for our applications in the result section.
+
+Finally, during the reverse time integration, we can accumulate the
+objective gradient following \eqref{explicit_grad}:
+%
+\begin{align}
+\frac{\d\cJ}{\d\vtheta} =& \frac{\p\cJ}{\p\vtheta}
+%
+  + \frac{\p\cJ}{\p\hat\vx} \cdot \frac{\p\hat\vx}{\p\vtheta}
+  + \frac{\p\cJ}{\p\hat\vp} \cdot \frac{\p\hat\vp}{\p\vtheta}
+%
+  + \vxi_0 \cdot \frac{\p\vx_0}{\p\vtheta}
+  + \vpi_0 \cdot \frac{\p\vp_0}{\p\vtheta} \nonumber\\
+%
+  &- \sum_{i=1}^n \Bigl[
+    \bigl( \vpi_i \cdot\va_i \frac\p{\p\vtheta} + \vzeta_i
+      \bigr) K(t_i, t_i, t_{i-\half})
+    + \vxi_i \cdot \vp_{i-\half}
+      \frac{\p D(t_{i-\half}, t_i, t_{i-1})}{\p\vtheta} \nonumber\\
+    &\qquad + \bigl( \vpi_{i-1} \cdot \va_{i-1} \frac\p{\p\vtheta}
+      + \vzeta_{i-1} \bigr) K(t_{i-1}, t_{i-\half}, t_{i-1})
+    \Bigr], \nonumber\\
+%
+\frac{\d\cJ}{\d\vomega} =& \frac{\p\cJ}{\p\vomega}
+%
+  + \vxi_0 \cdot \frac{\p\vx_0}{\p\vomega}
+  + \vpi_0 \cdot \frac{\p\vp_0}{\p\vomega},
+\label{KDFKO_grad}
+\end{align}
+%
+\HL{where the latter backpropagates from fewer sources than the former as
+shown in \autoref{fig:model}.}
+To implement \eqref{KDFKO_adj}-\eqref{KDFKO_grad} in \pmwd\ with
+\texttt{JAX}, we only need to write custom VJP rules for the high-level
+$N$-body integration-observation loop, while the derivatives and VJPs of
+the remaining parts including regularization/prior, the observation, the
+initial conditions, the kick and drift factors, the growth and transfer
+functions, etc., can all be conveniently computed by AD.
+
+Other than that, we also implement custom VJPs for the scatter and
+gather operations in \autoref{sec:force} following \citet{Feng2017}, and
+these further save memory in gradient computations of those nonlinear
+functions.
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.85\linewidth]{slab.pdf}
+\caption{Relative matter density field, $1+\delta$, at $a=1$, projected
+from an $8\,\Mpc/h$ thick slab in a \pmwd\ simulation, that has evolved
+$512^3$ particles with single precision and a $1024^3$ mesh in a
+$(512\,\Mpc/h)^3$ box for 63 time steps.
+The simulation takes only 13 seconds to finish on an \GPU\ GPU.
+}
+\label{fig:slab}
+\end{figure*}
+
+
+\vspace{1em}
+\section{Results}
+
+We implement the forward simulation and backward adjoint method in the
+PM code \pmwd.
+All results assume a simple $\Lambda$CDM cosmology: $\vtheta = (\As =
+2\times10^{-9}, \ns = 0.96, \Omegam = 0.3, \Omegab = 0.05, h = 0.7)$,
+and use an \GPU\ GPU with 80GB memory.
+
+As in \texttt{FastPM}, the choice of time steps is flexible, and in fact
+with \pmwd\ it can even be optimized in non-parametric ways to improve
+simulation accuracy at fixed computation cost.
+Here we use time steps linearly spaced in scale factor $a$, and leave
+such optimization in a follow-up work.
+
+
+\vspace{1em}
+\subsection{Simulation}
+
+We first test the forward simulations of \pmwd.
+\autoref{fig:slab} shows the cosmic web in the final snapshot of a
+fairly large simulation for the size of GPU memories.
+
+Because GPUs are inherently parallel devices, they can output different
+results for identical inputs.
+To test the reproducibility, in \autoref{tab:rep} we compare the
+root-mean-square deviations (RMSDs) of particle displacements and
+velocities between two runs, relative to their respective standard
+deviations, with different floating-point precisions, mesh sizes,
+particle masses, and numbers of time steps.
+Other than the precision, mesh size is the most important factor,
+because a finer mesh can better resolve the most nonlinear and dense
+structures, which can affect reproducibility as the order of many
+operations can change easily.
+The particle mass plays a similar role and less massive particles
+generally take part in nonlinear motions at earlier times.
+The number of time steps has very small impact except in the most
+nonlinear cases.
+And interestingly, more time steps improves the reproducibility most of
+the time.
+
+
+\begin{table*}[t]
+\centering
+\caption{\pmwd\ reproducibility on GPU.
+GPUs can output different results for identical inputs.
+We simulate $384^3$ particles from $a=1/64$ to $a=1$, with two
+floating-point precisions, two mesh sizes, two particle masses (with box
+sizes of $192 \, \Mpc / h$ and $384 \, \Mpc / h$), and two time step
+sizes.
+We take the root-mean-square deviations (RMSDs) of particle
+displacements and velocities between two runs at $a=1$, and quote their
+ratios to the respective standard deviations, about $6 \, \Mpc / h$ and
+$3\times10^2 \, \mathrm{km} / \mathrm{s}$.
+In general, the factors on the left of the left four columns affect the
+reproducibility more than the those on the right, and lower rows are
+more reproducible than the upper ones.
+}
+\label{tab:rep}
+\begin{tabular}{cccccc}
+  \toprule
+  precision & cell/ptcl & ptcl mass $[10^{10} M_\odot]$ & time steps
+    & disp rel diff & vel rel diff \\
+  \midrule
+  single & 8 & 1 &  63 & $1.6\times10^{-6}$  & $4.8\times10^{-5}$  \\
+  single & 8 & 1 & 126 & $5.1\times10^{-7}$  & $1.3\times10^{-5}$  \\
+  single & 8 & 8 &  63 & $3.1\times10^{-7}$  & $2.4\times10^{-6}$  \\
+  single & 8 & 8 & 126 & $3.1\times10^{-7}$  & $2.3\times10^{-6}$  \\
+  single & 1 & 1 &  63 & $1.4\times10^{-7}$  & $1.5\times10^{-6}$  \\
+  single & 1 & 1 & 126 & $1.3\times10^{-7}$  & $1.4\times10^{-6}$  \\
+  single & 1 & 8 &  63 & $1.1\times10^{-7}$  & $4.5\times10^{-7}$  \\
+  single & 1 & 8 & 126 & $9.9\times10^{-8}$  & $4.4\times10^{-7}$  \\
+  double & 8 & 1 &  63 & $1.4\times10^{-15}$ & $3.6\times10^{-14}$ \\
+  double & 8 & 1 & 126 & $8.3\times10^{-16}$ & $1.7\times10^{-14}$ \\
+  double & 8 & 8 &  63 & $5.4\times10^{-16}$ & $4.1\times10^{-15}$ \\
+  double & 8 & 8 & 126 & $5.9\times10^{-16}$ & $4.3\times10^{-15}$ \\
+  double & 1 & 1 &  63 & $2.4\times10^{-16}$ & $2.3\times10^{-15}$ \\
+  double & 1 & 1 & 126 & $2.3\times10^{-16}$ & $2.3\times10^{-15}$ \\
+  double & 1 & 8 &  63 & $1.9\times10^{-16}$ & $7.9\times10^{-16}$ \\
+  double & 1 & 8 & 126 & $1.8\times10^{-16}$ & $7.8\times10^{-16}$ \\
+  \bottomrule
+\end{tabular}
+\end{table*}
+
+
+\vspace{1em}
+\subsection{Differentiation}
+
+Model differentiation evolves the adjoint equations backward in time.
+To save memory, the trajectory of the model state in the forward run is
+not saved, but re-simulated together with the adjoint equations.
+Even though in principle the $N$-body systems are reversible, in
+practice the reconstructed trajectory can differ from the forward one
+due to \HL{the finite numerical precision and exacerbated by the chaotic
+dynamics.
+Better reversibility means the gradients propagate backward along a
+trajectory closer to the forward path, and thus would be more accurate.}
+To test this, in \autoref{tab:rev} we compare the RMSDs of the
+forward-then-reverse particle displacements and velocities from the LPT
+initial conditions, relative to their respective standard deviations,
+that are very small at the \emph{initial} time.
+As before, we vary the floating-point precision, the mesh size, the
+particle mass, and the number of time steps.
+The order of factor importance and their effects are the same as in the
+reproducibility test.
+This is because more nonlinear structures are more difficult to reverse.
+One way to improve reversibility is use higher order LPT to initialize
+the $N$-body simulations at later times \citep{MichauxEtAl2021}, when
+the displacements and velocities are not as small.
+We leave this for future development.
+
+
+\begin{table*}[t]
+\centering
+\caption{\pmwd\ reversibility on GPU.
+Our adjoint method reduces memory cost by reconstructing the forward
+evolution with reverse time integration.
+We test the numerical reversibility by comparing the displacements and
+velocities of particles that have evolved to $a=1$ and then reversed to
+$a=1/64$, to those of the LPT initial conditions at $a=1/64$, in RMSDs.
+We take their ratios to the respective standard deviations, about $0.1
+\, \Mpc / h$ and $0.7 \, \mathrm{km} / \mathrm{s}$.
+Their smallness is the main reason that the quoted relative differences
+here are \HL{orders of magnitude greater than those in \autoref{tab:rep}
+(see \autoref{fig:grads} where the reversibility is few times more
+important than the reproducibility in their impacts on the gradients).}
+With the same setup as that in \autoref{tab:rep}, we see the same
+general trend---left factors are more important than the right ones,
+and lower rows are more reversible than the upper ones.
+}
+\label{tab:rev}
+\begin{tabular}{cccccc}
+  \toprule
+  precision & cell/ptcl & ptcl mass $[10^{10} M_\odot]$ & time steps
+    & disp rel diff & vel rel diff \\
+  \midrule
+  single & 8 & 1 &  63 & $5.2\times10^{-2}$  & $7.1\times10^{-2}$  \\
+  single & 8 & 1 & 126 & $2.1\times10^{-2}$  & $3.6\times10^{-2}$  \\
+  single & 8 & 8 &  63 & $3.3\times10^{-3}$  & $7.6\times10^{-3}$  \\
+  single & 8 & 8 & 126 & $3.7\times10^{-3}$  & $7.0\times10^{-3}$  \\
+  single & 1 & 1 &  63 & $1.4\times10^{-3}$  & $2.2\times10^{-3}$  \\
+  single & 1 & 1 & 126 & $1.3\times10^{-3}$  & $1.7\times10^{-3}$  \\
+  single & 1 & 8 &  63 & $4.3\times10^{-4}$  & $7.3\times10^{-4}$  \\
+  single & 1 & 8 & 126 & $4.4\times10^{-4}$  & $6.3\times10^{-4}$  \\
+  double & 8 & 1 &  63 & $5.4\times10^{-11}$ & $1.3\times10^{-10}$ \\
+  double & 8 & 1 & 126 & $3.5\times10^{-11}$ & $7.0\times10^{-11}$ \\
+  double & 8 & 8 &  63 & $5.8\times10^{-12}$ & $1.4\times10^{-11}$ \\
+  double & 8 & 8 & 126 & $6.4\times10^{-12}$ & $1.2\times10^{-11}$ \\
+  double & 1 & 1 &  63 & $2.2\times10^{-12}$ & $3.4\times10^{-12}$ \\
+  double & 1 & 1 & 126 & $2.1\times10^{-12}$ & $2.9\times10^{-12}$ \\
+  double & 1 & 8 &  63 & $7.2\times10^{-13}$ & $1.2\times10^{-12}$ \\
+  double & 1 & 8 & 126 & $6.9\times10^{-13}$ & $9.4\times10^{-13}$ \\
+  \bottomrule
+\end{tabular}
+\end{table*}
+
+
+Next, we want to verify that our adjoint method yields the same
+gradients as those computed by AD.
+As explained in \autoref{sec:adj}, \pmwd\ already utilizes AD on most of
+the differentiation tasks.
+To get the AD gradients we disable our custom VJP implementations on the
+$N$-body time integration, and the scatter and gather operations.
+In \autoref{fig:grads}, we compare the adjoint and AD gradients on a
+smaller problem, because AD already runs out of memory if we double the
+number of time steps or increase the space/mass resolution by
+$2^3\times$ from the listed specifications in the caption.
+\HL{For better statistics, we repeat both adjoint and AD runs for 64 times,
+with the same cosmology and white noise modes, and compare their results
+by an asymmetric difference of $X_i - Y_j$, where $1 \leq j < i \leq
+64$.
+First we set $X$ and $Y$ to the adjoint and AD gradients respectively,
+and find they agree very well on the real white noise (so do their
+gradients on cosmological parameters not shown here; see
+\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/adjoint/grads.txt}{\faFile}).
+In addition, we can set both $X$ and $Y$ to either adjoint or AD to
+check their respective \emph{reproducibility}.
+We find both gradients are consistent among different runs of
+themselves, with AD being a lot more reproducible without uncertainty
+from the reverse time integration but only that from the GPU
+reproducibility.
+This implies that we can ignore the reproducibility errors
+(\autoref{tab:rep}) when the reversibility ones dominate
+(\autoref{tab:rev}).
+Though this statement should be verified again in the future when we
+reduce the reversibility errors using, e.g., 3LPT.}
+%NOTE: this behavior has disappeared with new JAX/CUDA/GPU
+%Interestingly, the asymmetric difference of AD gradients is not
+%symmetric about 0, implying some difference between the early and late
+%AD results, i.e., possible breaking of order- or time-invariance by
+%\texttt{JAX} AD.
+
+
+\begin{figure*}[t]
+\centering
+\hspace{7em}
+\includegraphics[width=0.5\linewidth]{grads.pdf}
+\\
+\vspace{1em}
+\includegraphics[height=0.45\linewidth]{grads_cmp.pdf}
+\hfill
+\includegraphics[height=0.45\linewidth]{grads_diff.pdf}
+\caption{Adjoint gradients of a $128\times128$ slice of the real white
+noise field $\d\cJ / \d\vomega$ (top panel), in a \pmwd\ simulation of
+$128^3$ particles in a $(128\,\Mpc/h)^3$ box, with a $256^3$ mesh, 15
+time steps, and single precision.
+\HL{We choose a mean squared error (MSE) objective between two realizations
+with the same cosmology but different initial modes, on their density
+fields on the $256^3$ mesh at $a=1$, and then compute the gradients with
+respect to one realization while holding the other fixed.}
+We compare the adjoint gradients to those by AD, for which we have
+disabled the custom gradient implementation on the scatter, gather, and
+$N$-body time stepping operators.
+The adjoint and AD gradients agree as expected, with a RMSD of $\approx
+4\times10^{-5}$, 3 orders of magnitude smaller than the standard
+deviation of the gradients itself, $\approx 0.015$.
+It is also comparable to the difference between two different adjoint
+gradients, with a RMSD $\approx 5\times10^{-5}$.
+Different AD gradients are more consistent, with a tighter RMSD of
+$\approx 1\times10^{-5}$ due to the absence of uncertainty from reverse
+time integration.
+}
+\label{fig:grads}
+\end{figure*}
+
+
+Our last test on the adjoint gradients uses them in a toy optimization
+problem in \autoref{fig:optim}.
+We use the Adam optimizer \citep{Adam} with a learning rate of $0.1$ and
+the default values for other hyperparameters.
+Holding the cosmological parameters fixed, we can optimize the real
+white noise modes to source initial particles to evolve into our target
+pattern, in hundreds to thousands of iterations.
+\HL{Interestingly, we find that the variance of the modes becomes bigger
+than 1 (that of the standard normal white noise) after the optimization,
+and the optimized modes show some level of spatial correlation not
+present in the white noise fields, suggesting that the optimized initial
+conditions are probably no longer Gaussian.}
+
+
+\begin{figure*}[t]
+\centering
+\subfloat[initial conditions at $a=1/64$]{
+  \includegraphics[width=0.45\linewidth]{optim_ini.pdf}
+}
+\hfill
+\subfloat[final snapshot at $a=1$]{
+  \includegraphics[width=0.45\linewidth]{optim_0.pdf}
+}
+\\
+\subfloat[reverse evolution back to $a=1/64$]{
+  \includegraphics[width=0.45\linewidth]{optim_rev.pdf}
+}
+\hfill
+\subfloat[optimization for 10 iterations at $a=1$]{
+  \includegraphics[width=0.45\linewidth]{optim_10.pdf}
+}
+\\
+\subfloat[optimization for 100 iterations at $a=1$]{
+  \includegraphics[width=0.45\linewidth]{optim_100.pdf}
+}
+\hfill
+\subfloat[optimization for 1000 iterations at $a=1$]{
+  \includegraphics[width=0.45\linewidth]{optim_1000.pdf}
+}
+\\
+\caption{A toy problem where we optimize the initial conditions by
+gradient descent to make some interesting pattern after projection.
+The particles originally fill a $16\times27\times16$ grid, and then
+evolve from $a=1/64$ to $a=1$ for 63 time steps with \emph{single
+precision} and a $32\times54\times32$ mesh in a $160\times270\times160
+\, \Mpc^3/h^3$ box.
+We compute their projected density in $64\times108$ pixels and compare
+that to the target image at the same resolution with an MSE objective.
+We use the adjoint method and reverse time integration, assuming the
+latter can reconstruct the forward evolution history accurately.
+We validate this by demonstrating that the particles evolve backward to
+align on the initial grid.
+The optimized initial conditions successfully evolve into the target
+pattern, which improves with more iterations.
+Also see the animated reverse time evolution
+\href{https://youtu.be/Epsgh6vr0qs}{\faYoutubePlay} and initial
+condition optimization
+\href{https://youtu.be/vD6lbjHP3SY}{\faYoutubePlay} on YouTube.
+}
+\label{fig:optim}
+\end{figure*}
+
+
+\vspace{1em}
+\subsection{Performance}
+
+\pmwd\ benefits from GPU accelerations and efficient CUDA
+implementations of scatter and gather operations.
+In \autoref{fig:perf}, we present performance test of \pmwd, and find
+both the LPT and the $N$-body parts scale well except for very small
+problems.
+The growth function solution has a constant cost, and generally does not
+affect problem of moderate sizes.
+However, for a small number of particles and few time steps, it can
+dominate the computation, in which case one can accelerate the growth
+computation with an emulator \citep{KwanModiEtAl2022}.
+
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.7\linewidth]{perf.pdf}
+\caption{Performance of \pmwd. Both the 2LPT and $N$-body components
+scale well from $512^3$ particles to $64^3$ particles, below which they
+become overhead dominated.
+Solving the growth ODEs takes a constant time, and can dominate the cost
+for small numbers of particles and few time steps, but generally does
+not affect problems with more than $128^3$ particles.
+}
+\label{fig:perf}
+\end{figure*}
+
+
+\vspace{1em}
+\section{Conclusions}
+
+In this work, we develop the adjoint method for memory efficient
+differentiable cosmological simulations, exploiting the reversible
+nature of $N$-body Hamiltonian dynamics, and implement it with
+\texttt{JAX} in a new PM library, \pmwd.
+We have validated the numerical reversibility and the accuracy of the
+adjoint gradients.
+
+\pmwd\ is both computation and memory efficient, enabling larger and
+more accurate cosmological dark matter simulations.
+The next step involves modeling cosmological observables such as
+galaxies.
+One can achieve this with analytic, semi-analytic, and deep learning
+components running based on or in parallel with \pmwd.
+In the future, it can also facilitate the simultaneous modeling of
+multiple observables and the understanding of the astrophysics at play.
+
+\pmwd\ will benefit all the forward modeling approaches in cosmology,
+and will improve gradient based optimization and field-level inference
+to simultaneously constrain the cosmological parameters and the initial
+conditions of the Universe.
+The efficiency of \pmwd\ also makes it a promising route to generate
+the large amount of training data needed by the likelihood-free
+inference frameworks \citep{CranmerEtAl2020, DELFI}.
+
+Currently, these applications require more development, including
+distributed parallel capability on multiple GPUs \citep{FlowPM}, more
+accurate time integration beyond \texttt{FastPM} \citep{ListHahn2023},
+optimization of spatiotemporal resolution of the PM solvers \citep{LDL,
+LanzieriLanusseEtAl2022, ZhangLiEtAl}, short-range supplement by direct
+summation of the particle-particle (PP) forces on GPUs \citep{HACC,
+PKDGRAV3, ABACUS}, differentiable models for observables, etc.
+We plan to pursue these in the future.
+
+
+
+\vspace{1em}
+\textit{\large Acknowledgements:}
+YL is grateful to all organizers of the 2013 KICP Summer School on
+Computational Cosmology \citep{KICPsummer2013}, especially Andrey
+Kravtsov and Nick Gnedin.
+We thank Alex Barnett, Biwei Dai, Boris Leistedt, ChangHoon Hahn,
+Daisuke Nagai, Dan Foreman-Mackey, Dan Fortunato, David Duvenaud, David
+Spergel, Dhairya Malhotra, Erik Thiede, Francisco Villaescusa-Navarro,
+Fruzsina Agocs, Giulio Fabbian, Jens St\"ucker, Kaze Wong, Kazuyuki
+Akitsu, Lehman Garrison, Manas Rachh, Ra\'ul Angulo, Shirley Ho, Simon
+White, Teppei Okumura, Tomomi Sunayama, Ulrich Steinwandel, Uro\v{s}
+Seljak, Wen Yan, Wenda Zhou, William Coulton, Xiangchong Li, and Yueying
+Ni for interesting discussions.
+YL and YZ were supported by The Major Key Project of PCL.
+The Flatiron Institute is supported by the Simons Foundation.
+
+
+\vspace{1em}
+\textit{\large Code Availability:}
+\pmwd\ is open-source on GitHub
+\href{https://github.com/eelregit/pmwd}{\faGithub}, including the source
+files and scripts of this paper
+\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/adjoint}{\faFile}.
+Also see the companion code paper \citep{pmwd}
+\href{https://github.com/eelregit/pmwd/tree/master/docs/papers/pmwd}{\faFile}.
+
+
+\vspace{1em}
+\textit{\large Software:}
+\texttt{JAX} \citep{JAX}, \texttt{NumPy} \citep{NumPy}, \texttt{SciPy}
+\citep{SciPy}, and \texttt{matplotlib} \citep{matplotlib}.
+
+
+
+\vspace{1em}
+\appendix
+
+
+\vspace{1em}
+\section{Growth equations}
+\label{app:growth}
+
+The 2LPT growth functions follow the following ODEs:
+%
+\begin{align}
+D_1'' + \Bigl( 2 + \frac{H'}H \Bigr) D_1' - \frac32 \Omegam(a) D_1
+  &= 0, \nonumber\\
+%
+D_2'' + \Bigl( 2 + \frac{H'}H \Bigr) D_2' - \frac32 \Omegam(a) D_2
+  &= \frac32 \Omegam(a) D_1^2,
+\end{align}
+%
+where
+%
+\begin{equation}
+\Omegam(a) = \frac{\Omegam H_0^2}{a^3 H^2}
+\end{equation}
+%
+If the universe has been sufficiently matter dominated at $a_\ic$, with
+$\Omegam(a_\ic) \simeq 1$ and $H'/H \simeq -3/2$, the initial conditions
+of the ODEs can be set as the growing mode in this limiting case
+%
+\begin{align}
+D_1(a_\ic) &= a_\ic, \nonumber\\
+D_1'(a_\ic) &= a_\ic, \nonumber\\
+D_2(a_\ic) &= \frac37 a_\ic^2, \nonumber\\
+D_2'(a_\ic) &= \frac67 a_\ic^2.
+\end{align}
+%
+$D_1 \simeq a$ in the matter dominated era, before being suppressed by
+dark energy.
+
+The above growth equations can be written in such suppression factors,
+%
+\begin{equation}
+G_m \triangleq D_m / a^m,
+\end{equation}
+%
+for $m \in \{1, 2\}$, as
+%
+\begin{align}
+G_1'' + \Bigl( 4 + \frac{H'}H \Bigr) G_1'
+  + \Bigl( 3 + \frac{H'}H - \frac32 \Omegam(a) \Bigr) G_1
+  &= 0, \nonumber\\
+%
+G_2'' + \Bigl( 6 + \frac{H'}H \Bigr) G_2'
+  + \Bigl( 8 + 2\frac{H'}H - \frac32 \Omegam(a) \Bigr) G_2
+  &= \frac32 \Omegam(a) G_1^2,
+\end{align}
+%
+with initial conditions
+%
+\begin{align}
+G_1(a_\ic) &= 1, \nonumber\\
+G_1'(a_\ic) &= 0, \nonumber\\
+G_2(a_\ic) &= \frac37, \nonumber\\
+G_2'(a_\ic) &= 0.
+\end{align}
+%
+We solve the growth equations in $G_m$ instead of $D_m$, with the
+\texttt{JAX} adaptive ODE integrator implementing the adjoint method in
+the optimize-then-discretize approach.
+This is because the former can be integrated backward in time more
+accurately for early times, which can improve the adjoint gradients.
+
+We can then evaluate the \texttt{FastPM} time integration factors in
+\eqref{G_ZA} by
+%
+\begin{align}
+G_D &= a^2 \dot D_1 = a^2 H D_1', \nonumber\\
+%
+G_K &= a \dot G_D = a^3 H^2 \Bigl[
+  D_1'' + \Bigl(2 + \frac{H'}H \Bigr) D_1' \Bigr],
+\label{G_eval}
+\end{align}
+%
+and
+%
+\begin{align}
+D_m &= a^m G_m \nonumber\\
+D_m' &= a^m \bigl( m G_m + G_1' \Bigr), \nonumber\\
+D_m'' &= a^m \bigl( m^2 G_1 + 2m G_1' + G_1'' \Bigr).
+\end{align}
 
 
 %\vspace{1em}
