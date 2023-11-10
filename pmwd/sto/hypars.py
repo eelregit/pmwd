@@ -1,6 +1,7 @@
 import numpy as np
 import jax.numpy as jnp
 import optax
+import pickle
 
 from pmwd.sto.so import soft_len
 from pmwd.sto.mlp import init_mlp_params
@@ -13,7 +14,7 @@ snap_ids = np.arange(0, 121, 1)
 shuffle_epoch = True  # shuffle the order of sobols across epochs
 
 # optimizer
-learning_rate = 2e-4
+learning_rate = 3e-5
 optimizer = optax.adam(learning_rate)
 
 def get_optimizer(lr):
@@ -47,7 +48,10 @@ so_type = 'NN'
 n_input = [soft_len(k_fac=3), soft_len()]
 
 so_nodes = [[n, n, n, 1] for n in n_input]
-so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
+# so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
+with open('params/2967953/e288.pickle', 'rb') as f:
+    so_params = pickle.load(f)['so_params']
+
 dropout_rate = None  # set to None for no dropout applied
 
 # mannually turn off nets by setting the corresponding so_nodes to None
