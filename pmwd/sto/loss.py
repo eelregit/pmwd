@@ -56,7 +56,8 @@ def loss_ptcl_disp(ptcl, ptcl_t, conf):
     disp = disp.T.reshape(shape_)
     disp_t = disp_t.T.reshape(shape_)
 
-    loss = loss_mse(disp, disp_t)
+    # loss = loss_mse(disp, disp_t)
+    loss = loss_power_ln(disp, disp_t)
     return loss
 
 
