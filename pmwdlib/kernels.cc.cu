@@ -688,8 +688,8 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
 
     CUDA_SAFE_CALL(cudaMalloc((void**)&work_i_d, sizeof(uint32_t)*(n_particle*4+2*nbinx*nbiny*nbinz+1)+temp_storage_bytes));
 
-    uint32_t npts_mem_size = sizeof(uint32_t) * n_particle;
-    uint32_t nbins_mem_size = sizeof(uint32_t) * nbinx*nbiny*nbinz;
+    int64_t npts_mem_size = sizeof(uint32_t) * (int64_t)n_particle;
+    int64_t nbins_mem_size = sizeof(uint32_t) * (int64_t)nbinx*nbiny*nbinz;
     uint32_t* d_sortidx = (uint32_t*)work_i_d;
     uint32_t* d_sortidx_buff = (uint32_t*)&work_i_d[npts_mem_size];
     uint32_t* d_index = (uint32_t*)&work_i_d[2*npts_mem_size];
