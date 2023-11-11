@@ -324,12 +324,13 @@ def boltz(cosmo, transfer=True, growth=True, varlin=True):
     Parameters
     ----------
     cosmo : Cosmology
-    transfer : bool, optional
-        Whether to compute the transfer function, or to set it to None.
-    growth : bool, optional
-        Whether to compute the growth functions, or to set it to None.
-    varlin : bool, optional
-        Whether to compute the linear matter overdensity variance, or to set it to None.
+    transfer : bool or None, optional
+        Whether to compute the transfer function, leave it as is, or set it to None.
+    growth : bool or None, optional
+        Whether to compute the growth functions, leave it as is, or set it to None.
+    varlin : bool or None, optional
+        Whether to compute the linear matter overdensity variance, leave it as is, or
+        set it to None.
 
     Returns
     -------
@@ -339,17 +340,17 @@ def boltz(cosmo, transfer=True, growth=True, varlin=True):
     """
     if transfer:
         cosmo = transfer_integ(cosmo)
-    else:
+    elif transfer is None:
         cosmo = cosmo.replace(transfer=None)
 
     if growth:
         cosmo = growth_integ(cosmo)
-    else:
+    elif growth is None:
         cosmo = cosmo.replace(growth=None)
 
     if varlin:
         cosmo = varlin_integ(cosmo)
-    else:
+    elif varlin is None:
         cosmo = cosmo.replace(varlin=None)
 
     return cosmo
