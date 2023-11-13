@@ -112,8 +112,9 @@ class Cosmology:
     L : float
         Length unit :math:`L` defined in m/:math:`h`. Default is Mpc/:math:`h`.
     T : float
-        Time unit :math:`T` defined in s/:math:`h`. Default is Hubble time :math:`1/H_0 \sim
-        10^{10}` years/:math:`h \sim` age of the Universe.
+        Time unit :math:`T` defined in s/:math:`h`. Default is Hubble time :math:`1/H_0
+        \sim 10^{10}` years/:math:`h \sim` age of the Universe. So the default velocity
+        unit is :math:`L/T =` 100 km/s.
     k_pivot_Mpc : float
         Primordial scalar power spectrum pivot scale :math:`k_\mathrm{pivot}` in 1/Mpc.
 
@@ -270,11 +271,6 @@ class Cosmology:
         return jnp.sqrt(boltzmann.varlin(R, 1, self))
 
     @property
-    def V(self):
-        r"""Velocity unit :math:`V \triangleq L/T`. Default is 100 km/s."""
-        return self.L / self.T
-
-    @property
     def H_0(self):
         """Hubble constant :math:`H_0` in :math:`1/T`."""
         return self.H_0_SI * self.T
@@ -282,12 +278,12 @@ class Cosmology:
     @property
     def c(self):
         """Speed of light :math:`c` in :math:`L/T`."""
-        return self.c_SI / self.V
+        return self.c_SI * self.T / self.L
 
     @property
     def G(self):
         """Gravitational constant :math:`G` in :math:`L^3 / M / T^2`."""
-        return self.G_SI * self.M / (self.L * self.V**2)
+        return self.G_SI * self.M * self.T**2 / self.L**3
 
     @property
     def rho_crit(self):
