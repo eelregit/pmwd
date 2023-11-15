@@ -2,7 +2,8 @@
 
 
 from pmwd.configuration import Configuration
-from pmwd.cosmology import Cosmology, SimpleLCDM, Planck18, E2, H_deriv, Omega_m_a
+from pmwd.cosmology import (Cosmology, SimpleLCDM, Planck18, E2, H_deriv, Omega_m_a,
+                            distance_tab, distance)
 from pmwd.boltzmann import (transfer_tab, transfer_fit, transfer, growth_tab, growth,
                             varlin_tab, varlin, linear_power)
 from pmwd.particles import (Particles, ptcl_enmesh,

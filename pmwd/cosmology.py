@@ -7,6 +7,7 @@ from typing import ClassVar, Optional, Tuple, Union
 from jax import Array, ensure_compile_time_eval, value_and_grad
 from jax.typing import ArrayLike, DTypeLike
 import jax.numpy as jnp
+from jax.lax import switch
 from jax.tree_util import tree_map
 from mcfit import TophatVar
 
@@ -16,8 +17,8 @@ from pmwd.tree_util import pytree_dataclass
 
 @partial(pytree_dataclass,
          aux_fields=["A_s_1e9", "n_s", "Omega_m", "Omega_b", "h",
-                     "T_cmb_", "Omega_k_", "w_0_", "w_a_",
-                     "transfer", "growth", "varlin"],
+                     "T_cmb_", "Omega_K_", "w_0_", "w_a_",
+                     "distance", "transfer", "growth", "varlin"],
          aux_invert=True,
          frozen=True)
 class Cosmology:
@@ -48,12 +49,20 @@ class Cosmology:
         Hubble constant in unit of 100 km/s/Mpc :math:`h`.
     T_cmb_ : None or float ArrayLike, optional
         CMB temperature in Kelvin today :math:`T_\mathrm{CMB}`. Default is None.
-    Omega_k_ : None or float ArrayLike, optional
-        Spatial curvature density parameter today :math:`Omega_k`. Default is None.
+    Omega_K_ : None or float ArrayLike, optional
+        Spatial curvature density parameter today :math:`Omega_K`. Default is None.
     w_0_ : None or float ArrayLike, optional
         Dark energy equation of state constant parameter :math:`w_0`. Default is None.
     w_a_ : None or float ArrayLike, optional
         Dark energy equation of state linear parameter :math:`w_a`. Default is None.
+    distance_lga_min : float, optional
+        Minimum comoving horizon scale factor in log10.
+    distance_lga_max : float, optional
+        Maximum comoving horizon scale factor in log10.
+    distance_lga_maxstep : float, optional
+        Maximum comoving horizon scale factor step size in log10. It determines the
+        number of scale factors ``distance_a_num``, the actual step size
+        ``distance_lga_step``, and the scale factors ``distance_a``.
     transfer_fit : bool, optional
         Whether to use Eisenstein & Hu fit to transfer function. Default is True
         (subject to change when False is implemented).
@@ -90,8 +99,8 @@ class Cosmology:
     ---------------
     T_cmb_fixed : float
         Fixed value if ``T_cmb_`` is not specified.
-    Omega_k_fixed : float
-        Fixed value if ``Omega_k_`` is not specified.
+    Omega_K_fixed : float
+        Fixed value if ``Omega_K_`` is not specified.
     w_0_fixed : float
         Fixed value if ``w_0_`` is not specified.
     w_a_fixed : float
@@ -131,8 +140,8 @@ class Cosmology:
     T_cmb_: Optional[ArrayLike] = None
     T_cmb_fixed: ClassVar[float] = 2.7255  # Fixsen 2009, arXiv:0911.1955
 
-    Omega_k_: Optional[ArrayLike] = None
-    Omega_k_fixed: ClassVar[float] = 0
+    Omega_K_: Optional[ArrayLike] = None
+    Omega_K_fixed: ClassVar[float] = 0
     w_0_: Optional[ArrayLike] = None
     w_0_fixed: ClassVar[float] = -1
     w_a_: Optional[ArrayLike] = None
@@ -151,6 +160,11 @@ class Cosmology:
     T: ClassVar[float] = 1 / H_0_SI
 
     k_pivot_Mpc: ClassVar[float] = 0.05
+
+    distance_lga_min: float = -3
+    distance_lga_max: float = 1
+    distance_lga_maxstep: float = 1/128
+    distance: Optional[jnp.ndarray] = field(default=None, compare=False)
 
     transfer_fit: bool = True
     transfer_fit_nowiggle: bool = False
@@ -214,32 +228,39 @@ class Cosmology:
     def from_sigma8(cls, sigma8, *args, **kwargs):
         r"""Construct cosmology with :math:`\sigma_8` instead of :math:`A_s`."""
         cosmo = cls(1, *args, **kwargs)
-        cosmo = cosmo.prime()  #FIXME set distance=False
+        cosmo = cosmo.prime(distance=False)
 
         A_s_1e9 = (sigma8 / cosmo.sigma8)**2
 
         return cls(A_s_1e9, *args, **kwargs)
 
-    def prime(self, transfer=True, growth=True, varlin=True):
-        """Tabulate and cache the transfer and growth functions, etc.
+    def prime(self, distance=True, transfer=True, growth=True, varlin=True):
+        """Tabulate and cache transfer function, growth functions, etc.
 
         Parameters
         ----------
+        distance : bool or None, optional
+            Whether to cache the comoving horizon, leave it as is, or set it to None.
         transfer : bool or None, optional
-            Whether to compute the transfer function, leave it as is, or set it to None.
+            Whether to cache the transfer function, leave it as is, or set it to None.
         growth : bool or None, optional
-            Whether to compute the growth functions, leave it as is, or set it to None.
+            Whether to cache the growth functions, leave it as is, or set it to None.
         varlin : bool or None, optional
-            Whether to compute the linear matter overdensity variance, leave it as is,
+            Whether to cache the linear matter overdensity variance, leave it as is,
             or set it to None.
 
         Returns
         -------
         cosmo : Cosmology
-            A new instance containing transfer and growth tables, etc.
+            A new instance containing cached tables.
 
         """
         cosmo = self
+
+        if distance:
+            cosmo = distance_tab(cosmo)
+        elif distance is None:
+            cosmo = cosmo.replace(distance=None)
 
         if transfer:
             cosmo = boltzmann.transfer_tab(cosmo)
@@ -263,6 +284,31 @@ class Cosmology:
         return self.replace(dtype=dtype)  # calls __init__ and then __post_init__
 
     @property
+    def c(self):
+        """Speed of light :math:`c` in :math:`L/T`."""
+        return self.c_SI * self.T / self.L
+
+    @property
+    def G(self):
+        """Gravitational constant :math:`G` in :math:`L^3 / M / T^2`."""
+        return self.G_SI * self.M * self.T**2 / self.L**3
+
+    @property
+    def H_0(self):
+        """Hubble constant :math:`H_0` in :math:`1/T`."""
+        return self.H_0_SI * self.T
+
+    @property
+    def d_H(self):
+        """Hubble distance :math:`d_H = c / H_0` in :math:`L`."""
+        return self.c / self.H_0
+
+    @property
+    def rho_crit(self):
+        r"""Critical density :math:`\rho_\mathrm{crit}` in :math:`M / L^3`."""
+        return 3 * self.H_0**2 / (8 * jnp.pi * self.G)
+
+    @property
     def k_pivot(self):
         r"""Primordial scalar power spectrum pivot scale :math:`k_\mathrm{pivot}` in :math:`1/L`."""
         return self.k_pivot_Mpc / (self.h * self.Mpc_SI) * self.L
@@ -283,14 +329,19 @@ class Cosmology:
         return self.T_cmb_fixed if self.T_cmb_ is None else self.T_cmb_
 
     @property
-    def Omega_k(self):
-        r"""Spatial curvature density parameter today :math:`\Omega_k`."""
-        return self.Omega_k_fixed if self.Omega_k_ is None else self.Omega_k_
+    def Omega_K(self):
+        r"""Spatial curvature density parameter today :math:`\Omega_K`."""
+        return self.Omega_K_fixed if self.Omega_K_ is None else self.Omega_K_
+
+    @property
+    def K(self):
+        r"""Spatial Gaussian curvature :math:`K = - \Omega_K / d_H^2` in :math:`1/L^2`."""
+        return - self.Omega_K / self.d_H**2
 
     @property
     def Omega_de(self):
         r"""Dark energy density parameter today :math:`\Omega_\mathrm{de}`."""
-        return 1 - (self.Omega_m + self.Omega_k)
+        return 1 - (self.Omega_m + self.Omega_K)
 
     @property
     def w_0(self):
@@ -309,24 +360,23 @@ class Cosmology:
         return jnp.sqrt(boltzmann.varlin(R, 1, self))
 
     @property
-    def H_0(self):
-        """Hubble constant :math:`H_0` in :math:`1/T`."""
-        return self.H_0_SI * self.T
+    def distance_a_num(self):
+        """Number of comoving horizon scale factors, including a leading 0."""
+        return 1 + math.ceil((self.distance_lga_max - self.distance_lga_min)
+                             / self.distance_lga_maxstep) + 1
 
     @property
-    def c(self):
-        """Speed of light :math:`c` in :math:`L/T`."""
-        return self.c_SI * self.T / self.L
+    def distance_lga_step(self):
+        """Comoving horizon scale factor step size in log10."""
+        return ((self.distance_lga_max - self.distance_lga_min)
+                / (self.distance_a_num - 2))
 
     @property
-    def G(self):
-        """Gravitational constant :math:`G` in :math:`L^3 / M / T^2`."""
-        return self.G_SI * self.M * self.T**2 / self.L**3
-
-    @property
-    def rho_crit(self):
-        r"""Critical density :math:`\rho_\mathrm{crit}` in :math:`M / L^3`."""
-        return 3 * self.H_0**2 / (8 * jnp.pi * self.G)
+    def distance_a(self):
+        """Comoving horizon scale factors."""
+        a = jnp.logspace(self.distance_lga_min, self.distance_lga_max,
+                         num=self.distance_a_num - 1, dtype=self.dtype)
+        return jnp.concatenate((jnp.array([0]), a))
 
     @property
     def transfer_k_num(self):
@@ -368,7 +418,8 @@ class Cosmology:
 
     @property
     def varlin_R(self):
-        """Radii of tophat spheres in :math:`L` for linear matter overdensity variance."""
+        """Radii of tophat spheres in :math:`L` for linear matter overdensity variance,
+        determined by ``transfer_k`` and the FFTLog algorithm."""
         return self.var_tophat.y
 
 
@@ -426,7 +477,7 @@ def E2(a, cosmo):
     a = jnp.asarray(a, dtype=cosmo.dtype)
 
     de_a = a**(-3 * (1 + cosmo.w_0 + cosmo.w_a)) * jnp.exp(-3 * cosmo.w_a * (1 - a))
-    return cosmo.Omega_m * a**-3 + cosmo.Omega_k * a**-2 + cosmo.Omega_de * de_a
+    return cosmo.Omega_m * a**-3 + cosmo.Omega_K * a**-2 + cosmo.Omega_de * de_a
 
 
 @partial(jnp.vectorize, excluded=(1,))
@@ -476,3 +527,124 @@ def Omega_m_a(a, cosmo):
     a = jnp.asarray(a, dtype=cosmo.dtype)
 
     return cosmo.Omega_m / (a**3 * E2(a, cosmo))
+
+
+def distance_tab(cosmo):
+    r"""Tabulate the comoving horizon at ``cosmo.distance_a``.
+
+    Parameters
+    ----------
+    cosmo : Cosmology
+
+    Returns
+    -------
+    cosmo : Cosmology
+        A new instance containing a comoving horizon table, in unit :math:`L`, shape
+        ``(cosmo.distance_a_num,)``, and precision ``cosmo.dtype``.
+
+    Notes
+    -----
+    The comoving horizon, written in the conformal time :math:`\eta`,
+
+    .. math::
+
+        c \eta = \int_0^t \frac{c \mathrm{d} t}{a(t)}
+               = d_H \int_0^a \frac{\mathrm{d} a'}{a'^2 E(a'}
+               = d_H \int_z^\infty \frac{\mathrm{d} z'}{E(z')}.
+
+    """
+    #FIXME use jax.scipy.integrate.cumulative_trapezoid in the future
+    a = cosmo.distance_a[1:]
+    da = jnp.diff(cosmo.distance_a, prepend=0)
+    detada = cosmo.d_H / (a**2 * jnp.sqrt(E2(a, cosmo)))
+    detada = jnp.concatenate((jnp.array([0, 0]), detada))
+    deta = (detada[:-1] + detada[1:]) / 2 * da
+    eta = jnp.cumsum(deta)
+
+    return cosmo.replace(distance=eta)
+
+
+def _SK_closed(chi, Ksqrt):
+    return jnp.sin(Ksqrt * chi) / Ksqrt
+
+def _SK_flat(chi, Ksqrt):
+    return chi
+
+def _SK_open(chi, Ksqrt):
+    return jnp.sinh(Ksqrt * chi) / Ksqrt
+
+
+def distance(a_e, cosmo, type='radial', a_o=1):
+    r"""Interpolate the comoving horizon and compute different distance measures.
+
+    Parameters
+    ----------
+    a_e : ArrayLike
+        Scale factors of emission.
+    cosmo : Cosmology
+    type : str in {'radial', 'transverse', 'angdiam', 'luminosity'}
+        Type of distances to return, among radial comoving, transverse comoving, angular
+        diameter, and luminosity distances.
+    a_o : ArrayLike
+        Scale factors of observation.
+
+    Returns
+    -------
+    d : jax.Array
+        Distances.
+
+    Notes
+    -----
+    The line-of-sight or radial comoving distance between emission and observation
+
+    .. math::
+
+        \chi = \int_{t_\mathrm{e}}^{t_\mathrm{o}} \frac{c \mathrm{d} t}{a(t)}
+             = d_H \int_{a_\mathrm{e}}^{a_\mathrm{o}} \frac{\mathrm{d} a'}{a'^2 E(a'}
+             = d_H \int_{z_\mathrm{o}}^{z_\mathrm{e}} \frac{\mathrm{d} z'}{E(z')}.
+
+    The transverse comoving or comoving angular diameter distance
+
+    .. math::
+
+        r = \frac{S_K(\sqrt{|K|} \chi)}{\sqrt{|K|}},
+
+    where :math:`S_K` is sin, identity, or sinh for positive, zero, or negative
+    :math:`K`, respectively.
+
+    The angular diameter distance and luminosity distance
+
+    .. math::
+
+        d_\mathrm{A} &= \frac{a_\mathrm{e}}{a_\mathrm{o}} r, \\
+        d_L &= \frac{a_\mathrm{o}}{a_\mathrm{e}} r.
+
+    """
+    if cosmo.distance is None:
+        raise ValueError('distance table is empty: run Cosmology.prime or distance_tab first')
+
+    if a_e is None:
+        a_e = 0
+    a_e = jnp.asarray(a_e)
+
+    if a_o is None:
+        a_o = 1
+    a_o = jnp.asarray(a_o)
+
+    d_o = jnp.interp(a_o, cosmo.distance_a, cosmo.distance)
+    d_e = jnp.interp(a_e, cosmo.distance_a, cosmo.distance)
+    d = d_o - d_e
+    if type == 'radial':
+        return d
+
+    branches = _SK_closed, _SK_flat, _SK_open
+    Ksqrt = jnp.sqrt(jnp.abs(cosmo.K))
+    d = switch(jnp.int8(jnp.sign(cosmo.Omega_K)) + 1, branches, d, Ksqrt)
+    if type == 'transverse':
+        return d
+    if type == 'angdiam':
+        return a_e / a_o * d
+    if type == 'luminosity':
+        return a_o / a_e * d
+
+    raise ValueError(f'type={type} not supported')
