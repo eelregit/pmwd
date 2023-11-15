@@ -623,12 +623,7 @@ def distance(a_e, cosmo, type='radial', a_o=1):
     if cosmo.distance is None:
         raise ValueError('distance table is empty: run Cosmology.prime or distance_tab first')
 
-    if a_e is None:
-        a_e = 0
     a_e = jnp.asarray(a_e)
-
-    if a_o is None:
-        a_o = 1
     a_o = jnp.asarray(a_o)
 
     d_o = jnp.interp(a_o, cosmo.distance_a, cosmo.distance)
