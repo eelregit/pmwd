@@ -6,8 +6,8 @@ from pmwd.ode_util import odeint
 
 
 @jit
-def transfer_integ(cosmo):
-    """Compute and tabulate the transfer function at ``cosmo.transfer_k``.
+def transfer_tab(cosmo):
+    """Tabulate the matter transfer function at ``cosmo.transfer_k``.
 
     Parameters
     ----------
@@ -16,8 +16,8 @@ def transfer_integ(cosmo):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing a transfer table, that has the shape
-        ``(cosmo.transfer_k_num,)`` and ``cosmo.dtype``.
+        A new instance containing a transfer table, in shape ``(cosmo.transfer_k_num,)``
+        and precision ``cosmo.dtype``.
 
     """
     if cosmo.transfer_fit:
@@ -123,7 +123,7 @@ def transfer_fit(k, cosmo):
 
 
 def transfer(k, cosmo):
-    """Evaluate interpolation of matter transfer function.
+    """Interpolate the matter transfer function.
 
     Parameters
     ----------
@@ -143,7 +143,7 @@ def transfer(k, cosmo):
 
     """
     if cosmo.transfer is None:
-        raise ValueError('transfer table is empty: run boltz or transfer_integ first')
+        raise ValueError('transfer table is empty: run Cosmology.prime or transfer_tab first')
 
     k = jnp.asarray(k)
 
@@ -153,9 +153,8 @@ def transfer(k, cosmo):
 
 
 @jit
-def growth_integ(cosmo):
-    r"""Integrate and tabulate (LPT) growth functions and derivatives at
-    ``cosmo.growth_a``.
+def growth_tab(cosmo):
+    r"""Tabulate the (LPT) growth functions and derivatives at ``cosmo.growth_a``.
 
     Parameters
     ----------
@@ -164,8 +163,8 @@ def growth_integ(cosmo):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing a growth table, that has the shape ``(num_lpt_order,
-        num_derivatives, len(cosmo.growth_a))`` and ``cosmo.dtype``.
+        A new instance containing a growth table, in shape ``(num_lpt_order,
+        num_derivatives, len(cosmo.growth_a))`` and precision ``cosmo.dtype``.
 
     Notes
     -----
@@ -220,10 +219,9 @@ def growth_integ(cosmo):
 
 # TODO 3rd order has two factors, so `order` probably need to support str
 def growth(a, cosmo, order=1, deriv=0):
-    r"""Evaluate interpolation of (LPT) growth function or derivative, the n-th
-    derivatives of the m-th order growth function :math:`\mathrm{d}^n D_m /
-    \mathrm{d}\ln^n a`. Growth functions are normalized at the matter dominated era
-    instead of today.
+    r"""Interpolate the (LPT) growth function or derivative, the n-th derivatives of the
+    m-th order growth function :math:`\mathrm{d}^n D_m / \mathrm{d}\ln^n a`. Growth
+    functions are normalized at the matter dominated era instead of today.
 
     Parameters
     ----------
@@ -247,7 +245,7 @@ def growth(a, cosmo, order=1, deriv=0):
 
     """
     if cosmo.growth is None:
-        raise ValueError('growth table is empty: run boltz or growth_integ first')
+        raise ValueError('growth table is empty: run Cosmology.prime or growth_tab first')
 
     a = jnp.asarray(a)
 
@@ -256,9 +254,9 @@ def growth(a, cosmo, order=1, deriv=0):
     return D
 
 
-def varlin_integ(cosmo):
-    """Compute and tabulate the linear matter overdensity variance within tophat spheres
-    of ``cosmo.varlin_R`` radii.
+def varlin_tab(cosmo):
+    """Tabulate the linear matter overdensity variance within tophat spheres of
+    ``cosmo.varlin_R`` radii.
 
     Parameters
     ----------
@@ -267,8 +265,8 @@ def varlin_integ(cosmo):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing a linear variance table, that has the shape
-        ``(len(cosmo.varlin_R),)`` and ``cosmo.dtype``.
+        A new instance containing a linear variance table, in shape
+        ``(len(cosmo.varlin_R),)`` and precision ``cosmo.dtype``.
 
     """
     Plin = linear_power(cosmo.var_tophat.x, None, cosmo)
@@ -279,14 +277,14 @@ def varlin_integ(cosmo):
 
 
 def varlin(R, a, cosmo):
-    """Evaluate interpolation of linear matter overdensity variance.
+    """Interpolate the linear matter overdensity variance.
 
     Parameters
     ----------
     R : ArrayLike
         Radii of tophat spheres in :math:`L`.
     a : ArrayLike or None
-        Scale factors. If None, output is not scaled by growth.
+        Scale factors for linear growth. If None, no growth scaling.
     cosmo : Cosmology
 
     Returns
@@ -301,7 +299,7 @@ def varlin(R, a, cosmo):
 
     """
     if cosmo.varlin is None:
-        raise ValueError('varlin table is empty: run boltz or varlin_integ first')
+        raise ValueError('varlin table is empty: run Cosmology.prime or varlin_tab first')
 
     R = jnp.asarray(R)
 
@@ -315,45 +313,6 @@ def varlin(R, a, cosmo):
         sigma2 *= D**2
 
     return sigma2
-
-
-def boltz(cosmo, transfer=True, growth=True, varlin=True):
-    """Solve Einstein-Boltzmann equations and precompute transfer and growth functions,
-    etc.
-
-    Parameters
-    ----------
-    cosmo : Cosmology
-    transfer : bool or None, optional
-        Whether to compute the transfer function, leave it as is, or set it to None.
-    growth : bool or None, optional
-        Whether to compute the growth functions, leave it as is, or set it to None.
-    varlin : bool or None, optional
-        Whether to compute the linear matter overdensity variance, leave it as is, or
-        set it to None.
-
-    Returns
-    -------
-    cosmo : Cosmology
-        A new instance containing transfer and growth tables, etc.
-
-    """
-    if transfer:
-        cosmo = transfer_integ(cosmo)
-    elif transfer is None:
-        cosmo = cosmo.replace(transfer=None)
-
-    if growth:
-        cosmo = growth_integ(cosmo)
-    elif growth is None:
-        cosmo = cosmo.replace(growth=None)
-
-    if varlin:
-        cosmo = varlin_integ(cosmo)
-    elif varlin is None:
-        cosmo = cosmo.replace(varlin=None)
-
-    return cosmo
 
 
 @custom_vjp

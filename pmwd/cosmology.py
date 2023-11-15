@@ -214,11 +214,49 @@ class Cosmology:
     def from_sigma8(cls, sigma8, *args, **kwargs):
         r"""Construct cosmology with :math:`\sigma_8` instead of :math:`A_s`."""
         cosmo = cls(1, *args, **kwargs)
-        cosmo = boltzmann.boltz(cosmo)
+        cosmo = cosmo.prime()  #FIXME set distance=False
 
         A_s_1e9 = (sigma8 / cosmo.sigma8)**2
 
         return cls(A_s_1e9, *args, **kwargs)
+
+    def prime(self, transfer=True, growth=True, varlin=True):
+        """Tabulate and cache the transfer and growth functions, etc.
+
+        Parameters
+        ----------
+        transfer : bool or None, optional
+            Whether to compute the transfer function, leave it as is, or set it to None.
+        growth : bool or None, optional
+            Whether to compute the growth functions, leave it as is, or set it to None.
+        varlin : bool or None, optional
+            Whether to compute the linear matter overdensity variance, leave it as is,
+            or set it to None.
+
+        Returns
+        -------
+        cosmo : Cosmology
+            A new instance containing transfer and growth tables, etc.
+
+        """
+        cosmo = self
+
+        if transfer:
+            cosmo = boltzmann.transfer_tab(cosmo)
+        elif transfer is None:
+            cosmo = cosmo.replace(transfer=None)
+
+        if growth:
+            cosmo = boltzmann.growth_tab(cosmo)
+        elif growth is None:
+            cosmo = cosmo.replace(growth=None)
+
+        if varlin:
+            cosmo = boltzmann.varlin_tab(cosmo)
+        elif varlin is None:
+            cosmo = cosmo.replace(varlin=None)
+
+        return cosmo
 
     def astype(self, dtype):
         """Cast parameters to dtype."""
