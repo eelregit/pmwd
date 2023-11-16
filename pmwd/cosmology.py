@@ -332,12 +332,12 @@ class Cosmology:
 
     @property
     def Omega_K(self):
-        r"""Spatial curvature density parameter today :math:`\Omega_K`."""
+        r"""Spatial curvature density parameter today :math:`\Omega_K = - K d_H^2`."""
         return self.Omega_K_fixed if self.Omega_K_ is None else self.Omega_K_
 
     @property
     def K(self):
-        r"""Spatial Gaussian curvature :math:`K = - \Omega_K / d_H^2` in :math:`1/L^2`."""
+        r"""Spatial Gaussian curvature :math:`K` in :math:`1/L^2`."""
         return - self.Omega_K / self.d_H**2
 
     @property
