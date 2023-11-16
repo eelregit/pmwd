@@ -43,13 +43,17 @@ def jax_device_sync(verbose=False):
                   flush=True)
 
 
-def checkpoint(epoch, so_params, log_id=None, verbose=True):
+def checkpoint(epoch, so_params, opt_state, lr, log_id=None, verbose=True):
+    dic = {
+            'so_params': so_params,
+            'opt_state': opt_state,
+            'lr': lr,
+    }
     dir = f'params/{slurm_job_id}'
     if log_id is not None:
         dir += f'_{log_id}'
     os.makedirs(dir, exist_ok=True)
     with open(fn := f'{dir}/e{epoch:0>3d}.pickle', 'wb') as f:
-        dic = {'so_params': so_params}
         pickle.dump(dic, f)
     if verbose:
         printinfo(f'epoch {epoch} done, params saved: {fn}', flush=True)
@@ -158,7 +162,8 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
 
         # checkpoint and track
         if procid == 0:
-            checkpoint(epoch, so_params, log_id=log_id, verbose=verbose)
+            checkpoint(epoch, so_params, opt_state, learning_rate,
+                       log_id=log_id, verbose=verbose)
 
             scalars = {
                 'loss': loss_epoch_mean,
