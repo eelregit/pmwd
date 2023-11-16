@@ -129,24 +129,6 @@ class Cosmology:
 
     """
 
-    # TODO keyword-only for python>=3.10
-
-    A_s_1e9: ArrayLike
-    n_s: ArrayLike
-    Omega_m: ArrayLike
-    Omega_b: ArrayLike
-    h: ArrayLike
-
-    T_cmb_: Optional[ArrayLike] = None
-    T_cmb_fixed: ClassVar[float] = 2.7255  # Fixsen 2009, arXiv:0911.1955
-
-    Omega_K_: Optional[ArrayLike] = None
-    Omega_K_fixed: ClassVar[float] = 0
-    w_0_: Optional[ArrayLike] = None
-    w_0_fixed: ClassVar[float] = -1
-    w_a_: Optional[ArrayLike] = None
-    w_a_fixed: ClassVar[float] = 0
-
     # constants in SI units
     M_sun_SI: ClassVar[float] = 1.98847e30
     Mpc_SI: ClassVar[float] = 3.0856775815e22
@@ -159,6 +141,26 @@ class Cosmology:
     L: ClassVar[float] = Mpc_SI
     T: ClassVar[float] = 1 / H_0_SI
 
+    # TODO keyword-only for python>=3.10
+
+    # free parameters
+    A_s_1e9: ArrayLike
+    n_s: ArrayLike
+    Omega_m: ArrayLike
+    Omega_b: ArrayLike
+    h: ArrayLike
+
+    # optionally free parameters
+    T_cmb_: Optional[ArrayLike] = None
+    T_cmb_fixed: ClassVar[float] = 2.7255  # Fixsen 2009, arXiv:0911.1955
+    Omega_K_: Optional[ArrayLike] = None
+    Omega_K_fixed: ClassVar[float] = 0
+    w_0_: Optional[ArrayLike] = None
+    w_0_fixed: ClassVar[float] = -1
+    w_a_: Optional[ArrayLike] = None
+    w_a_fixed: ClassVar[float] = 0
+
+    # fixed parameters
     k_pivot_Mpc: ClassVar[float] = 0.05
 
     distance_lga_min: float = -3
