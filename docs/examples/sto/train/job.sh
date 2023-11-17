@@ -13,7 +13,7 @@
 
 module purge
 
-source ~/mambaforge/bin/activate
+source /mnt/home/yzhang/mambaforge/bin/activate
 # srun python run_train.py
 srun python optune.py
 
