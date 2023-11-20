@@ -114,7 +114,7 @@ def linear_modes(modes, cosmo, conf, a=None, real=False):
         # TF: To generate non-Gaussian primordial field without aliassing effects, we generate the square of the field at a higher grid size
         # TF: When squaring the field in real space, the generated higher frequency modes can be accomodated on the larger grid and don't 'fold back' over the relevant modes.
         modes_NG = jnp.zeros(shape=(conf.ptcl_grid_shape[0]*2,conf.ptcl_grid_shape[1]*2,conf.ptcl_grid_shape[2] + 1),dtype=modes.dtype)
-        # TF: We fill the higher resolution box only halfway with the previously generated modes (note factor of 8 for 2**3 times higher resolution):
+        # TF: We fill the higher resolution box only halfway with the previously generated modes (note factor of 8 for 2**3 times more gridpoints):
         modes_NG = modes_NG.at[conf.ptcl_grid_shape[0]-conf.ptcl_grid_shape[0]//2:conf.ptcl_grid_shape[0]+conf.ptcl_grid_shape[0]//2,conf.ptcl_grid_shape[1]-conf.ptcl_grid_shape[1]//2:conf.ptcl_grid_shape[1]+conf.ptcl_grid_shape[1]//2,:conf.ptcl_grid_shape[2]//2+1].set(jnp.fft.fftshift(modes*jnp.sqrt(8),axes=[0,1]))
         modes_NG = jnp.fft.ifftshift(modes_NG,axes=[0,1])
         # TF: Move to real space, square and back to Fourier space
