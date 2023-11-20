@@ -47,7 +47,7 @@ class Cosmology:
         Dark energy equation of state linear parameter. Default is None.
     h : float ArrayLike
         Hubble constant in unit of 100 [km/s/Mpc].
-    f_nl : float or jax.numpy.ndarray, optional
+    f_nl_loc : float or jax.numpy.ndarray, optional
         amplitude of local primordial non-Gaussianity
     """
 
