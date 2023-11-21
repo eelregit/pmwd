@@ -56,8 +56,6 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_grid, ptcl_spa
     else:
         raise NotImplementedError(f"Unsupported dtype {np_dtype}")
 
-    #workspace = mlir.full_like_aval(ctx, 0, ShapedArray(shape=[workspace_size,], dtype=np.byte))
-
     # And then the following is what changes between the GPU and CPU
     if platform == "cpu":
         raise NotImplementedError(f"Unsupported cpu platform")
@@ -68,27 +66,20 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_grid, ptcl_spa
             )
 
         # TODO: if we use shared mem with bin sort, bin sort work mem allocate by XLA here and pass to cuda
-        #result = custom_call(
-        return custom_call(
+        out = custom_call(
             op_name,
             # Output types
-            #result_types=[out_type, ir.RankedTensorType.get([workspace_size],ir.IntegerType.get_signless(8))],
-            result_types=[out_type],
+            result_types=[out_type, ir.RankedTensorType.get([workspace_size],ir.IntegerType.get_signless(8))],
             # The inputs:
             operands=[pmid,disp,val,mesh],
             # Layout specification:
             operand_layouts=[in_layout1, in_layout1, in_layout2, out_layout],
-            result_layouts=[out_layout],
+            result_layouts=[out_layout, [0]],
             operand_output_aliases={3:0},
             # GPU specific additional data
             backend_config=opaque,
         ).results
-        #return out[0]
-        #return hlo.ReshapeOp(mlir.aval_to_ir_type(out_aval), out[0]).results
-
-    #raise ValueError(
-    #    "Unsupported platform; this must be 'gpu'"
-    #)
+        return [out[0]]
 
 _scatter_prim = Primitive("scatter_cuda")
 _scatter_prim.def_impl(partial(xla.apply_primitive, _scatter_prim))

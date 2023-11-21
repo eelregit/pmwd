@@ -675,9 +675,8 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     T *disp = reinterpret_cast<T *>(buffers[1]);
     T *particle_values = reinterpret_cast<T *>(buffers[2]);
     T *grid_values = reinterpret_cast<T *>(buffers[4]);
-    //void *work_d = buffers[5];
-    //char *work_i_d = static_cast<char *>(work_d);
-    char *work_i_d;
+    void *work_d = buffers[5];
+    char *work_i_d = static_cast<char *>(work_d);
 
 
     // parameters for shared mem using bins to group cells
@@ -686,10 +685,9 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     uint32_t nbiny = static_cast<uint32_t>(std::ceil(1.0*stride[1]/bin_size));
     uint32_t nbinz = static_cast<uint32_t>(std::ceil(1.0*stride[2]/bin_size));
 
-    CUDA_SAFE_CALL(cudaMalloc((void**)&work_i_d, sizeof(uint32_t)*(n_particle*4+2*nbinx*nbiny*nbinz+1)+temp_storage_bytes));
-
     int64_t npts_mem_size = sizeof(uint32_t) * (int64_t)n_particle;
     int64_t nbins_mem_size = sizeof(uint32_t) * (int64_t)nbinx*nbiny*nbinz;
+    cudaMemset(work_i_d, 0, 4*npts_mem_size + 2*nbins_mem_size + sizeof(uint32_t) + temp_storage_bytes);
     uint32_t* d_sortidx = (uint32_t*)work_i_d;
     uint32_t* d_sortidx_buff = (uint32_t*)&work_i_d[npts_mem_size];
     uint32_t* d_index = (uint32_t*)&work_i_d[2*npts_mem_size];
@@ -801,7 +799,6 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     cudaEventElapsedTime(&milliseconds, start, stop);
     printf("cuda kernel scatter: %f milliseconds\n", milliseconds);
 #endif
-    cudaFree(work_i_d);
 
 }
 
