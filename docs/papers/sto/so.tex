@@ -688,20 +688,23 @@ each iteration
 their Fourier wavevector $\vk$ in both cases).
 %
 \begin{equation}
-\cL_f = \frac1{N_a N_K} \sum_i \ln
-\frac{\sum_{k \in K_i} \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
-     {\sum_{k' \in K_i} | f(\vk')|^2},
+\cL_f = \frac1{N_K N_a} \sum_{ij} \ln \biggl[
+\frac{\sum_{\vk \in K_i} \bigl| \hat f(\vk, a_j) - f(\vk, a_j) \bigr|^2}
+     {\sum_{\vk' \in K_i} | f(\vk', a_j)|^2} + \epsilon \biggr],
 \end{equation}
 %
-and
-%
-\begin{equation}
-\cL_f = \frac1{N_a} \ln \biggl[ \frac1{N_K} \sum_i
-\frac{\sum_{k \in K_i} w(\vk)
-      \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
-     {\sum_{k' \in K_i} |f(\vk')|^2} \biggl].
-\end{equation}
-%
+where $\epsilon$ sets the relative threshold tolerance below which we
+consider $\hat f$ in each $K$ accurate enough, and the gradients from
+that bin unimportant.
+%and
+%%
+%\begin{equation}
+%\cL_f = \frac1{N_a} \ln \biggl[ \frac1{N_K} \sum_i
+%\frac{\sum_{k \in K_i} w(\vk)
+%      \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
+%     {\sum_{k' \in K_i} |f(\vk')|^2} \biggl].
+%\end{equation}
+%%
 Then the question is which loss we should use for which $f$, to get
 stable and robust results, e.g., no bump for large or small boxes.
 To further limit our scope in this paper, we should probably only
