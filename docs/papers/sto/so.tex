@@ -72,8 +72,10 @@
 \newcommand{\ns}{n_\mathrm{s}}
 \newcommand{\Omegam}{\Omega_\mathrm{m}}
 \newcommand{\Omegab}{\Omega_\mathrm{b}}
+\newcommand{\OmegaK}{\Omega_K}
 \newcommand{\Mpc}{\mathrm{Mpc}}
 \newcommand{\ic}{\mathrm{i}}
+\newcommand{\f}{\mathrm{f}}
 \newcommand{\linear}{\mathrm{lin}}
 \newcommand{\tophat}{\mathrm{TH}}
 \newcommand{\gauss}{\mathrm{G}}
@@ -286,11 +288,11 @@ simulations by sharpening the gravitational force.
   \cmidrule(lr){2-2}
   & $\d\ln G_m / \d\lna$ \\
   \cmidrule(lr){2-2}
-  dimensionless factors & $\Omegam(a)$ \\
+  dimensionless factors & $\Omegam(a), \YL{\OmegaK(a)}$ \\
   \cmidrule(lr){2-2}
   & $\d\ln\!H / \d\lna$ \\
   \cmidrule(lr){2-2}
-  & $\Delta\lna$: time step size in $\lna$ \\
+  & $\Delta\lna$: time step size in $\lna$\YL{. Now this can be an important feature with varying $a_\ic$}\\
   \bottomrule
   \end{tabular}
   \end{table}
@@ -352,17 +354,12 @@ fully connected) structures.
   Given the box size, the mesh shape determines the cell size.
   The softening parameter gives the ratio of the comoving softening length
   to the mean particle spacing.
-  The curvature $\Omega_k$ is related to the separate universe simulation.
+  The curvature $\OmegaK$ is related to the separate universe simulation.
   We sample parameters applicable to \GADGET\ during data generation, and
   those applicable to \pmwd\ during training.
-  \textsuperscript\dag{}The box size is determined jointly by the \pmwd\
-  mesh shape and mesh cell size below, which are assumed to be sampled
-  independently.
-  \YL{I forgot why I wrote ``Mpc'' without the $h$ here.}
-  \YZ{We are using ``Mpc/h'' in the code.}
-  In practice, we sample one conditioned on the other and the box size.
-  *Number of time steps from $a=1/16$ to $a=1+1/128$ (in order to cover the
-  snapshot offset).
+  \YL{(I forgot why I wanted to sample mesh shape and mesh cell size...
+  Now it seems more natural to me to have the ptcl spacing sampled
+  uniformly instead...)}
   }
   \label{tab:param}
   \begin{tabular}{lcccr}
@@ -371,11 +368,9 @@ fully connected) structures.
   \midrule
   & $128^3$ white noise & $\mathcal{N}(\vzero, \vI)$ & 512 realizations & MC \\
   \cmidrule(lr){2-5}
-  & 121 snapshots, $a$ & uniform & [1/16, 1] & deterministic \\
-  \cmidrule(lr){2-5}
-  & box size in Mpc\YZ{/h}\textsuperscript\dag & log-trapezoidal & [25.6, 2560) \\
+  & box size in Mpc$/h$ & \YL{log-uniform} & [25.6, 2560) \\
   \cmidrule(lr){2-4}
-  & snapshot offset, $\Delta\!a$ & uniform & [0, 1/128) \\
+  & snapshot offset & uniform & (0, 1] \\
   \cmidrule(lr){2-4}
   \GADGET\ & $\As \times 10^9$ & log-uniform & [1, 4) \\
   \cmidrule(lr){2-4}
@@ -385,19 +380,16 @@ fully connected) structures.
   \cmidrule(lr){2-4}
   & $\Omegab / \Omegam$ & log-uniform & [1/8, 1/4) \\
   \cmidrule(lr){2-4}
-  & $\Omega_k / (1 - \Omega_k)$ & uniform & [-1/3, 1/3) \\
+  & $\OmegaK / (1 - \OmegaK)$ & uniform & [-1/3, 1/3) \\
   \cmidrule(lr){2-4}
   & $h$ & log-uniform & [0.5, 1) \\
   \cmidrule(lr){1-4}
   \GADGET\ & softening ratio & log-uniform & [1/50, 1/20) \\
   \cmidrule(lr){1-5}
-  & mesh shape & log-uniform & [128, 512] \\
+  \pmwd\ & mesh shape & log-uniform & [128, 512] & MC \\
   \cmidrule(lr){2-4}
-  \pmwd\ & mesh cell size in Mpc\YZ{/h} & log-uniform & [0.2, 5] & MC \\
-  \cmidrule(lr){2-4}
-  & number of time steps* & log-uniform & [10, 1000] \\
   \cmidrule(lr){1-4}
-  training & loss grid offset in its own spacing & uniform & $[0, 1)^3$ \\
+  training & loss grid offset & uniform & $[0, 1)^3$ \\
   \bottomrule
   \end{tabular}
   \end{table*}
@@ -407,21 +399,37 @@ simulation code \citep{GADGET-4}.
 We run 512 \GADGET\ simulations that cover a wide range of
 configurations and cosmological parameters, as listed in
 \autoref{tab:param}.
-Each simulation has $128^3$ particles and writes 121 snapshots linearly
-spaced in scale factor from $1/16 + \Delta a$ to $1 + \Delta a$, with
-spacing $1/128$.
-$\Delta a$ is an offset, common for all snapshots in each simulation,
-that varies as in \autoref{tab:param} and helps to sample different
-alignment between snapshot and start/stop times.
+\YL{
+Each simulation evolves $128^3$ particles from the initial time $a_\ic$
+to the final time $a_\f=1$, saving 64 snapshots linearly spaced in scale
+factor from $a_\ic + \gamma \Delta a$ to $1 - (1 - \gamma) \Delta a$.
+We determine $a_\ic$ for each configuration depending on its cosmology
+and mean particle spacing \citep{MichauxEtAl2021}, \YL{(YL elaborate why and how here.)} which then sets the
+snapshot spacing $\Delta a = (1 - a_\ic) / 64$.
+To sample different alignment between the snapshots and the start/stop
+times and avoid possible related numerical errors in \pmwd, we introduce
+a fractional random offset $\gamma$ that varies between 0 and 1 for
+different simulations.
+}
 In our \pmwd\ model, we generate the snapshot at an arbitrary given time using
 the cubic Hermite interpolation, with more details in \autoref{sec:snapobs}.
-The curvature $\Omega_k$ is related to the separate universe simulation
+The curvature $\OmegaK$ is related to the separate universe simulation
 \citep{LiEtAl2014, WagnerEtAl2015}.
 \YZ{We refer to this training dataset of 512 \GADGET\ simulations sampled with
 Sobol sequence as \GSDATA.}
 On average each \GADGET\ simulation takes roughly 2K CPU hours to run, and the
 generation of the whole \GSDATA\ dataset consumes 1M CPU hours.
 % to be compare with the speed of pmwd with SO
+
+\YL{
+In this work, we train \pmwd\ using $XXX$ time steps from $a_\ic$ to
+$a_\f$, generate snapshots at the same times as in \GADGET, and compare
+them in the loss function.
+Although the number of time steps are fixed here, we emphasize that our
+spatial optimization of course also applies for different number of time
+steps, which we will explore, together with the optimal choice of time
+variable, in a follow-up work on the temporal optimization.
+}
 
 
 \subsection{Trained Neural Networks}
@@ -673,19 +681,19 @@ g(k_1, k_2, k_3; \vvartheta) = g(\{k_jR_d, k_jR_P, \cdots\}_{j=1,2,3}; G_m, \Ome
 The loss function is constructed by comparing the simulated field $\hat f$ with
 the target field $f$.
 \YL{
-For a field $f$ in either Lagrangian or Eulerian space, we have thought
-of 3 forms of MSE-inspired loss:
-%
-\begin{equation}
-\cL_f = \frac1{N_a} \ln
-  \frac{\sum_\vq \bigl[ \hat f(\vq) - f(\vq) \bigr]^2}
-       {\sum_{\vq'} f(\vq')^2},
-\end{equation}
-%
-where $N_a$ is the number of time steps it takes to generate the snapshot for
-each iteration
-(or with $\vq$ replaced by $\vx$ for Eulerian fields, or equivalently by
-their Fourier wavevector $\vk$ in both cases).
+For a field $f$ in either Lagrangian or Eulerian space%, we have thought
+%of 3 forms of MSE-inspired loss:
+%%
+%\begin{equation}
+%\cL_f = \frac1{N_a} \ln
+%  \frac{\sum_\vq \bigl[ \hat f(\vq) - f(\vq) \bigr]^2}
+%       {\sum_{\vq'} f(\vq')^2},
+%\end{equation}
+%%
+%where $N_a$ is the number of time steps it takes to generate the snapshot for
+%each iteration
+%(or with $\vq$ replaced by $\vx$ for Eulerian fields, or equivalently by
+%their Fourier wavevector $\vk$ in both cases).
 %
 \begin{equation}
 \cL_f = \frac1{N_K N_a} \sum_{ij} \ln \biggl[
@@ -693,9 +701,11 @@ their Fourier wavevector $\vk$ in both cases).
      {\sum_{\vk' \in K_i} | f(\vk', a_j)|^2} + \epsilon \biggr],
 \end{equation}
 %
-where $\epsilon$ sets the relative threshold tolerance below which we
-consider $\hat f$ in each $K$ accurate enough, and the gradients from
-that bin unimportant.
+where $N_a$ is the number of snapshots and $N_K$ is the number of
+$k$-bins.
+$\epsilon$ sets the relative threshold tolerance, below which we
+consider $\hat f$ in each $K$ accurate enough and the gradients from
+that bin less important.
 %and
 %%
 %\begin{equation}
@@ -705,11 +715,13 @@ that bin unimportant.
 %     {\sum_{k' \in K_i} |f(\vk')|^2} \biggl].
 %\end{equation}
 %%
-Then the question is which loss we should use for which $f$, to get
-stable and robust results, e.g., no bump for large or small boxes.
-To further limit our scope in this paper, we should probably only
-consider $f \in \{\vs, \delta\}$, and optionally the Lagrangian particle
-velocity $\vv(\vq)$.
+%Then the question is which loss we should use for which $f$, to get
+%stable and robust results, e.g., no bump for large or small boxes.
+%To further limit our scope in this paper, we should probably only
+%consider $f \in \{\vs, \delta\}$, and optionally the Lagrangian particle
+%velocity $\vv(\vq)$.
+We can use $f \in \{\vs(\vq), \delta(\vx), \vv(\vq), (1+\delta)\vv(\vx),
+(1+\delta)\vv\vv(\vx)\}$.
 }
 
 For the displacement field, we adopt the mean squared error (MSE) loss
@@ -728,10 +740,10 @@ Note that we have further taken the logarithm to combine it with the
 other loss(es) below.
 % Say that only s loss is not enough even though in principle it is, and cite DrewEtAl x2 too
 
-\YL{Even though the log should be enough for adaptive optimizer and
-fixed sim config, this may create problem when training on all config at
-the same time. So normalizations inside the log is added above and
-below.}
+%\YL{Even though the log should be enough for adaptive optimizer and
+%fixed sim config, this may create problem when training on all config at
+%the same time. So normalizations inside the log is added above and
+%below.}
 
 However, in the Eulerian space, an MSE loss is dominated by the small
 scale modes.
@@ -764,11 +776,17 @@ by step, and without $w$ setting the priority, the loss function could
 encourage the network to fit the small scales at the cost of the
 intermediate scales.
 Note that $\cL_\vs$ is on the displacement field $\vs(\vq)$ in the
-Lagrangian space, while the density field is in the Eulerian space:
+Lagrangian space, while the density and momentum fields are in the
+Eulerian space:
 %
-\begin{equation}
-1 + \delta(\vx) = \int\!\d^3\vq\, \deltaD[ \vx - \vq - \vs(\vq)],
-\end{equation}
+\begin{align}
+1 + \delta(\vx) &= \int\!\d^3\vq\,
+  \deltaD[ \vx - \vq - \vs(\vq)], \nonumber\\
+(1 + \delta)\vv(\vx) &= \int\!\d^3\vq\,
+  \vv(\vq) \deltaD[ \vx - \vq - \vs(\vq)], \nonumber\\
+(1 + \delta)\vv\vv(\vx) &= \int\!\d^3\vq\,
+  \vv\vv(\vq) \deltaD[ \vx - \vq - \vs(\vq)], \nonumber\\
+\end{align}
 %
 which we compute by scattering particles to the choice of grid for loss.
 
@@ -927,7 +945,7 @@ The Flatiron Institute is supported by the Simons Foundation.
 
 \vspace{1em}
 \textit{\large Data Availability:}
-\YZ{Do we make the \GSDATA\ data public?}
+We make the \GSDATA\ simulation data set public at ...
 
 
 \vspace{1em}
