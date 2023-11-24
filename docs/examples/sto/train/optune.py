@@ -21,14 +21,15 @@ def objective(trial, sobol_ids, gsdata, snap_ids):
     learning_rate = trial.suggest_float('learning_rate', 1e-6, 1e-3, log=True)
     if opt_name == 'Adam':
         b1 = trial.suggest_float('b1', 0.5, 0.9)
-        optimizer = optax.adam(learning_rate, b1=b1)
+        b2 = trial.suggest_float('b2', 0.5, 0.999)
+        optimizer = optax.adam(learning_rate, b1=b1, b2=b2)
     if opt_name == 'AdamW':
         b1 = trial.suggest_float('b1', 0.5, 0.9)
         weight_decay = trial.suggest_float('weight_decay', 1e-5, 1e-3, log=True)
         optimizer = optax.adamw(learning_rate, b1=b1, weight_decay=weight_decay)
     if opt_name == 'SGD':
         optimizer = optax.sgd(learning_rate)
-    n_layers = trial.suggest_int('n_layers', 2, 5)
+    n_layers = trial.suggest_int('n_layers', 2, 8)
 
     so_nodes = [[n] * n_layers + [1] for n in n_input]
     so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
