@@ -170,8 +170,6 @@ class G4snapDataset(Dataset):
         sobol_id = self.sobol_ids[idx // self.snaps_per_sim]
         snap_id = self.snap_ids[idx % self.snaps_per_sim]
 
-        # TODO generate pmwd parameters and IC here?
-
         return self.g4data[sobol_id][snap_id]
 
     def getsnap(self, sidx, snap):
