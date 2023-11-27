@@ -39,14 +39,14 @@ def loss_power_w(f, g, spacing=1, log=True, w=None, cut_nyq=False):
     return loss
 
 
-def loss_power_ln(f, g, spacing=1, cut_nyq=False, eps=1e-3):
+def loss_power_ln(f, g, eps, spacing=1, cut_nyq=False):
     k, P_d, N, bins = powspec(f - g, spacing, cut_nyq=cut_nyq)
     k, P_g, N, bins = powspec(g, spacing, cut_nyq=cut_nyq)
     loss = jnp.log(P_d / P_g + eps).sum() / len(k)
     return loss
 
 
-def loss_ptcl_disp(ptcl, ptcl_t, conf):
+def loss_ptcl_disp(ptcl, ptcl_t, conf, log_loss_eps):
     # get the disp from particles' grid Lagrangian positions
     # may be necessary since we have it divided in the mse
     disp, disp_t = (ptcl_rpos(p, Particles.gen_grid(p.conf), p.conf)
@@ -57,39 +57,39 @@ def loss_ptcl_disp(ptcl, ptcl_t, conf):
     disp_t = disp_t.T.reshape(shape_)
 
     # loss = loss_mse(disp, disp_t)
-    loss = loss_power_ln(disp, disp_t)
+    loss = loss_power_ln(disp, disp_t, log_loss_eps)
     return loss
 
 
-def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_mesh_shape):
+def loss_ptcl_dens(ptcl, ptcl_t, conf, log_loss_eps, loss_mesh_shape):
     # get the density fields
     (dens, dens_t), cell_size = scatter_dens((ptcl, ptcl_t), conf, loss_mesh_shape)
 
     # loss = loss_power_w(dens, dens_t)
-    loss = loss_power_ln(dens, dens_t)
+    loss = loss_power_ln(dens, dens_t, log_loss_eps)
     return loss
 
 
-def loss_snap(snap, snap_t, a_snap, conf, loss_mesh_shape=1):
+def loss_snap(snap, snap_t, a_snap, conf, log_loss_eps, loss_mesh_shape=1):
     loss = 0.
     # displacement
-    loss += loss_ptcl_disp(snap, snap_t, conf)
+    loss += loss_ptcl_disp(snap, snap_t, conf, log_loss_eps)
     # density field
-    loss += loss_ptcl_dens(snap, snap_t, conf, loss_mesh_shape)
+    loss += loss_ptcl_dens(snap, snap_t, conf, log_loss_eps, loss_mesh_shape)
     # divided by the number of nbody steps to this snap
     # loss /= (a - conf.a_start) // conf.a_nbody_step + 1
     return loss
 
 
 @jit
-def loss_func(obsvbl, tgts, conf):
+def loss_func(obsvbl, tgts, conf, log_loss_eps):
     loss = 0.
 
     def f_loss(carry, x):
         loss = carry
         tgt, a_snap, snap = x
         snap_t = pv2ptcl(*tgt, snap.pmid, snap.conf)
-        loss += loss_snap(snap, snap_t, a_snap, conf)
+        loss += loss_snap(snap, snap_t, a_snap, conf, log_loss_eps)
         return loss, None
 
     loss = scan(f_loss, loss, (tgts, obsvbl['a_snaps'], obsvbl['snaps']))[0]

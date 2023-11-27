@@ -2,12 +2,12 @@
 
 #SBATCH --job-name=trainso
 #SBATCH --partition=gpu
-#SBATCH --nodes=4
-#SBATCH --ntasks-per-node=4
-#SBATCH --gpus-per-node=4
-#SBATCH --cpus-per-task=16
-#SBATCH --constraint=a100-80gb
-#SBATCH --mem-per-gpu=250G
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=8
+#SBATCH --gpus-per-node=8
+#SBATCH --cpus-per-task=8
+#SBATCH --constraint=h100-80gb
+#SBATCH --mem-per-gpu=125G
 #SBATCH --time=7-0
 #SBATCH --output=outs/%j.out
 

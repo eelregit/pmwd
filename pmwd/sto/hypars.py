@@ -13,6 +13,9 @@ sobol_ids_global = np.arange(0, 64)
 snap_ids = np.arange(0, 121, 1)
 shuffle_epoch = True  # shuffle the order of sobols across epochs
 
+# loss
+log_loss_eps = 1e-2
+
 # optimizer
 learning_rate = 3e-5
 optimizer = optax.adam(learning_rate)
@@ -30,14 +33,14 @@ n_input = [soft_len(k_fac=3), soft_len()]
 so_nodes = [[3*n, 3*n, 3*n, 1] for n in n_input]
 
 # start a new training
-# so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
-# opt_state = optimizer.init(so_params)
+so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
+opt_state = optimizer.init(so_params)
 
 # load and continue a training
-with open('params/3016932/e1000.pickle', 'rb') as f:
-    dic = pickle.load(f)
-    so_params = dic['so_params']
-    opt_state = dic['opt_state']
+# with open('params/3016932/e1000.pickle', 'rb') as f:
+#     dic = pickle.load(f)
+#     so_params = dic['so_params']
+#     opt_state = dic['opt_state']
 
 
 
