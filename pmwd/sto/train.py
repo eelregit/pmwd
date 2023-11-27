@@ -17,9 +17,9 @@ def pmodel(ptcl_ic, so_params, cosmo, conf):
     return obsvbl, cosmo
 
 
-def obj(tgts, ptcl_ic, so_params, cosmo, conf):
+def obj(tgts, ptcl_ic, so_params, cosmo, conf, log_loss_eps):
     obsvbl, cosmo = pmodel(ptcl_ic, so_params, cosmo, conf)
-    loss = loss_func(obsvbl, tgts, conf)
+    loss = loss_func(obsvbl, tgts, conf, log_loss_eps)
     return loss
 
 
@@ -36,12 +36,12 @@ def init_pmwd(pmwd_params):
     return ptcl_ic, cosmo, conf
 
 
-def train_step(tgts, so_params, pmwd_params, opt_params):
+def train_step(tgts, so_params, pmwd_params, opt_params, log_loss_eps):
     ptcl_ic, cosmo, conf = init_pmwd(pmwd_params)
 
     # get loss and grad
     obj_valgrad = jax.value_and_grad(obj, argnums=2)
-    loss, grad = obj_valgrad(tgts, ptcl_ic, so_params, cosmo, conf)
+    loss, grad = obj_valgrad(tgts, ptcl_ic, so_params, cosmo, conf, log_loss_eps)
 
     # average over global devices
     loss, grad = global_mean((loss, grad))
@@ -58,7 +58,7 @@ def train_step(tgts, so_params, pmwd_params, opt_params):
 
 
 def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-                opt_state, optimizer, jax_key, verbose):
+                opt_state, optimizer, jax_key, log_loss_eps, verbose):
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
     tic = time.perf_counter()
@@ -79,7 +79,7 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_pa
                        dropout_rate, dropout_key)
         opt_params = (optimizer, opt_state)
         so_params, loss, opt_state = train_step(tgts, so_params, pmwd_params,
-                                                opt_params)
+                                                opt_params, log_loss_eps)
 
         loss = float(loss)
         loss_epoch += loss
@@ -97,7 +97,7 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_pa
 
 
 def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-               jax_key, verbose):
+               jax_key, log_loss_eps, verbose):
     """Simply evaluate the loss w/o grad."""
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
@@ -119,7 +119,7 @@ def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_par
                        dropout_rate, dropout_key)
 
         ptcl_ic, cosmo, conf = init_pmwd(pmwd_params)
-        loss = obj(tgts, ptcl_ic, so_params, cosmo, conf)
+        loss = obj(tgts, ptcl_ic, so_params, cosmo, conf, log_loss_eps)
         loss = global_mean(loss)
         loss_epoch += float(loss)
 

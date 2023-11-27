@@ -111,7 +111,7 @@ def prep_train(sobol_ids_global, snap_ids):
 
 def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
               learning_rate, optimizer, opt_state, so_type, so_nodes, so_params,
-              ret=False, log_id=None, verbose=True):
+              log_loss_eps, ret=False, log_id=None, verbose=True):
 
     # RNGs with fixed seeds
     # pmwd MC sampling
@@ -146,11 +146,11 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
         if epoch == 0:  # evaluate the loss before training, with init so_params
             loss_epoch_mean = loss_epoch(
                 procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-                jax_key, verbose)
+                jax_key, log_loss_eps, verbose)
         else:
             loss_epoch_mean, so_params, opt_state, optimizer = train_epoch(
                 procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-                opt_state, optimizer, jax_key, verbose)
+                opt_state, optimizer, jax_key, log_loss_eps, verbose)
 
             # learning rate scheduler
             # learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
@@ -192,9 +192,11 @@ if __name__ == "__main__":
 
     from pmwd.sto.hypars import (
         n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
-        learning_rate, optimizer, opt_state, so_type, so_nodes, so_params)
+        learning_rate, optimizer, opt_state, so_type, so_nodes, so_params,
+        log_loss_eps)
 
     sobol_ids, gsdata = prep_train(sobol_ids_global, snap_ids)
 
     run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
-              learning_rate, optimizer, opt_state, so_type, so_nodes, so_params)
+              learning_rate, optimizer, opt_state, so_type, so_nodes, so_params,
+              log_loss_eps)
