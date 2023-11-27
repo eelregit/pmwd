@@ -110,7 +110,7 @@ def prep_train(sobol_ids_global, snap_ids):
 
 
 def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
-              learning_rate, optimizer, so_type, so_nodes, so_params,
+              learning_rate, optimizer, opt_state, so_type, so_nodes, so_params,
               ret=False, log_id=None, verbose=True):
 
     # RNGs with fixed seeds
@@ -121,7 +121,6 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
     # jax: dropout layer
     jax_key = jax.random.PRNGKey(0)
 
-    opt_state = optimizer.init(so_params)
     skd_state = None
 
     jax_device_sync()
@@ -193,9 +192,9 @@ if __name__ == "__main__":
 
     from pmwd.sto.hypars import (
         n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
-        learning_rate, optimizer, so_type, so_nodes, so_params)
+        learning_rate, optimizer, opt_state, so_type, so_nodes, so_params)
 
     sobol_ids, gsdata = prep_train(sobol_ids_global, snap_ids)
 
     run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
-              learning_rate, optimizer, so_type, so_nodes, so_params)
+              learning_rate, optimizer, opt_state, so_type, so_nodes, so_params)
