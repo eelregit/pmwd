@@ -39,10 +39,10 @@ def loss_power_w(f, g, spacing=1, log=True, w=None, cut_nyq=False):
     return loss
 
 
-def loss_power_ln(f, g, spacing=1, cut_nyq=False):
+def loss_power_ln(f, g, spacing=1, cut_nyq=False, eps=1e-3):
     k, P_d, N, bins = powspec(f - g, spacing, cut_nyq=cut_nyq)
     k, P_g, N, bins = powspec(g, spacing, cut_nyq=cut_nyq)
-    loss = jnp.log(P_d / P_g).sum() / len(k)
+    loss = jnp.log(P_d / P_g + eps).sum() / len(k)
     return loss
 
 
