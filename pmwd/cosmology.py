@@ -601,11 +601,11 @@ def distance(a_e, cosmo, type='radial', a_o=1):
     a_e : ArrayLike
         Scale factors at emission.
     cosmo : Cosmology
-    type : str in {'radial', 'transverse', 'angdiam', 'luminosity', 'light', 'conformal', 'lookback'}
+    type : str in {'radial', 'transverse', 'angdiam', 'luminosity', 'light', 'conformal', 'lookback'}, optional
         Type of distances or times to return, among radial comoving distance, transverse
         comoving distance, angular diameter distance, luminosity distance, light-travel
         distance, conformal time, and lookback time.
-    a_o : ArrayLike
+    a_o : ArrayLike, optional
         Scale factors at observation.
 
     Returns
