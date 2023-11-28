@@ -56,13 +56,13 @@ class Cosmology:
     w_a_ : None or float ArrayLike, optional
         Dark energy equation of state linear parameter :math:`w_a`. Default is None.
     distance_lga_min : float, optional
-        Minimum comoving horizon scale factor in log10.
+        Minimum distance scale factor in log10.
     distance_lga_max : float, optional
-        Maximum comoving horizon scale factor in log10.
+        Maximum distance scale factor in log10.
     distance_lga_maxstep : float, optional
-        Maximum comoving horizon scale factor step size in log10. It determines the
-        number of scale factors ``distance_a_num``, the actual step size
-        ``distance_lga_step``, and the scale factors ``distance_a``.
+        Maximum distance scale factor step size in log10. It determines the number of
+        scale factors ``distance_a_num``, the actual step size ``distance_lga_step``,
+        and the scale factors ``distance_a``.
     transfer_fit : bool, optional
         Whether to use Eisenstein & Hu fit to transfer function. Default is True
         (subject to change when False is implemented).
@@ -242,7 +242,7 @@ class Cosmology:
         Parameters
         ----------
         distance : bool or None, optional
-            Whether to cache the comoving horizon, leave it as is, or set it to None.
+            Whether to cache the distances, leave it as is, or set it to None.
         transfer : bool or None, optional
             Whether to cache the transfer function, leave it as is, or set it to None.
         growth : bool or None, optional
@@ -363,19 +363,19 @@ class Cosmology:
 
     @property
     def distance_a_num(self):
-        """Number of comoving horizon scale factors, including a leading 0."""
+        """Number of distance scale factors, including a leading 0."""
         return 1 + math.ceil((self.distance_lga_max - self.distance_lga_min)
                              / self.distance_lga_maxstep) + 1
 
     @property
     def distance_lga_step(self):
-        """Comoving horizon scale factor step size in log10."""
+        """Distance scale factor step size in log10."""
         return ((self.distance_lga_max - self.distance_lga_min)
                 / (self.distance_a_num - 2))
 
     @property
     def distance_a(self):
-        """Comoving horizon scale factors."""
+        """Distance scale factors."""
         a = jnp.logspace(self.distance_lga_min, self.distance_lga_max,
                          num=self.distance_a_num - 1, dtype=self.dtype)
         return jnp.concatenate((jnp.array([0]), a))
@@ -532,7 +532,7 @@ def Omega_m_a(a, cosmo):
 
 
 def distance_tab(cosmo):
-    r"""Tabulate the comoving horizon at ``cosmo.distance_a``.
+    r"""Tabulate the comoving and physical distances at ``cosmo.distance_a``.
 
     Parameters
     ----------
@@ -541,29 +541,45 @@ def distance_tab(cosmo):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing a comoving horizon table, in unit :math:`L`, shape
-        ``(cosmo.distance_a_num,)``, and precision ``cosmo.dtype``.
+        A new instance containing a distance table, in unit :math:`L`, shape
+        ``(2, cosmo.distance_a_num,)``, and precision ``cosmo.dtype``.
 
     Notes
     -----
-    The comoving horizon, written in the conformal time :math:`\eta`,
+    The comoving horizon in the conformal time :math:`\eta`
 
     .. math::
 
         c \eta = \int_0^t \frac{c \mathrm{d} t}{a(t)}
-               = d_H \int_0^a \frac{\mathrm{d} a'}{a'^2 E(a'}
+               = d_H \int_0^a \frac{\mathrm{d} a'}{a'^2 E(a')}
                = d_H \int_z^\infty \frac{\mathrm{d} z'}{E(z')}.
 
+    The light-travel distance in the age or physical time :math:`t`
+
+    .. math::
+
+        ct = \int_0^t c \mathrm{d} t
+           = d_H \int_0^a \frac{\mathrm{d} a'}{a' E(a')}
+           = d_H \int_z^\infty \frac{\mathrm{d} z'}{(1+z') E(z')}.
+
     """
-    #FIXME use jax.scipy.integrate.cumulative_trapezoid in the future
+    #FIXME in the future use jax.scipy.integrate.cumulative_trapezoid or Cubic Hermite spline antiderivatives
     a = cosmo.distance_a[1:]
     da = jnp.diff(cosmo.distance_a, prepend=0)
-    detada = cosmo.d_H / (a**2 * jnp.sqrt(E2(a, cosmo)))
-    detada = jnp.concatenate((jnp.array([0, 0]), detada))
-    deta = (detada[:-1] + detada[1:]) / 2 * da
-    eta = jnp.cumsum(deta)
 
-    return cosmo.replace(distance=eta)
+    cdetada = cosmo.d_H / (a**2 * jnp.sqrt(E2(a, cosmo)))
+    cdetada = jnp.concatenate((jnp.array([0, 0]), cdetada))
+    cdeta = (cdetada[:-1] + cdetada[1:]) / 2 * da
+    ceta = jnp.cumsum(cdeta)
+
+    cdtda = cosmo.d_H / (a * jnp.sqrt(E2(a, cosmo)))
+    cdtda = jnp.concatenate((jnp.array([0, 0]), cdtda))
+    cdt = (cdtda[:-1] + cdtda[1:]) / 2 * da
+    ct = jnp.cumsum(cdt)
+
+    distance = jnp.stack((ceta, ct), axis=0)
+
+    return cosmo.replace(distance=distance)
 
 
 def _SK_closed(chi, Ksqrt):
@@ -577,31 +593,35 @@ def _SK_open(chi, Ksqrt):
 
 
 def distance(a_e, cosmo, type='radial', a_o=1):
-    r"""Interpolate the comoving horizon and compute different distance measures.
+    r"""Interpolate the distances and compute different distance or time measures
+    between emissions and observations.
 
     Parameters
     ----------
     a_e : ArrayLike
-        Scale factors of emission.
+        Scale factors at emission.
     cosmo : Cosmology
-    type : str in {'radial', 'transverse', 'angdiam', 'luminosity'}
-        Type of distances to return, among radial comoving, transverse comoving, angular
-        diameter, and luminosity distances.
+    type : str in {'radial', 'transverse', 'angdiam', 'luminosity', 'light', 'conformal', 'lookback'}
+        Type of distances or times to return, among radial comoving distance, transverse
+        comoving distance, angular diameter distance, luminosity distance, light-travel
+        distance, conformal time, and lookback time.
     a_o : ArrayLike
-        Scale factors of observation.
+        Scale factors at observation.
 
     Returns
     -------
     d : jax.Array
-        Distances.
+        Distances in :math:`L` or times in :math:`T`.
 
     Notes
     -----
-    The line-of-sight or radial comoving distance between emission and observation
+    The line-of-sight or radial comoving distance, related to the conformal time
+    :math:`\eta`
 
     .. math::
 
-        \chi = \int_{t_\mathrm{e}}^{t_\mathrm{o}} \frac{c \mathrm{d} t}{a(t)}
+        \chi = c \eta
+             = \int_{t_\mathrm{e}}^{t_\mathrm{o}} \frac{c \mathrm{d} t}{a(t)}
              = d_H \int_{a_\mathrm{e}}^{a_\mathrm{o}} \frac{\mathrm{d} a'}{a'^2 E(a'}
              = d_H \int_{z_\mathrm{o}}^{z_\mathrm{e}} \frac{\mathrm{d} z'}{E(z')}.
 
@@ -621,6 +641,14 @@ def distance(a_e, cosmo, type='radial', a_o=1):
         d_\mathrm{A} &= \frac{a_\mathrm{e}}{a_\mathrm{o}} r, \\
         d_L &= \frac{a_\mathrm{o}}{a_\mathrm{e}} r.
 
+    The light-travel distance in the lookback or physical time :math:`t`
+
+    .. math::
+
+        ct = \int_{t_\mathrm{e}}^{t_\mathrm{o}} c \mathrm{d} t
+           = d_H \int_{a_\mathrm{e}}^{a_\mathrm{o}} \frac{\mathrm{d} a'}{a' E(a'}
+           = d_H \int_{z_\mathrm{o}}^{z_\mathrm{e}} \frac{\mathrm{d} z'}{(1+z') E(z')}.
+
     """
     if cosmo.distance is None:
         raise ValueError('distance table is empty: run Cosmology.prime or distance_tab first')
@@ -628,10 +656,15 @@ def distance(a_e, cosmo, type='radial', a_o=1):
     a_e = jnp.asarray(a_e)
     a_o = jnp.asarray(a_o)
 
-    d_o = jnp.interp(a_o, cosmo.distance_a, cosmo.distance)
-    d_e = jnp.interp(a_e, cosmo.distance_a, cosmo.distance)
+    phys = 1 if type in {'light', 'lookback'} else 0
+    d_o = jnp.interp(a_o, cosmo.distance_a, cosmo.distance[phys])
+    d_e = jnp.interp(a_e, cosmo.distance_a, cosmo.distance[phys])
     d = d_o - d_e
-    if type == 'radial':
+
+    if type in {'lookback', 'conformal'}:
+        d /= cosmo.c
+
+    if type in {'radial', 'light', 'lookback', 'conformal'}:
         return d
 
     branches = _SK_closed, _SK_flat, _SK_open
