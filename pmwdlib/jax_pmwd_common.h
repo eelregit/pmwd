@@ -15,6 +15,7 @@ struct PmwdDescriptor {
   int16_t ptcl_grid[3];
   int16_t stride[3];
   size_t tmp_storage_size;
+  uint32_t n_batch;
 };
 
 struct SortDescriptor {
