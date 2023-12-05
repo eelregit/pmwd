@@ -1,10 +1,8 @@
-from jax import jit
+from jax import jit, checkpoint
 import jax.numpy as jnp
 from jax.lax import scan
-from functools import partial
 
 from pmwd.particles import Particles, ptcl_rpos
-from pmwd.pm_util import rfftnfreq
 from pmwd.spec_util import powspec
 from pmwd.sto.util import scatter_dens, pv2ptcl
 
@@ -70,7 +68,7 @@ def loss_ptcl_dens(ptcl, ptcl_t, conf, log_loss_eps, loss_mesh_shape):
     return loss
 
 
-def loss_snap(snap, snap_t, a_snap, conf, log_loss_eps, loss_mesh_shape=1):
+def loss_snap(snap, snap_t, a_snap, conf, log_loss_eps, loss_mesh_shape=4):
     loss = 0.
     # displacement
     loss += loss_ptcl_disp(snap, snap_t, conf, log_loss_eps)
@@ -85,6 +83,7 @@ def loss_snap(snap, snap_t, a_snap, conf, log_loss_eps, loss_mesh_shape=1):
 def loss_func(obsvbl, tgts, conf, log_loss_eps):
     loss = 0.
 
+    @checkpoint  # checkpoint for saving memory in backward AD
     def f_loss(carry, x):
         loss = carry
         tgt, a_snap, snap = x
