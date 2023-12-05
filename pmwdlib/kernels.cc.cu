@@ -261,10 +261,11 @@ __global__ void
 scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_spacing, T_int1 ptcl_gridx, T_int1 ptcl_gridy, T_int1 ptcl_gridz,
                   T_int1 stridex, T_int1 stridey, T_int1 stridez, T_float offsetx, T_float offsety, T_float offsetz, T_value* values, T_value* grid_vals,
                   T_int1 nbinx, T_int1 nbiny, T_int1 nbinz,
-                  T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int2* bin_start, T_int2* bin_count, T_int2* index, T_int2 n_batch=1){
+                  T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int2* bin_start, T_int2* bin_count, T_int2* index, int64_t n_particle, T_int2 n_batch=1){
     extern __shared__ char shared_char[];
     T_value* gval_shared = (T_value*)&shared_char[0];
     T_int1 N = (bin_size_x+1)*(bin_size_y+1)*(bin_size_z+1);
+    int64_t n_grid = stridex * stridey * stridez;
     for(int ibatch=0; ibatch<n_batch; ibatch++){
         for(int i=threadIdx.x; i<N; i+=blockDim.x){
             gval_shared[i] = 0.0;
@@ -299,7 +300,7 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
             idx = index[pstart + i];
             T_int2 p_pmid[DIM] = {pmid[idx*DIM + 0], pmid[idx*DIM + 1], pmid[idx*DIM + 2]};
             T_float p_disp[DIM] = {disp[idx*DIM + 0], disp[idx*DIM + 1], disp[idx*DIM + 2]};
-            T_float p_val = values[idx];
+            T_float p_val = values[idx+ibatch*n_particle];
 
             // displacement with in a cell for cell (i,j,k)==(0,0,0)
             for(int idim=0; idim<3; idim++){
@@ -353,7 +354,7 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
 
             if(icx<(g_stride[0]+1) && icy<(g_stride[1]+1) && icz<(g_stride[2]+1)){ // CHECK condition
                 int outidx = icz%g_stride[2] + (icy%g_stride[1])*g_stride[2] + (icx%g_stride[0])*g_stride[2]*g_stride[1];
-                atomicAdd(&grid_vals[outidx], gval_shared[i]);
+                atomicAdd(&grid_vals[outidx+ibatch*n_grid], gval_shared[i]);
             }
         }
     }
@@ -792,7 +793,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
 #endif
     // scatter using shared memory
     cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
-    scatter_kernel_sm<<<nbinx*nbiny*nbinz, 128, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx, n_batch);
+    scatter_kernel_sm<<<nbinx*nbiny*nbinz, 128, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx, n_particle, n_batch);
     cudaDeviceSynchronize();
     CUDA_SAFE_CALL(cudaGetLastError());
 #ifdef SCATTER_TIME
