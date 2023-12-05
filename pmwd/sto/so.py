@@ -1,6 +1,6 @@
+import jax
 import jax.numpy as jnp
-from jax import vmap
-import math
+from jax import vmap, checkpoint
 
 from pmwd.sto.mlp import MLP
 from pmwd.sto.soft_a import (
@@ -56,11 +56,14 @@ def pot_sharp(pot, kvec, theta, cosmo, conf, a):
     """SO of the laplace potential, function of 3D k vector."""
     kvec = map(jnp.abs, kvec)
 
-    if conf.so_type == 'NN':
-        if conf.so_nodes[0] is not None:
-            kv = jnp.stack([jnp.broadcast_to(k_, pot.shape) for k_ in kvec], axis=-1)
-            g = sonn_kvec(kv, theta, cosmo, conf, 0)
-            pot *= g
+    if conf.so_type == 'NN' and conf.so_nodes[0] is not None:
+        kv = jnp.stack([jnp.broadcast_to(k_, pot.shape) for k_ in kvec], axis=-1)
+        @checkpoint  # checkpoint for saving memory in backward AD
+        def sonn_kvec_slice(k_):
+            return sonn_kvec(k_, theta, cosmo, conf, 0)
+        # map for reduced memeory usage in the forward run
+        g = jax.lax.map(sonn_kvec_slice, kv)
+        pot *= g
 
     return pot
 
@@ -69,8 +72,7 @@ def grad_sharp(grad, k, theta, cosmo, conf, a):
     """SO of the gradient, function of 1D k component."""
     k = jnp.abs(k)
 
-    if conf.so_type == 'NN':
-        if conf.so_nodes[1] is not None:
-            grad *= sonn_k(k, theta, cosmo, conf, 1)
+    if conf.so_type == 'NN' and conf.so_nodes[1] is not None:
+        grad *= sonn_k(k, theta, cosmo, conf, 1)
 
     return grad
