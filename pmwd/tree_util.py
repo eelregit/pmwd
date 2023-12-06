@@ -2,24 +2,37 @@ import dataclasses
 from pprint import pformat
 
 from jax.tree_util import register_pytree_node, tree_leaves
+from jax.lax import stop_gradient
 
 
-def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
+def pytree_dataclass(cls, aux_fields=None, **kwargs):
     """Register python dataclasses as custom pytree nodes.
 
-    Also added are methods that return children and aux_data iterators, pretty string
-    representation, and a method that replace fields with changes.
+    Also added are methods that return pytree data (dynamic, optional, and fixed) and
+    auxiliary data iterators, pretty string representation, and a method that replace
+    fields with changes.
+
+    Auxiliary data are static configurations that are not traced by JAX transformations,
+    and their hash values are used to cache the transformed functions. Those not marked
+    as auxiliary data fields are pytree children, of which there are three types. The
+    fixed pytree children ending with two trailing underscores, e.g., ``bar__``, do not
+    receive gradients. These are constants that we don't want to treat as static
+    configurations. Some of them set the fixed values of the deactivated optional pytree
+    children. The optional pytree children ending with one trailing underscore, e.g.,
+    ``foo_``, are extensions when activated. They are None and inactive by default,
+    taking the fixed values set by the fixed pytree children ``foo__``. Both the fixed
+    and optional pytree children should be accessed through their corresponding
+    properties named without the trailing underscores, i.e., ``foo`` and ``bar``. The
+    remaining and most common type is the dynamic pytree children, data that are traced
+    by JAX and receive gradients.
 
     Parameters
     ----------
     cls : type
         Class to be registered, not a python dataclass yet.
     aux_fields : str, iterable of str, or Ellipsis, optional
-        Pytree aux_data fields, or child (leaf) fields if ``aux_invert``. Default is
-        none; unrecognized ones are ignored; ``Ellipsis`` uses all.
-    aux_invert : bool, optional
-        Whether to invert ``aux_fields`` selections, convenient when most but not all
-        fields are aux_data.
+        Auxiliary data fields. Default is none; unrecognized ones are ignored;
+        recognized ones must not end with trailing underscores; ``Ellipsis`` uses all.
     **kwargs
         Keyword arguments to be passed to python dataclass decorator.
 
@@ -32,6 +45,8 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
     ------
     TypeError
         If cls is already a python dataclass.
+    ValueError
+        If a field name has unexpected trailing underscores.
 
     .. _Augmented dataclass for JAX pytree:
         https://gist.github.com/odashi/813810a5bc06724ea3643456f8d3942d
@@ -42,9 +57,16 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
     .. _JAX Issue #2371:
         https://github.com/google/jax/issues/2371
 
+    Notes
+    -----
+    The pytree nomenclature differs from that of the ordinary tree in its definition of
+    "node": pytree leaves are not pytree nodes in the JAX documentation. The leaves
+    contain data to be traced by JAX transformations, while the nodes are Python
+    (including None) and extended types to be mapped over.
+
     """
     if dataclasses.is_dataclass(cls):
-        raise TypeError('cls cannot already be a dataclass')
+        raise TypeError(f'cls={cls} must not already be a dataclass')
     cls = dataclasses.dataclass(cls, **kwargs)
 
     if aux_fields is None:
@@ -52,45 +74,114 @@ def pytree_dataclass(cls, aux_fields=None, aux_invert=False, **kwargs):
     elif isinstance(aux_fields, str):
         aux_fields = (aux_fields,)
     elif aux_fields is Ellipsis:
-        aux_fields = [field.name for field in dataclasses.fields(cls)]
-    aux_data_names = [field.name for field in dataclasses.fields(cls)
-                      if field.name in aux_fields]
-    children_names = [field.name for field in dataclasses.fields(cls)
-                      if field.name not in aux_fields]
+        aux_fields = tuple(field.name for field in dataclasses.fields(cls))
 
-    if aux_invert:
-        aux_data_names, children_names = children_names, aux_data_names
+    dyn_data_names, opt_data_names, fxd_data_names, aux_data_names = [], [], [], []
+    for field in dataclasses.fields(cls):
+        name = field.name
+        if name in aux_fields:
+            if name.endswith('_'):
+                raise ValueError(f'{name} must not end with trailing underscore')
+            aux_data_names.append(name)
+        elif name.endswith('___'):
+            raise ValueError(f'{name} with >2 trailing underscores not supported')
+        elif name.endswith('__'):
+            fxd_data_names.append(name)
+        elif name.endswith('_'):
+            opt_data_names.append(name)
+        else:
+            dyn_data_names.append(name)
+    children_names = dyn_data_names + opt_data_names + fxd_data_names
+
+    def opt_property(name_):
+        @property
+        def foo(self):
+            foo_ = getattr(self, name_)
+            foo__ = getattr(self, name_ + '_')
+            return stop_gradient(foo__) if foo_ is None else foo_
+        return foo
+
+    for name_ in opt_data_names:
+        setattr(cls, name_.rstrip('_'), opt_property(name_))
+
+    def fxd_property(name__):
+        @property
+        def bar(self):
+            bar__ = getattr(self, name__)
+            return stop_gradient(bar__)
+        return bar
+
+    for name__ in fxd_data_names:
+        if name__[:-1] not in opt_data_names:
+            setattr(cls, name__.rstrip('_'), fxd_property(name__))
+
+    def dyn_data(self):
+        """Return an iterator over dynamic pytree data."""
+        for name, value in self.named_dyn_data():
+            yield value
+
+    def named_dyn_data(self):
+        """Return an iterator over dynamic pytree data with names."""
+        for name in dyn_data_names:
+            value = getattr(self, name)
+            yield name, value
+
+    def opt_data(self):
+        """Return an iterator over optional pytree data."""
+        for name, value in self.named_opt_data():
+            yield value
+
+    def named_opt_data(self):
+        """Return an iterator over optional pytree data with names."""
+        for name in opt_data_names:
+            value = getattr(self, name)
+            yield name, value
+
+    def fxd_data(self):
+        """Return an iterator over fixed pytree data."""
+        for name, value in self.named_fxd_data():
+            yield value
+
+    def named_fxd_data(self):
+        """Return an iterator over fixed pytree data with names."""
+        for name in fxd_data_names:
+            value = getattr(self, name)
+            yield name, value
 
     def children(self):
-        """Return an iterator over pytree children values."""
+        """Return an iterator over all pytree data."""
         for name, value in self.named_children():
             yield value
 
     def named_children(self):
-        """Return an iterator over pytree children names and values."""
+        """Return an iterator over all pytree data with names."""
         for name in children_names:
             value = getattr(self, name)
             yield name, value
 
     def aux_data(self):
-        """Return an iterator over pytree aux_data values."""
+        """Return an iterator over auxiliary data."""
         for name, value in self.named_aux_data():
             yield value
 
     def named_aux_data(self):
-        """Return an iterator over pytree aux_data names and values."""
+        """Return an iterator over auxiliary data with names."""
         for name in aux_data_names:
             value = getattr(self, name)
             yield name, value
 
+    cls.dyn_data = dyn_data
+    cls.named_dyn_data = named_dyn_data
+    cls.opt_data = opt_data
+    cls.named_opt_data = named_opt_data
+    cls.fxd_data = fxd_data
+    cls.named_fxd_data = named_fxd_data
     cls.children = children
     cls.named_children = named_children
     cls.aux_data = aux_data
     cls.named_aux_data = named_aux_data
 
     def tree_flatten(obj):
-        #FIXME JAX doesn't like the flatten function to return iterators, and somehow
-        #triggered AssertionError by _closure_convert_for_avals in custom_derivatives.py
         return tuple(obj.children()), tuple(obj.aux_data())
 
     def tree_unflatten(aux_data, children):
