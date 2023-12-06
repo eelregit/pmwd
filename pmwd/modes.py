@@ -9,8 +9,8 @@ from pmwd.pm_util import fftfreq, fftfwd, fftinv
 
 
 #TODO follow pmesh to fill the modes in Fourier space
-@partial(jit, static_argnames=('real', 'unit_abs', 'negate'))
-def white_noise(seed, conf, real=False, unit_abs=False, negate=False):
+@partial(jit, static_argnames=('real', 'unit_abs'))
+def white_noise(seed, conf, real=False, unit_abs=False):
     """White noise Fourier or real modes.
 
     Parameters
@@ -22,8 +22,6 @@ def white_noise(seed, conf, real=False, unit_abs=False, negate=False):
         Whether to return real or Fourier modes.
     unit_abs : bool, optional
         Whether to set the absolute values to 1.
-    negate : bool, optional
-        Whether to reverse the signs (180° phase flips).
 
     Returns
     -------
@@ -37,16 +35,13 @@ def white_noise(seed, conf, real=False, unit_abs=False, negate=False):
     # sample linear modes on Lagrangian particle grid
     modes = random.normal(key, shape=conf.ptcl_grid_shape, dtype=conf.float_dtype)
 
-    if real and not unit_abs and not negate:
+    if real and not unit_abs:
         return modes
 
     modes = fftfwd(modes, norm='ortho')
 
     if unit_abs:
         modes /= jnp.abs(modes)
-
-    if negate:
-        modes = -modes
 
     if real:
         modes = fftinv(modes, shape=conf.ptcl_grid_shape, norm='ortho')
