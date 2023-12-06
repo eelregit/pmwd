@@ -1,8 +1,9 @@
 from dataclasses import field
 from functools import partial
+from itertools import chain
 import math
-from operator import add, sub
-from typing import ClassVar, Optional, Tuple, Union
+from operator import add, sub, mul
+from typing import Optional, Tuple, Union
 
 from jax import Array, ensure_compile_time_eval, value_and_grad
 from jax.typing import ArrayLike, DTypeLike
@@ -15,25 +16,36 @@ from pmwd import boltzmann
 from pmwd.tree_util import pytree_dataclass
 
 
-@partial(pytree_dataclass,
-         aux_fields=["A_s_1e9", "n_s", "Omega_m", "Omega_b", "h",
-                     "T_cmb_", "Omega_K_", "w_0_", "w_a_",
-                     "distance", "transfer", "growth", "varlin"],
-         aux_invert=True,
-         frozen=True)
+@partial(
+    pytree_dataclass,
+    aux_fields=[
+        'distance_lga_min', 'distance_lga_max', 'distance_lga_maxstep',
+        'transfer_fit', 'transfer_fit_nowiggle',
+        'transfer_lgk_min', 'transfer_lgk_max', 'transfer_lgk_maxstep',
+        'growth_rtol', 'growth_atol', 'growth_inistep',
+        'growth_lga_min', 'growth_lga_max', 'growth_lga_maxstep',
+        'dtype'],
+    frozen=True)
 class Cosmology:
     r"""Cosmological parameters and related configurations.
 
-    Cosmological parameters with trailing underscores ("foo_") can be set to None, in
-    which case they take some fixed values (set by class variable "foo_fixed") and will
-    not receive gradients. They should be accessed through corresponding properties
-    named without the trailing underscores ("foo").
+    Parameters with one trailing underscore, e.g.,  ``foo_``, are optional as extensions
+    to the dynamic free parameters without trailing underscores. They are None and
+    deactivated by default, taking the fixed values set by variable ``foo__`` (see
+    below). They should be accessed through corresponding properties named without the
+    trailing underscores, i.e., ``foo``.
+
+    Parameters with two trailing underscore, e.g.,  ``bar__``, are fixed and do not
+    receive gradients. Some of them set the fixed values of the deactivated optional
+    parameters above. Others including the constants and units also belong to this
+    category. They should be accessed through corresponding properties named without the
+    trailing underscores, i.e., ``bar``.
 
     Linear operators (addition, subtraction, and scalar multiplication) are defined for
     Cosmology tangent and cotangent vectors.
 
-    Float parameters are converted to JAX arrays at instantiation, to avoid possible JAX
-    weak type problems.
+    Parameters are converted to JAX arrays at instantiation, for ``dtype`` casting and
+    to avoid possible JAX weak type problems.
 
     Parameters
     ----------
@@ -49,12 +61,41 @@ class Cosmology:
         Hubble constant in unit of 100 km/s/Mpc :math:`h`.
     T_cmb_ : None or float ArrayLike, optional
         CMB temperature in Kelvin today :math:`T_\mathrm{CMB}`. Default is None.
+    T_cmb__ : float ArrayLike, optional
+        Fixed value if ``T_cmb_`` is not specified.
     Omega_K_ : None or float ArrayLike, optional
         Spatial curvature density parameter today :math:`Omega_K`. Default is None.
+    Omega_K__ : float ArrayLike, optional
+        Fixed value if ``Omega_K_`` is not specified.
     w_0_ : None or float ArrayLike, optional
         Dark energy equation of state constant parameter :math:`w_0`. Default is None.
+    w_0__ : float ArrayLike, optional
+        Fixed value if ``w_0_`` is not specified.
     w_a_ : None or float ArrayLike, optional
         Dark energy equation of state linear parameter :math:`w_a`. Default is None.
+    w_a__ : float ArrayLike, optional
+        Fixed value if ``w_a_`` is not specified.
+    k_pivot_Mpc__ : float ArrayLike, optional
+        Primordial scalar power spectrum pivot scale :math:`k_\mathrm{pivot}` in 1/Mpc.
+    M_sun_SI__ : float ArrayLike, optional
+        Solar mass :math:`M_\odot` in kg.
+    Mpc_SI__ : float ArrayLike, optional
+        Mpc in m.
+    H_0_SI__ : float ArrayLike, optional
+        Hubble constant :math:`H_0` in :math:`h`/s.
+    c_SI__ : float ArrayLike, optional
+        Speed of light :math:`c` in m/s.
+    G_SI__ : float ArrayLike, optional
+        Gravitational constant :math:`G` in m:math:`^3`/kg/s:math:`^2`
+    M__ : float ArrayLike, optional
+        Mass unit :math:`M` defined in kg/:math:`h`. Default is :math:`10^{10}
+        M_\odot/h`.
+    L__ : float ArrayLike, optional
+        Length unit :math:`L` defined in m/:math:`h`. Default is Mpc/:math:`h`.
+    T__ : float ArrayLike, optional
+        Time unit :math:`T` defined in s/:math:`h`. Default is Hubble time :math:`1/H_0
+        \sim 10^{10}` years/:math:`h \sim` age of the Universe. So the default velocity
+        unit is :math:`L/T =` 100 km/s.
     distance_lga_min : float, optional
         Minimum distance scale factor in log10.
     distance_lga_max : float, optional
@@ -77,9 +118,13 @@ class Cosmology:
         determines the number of wavenumbers ``transfer_k_num``, the actual step size
         ``transfer_lgk_step``, and the wavenumbers ``transfer_k``.
     growth_rtol : float, optional
-        Relative tolerance for solving the growth ODEs.
+        Relative tolerance for solving the growth ODEs. Default is sqrt of ``dtype``
+        epsilon, i.e., :math:`1.5 \times 10^{-8}` for float64 and :math:`3.5 \times
+        10^{-4}` for float32.
     growth_atol : float, optional
-        Absolute tolerance for solving the growth ODEs.
+        Absolute tolerance for solving the growth ODEs. Default is sqrt of ``dtype``
+        epsilon, i.e., :math:`1.5 \times 10^{-8}` for float64 and :math:`3.5 \times
+        10^{-4}` for float32.
     growth_inistep: float, None, or 2-tuple of float or None, optional
         The initial step size for solving the growth ODEs. If None, use estimation. If a
         tuple, use the two step sizes for forward and reverse integrations,
@@ -95,78 +140,46 @@ class Cosmology:
     dtype : DTypeLike, optional
         Parameter float dtype.
 
-    Class Variables
-    ---------------
-    T_cmb_fixed : float
-        Fixed value if ``T_cmb_`` is not specified.
-    Omega_K_fixed : float
-        Fixed value if ``Omega_K_`` is not specified.
-    w_0_fixed : float
-        Fixed value if ``w_0_`` is not specified.
-    w_a_fixed : float
-        Fixed value if ``w_a_`` is not specified.
-    M_sun_SI : float
-        Solar mass :math:`M_\odot` in kg.
-    Mpc_SI : float
-        Mpc in m.
-    H_0_SI : float
-        Hubble constant :math:`H_0` in :math:`h`/s.
-    c_SI : int
-        Speed of light :math:`c` in m/s.
-    G_SI : float
-        Gravitational constant :math:`G` in m:math:`^3`/kg/s:math:`^2`
-    M : float
-        Mass unit :math:`M` defined in kg/:math:`h`. Default is :math:`10^{10}
-        M_\odot/h`.
-    L : float
-        Length unit :math:`L` defined in m/:math:`h`. Default is Mpc/:math:`h`.
-    T : float
-        Time unit :math:`T` defined in s/:math:`h`. Default is Hubble time :math:`1/H_0
-        \sim 10^{10}` years/:math:`h \sim` age of the Universe. So the default velocity
-        unit is :math:`L/T =` 100 km/s.
-    k_pivot_Mpc : float
-        Primordial scalar power spectrum pivot scale :math:`k_\mathrm{pivot}` in 1/Mpc.
-
     """
-
-    # constants in SI units
-    M_sun_SI: ClassVar[float] = 1.98847e30
-    Mpc_SI: ClassVar[float] = 3.0856775815e22
-    H_0_SI: ClassVar[float] = 1e5 / Mpc_SI
-    c_SI: ClassVar[int] = 299792458
-    G_SI: ClassVar[float] = 6.67430e-11
-
-    # Units
-    M: ClassVar[float] = 1e10 * M_sun_SI
-    L: ClassVar[float] = Mpc_SI
-    T: ClassVar[float] = 1 / H_0_SI
 
     # TODO keyword-only for python>=3.10
 
-    # free parameters
+    # dynamic free parameters
     A_s_1e9: ArrayLike
     n_s: ArrayLike
     Omega_m: ArrayLike
     Omega_b: ArrayLike
     h: ArrayLike
 
-    # optionally free parameters
+    # optional extension parameters
     T_cmb_: Optional[ArrayLike] = None
-    T_cmb_fixed: ClassVar[float] = 2.7255  # Fixsen 2009, arXiv:0911.1955
+    T_cmb__: ArrayLike = 2.7255  # Fixsen 2009, arXiv:0911.1955
     Omega_K_: Optional[ArrayLike] = None
-    Omega_K_fixed: ClassVar[float] = 0
+    Omega_K__: ArrayLike = 0.
     w_0_: Optional[ArrayLike] = None
-    w_0_fixed: ClassVar[float] = -1
+    w_0__: ArrayLike = -1.
     w_a_: Optional[ArrayLike] = None
-    w_a_fixed: ClassVar[float] = 0
+    w_a__: ArrayLike = 0.
 
     # fixed parameters
-    k_pivot_Mpc: ClassVar[float] = 0.05
+    k_pivot_Mpc__: ArrayLike = 0.05
+
+    # constants in SI units
+    M_sun_SI__: ArrayLike = 1.98847e30
+    Mpc_SI__: ArrayLike = 3.0856775815e22
+    H_0_SI__: ArrayLike = 1e5 / Mpc_SI__
+    c_SI__: ArrayLike = 299792458.
+    G_SI__: ArrayLike = 6.67430e-11
+
+    # units
+    M__: ArrayLike = 1e10 * M_sun_SI__
+    L__: ArrayLike = Mpc_SI__
+    T__: ArrayLike = 1 / H_0_SI__
 
     distance_lga_min: float = -3
     distance_lga_max: float = 1
     distance_lga_maxstep: float = 1/128
-    distance: Optional[jnp.ndarray] = field(default=None, compare=False)
+    distance: Optional[Array] = field(default=None, compare=False)
 
     transfer_fit: bool = True
     transfer_fit_nowiggle: bool = False
@@ -196,7 +209,7 @@ class Cosmology:
         if not jnp.issubdtype(self.dtype, jnp.floating):
             raise ValueError('dtype must be floating point numbers')
 
-        for name, value in self.named_children():
+        for name, value in chain(self.named_dyn_data(), self.named_opt_data()):
             value = tree_map(partial(jnp.asarray, dtype=self.dtype), value)
             object.__setattr__(self, name, value)
 
@@ -207,7 +220,6 @@ class Cosmology:
                 TophatVar(self.transfer_k[1:], lowring=True, backend='jax'),
             )
 
-        # ~ 1.5e-8 for float64, 3.5e-4 for float32
         growth_tol = math.sqrt(jnp.finfo(self.dtype).eps)
         if self.growth_rtol is None:
             object.__setattr__(self, 'growth_rtol', growth_tol)
@@ -221,7 +233,7 @@ class Cosmology:
         return tree_map(sub, self, other)
 
     def __mul__(self, other):
-        return tree_map(lambda x: x * other, self)
+        return tree_map(partial(mul, other), self)
 
     def __rmul__(self, other):
         return self.__mul__(other)
@@ -286,6 +298,11 @@ class Cosmology:
         return self.replace(dtype=dtype)  # calls __init__ and then __post_init__
 
     @property
+    def H_0(self):
+        """Hubble constant :math:`H_0` in :math:`1/T`."""
+        return self.H_0_SI * self.T
+
+    @property
     def c(self):
         """Speed of light :math:`c` in :math:`L/T`."""
         return self.c_SI * self.T / self.L
@@ -294,11 +311,6 @@ class Cosmology:
     def G(self):
         """Gravitational constant :math:`G` in :math:`L^3 / M / T^2`."""
         return self.G_SI * self.M * self.T**2 / self.L**3
-
-    @property
-    def H_0(self):
-        """Hubble constant :math:`H_0` in :math:`1/T`."""
-        return self.H_0_SI * self.T
 
     @property
     def d_H(self):
@@ -326,16 +338,6 @@ class Cosmology:
         return self.Omega_m - self.Omega_b
 
     @property
-    def T_cmb(self):
-        r"""CMB temperature in Kelvin today :math:`T_\mathrm{CMB}."""
-        return self.T_cmb_fixed if self.T_cmb_ is None else self.T_cmb_
-
-    @property
-    def Omega_K(self):
-        r"""Spatial curvature density parameter today :math:`\Omega_K = - K d_H^2`."""
-        return self.Omega_K_fixed if self.Omega_K_ is None else self.Omega_K_
-
-    @property
     def K(self):
         r"""Spatial Gaussian curvature :math:`K` in :math:`1/L^2`."""
         return - self.Omega_K / self.d_H**2
@@ -344,16 +346,6 @@ class Cosmology:
     def Omega_de(self):
         r"""Dark energy density parameter today :math:`\Omega_\mathrm{de}`."""
         return 1 - (self.Omega_m + self.Omega_K)
-
-    @property
-    def w_0(self):
-        """Dark energy equation of state constant parameter :math:`w_0`."""
-        return self.w_0_fixed if self.w_0_ is None else self.w_0_
-
-    @property
-    def w_a(self):
-        """Dark energy equation of state linear parameter :math:`w_a`."""
-        return self.w_a_fixed if self.w_a_ is None else self.w_a_
 
     @property
     def sigma8(self):
