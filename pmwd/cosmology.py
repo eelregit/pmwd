@@ -209,9 +209,9 @@ class Cosmology:
         if not jnp.issubdtype(self.dtype, jnp.floating):
             raise ValueError('dtype must be floating point numbers')
 
-        for name, value in chain(self.named_dyn_data(), self.named_opt_data()):
+        for key, value in chain(self.dyn_data_with_keys(), self.opt_data_with_keys()):
             value = tree_map(partial(jnp.asarray, dtype=self.dtype), value)
-            object.__setattr__(self, name, value)
+            object.__setattr__(self, key.name, value)
 
         with ensure_compile_time_eval():
             object.__setattr__(
