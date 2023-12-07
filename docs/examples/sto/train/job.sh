@@ -16,7 +16,8 @@ module purge
 # local packages
 export PYTHONPATH="/mnt/home/yzhang/pymods"
 
-source /mnt/home/yzhang/mambaforge/bin/activate
+source /mnt/home/yzhang/mambaforge/bin/activate pro
+
 srun python run_train.py
 # srun python optune.py
 

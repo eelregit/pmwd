@@ -69,8 +69,8 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_pa
         # mesh shape, [1, 2, 3, 4]
         # mesh_shape = np_rng.integers(1, 5)
         mesh_shape = 1
-        # number of time steps, [10, 1000], log-uniform
-        # n_steps = np.rint(10**np_rng.uniform(1, 3)).astype(int)
+
+        # number of nbodytime steps
         n_steps = 100
 
         jax_key, dropout_key = jax.random.split(jax_key)
@@ -93,7 +93,7 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_pa
 
     loss_epoch_mean = loss_epoch / len(gsdata)
 
-    return loss_epoch_mean, so_params, opt_state, optimizer
+    return loss_epoch_mean, so_params, opt_state
 
 
 def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
@@ -109,8 +109,8 @@ def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_par
         # mesh shape, [1, 2, 3, 4]
         # mesh_shape = np_rng.integers(1, 5)
         mesh_shape = 1
-        # number of time steps, [10, 1000], log-uniform
-        # n_steps = np.rint(10**np_rng.uniform(1, 3)).astype(int)
+
+        # number of nbody time steps
         n_steps = 100
 
         jax_key, dropout_key = jax.random.split(jax_key)

@@ -148,7 +148,7 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
                 procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
                 jax_key, log_loss_eps, verbose)
         else:
-            loss_epoch_mean, so_params, opt_state, optimizer = train_epoch(
+            loss_epoch_mean, so_params, opt_state = train_epoch(
                 procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
                 opt_state, optimizer, jax_key, log_loss_eps, verbose)
 
