@@ -68,7 +68,7 @@ def loss_ptcl_dens(ptcl, ptcl_t, conf, log_loss_eps, loss_mesh_shape):
     return loss
 
 
-def loss_snap(snap, snap_t, a_snap, conf, log_loss_eps, loss_mesh_shape=4):
+def loss_snap(snap, snap_t, a_snap, conf, log_loss_eps, loss_mesh_shape=1):
     loss = 0.
     # displacement
     loss += loss_ptcl_disp(snap, snap_t, conf, log_loss_eps)
