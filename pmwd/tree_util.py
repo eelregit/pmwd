@@ -1,7 +1,7 @@
 import dataclasses
 from pprint import pformat
 
-from jax.tree_util import register_pytree_node, tree_leaves
+from jax.tree_util import GetAttrKey, register_pytree_with_keys, tree_leaves
 from jax.lax import stop_gradient
 
 
@@ -115,80 +115,83 @@ def pytree_dataclass(cls, aux_fields=None, **kwargs):
         if name__[:-1] not in opt_data_names:
             setattr(cls, name__.rstrip('_'), fxd_property(name__))
 
-    def dyn_data(self):
-        """Return an iterator over dynamic pytree data."""
-        for name, value in self.named_dyn_data():
-            yield value
-
-    def named_dyn_data(self):
-        """Return an iterator over dynamic pytree data with names."""
+    def dyn_data_with_keys(self):
+        """Return an iterator over dynamic pytree data with keys."""
         for name in dyn_data_names:
             value = getattr(self, name)
-            yield name, value
+            yield GetAttrKey(name), value
+
+    def dyn_data(self):
+        """Return an iterator over dynamic pytree data."""
+        for key, value in self.dyn_data_with_keys():
+            yield value
+
+    def opt_data_with_keys(self):
+        """Return an iterator over optional pytree data with keys."""
+        for name in opt_data_names:
+            value = getattr(self, name)
+            yield GetAttrKey(name), value
 
     def opt_data(self):
         """Return an iterator over optional pytree data."""
-        for name, value in self.named_opt_data():
+        for key, value in self.opt_data_with_keys():
             yield value
 
-    def named_opt_data(self):
-        """Return an iterator over optional pytree data with names."""
-        for name in opt_data_names:
+    def fxd_data_with_keys(self):
+        """Return an iterator over fixed pytree data with keys."""
+        for name in fxd_data_names:
             value = getattr(self, name)
-            yield name, value
+            yield GetAttrKey(name), value
 
     def fxd_data(self):
         """Return an iterator over fixed pytree data."""
-        for name, value in self.named_fxd_data():
+        for key, value in self.fxd_data_with_keys():
             yield value
 
-    def named_fxd_data(self):
-        """Return an iterator over fixed pytree data with names."""
-        for name in fxd_data_names:
+    def children_with_keys(self):
+        """Return an iterator over all pytree data with keys."""
+        for name in children_names:
             value = getattr(self, name)
-            yield name, value
+            yield GetAttrKey(name), value
 
     def children(self):
         """Return an iterator over all pytree data."""
-        for name, value in self.named_children():
+        for key, value in self.children_with_keys():
             yield value
 
-    def named_children(self):
-        """Return an iterator over all pytree data with names."""
-        for name in children_names:
-            value = getattr(self, name)
-            yield name, value
-
-    def aux_data(self):
-        """Return an iterator over auxiliary data."""
-        for name, value in self.named_aux_data():
-            yield value
-
-    def named_aux_data(self):
+    def aux_data_with_names(self):
         """Return an iterator over auxiliary data with names."""
         for name in aux_data_names:
             value = getattr(self, name)
             yield name, value
 
-    cls.dyn_data = dyn_data
-    cls.named_dyn_data = named_dyn_data
-    cls.opt_data = opt_data
-    cls.named_opt_data = named_opt_data
-    cls.fxd_data = fxd_data
-    cls.named_fxd_data = named_fxd_data
-    cls.children = children
-    cls.named_children = named_children
-    cls.aux_data = aux_data
-    cls.named_aux_data = named_aux_data
+    def aux_data(self):
+        """Return an iterator over auxiliary data."""
+        for name, value in self.aux_data_with_names():
+            yield value
 
-    def tree_flatten(obj):
+    cls.dyn_data_with_keys = dyn_data_with_keys
+    cls.dyn_data = dyn_data
+    cls.opt_data_with_keys = opt_data_with_keys
+    cls.opt_data = opt_data
+    cls.fxd_data_with_keys = fxd_data_with_keys
+    cls.fxd_data = fxd_data
+    cls.children_with_keys = children_with_keys
+    cls.children = children
+    cls.aux_data_with_names = aux_data_with_names
+    cls.aux_data = aux_data
+
+    def flatten_with_keys(obj):
+        return tuple(obj.children_with_keys()), tuple(obj.aux_data())
+
+    def flatten(obj):
         return tuple(obj.children()), tuple(obj.aux_data())
 
-    def tree_unflatten(aux_data, children):
+    def unflatten(aux_data, children):
         return cls(**dict(zip(children_names, children)),
                    **dict(zip(aux_data_names, aux_data)))
 
-    register_pytree_node(cls, tree_flatten, tree_unflatten)
+    register_pytree_with_keys(cls, flatten_with_keys, unflatten, flatten_func=flatten)
 
     def _is_transforming(self):
         """Whether dataclass fields are pytrees initialized by JAX transformations.
