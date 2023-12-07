@@ -181,17 +181,18 @@ def pytree_dataclass(cls, aux_fields=None, **kwargs):
     cls.aux_data_with_names = aux_data_with_names
     cls.aux_data = aux_data
 
-    def flatten_with_keys(obj):
-        return tuple(obj.children_with_keys()), tuple(obj.aux_data())
+    def tree_flatten_with_keys(obj):
+        return list(obj.children_with_keys()), list(obj.aux_data())
 
-    def flatten(obj):
-        return tuple(obj.children()), tuple(obj.aux_data())
+    def tree_flatten(obj):
+        return list(obj.children()), list(obj.aux_data())
 
-    def unflatten(aux_data, children):
+    def tree_unflatten(aux_data, children):
         return cls(**dict(zip(children_names, children)),
                    **dict(zip(aux_data_names, aux_data)))
 
-    register_pytree_with_keys(cls, flatten_with_keys, unflatten, flatten_func=flatten)
+    register_pytree_with_keys(cls, tree_flatten_with_keys, tree_unflatten,
+                              flatten_func=tree_flatten)
 
     def _is_transforming(self):
         """Whether dataclass fields are pytrees initialized by JAX transformations.
