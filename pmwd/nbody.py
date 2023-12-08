@@ -4,7 +4,7 @@ import jax
 from jax import value_and_grad, jit, vjp, custom_vjp
 import jax.numpy as jnp
 from jax.tree_util import tree_map
-from jax.lax import cond, fori_loop, scan
+from jax.lax import cond, scan, while_loop
 
 from pmwd.boltzmann import growth
 from pmwd.cosmology import E2, H_deriv
@@ -187,20 +187,24 @@ def coevolve_init(a, ptcl, cosmo, conf):
 
 
 def observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
-    def itp(a_snap, i, obsvbl):
+    i = jnp.searchsorted(obsvbl['a_snaps'], a_prev, side='left')
+    j = jnp.searchsorted(obsvbl['a_snaps'], a_next, side='left')
+    init_state = (i, j, obsvbl)
+
+    def cond_fun(state):
+        i, j, _ = state
+        return i < j
+
+    def body_fun(state):
+        i, j, obsvbl = state
+        a_snap = obsvbl['a_snaps'][i]
         snap_itp = interptcl(obsvbl['ptcl_prev'], ptcl, a_prev, a_next, a_snap, cosmo)
         obsvbl['snaps'] = obsvbl['snaps'].replace(
             disp=obsvbl['snaps'].disp.at[i].set(snap_itp.disp),
             vel=obsvbl['snaps'].vel.at[i].set(snap_itp.vel))
-        return obsvbl
+        return (i + 1, j, obsvbl)
 
-    def itp_cond(obsvbl, i):
-        a_snap = obsvbl['a_snaps'][i]
-        obsvbl = cond(jnp.logical_and(a_prev < a_snap, a_snap <= a_next),
-                      itp, lambda *args: obsvbl, a_snap, i, obsvbl)
-        return obsvbl, None
-
-    obsvbl, _ = scan(itp_cond, obsvbl, jnp.arange(0, len(obsvbl['a_snaps'])))
+    _, _, obsvbl = while_loop(cond_fun, body_fun, init_state)
 
     obsvbl['ptcl_prev'] = ptcl
 
