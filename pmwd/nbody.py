@@ -187,18 +187,20 @@ def coevolve_init(a, ptcl, cosmo, conf):
 
 
 def observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
-    def itp(a_snap, snap):
+    def itp(a_snap, i, obsvbl):
         snap_itp = interptcl(obsvbl['ptcl_prev'], ptcl, a_prev, a_next, a_snap, cosmo)
-        return snap_itp
+        obsvbl['snaps'] = obsvbl['snaps'].replace(
+            disp=obsvbl['snaps'].disp.at[i].set(snap_itp.disp),
+            vel=obsvbl['snaps'].vel.at[i].set(snap_itp.vel))
+        return obsvbl
 
-    def itp_cond(carry, x):
-        a_snap, snap = x
-        y = cond(jnp.logical_and(a_prev < a_snap, a_snap <= a_next),
-                 itp, lambda *args: snap, a_snap, snap)
-        return None, y
+    def itp_cond(obsvbl, i):
+        a_snap = obsvbl['a_snaps'][i]
+        obsvbl = cond(jnp.logical_and(a_prev < a_snap, a_snap <= a_next),
+                      itp, lambda *args: obsvbl, a_snap, i, obsvbl)
+        return obsvbl, None
 
-    # TODO maybe two copies of obsvbl['snaps'] exist here? use donate to save mem?
-    obsvbl['snaps'] = scan(itp_cond, None, (obsvbl['a_snaps'], obsvbl['snaps']))[1]
+    obsvbl, _ = scan(itp_cond, obsvbl, jnp.arange(0, len(obsvbl['a_snaps'])))
 
     obsvbl['ptcl_prev'] = ptcl
 
