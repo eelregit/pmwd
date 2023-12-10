@@ -344,6 +344,7 @@ scatter_kernel_sm(T_int0* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
             }
         }
         __syncthreads();
+
         for(int i=threadIdx.x; i<N; i+=blockDim.x){
             int ix = i/((bin_size_y+1)*(bin_size_z+1));
             int iy = (i/(bin_size_z+1)) % (bin_size_y+1);
@@ -357,6 +358,7 @@ scatter_kernel_sm(T_int0* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
                 atomicAdd(&grid_vals[outidx+ibatch*n_grid], gval_shared[i]);
             }
         }
+        __syncthreads();
     }
 }
 
