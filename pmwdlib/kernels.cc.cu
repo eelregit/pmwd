@@ -62,9 +62,9 @@ typedef data_elm<int32_t,3> i4_3;
 typedef data_elm<int64_t,3> i8_3;
 typedef data_elm<char,8> char_8;
 
-template <typename T_int1, typename T_int2, typename T_float>
+template <typename T_int0, typename T_int1, typename T_int2, typename T_float>
 __global__ void
-cal_cellid(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_spacing, T_int1 ptcl_gridx, T_int1 ptcl_gridy, T_int1 ptcl_gridz, T_int1 stridex, T_int1 stridey, T_int1 stridez, T_float offsetx, T_float offsety, T_float offsetz, T_int1* cellid, T_int1* sortidx){
+cal_cellid(T_int2 n_particle, T_int0* pmid, T_float* disp, T_float cell_size, T_float ptcl_spacing, T_int1 ptcl_gridx, T_int1 ptcl_gridy, T_int1 ptcl_gridz, T_int1 stridex, T_int1 stridey, T_int1 stridez, T_float offsetx, T_float offsety, T_float offsetz, T_int1* cellid, T_int1* sortidx){
 
     for(uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_particle; tid+=gridDim.x*blockDim.x){
         // read particle data from global memory
@@ -105,9 +105,9 @@ cal_cellid(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_
 
 }
 
-template <typename T_int1, typename T_int2, typename T_float>
+template <typename T_int0, typename T_int1, typename T_int2, typename T_float>
 __global__ void
-cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx, T_int1 nbiny, T_int1 nbinz, T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_spacing, T_int1 ptcl_gridx, T_int1 ptcl_gridy, T_int1 ptcl_gridz, T_int1 stridex, T_int1 stridey, T_int1 stridez, T_float offsetx, T_float offsety, T_float offsetz, T_int1* binid, T_int1* sortidx){
+cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx, T_int1 nbiny, T_int1 nbinz, T_int2 n_particle, T_int0* pmid, T_float* disp, T_float cell_size, T_float ptcl_spacing, T_int1 ptcl_gridx, T_int1 ptcl_gridy, T_int1 ptcl_gridz, T_int1 stridex, T_int1 stridey, T_int1 stridez, T_float offsetx, T_float offsety, T_float offsetz, T_int1* binid, T_int1* sortidx){
 
     for(uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_particle; tid+=gridDim.x*blockDim.x){
         // read particle data from global memory
@@ -153,9 +153,9 @@ cal_binid(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx,
     }
 }
 
-template <typename T_int1, typename T_int2, typename T_float>
+template <typename T_int0, typename T_int1, typename T_int2, typename T_float>
 __global__ void
-cal_bin_size(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx, T_int1 nbiny, T_int1 nbinz, T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride, T_int1* sortidx, T_int1* bin_count){
+cal_bin_size(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx, T_int1 nbiny, T_int1 nbinz, T_int2 n_particle, T_int0* pmid, T_float* disp, T_float cell_size, T_int1* stride, T_int1* sortidx, T_int1* bin_count){
 
     for(int tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_particle; tid+=gridDim.x*blockDim.x){
         // read particle data from global memory
@@ -181,9 +181,9 @@ cal_bin_size(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbi
     }
 }
 
-template <typename T_int1, typename T_int2, typename T_float>
+template <typename T_int0, typename T_int1, typename T_int2, typename T_float>
 __global__ void
-cal_sortidx(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx, T_int1 nbiny, T_int1 nbinz, T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride, T_int1* sortidx, T_int1* bin_start, T_int1* index){
+cal_sortidx(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbinx, T_int1 nbiny, T_int1 nbinz, T_int2 n_particle, T_int0* pmid, T_float* disp, T_float cell_size, T_int1* stride, T_int1* sortidx, T_int1* bin_start, T_int1* index){
 
     for(int tid = blockIdx.x * blockDim.x + threadIdx.x; tid < n_particle; tid+=gridDim.x*blockDim.x){
         // read particle data from global memory
@@ -208,15 +208,15 @@ cal_sortidx(T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int1 nbin
     }
 }
 
-template <typename T_int1, typename T_int2, typename T_float, typename T_value>
+template <typename T_int0, typename T_int1, typename T_int2, typename T_float, typename T_value>
 __global__ void
-scatter_kernel_gm(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride, T_value* values, T_value* grid_vals){
+scatter_kernel_gm(T_int2 n_particle, T_int0* pmid, T_float* disp, T_float cell_size, T_int1* stride, T_value* values, T_value* grid_vals){
     // each thread <-> one particle 
     T_int2 tid = blockIdx.x * blockDim.x + threadIdx.x;
 
     if(tid < n_particle){
         // read particle data from global memory
-        T_int2 p_pmid[DIM] = {pmid[tid*DIM + 0], pmid[tid*DIM + 1], pmid[tid*DIM + 2]};
+        T_int1 p_pmid[DIM] = {pmid[tid*DIM + 0], pmid[tid*DIM + 1], pmid[tid*DIM + 2]};
         T_float p_disp[DIM] = {disp[tid*DIM + 0], disp[tid*DIM + 1], disp[tid*DIM + 2]};
         T_float p_val = values[tid];
 
@@ -256,9 +256,9 @@ scatter_kernel_gm(T_int2 n_particle, T_int1* pmid, T_float* disp, T_float cell_s
     }
 }
 
-template <typename T_int1, typename T_int2, typename T_float, typename T_value>
+template <typename T_int0, typename T_int1, typename T_int2, typename T_float, typename T_value>
 __global__ void
-scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_spacing, T_int1 ptcl_gridx, T_int1 ptcl_gridy, T_int1 ptcl_gridz,
+scatter_kernel_sm(T_int0* pmid, T_float* disp, T_float cell_size, T_float ptcl_spacing, T_int1 ptcl_gridx, T_int1 ptcl_gridy, T_int1 ptcl_gridz,
                   T_int1 stridex, T_int1 stridey, T_int1 stridez, T_float offsetx, T_float offsety, T_float offsetz, T_value* values, T_value* grid_vals,
                   T_int1 nbinx, T_int1 nbiny, T_int1 nbinz,
                   T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int2* bin_start, T_int2* bin_count, T_int2* index, int64_t n_particle, T_int2 n_batch=1){
@@ -298,7 +298,7 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
         T_int2 cell_id;
         for(int i=threadIdx.x; i<npts; i+=blockDim.x){
             idx = index[pstart + i];
-            T_int2 p_pmid[DIM] = {pmid[idx*DIM + 0], pmid[idx*DIM + 1], pmid[idx*DIM + 2]};
+            T_int1 p_pmid[DIM] = {pmid[idx*DIM + 0], pmid[idx*DIM + 1], pmid[idx*DIM + 2]};
             T_float p_disp[DIM] = {disp[idx*DIM + 0], disp[idx*DIM + 1], disp[idx*DIM + 2]};
             T_float p_val = values[idx+ibatch*n_particle];
 
@@ -360,9 +360,9 @@ scatter_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_float ptcl_s
     }
 }
 
-template <typename T_int1, typename T_int2, typename T_float, typename T_value>
+template <typename T_int0, typename T_int1, typename T_int2, typename T_float, typename T_value>
 __global__ void
-gather_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride, T_value* values, T_value* grid_vals,
+gather_kernel_sm(T_int0* pmid, T_float* disp, T_float cell_size, T_int1* stride, T_value* values, T_value* grid_vals,
                   T_int1 nbinx, T_int1 nbiny, T_int1 nbinz,
                   T_int1 bin_size_x, T_int1 bin_size_y, T_int1 bin_size_z, T_int2* bin_start, T_int2* bin_count, T_int2* index){
     // shared mem to read in grid vals
@@ -400,7 +400,7 @@ gather_kernel_sm(T_int1* pmid, T_float* disp, T_float cell_size, T_int1* stride,
     int npts = bin_count[bid];
     for(int i=threadIdx.x; i<npts; i+=blockDim.x){
         idx = index[pstart + i];
-        T_int2 p_pmid[DIM] = {pmid[idx*DIM + 0], pmid[idx*DIM + 1], pmid[idx*DIM + 2]};
+        T_int1 p_pmid[DIM] = {pmid[idx*DIM + 0], pmid[idx*DIM + 1], pmid[idx*DIM + 2]};
         T_float p_disp[DIM] = {disp[idx*DIM + 0], disp[idx*DIM + 1], disp[idx*DIM + 2]};
 
         // displacement with in a cell for cell (i,j,k)==(0,0,0)
@@ -531,7 +531,7 @@ void enmesh_kernel(cudaStream_t stream, void** buffers, const char* opaque, std:
     int64_t n_cells = stride[0] * stride[1] * stride[2];
     T offset[3]  = {descriptor->offset[0], descriptor->offset[1], descriptor->offset[2]};
     size_t   temp_storage_bytes = descriptor->tmp_storage_size;
-    uint32_t *pmid = reinterpret_cast<uint32_t *>(buffers[0]);
+    int16_t *pmid = reinterpret_cast<int16_t *>(buffers[0]);
     T *disp = reinterpret_cast<T *>(buffers[1]);
     T *particle_values = reinterpret_cast<T *>(buffers[2]);
     void *work_d = buffers[4];
@@ -675,7 +675,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     T offset[3]  = {descriptor->offset[0], descriptor->offset[1], descriptor->offset[2]};
     size_t   temp_storage_bytes = descriptor->tmp_storage_size;
     uint32_t n_batch = descriptor->n_batch;
-    uint32_t *pmid = reinterpret_cast<uint32_t *>(buffers[0]);
+    int16_t *pmid = reinterpret_cast<int16_t *>(buffers[0]);
     T *disp = reinterpret_cast<T *>(buffers[1]);
     T *particle_values = reinterpret_cast<T *>(buffers[2]);
     T *grid_values = reinterpret_cast<T *>(buffers[4]);
@@ -792,7 +792,7 @@ void scatter_sm(cudaStream_t stream, void** buffers, const char* opaque, std::si
     cudaEventRecord(start);
 #endif
     // scatter using shared memory
-    cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
+    cudaFuncSetAttribute(scatter_kernel_sm<int16_t, uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536);
     scatter_kernel_sm<<<nbinx*nbiny*nbinz, 128, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx, n_particle, n_batch);
     cudaDeviceSynchronize();
     CUDA_SAFE_CALL(cudaGetLastError());
@@ -813,7 +813,7 @@ void gather_sm(cudaStream_t stream, void** buffers, const char* opaque, std::siz
     T cell_size = descriptor->cell_size;
     int64_t n_particle = descriptor->n_particle;
     uint32_t stride[3]  = {descriptor->stride[0], descriptor->stride[1], descriptor->stride[2]};
-    uint32_t *pmid = reinterpret_cast<uint32_t *>(buffers[0]);
+    int16_t *pmid = reinterpret_cast<int16_t *>(buffers[0]);
     T *disp = reinterpret_cast<T *>(buffers[1]);
     T *particle_values = reinterpret_cast<T *>(buffers[4]);
     T *grid_values = reinterpret_cast<T *>(buffers[3]);
@@ -857,7 +857,7 @@ void gather_sm(cudaStream_t stream, void** buffers, const char* opaque, std::siz
     // calculate the index of sorted points
     cal_sortidx<<<grid_size, block_size>>>(bin_size, bin_size, bin_size, nbinx, nbiny, nbinz, n_particle, pmid, disp, cell_size, d_stride, d_sortidx, d_bin_start, d_index);
     // gather using shared memory
-    cudaFuncSetAttribute(gather_kernel_sm<uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
+    cudaFuncSetAttribute(gather_kernel_sm<int16_t, uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
     gather_kernel_sm<<<nbinx*nbiny*nbinz, 512, (bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, d_stride, particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_index);
     cudaFree(d_bin_count);
     cudaFree(d_sortidx);
@@ -1262,8 +1262,8 @@ int test()
     thrust::device_vector<uint32_t> f2(n_particle);
 
     printf("shared mem size %d\n",(bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(float));
-    cudaFuncSetAttribute(scatter_kernel_sm<uint32_t,uint32_t,float,float>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
-    cudaFuncSetAttribute(gather_kernel_sm<uint32_t,uint32_t,float,float>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
+    cudaFuncSetAttribute(scatter_kernel_sm<int16_t, uint32_t,uint32_t,float,float>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
+    cudaFuncSetAttribute(gather_kernel_sm<int16_t, uint32_t,uint32_t,float,float>, cudaFuncAttributeMaxDynamicSharedMemorySize, 32768);
     for (int i = 0; i < 30; i++)
     {
         printf("starting cuda kernel\n");

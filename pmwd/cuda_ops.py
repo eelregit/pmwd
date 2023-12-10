@@ -46,8 +46,8 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_grid, ptcl_spa
     else:
         n_batch = in_type2.shape[0]
 
-    # todo pmid int type should be uint16, uint8 or uint32?
-    assert np_pmidtype == np.uint32
+    # TODO: pmid int type should be uint16?
+    assert np_pmidtype == np.int16
 
     # We dispatch a different call depending on the dtype
     if np_dtype == np.float32:
@@ -116,8 +116,8 @@ def _gather_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_spacing, cell_s
     out_type = ir.RankedTensorType(mesh.type)
     out_layout = tuple(range(len(out_type.shape) - 1, -1, -1))
 
-    # todo pmid int type should be uint16, uint8 or uint32?
-    assert np_pmidtype == np.uint32
+    # TODO: pmid int type should be uint16?
+    assert np_pmidtype == np.int16
 
     # We dispatch a different call depending on the dtype
     if np_dtype == np.float32:
@@ -344,8 +344,8 @@ def _enmesh_lowering(ctx, pmid, disp, mesh, *, offset, ptcl_grid, ptcl_spacing, 
     mesh_out_type = ir.RankedTensorType.get(mesh_out_aval.shape, ir.IntegerType.get_unsigned(32))
     mesh_out_layout = tuple(range(len(mesh_out_type.shape) - 1, -1, -1))
 
-    # todo pmid int type should be uint16, uint8 or uint32?
-    assert np_pmidtype == np.uint32
+    # TODO pmid int type should be uint16?
+    assert np_pmidtype == np.int16
 
     # We dispatch a different call depending on the dtype
     if np_dtype == np.float32:
