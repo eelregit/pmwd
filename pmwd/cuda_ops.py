@@ -53,11 +53,11 @@ def _scatter_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_grid, ptcl_spa
     if np_dtype == np.float32:
         op_name = platform + "_scatter_f32"
         # dimension using the 'opaque' parameter
-        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f32(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *ptcl_grid, *out_type.shape, n_batch)
+        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f32(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *ptcl_grid, *out_type.shape[-3:], n_batch)
     elif np_dtype == np.float64:
         op_name = platform + "_scatter_f64"
         # dimension using the 'opaque' parameter
-        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f64(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *ptcl_grid, *out_type.shape, n_batch)
+        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f64(np.prod(in_type2.shape).astype(np.int64), ptcl_spacing, cell_size, *offset, *ptcl_grid, *out_type.shape[-3:], n_batch)
     else:
         raise NotImplementedError(f"Unsupported dtype {np_dtype}")
 
