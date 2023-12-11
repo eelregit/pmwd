@@ -25,11 +25,11 @@ ptcl_grid_shape = (ngrid,) * 3
 conf = Configuration(ptcl_spacing, ptcl_grid_shape, mesh_shape=1.,float_dtype=jnp.float32)  # 1x mesh shape
 ptcl = Particles.gen_grid(conf)
 pmid = ptcl.pmid
-#nbatch = 1
-#mesh = random.uniform(key, shape=(nbatch,)+conf.mesh_shape,dtype=jnp.float32,minval=0.0,maxval=2.0)
-#val = random.uniform(key, shape=(nbatch, ngrid*ngrid*ngrid,),dtype=jnp.float32,minval=0.0,maxval=2.0)
-mesh = random.uniform(key, shape=conf.mesh_shape,dtype=jnp.float32,minval=0.0,maxval=2.0)
-val = random.uniform(key, shape=(ngrid*ngrid*ngrid,),dtype=jnp.float32,minval=0.0,maxval=2.0)
+nbatch = 10
+mesh = random.uniform(key, shape=conf.mesh_shape+(nbatch,),dtype=jnp.float32,minval=0.0,maxval=2.0)
+val = random.uniform(key, shape=(ngrid*ngrid*ngrid,nbatch),dtype=jnp.float32,minval=0.0,maxval=2.0)
+#mesh = random.uniform(key, shape=conf.mesh_shape,dtype=jnp.float32,minval=0.0,maxval=2.0)
+#val = random.uniform(key, shape=(ngrid*ngrid*ngrid,),dtype=jnp.float32,minval=0.0,maxval=2.0)
 disp = random.uniform(key, shape=(ngrid*ngrid*ngrid,3),dtype=jnp.float32,minval=0.0,maxval=2.0)
 cell_size = 0.83
 offset = tuple((0.31,0.21,0.13))
