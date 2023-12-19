@@ -1,9 +1,16 @@
 import jax.numpy as jnp
-from jax import random
+from jax import random, jit
 from typing import Sequence, Callable
 import flax.linen as nn
 from flax.core.frozen_dict import unfreeze, freeze
 from flax.linen.initializers import he_normal, zeros_init
+
+
+@jit
+def squareplus(x, b=4):
+  """Squareplus activation function in https://arxiv.org/abs/2112.11687."""
+  y = x + jnp.sqrt(jnp.square(x) + b)
+  return y / 2
 
 
 class MLP(nn.Module):
