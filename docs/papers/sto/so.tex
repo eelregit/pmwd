@@ -467,17 +467,18 @@ function expressions of the trained SO neural networks.
 
 \begin{figure*}
   \centering
-  \includegraphics[width=.8\columnwidth]{sobol0snap120epoch300.pdf}
+  \includegraphics[width=.8\columnwidth]{tf_snap120_3063821_e888.pdf} \\
+  \includegraphics[width=.8\columnwidth]{cc_snap120_3063821_e888.pdf}
   \caption{The transfer function $T$ and correlation coefficient $r$ of the
   \GADGET\ and \pmwd\ simulated density fields, with and without force
-  sharpening.
-  Sobol 0 snap 120}
+  sharpening. The solid line and shaded region indicate the mean and standard
+  deviation of the 64 Sobol simulation setups. mesh shape=1}
   \label{fig:tfcc}
 \end{figure*}
 
 % transfer function & correlation coefficient
 To compare two fields $\hat f$ and $f$, we introduce for each mode the square
-root ratio of power
+root ratio of the power spectrum
 %
 \begin{equation}
 T(\vk) \triangleq
@@ -499,6 +500,9 @@ The two fields are identical when both $T$ and $r$ are unity.
 The PM method is accurate on scales much larger than the cell size, therefore we
 expect $T$ and $r$ to be very close to being unity both before and after force
 sharpening optimization.
+To show the $T$ and $r$ for different box sizes, we normalize the wavenumber by
+the Nyquist wavenumber $k_{\rm Nyquist}$ of the particle grid.
+\YZ{We show T and r separately for different mesh shapes?}
 
 
 
@@ -516,7 +520,7 @@ The effect of force sharpening can also be visually shown by looking directly at
 the density field.
 
 
-\subsection{Dark Matter Halo Catalogs}
+\subsection{Dark Matter Halos}
 
 
 \vspace{1em}
@@ -906,7 +910,7 @@ Hyperparameters:
   \item Loss: fields to include and loss function forms
 \end{itemize}
 
-We use Optuna \citep{optuna_2019} to search for the optimal Hyperparameters.
+We use Optuna \citep{optuna_2019} to search for the optimal hyperparameters.
 
 We empoly a learning rate scheduler that reduces the learning rate on plateau
 where the loss function stops decreasing.
