@@ -25,7 +25,7 @@ ptcl_grid_shape = (ngrid,) * 3
 conf = Configuration(ptcl_spacing, ptcl_grid_shape, mesh_shape=1.,float_dtype=jnp.float32)  # 1x mesh shape
 ptcl = Particles.gen_grid(conf)
 pmid = ptcl.pmid
-nbatch = 10
+nbatch = 6
 mesh = random.uniform(key, shape=conf.mesh_shape+(nbatch,),dtype=jnp.float32,minval=0.0,maxval=2.0)
 val = random.uniform(key, shape=(ngrid*ngrid*ngrid,nbatch),dtype=jnp.float32,minval=0.0,maxval=2.0)
 #mesh = random.uniform(key, shape=conf.mesh_shape,dtype=jnp.float32,minval=0.0,maxval=2.0)
