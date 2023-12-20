@@ -2,9 +2,9 @@
 
 #SBATCH --job-name=trainso
 #SBATCH --partition=gpu
-#SBATCH --nodes=2
-#SBATCH --ntasks-per-node=8
-#SBATCH --gpus-per-node=8
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=8
 #SBATCH --constraint=h100-80gb
 #SBATCH --mem-per-gpu=125G
@@ -14,7 +14,7 @@
 module purge
 
 # local packages
-export PYTHONPATH="/mnt/home/yzhang/pymods"
+export PYTHONPATH="./pymods"
 
 source /mnt/home/yzhang/mambaforge/bin/activate pro
 

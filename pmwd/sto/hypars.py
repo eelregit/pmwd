@@ -6,15 +6,17 @@ import pickle
 from pmwd.sto.so import soft_len
 from pmwd.sto.mlp import init_mlp_params
 
-n_epochs = 2000
+n_epochs = 2
 
 # data
-sobol_ids_global = np.arange(0, 64)
-snap_ids = np.arange(0, 121, 2)
+sobol_ids_global = np.arange(0, 2)
+snap_ids = np.arange(0, 121, 3)
 shuffle_epoch = True  # shuffle the order of sobols across epochs
 
 # loss
-log_loss_eps = 1e-3
+loss_pars = {
+    'log_eps': 1e-3,
+}
 
 # optimizer
 learning_rate = 1e-5
@@ -35,15 +37,15 @@ so_nodes = [[3*n] * 5 + [1] for n in n_input]
 
 
 # start a new training
-# so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
-# opt_state = optimizer.init(so_params)
+so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
+opt_state = optimizer.init(so_params)
 
 # load and continue a training
-with open(f'params/3031768/e2000.pickle', 'rb') as f:
-    dic = pickle.load(f)
-    so_params = dic['so_params']
-    # opt_state = dic['opt_state']
-    opt_state = optimizer.init(so_params)
+# with open(f'params/3031768/e2000.pickle', 'rb') as f:
+#     dic = pickle.load(f)
+#     so_params = dic['so_params']
+#     # opt_state = dic['opt_state']
+#     opt_state = optimizer.init(so_params)
 
 
 
