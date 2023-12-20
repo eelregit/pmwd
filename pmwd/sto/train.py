@@ -17,9 +17,9 @@ def pmodel(ptcl_ic, so_params, cosmo, conf):
     return obsvbl, cosmo
 
 
-def obj(tgts, ptcl_ic, so_params, cosmo, conf, log_loss_eps):
+def obj(tgts, ptcl_ic, so_params, cosmo, conf, loss_pars, loss_mesh_shape):
     obsvbl, cosmo = pmodel(ptcl_ic, so_params, cosmo, conf)
-    loss = loss_func(obsvbl, tgts, conf, log_loss_eps)
+    loss = loss_func(obsvbl, tgts, conf, loss_pars, loss_mesh_shape)
     return loss
 
 
@@ -36,12 +36,13 @@ def init_pmwd(pmwd_params):
     return ptcl_ic, cosmo, conf
 
 
-def train_step(tgts, so_params, pmwd_params, opt_params, log_loss_eps):
+def train_step(tgts, so_params, pmwd_params, opt_params, loss_pars, loss_mesh_shape):
     ptcl_ic, cosmo, conf = init_pmwd(pmwd_params)
 
     # get loss and grad
     obj_valgrad = jax.value_and_grad(obj, argnums=2)
-    loss, grad = obj_valgrad(tgts, ptcl_ic, so_params, cosmo, conf, log_loss_eps)
+    loss, grad = obj_valgrad(tgts, ptcl_ic, so_params, cosmo, conf, loss_pars,
+                             loss_mesh_shape)
 
     # average over global devices
     loss, grad = global_mean((loss, grad))
@@ -58,7 +59,7 @@ def train_step(tgts, so_params, pmwd_params, opt_params, log_loss_eps):
 
 
 def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-                opt_state, optimizer, jax_key, log_loss_eps, verbose):
+                opt_state, optimizer, jax_key, loss_pars, verbose):
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
     tic = time.perf_counter()
@@ -69,6 +70,8 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_pa
         # mesh shape, [1, 2, 3, 4]
         # mesh_shape = np_rng.integers(1, 5)
         mesh_shape = 1
+        loss_mesh_shape = 1
+        loss_pars['grid_offset'] = 0
 
         # number of nbodytime steps
         n_steps = 100
@@ -79,7 +82,7 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_pa
                        dropout_rate, dropout_key)
         opt_params = (optimizer, opt_state)
         so_params, loss, opt_state = train_step(tgts, so_params, pmwd_params,
-                                                opt_params, log_loss_eps)
+                                                opt_params, loss_pars, loss_mesh_shape)
 
         loss = float(loss)
         loss_epoch += loss
@@ -97,7 +100,7 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_pa
 
 
 def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-               jax_key, log_loss_eps, verbose):
+               jax_key, loss_pars, verbose):
     """Simply evaluate the loss w/o grad."""
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
@@ -109,6 +112,8 @@ def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_par
         # mesh shape, [1, 2, 3, 4]
         # mesh_shape = np_rng.integers(1, 5)
         mesh_shape = 1
+        loss_mesh_shape = 1
+        loss_pars['grid_offset'] = 0
 
         # number of nbody time steps
         n_steps = 100
@@ -119,7 +124,7 @@ def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_par
                        dropout_rate, dropout_key)
 
         ptcl_ic, cosmo, conf = init_pmwd(pmwd_params)
-        loss = obj(tgts, ptcl_ic, so_params, cosmo, conf, log_loss_eps)
+        loss = obj(tgts, ptcl_ic, so_params, cosmo, conf, loss_pars, loss_mesh_shape)
         loss = global_mean(loss)
         loss_epoch += float(loss)
 
