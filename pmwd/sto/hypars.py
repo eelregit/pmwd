@@ -21,6 +21,7 @@ loss_pars = {
 # optimizer
 learning_rate = 1e-5
 optimizer = optax.adamw(learning_rate, b1=0.9, b2=0.9, weight_decay=3e-5)
+optimizer = optax.MultiSteps(optimizer, 1)
 # optimizer = optax.chain(
 #     optax.clip_by_global_norm(3.),
 #     optax.adam(learning_rate),
