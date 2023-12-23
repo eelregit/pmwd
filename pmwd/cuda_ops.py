@@ -124,11 +124,11 @@ def _gather_lowering(ctx, pmid, disp, val, mesh, *, offset, ptcl_grid, ptcl_spac
     if np_dtype == np.float32:
         op_name = platform + "_gather_f32"
         # dimension using the 'opaque' parameter
-        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f32(np.int64(np.prod(in_type2.shape)/n_batch), ptcl_spacing, cell_size, *offset, *ptcl_grid, *out_type.shape[:3], n_batch)
+        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f32(np.int64(np.prod(in_type2.shape)/n_batch), ptcl_spacing, cell_size, *offset, *ptcl_grid, *in_type2.shape[:3], n_batch)
     elif np_dtype == np.float64:
         op_name = platform + "_gather_f64"
         # dimension using the 'opaque' parameter
-        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f64(np.int64(np.prod(in_type2.shape)/n_batch), ptcl_spacing, cell_size, *offset, *ptcl_grid, *out_type.shape[:3], n_batch)
+        workspace_size, opaque = _jaxpmwd.build_pmwd_descriptor_f64(np.int64(np.prod(in_type2.shape)/n_batch), ptcl_spacing, cell_size, *offset, *ptcl_grid, *in_type2.shape[:3], n_batch)
     else:
         raise NotImplementedError(f"Unsupported dtype {np_dtype}")
 
