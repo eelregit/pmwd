@@ -669,8 +669,8 @@ gather_kernel_sm_batched_innerloop(T_int0* pmid, T_float* disp, T_float cell_siz
     extern __shared__ char shared_char[];
     T_value* gval_shared = (T_value*)&shared_char[0];
     T_int1 N = (bin_size_x+1)*(bin_size_y+1)*(bin_size_z+1);
-    //T_value* pval_shared = &gval_shared[N*n_batch];
-    T_value pval_shared[9];
+    T_value* pval_shared = &gval_shared[N*n_batch];
+    //T_value pval_shared[9];
     int64_t n_grid = stridex * stridey * stridez;
 
     // each block represents a bin
@@ -724,7 +724,8 @@ gather_kernel_sm_batched_innerloop(T_int0* pmid, T_float* disp, T_float cell_siz
 
         // loop over all 8 vertice(cells)
         for(int ibatch=0; ibatch<n_batch; ibatch++){
-            pval_shared[ibatch] = 0.0;
+            //pval_shared[ibatch] = 0.0;
+            pval_shared[ibatch*blockDim.x+threadIdx.x] = 0.0;
         }
         for(int ii=0; ii<2; ii++)
         for(int jj=0; jj<2; jj++)
@@ -755,12 +756,14 @@ gather_kernel_sm_batched_innerloop(T_int0* pmid, T_float* disp, T_float cell_siz
                 t_val = (1-abs(t_disp[0]))*(1-abs(t_disp[1]))*(1-abs(t_disp[2]));
 
             for(int ibatch=0; ibatch<n_batch; ibatch++){
-                pval_shared[ibatch] += t_val*gval_shared[cell_id*n_batch + ibatch];
                 //values[idx*n_batch + ibatch] += t_val*gval_shared[cell_id*n_batch + ibatch];
+                pval_shared[ibatch*blockDim.x+threadIdx.x] += t_val*gval_shared[cell_id*n_batch + ibatch];
+                //pval_shared[ibatch] += t_val*gval_shared[cell_id*n_batch + ibatch];
             }
         }
         for(int ibatch=0; ibatch<n_batch; ibatch++){
-            values[idx*n_batch + ibatch] += pval_shared[ibatch];
+            //values[idx*n_batch + ibatch] += pval_shared[ibatch];
+            values[idx*n_batch + ibatch] += pval_shared[ibatch*blockDim.x+threadIdx.x];
         }
     }
 }
@@ -1220,8 +1223,8 @@ void gather_sm(cudaStream_t stream, void** buffers, const char* opaque, std::siz
     }
     else{
         cudaFuncSetAttribute(gather_kernel_sm_batched_innerloop<int16_t, uint32_t,uint32_t,T,T>, cudaFuncAttributeMaxDynamicSharedMemorySize, SHARED_MEM_LIMIT);
-        //gather_kernel_sm_batched_innerloop<<<nbinx*nbiny*nbinz, 128, (n_batch*(bin_size+1)*(bin_size+1)*(bin_size+1)+128*n_batch)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx, n_particle, n_batch);
-        gather_kernel_sm_batched_innerloop<<<nbinx*nbiny*nbinz, 128, n_batch*(bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx, n_particle, n_batch);
+        gather_kernel_sm_batched_innerloop<<<nbinx*nbiny*nbinz, 128, (n_batch*(bin_size+1)*(bin_size+1)*(bin_size+1)+128*n_batch)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx, n_particle, n_batch);
+        //gather_kernel_sm_batched_innerloop<<<nbinx*nbiny*nbinz, 128, n_batch*(bin_size+1)*(bin_size+1)*(bin_size+1)*sizeof(T)>>>(pmid, disp, cell_size, ptcl_spacing, ptcl_grid[0], ptcl_grid[1], ptcl_grid[2], stride[0], stride[1], stride[2], offset[0], offset[1], offset[2], particle_values, grid_values, nbinx, nbiny, nbinz, bin_size, bin_size, bin_size, d_bin_start, d_bin_count, d_sortidx, n_particle, n_batch);
     }
     cudaDeviceSynchronize();
     CUDA_SAFE_CALL(cudaGetLastError());
