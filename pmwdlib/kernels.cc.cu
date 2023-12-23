@@ -670,7 +670,7 @@ gather_kernel_sm_batched_innerloop(T_int0* pmid, T_float* disp, T_float cell_siz
     T_value* gval_shared = (T_value*)&shared_char[0];
     T_int1 N = (bin_size_x+1)*(bin_size_y+1)*(bin_size_z+1);
     //T_value* pval_shared = &gval_shared[N*n_batch];
-    T_value pval_shared[6];
+    T_value pval_shared[9];
     int64_t n_grid = stridex * stridey * stridez;
 
     // each block represents a bin
