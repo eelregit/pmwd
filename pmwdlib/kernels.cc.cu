@@ -756,6 +756,7 @@ gather_kernel_sm_batched_innerloop(T_int0* pmid, T_float* disp, T_float cell_siz
 
             for(int ibatch=0; ibatch<n_batch; ibatch++){
                 pval_shared[ibatch] += t_val*gval_shared[cell_id*n_batch + ibatch];
+                //values[idx*n_batch + ibatch] += t_val*gval_shared[cell_id*n_batch + ibatch];
             }
         }
         for(int ibatch=0; ibatch<n_batch; ibatch++){
