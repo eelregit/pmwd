@@ -38,7 +38,7 @@ def nonlinear_scales(cosmo, conf, a):
     return (1/k_P, R_TH, R_G, Rd, -dk_P/k_P**2, dR_TH, dR_G, dRd)
 
 
-def _sotheta(cosmo, conf, a):
+def sotheta(cosmo, conf, a):
     """Physical quantities to be used in SO input features along with k."""
     # quantities of dim L
     theta_l = jnp.asarray([
@@ -66,12 +66,12 @@ def _sotheta(cosmo, conf, a):
     return (theta_l, theta_o)
 
 
-def _soft_len(k_fac=1):
+def soft_len(k_fac=1):
     # get the length of SO input features with dummy conf and cosmo
     conf = Configuration(1., (128,)*3)
     cosmo = SimpleLCDM(conf)
     cosmo = boltzmann(cosmo, conf)
-    theta_l, theta_o = _sotheta(cosmo, conf, conf.a_start)
+    theta_l, theta_o = sotheta(cosmo, conf, conf.a_start)
     return len(theta_l) * k_fac + len(theta_o)
 
 
@@ -108,7 +108,7 @@ def soft_kvec(kv, theta):
     return ft
 
 
-def _soft_names(net):
+def soft_names(net):
     # str names of input features of the SO neural nets
     # currently hardcoded, should be updated along with functions above
     theta_l = '1/k_P, R_TH, R_G, Rd, -dk_P/k_P**2, dR_TH, dR_G, dRd'.split(', ')

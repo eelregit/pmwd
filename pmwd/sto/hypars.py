@@ -10,7 +10,7 @@ n_epochs = 2
 
 # data
 sobol_ids_global = np.arange(0, 2)
-snap_ids = np.arange(0, 121, 3)
+snap_ids = np.arange(0, 121, 2)
 shuffle_epoch = True  # shuffle the order of sobols across epochs
 
 # loss
@@ -31,7 +31,8 @@ optimizer = optax.MultiSteps(optimizer, 1)
 
 # so neural nets
 so_type = 'NN'
-n_input = [soft_len(k_fac=3), soft_len()]
+soft_i = 'soft_a'
+n_input = [soft_len(soft_i, k_fac=3), soft_len(soft_i)]
 
 so_nodes = [[3*n] * 5 + [1] for n in n_input]
 
