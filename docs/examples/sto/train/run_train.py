@@ -60,7 +60,7 @@ def checkpoint(epoch, so_params, opt_state, lr, log_id=None, verbose=True):
 
 
 def track(writer, epoch, scalars, check_sobols, check_snaps,
-          so_type, so_nodes, so_params, gsdata, mesh_shape, n_steps):
+          so_type, so_nodes, soft_i, so_params, gsdata, mesh_shape, n_steps):
     if scalars is not None:
         for k, v in scalars.items():
             writer.add_scalar(k, v, epoch)
@@ -76,7 +76,8 @@ def track(writer, epoch, scalars, check_sobols, check_snaps,
 
         # run pmwd
         obsvbl, cosmo, conf = pmwd_fwd(so_params, sidx, sobol, a_snaps,
-                                       mesh_shape, n_steps, so_type, so_nodes)
+                                       mesh_shape, n_steps, so_type, so_nodes,
+                                       soft_i)
 
         # compare
         for i in range(len(a_snaps)):
@@ -109,8 +110,8 @@ def prep_train(sobol_ids_global, snap_ids):
     return sobol_ids, gsdata
 
 
-def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
-              learning_rate, optimizer, opt_state, so_type, so_nodes, so_params,
+def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch, learning_rate,
+              optimizer, opt_state, so_type, so_nodes, soft_i, so_params,
               loss_pars, ret=False, log_id=None, verbose=True):
 
     # RNGs with fixed seeds
@@ -145,12 +146,12 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
         # training for one epoch
         if epoch == 0:  # evaluate the loss before training, with init so_params
             loss_epoch_mean = loss_epoch(
-                procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-                jax_key, loss_pars, verbose)
+                procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_i,
+                so_params, jax_key, loss_pars, verbose)
         else:
             loss_epoch_mean, so_params, opt_state = train_epoch(
-                procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, so_params,
-                opt_state, optimizer, jax_key, loss_pars, verbose)
+                procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_i,
+                so_params, opt_state, optimizer, jax_key, loss_pars, verbose)
 
             # learning rate scheduler
             # learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
@@ -174,9 +175,9 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
             check_sobols = sobol_ids[:3]
             check_snaps = [0, len(snap_ids)//2, -1]
             mesh_shape_track = 1
-            n_steps_track = 100
-            track(writer, epoch, scalars, check_sobols, check_snaps,
-                  so_type, so_nodes, so_params, gsdata, mesh_shape_track, n_steps_track)
+            n_steps_track = 61
+            track(writer, epoch, scalars, check_sobols, check_snaps, so_type,
+                  so_nodes, soft_i, so_params, gsdata, mesh_shape_track, n_steps_track)
             # printinfo('logged for tensorboard')
 
         loss_epoch_all.append(loss_epoch_mean)
@@ -191,12 +192,12 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
 if __name__ == "__main__":
 
     from pmwd.sto.hypars import (
-        n_epochs, sobol_ids_global, snap_ids, shuffle_epoch,
-        learning_rate, optimizer, opt_state, so_type, so_nodes, so_params,
+        n_epochs, sobol_ids_global, snap_ids, shuffle_epoch, learning_rate,
+        optimizer, opt_state, so_type, so_nodes, soft_i, so_params,
         loss_pars)
 
     sobol_ids, gsdata = prep_train(sobol_ids_global, snap_ids)
 
-    run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
-              learning_rate, optimizer, opt_state, so_type, so_nodes, so_params,
+    run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch, learning_rate,
+              optimizer, opt_state, so_type, so_nodes, soft_i, so_params,
               loss_pars)
