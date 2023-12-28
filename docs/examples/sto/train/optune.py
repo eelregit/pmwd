@@ -32,7 +32,7 @@ def objective(trial, sobol_ids, gsdata, snap_ids):
     n_layers = trial.suggest_int('n_layers', 2, 8)
 
     so_nodes = [[n] * n_layers + [1] for n in n_input]
-    so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
+    so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws')
 
     # train for a fixed number of epochs and get the lowest loss as the obj
     losses = run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch,
