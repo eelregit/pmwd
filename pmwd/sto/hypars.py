@@ -39,7 +39,7 @@ so_nodes = [[3*n] * 5 + [1] for n in n_input]
 
 
 # start a new training
-so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws_b1')
+so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws')
 opt_state = optimizer.init(so_params)
 
 # load and continue a training

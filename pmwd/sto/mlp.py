@@ -39,7 +39,7 @@ class MLP(nn.Module):
 
 
 def init_mlp_params(n_input, nodes, kernel_init=he_normal(), bias_init=zeros_init(),
-                    scheme=None, last_ws=1e-8):
+                    scheme=None, last_ws=1e-8, last_b=1):
     """Initialize MLP parameters."""
     nets = [MLP(features=n, kernel_init=kernel_init, bias_init=bias_init) for n in nodes]
     xs = [jnp.ones(n) for n in n_input]  # dummy inputs
@@ -47,25 +47,25 @@ def init_mlp_params(n_input, nodes, kernel_init=he_normal(), bias_init=zeros_ini
 
     params = [nn.init(key, x) for nn, key, x in zip(nets, keys, xs)]
 
-    # for the last layer: set bias to one & weights to zero
-    if scheme == 'last_w0_b1':
+    # for the last layer: set bias to the given value & weights to zero
+    if scheme == 'last_w0':
         for i, p in enumerate(params):
             p = unfreeze(p)
             p['params'][f'Dense_{len(nodes[i])-1}']['kernel'] = (
                 jnp.zeros((nodes[i][-2], nodes[i][-1])))
             p['params'][f'Dense_{len(nodes[i])-1}']['bias'] = (
-                jnp.ones(nodes[i][-1]))
+                jnp.full(nodes[i][-1], last_b, dtype=jnp.float64))
             params[i] = freeze(p)
 
-    # for the last layer: set bias to one & weights to small random values
-    if scheme == 'last_ws_b1':
+    # for the last layer: set bias to the given value & weights to small random values
+    if scheme == 'last_ws':
         keys = random.split(random.PRNGKey(1), len(params))
         for i, p in enumerate(params):
             p = unfreeze(p)
             p['params'][f'Dense_{len(nodes[i])-1}']['kernel'] = (
                 random.normal(keys[i], (nodes[i][-2], nodes[i][-1]))) * last_ws
             p['params'][f'Dense_{len(nodes[i])-1}']['bias'] = (
-                jnp.ones(nodes[i][-1]))
+                jnp.full(nodes[i][-1], last_b, dtype=jnp.float64))
             params[i] = freeze(p)
 
     return params
