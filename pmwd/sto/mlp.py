@@ -16,7 +16,7 @@ def squareplus(x, b=4):
 class MLP(nn.Module):
     features: Sequence[int]
     activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
-    outivator: Callable[[jnp.ndarray], jnp.ndarray] = None
+    regulator: Callable[[jnp.ndarray], jnp.ndarray] = jnp.exp
     kernel_init: Callable = he_normal()
     bias_init: Callable = zeros_init()
 
@@ -32,8 +32,8 @@ class MLP(nn.Module):
         # output layer
         x = nn.Dense(self.features[-1], param_dtype=jnp.float64,
                      kernel_init=self.kernel_init, bias_init=self.bias_init)(x)
-        if self.outivator is not None:
-            x = self.outivator(x)
+        if self.regulator is not None:
+            x = self.regulator(x)
 
         return x
 
