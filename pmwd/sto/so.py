@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
-from jax import vmap, checkpoint
+from jax import jit, vmap, checkpoint
+from functools import partial
 
 from pmwd.sto.mlp import MLP
 from pmwd.sto import soft_a, soft_b, soft_c
@@ -29,6 +30,21 @@ def soft_len(soft_i, k_fac=1):
     return soft_i.soft_len(k_fac=k_fac)
 
 
+def soft(soft_i, k, theta):
+    soft_i = mod_soft_i(soft_i)
+    return soft_i.soft(k, theta)
+
+
+def soft_k(soft_i, k, theta):
+    soft_i = mod_soft_i(soft_i)
+    return soft_i.soft_k(k, theta)
+
+
+def soft_kvec(soft_i, kvec, theta):
+    soft_i = mod_soft_i(soft_i)
+    return soft_i.soft_kvec(kvec, theta)
+
+
 def apply_net(nid, conf, cosmo, x):
     net = MLP(features=conf.so_nodes[nid])
     if conf.dropout_rate is not None:
@@ -43,25 +59,22 @@ def apply_net(nid, conf, cosmo, x):
 
 def sonn_vmap(k, theta, cosmo, conf, nid):
     """Evaluate the neural net, using vmap over k."""
-    soft_i = mod_soft_i(conf.soft_i)
     def _sonn(_k):
-        _ft = soft_i.soft(_k, theta)
+        _ft = soft(conf.soft_i, _k, theta)
         return apply_net(nid, conf, cosmo, _ft)[0]
     return vmap(_sonn)(k.ravel()).reshape(k.shape)
 
 
 def sonn_k(k, theta, cosmo, conf, nid):
     """SO net of 1D k input."""
-    soft_i = mod_soft_i(conf.soft_i)
-    ft = soft_i.soft_k(k, theta)
+    ft = soft_k(conf.soft_i, k, theta)
     return apply_net(nid, conf, cosmo, ft)[..., 0]  # rm the trailing axis of dim one
 
 
 def sonn_kvec(kv, theta, cosmo, conf, nid):
     """SO net of 3D k input, with permutation symmetry."""
-    soft_i = mod_soft_i(conf.soft_i)
     kv = jnp.sort(kv, axis=-1)  # sort for permutation symmetry of kv components
-    ft = soft_i.soft_kvec(kv, theta)
+    ft = soft_kvec(conf.soft_i, kv, theta)
     return apply_net(nid, conf, cosmo, ft)[..., 0]  # rm the trailing axis of dim one
 
 
