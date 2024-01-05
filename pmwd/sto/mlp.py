@@ -39,7 +39,7 @@ class MLP(nn.Module):
 
 
 def init_mlp_params(n_input, nodes, kernel_init=he_normal(), bias_init=zeros_init(),
-                    scheme=None, last_ws=1e-8, last_b=1):
+                    scheme=None, last_ws=1e-8, last_b=0):
     """Initialize MLP parameters."""
     nets = [MLP(features=n, kernel_init=kernel_init, bias_init=bias_init) for n in nodes]
     xs = [jnp.ones(n) for n in n_input]  # dummy inputs
