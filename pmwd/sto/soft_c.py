@@ -79,4 +79,19 @@ def soft_kvec(kv, theta, log_k_theta=True):
 def soft_names(net):
     # str names of input features of the SO neural nets
     # currently hardcoded, should be updated along with functions above
-    pass
+    theta_l = ['ptcl spacing', 'cell size', 'softening length']
+    theta_l_k = []
+    if net == 'f':
+        for i, v in enumerate(theta_l):
+            theta_l_k.append(f'{i}: k * {v}')
+    if net == 'g':
+        for n in range(3):
+            for i, v in enumerate(theta_l):
+                theta_l_k.append(f'{i}: k_{n} * {v}')
+
+    theta_o = ['a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b / Omega_m',
+               'Omega_k / (1 - Omega_k)', 'h']
+    for j, v in enumerate(theta_o):
+        theta_o[j] = f'{len(theta_l_k)+1+j}: {v}'
+
+    return theta_l_k + theta_o
