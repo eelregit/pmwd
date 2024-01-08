@@ -115,16 +115,14 @@ def soft_names(net):
     theta_l += ['ptcl spacing', 'cell size', 'softening length']
     theta_l_k = []
     if net == 'f':
-        for i, v in enumerate(theta_l):
-            theta_l_k.append(f'{i}: k * {v}')
+        for v in theta_l:
+            theta_l_k.append('k * {v}')
     if net == 'g':
         for n in range(3):
-            for i, v in enumerate(theta_l):
-                theta_l_k.append(f'{i}: k_{n} * {v}')
+            for v in theta_l:
+                theta_l_k.append(f'k_{n} * {v}')
 
     theta_o = ['D1/a', 'D2/a**2', 'dlnD1-1', 'dlnD2-2', 'Omega_m_a', 'H_deriv',
                'dlna~da/a']
-    for j, v in enumerate(theta_o):
-        theta_o[j] = f'{len(theta_l_k)+1+j}: {v}'
 
     return theta_l_k + theta_o

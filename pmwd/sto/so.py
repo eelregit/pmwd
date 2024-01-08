@@ -20,9 +20,9 @@ def sotheta(cosmo, conf, a):
     return soft_i.sotheta(cosmo, conf, a)
 
 
-def soft_names(soft_i):
+def soft_names(soft_i, net):
     soft_i = mod_soft_i(soft_i)
-    return soft_i.soft_names()
+    return soft_i.soft_names(net)
 
 
 def soft_len(soft_i, k_fac=1):
