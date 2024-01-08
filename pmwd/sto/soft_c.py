@@ -6,6 +6,9 @@ from pmwd.cosmology import Cosmology, H_deriv, Omega_m_a, SimpleLCDM
 from pmwd.boltzmann import boltzmann, growth, linear_power
 
 
+log_k_theta = True
+
+
 def sotheta(cosmo, conf, a):
     """Physical quantities to be used in SO input features along with k."""
     # quantities of dim L
@@ -37,7 +40,7 @@ def soft_len(k_fac=1):
     return len(theta_l) * k_fac + len(theta_o)
 
 
-def soft(k, theta, log_k_theta=True):
+def soft(k, theta):
     """SO features for neural nets input, with k being a scalar."""
     theta_l, theta_o = theta
     k_theta_l = k * theta_l
@@ -46,7 +49,7 @@ def soft(k, theta, log_k_theta=True):
     return jnp.concatenate((k_theta_l, theta_o))
 
 
-def soft_k(k, theta, log_k_theta=True):
+def soft_k(k, theta):
     """Get SO input features (k * l, o)."""
     theta_l, theta_o = theta  # e.g. (8,), (6,)
     k_shape = k.shape  # e.g. (128, 1, 1)
@@ -60,7 +63,7 @@ def soft_k(k, theta, log_k_theta=True):
     return ft
 
 
-def soft_kvec(kv, theta, log_k_theta=True):
+def soft_kvec(kv, theta):
     """Get SO input features (k1 * l, k2 * l, k3 * l, o)."""
     kv_shape = kv.shape  # e.g. (128, 128, 65, 3)
     kv = kv.reshape(kv_shape + (1,))  # (128, 128, 65, 3, 1)
@@ -82,16 +85,16 @@ def soft_names(net):
     theta_l = ['ptcl spacing', 'cell size', 'softening length']
     theta_l_k = []
     if net == 'f':
-        for i, v in enumerate(theta_l):
-            theta_l_k.append(f'{i}: k * {v}')
+        for v in theta_l:
+            theta_l_k.append(f'k * {v}')
     if net == 'g':
         for n in range(3):
-            for i, v in enumerate(theta_l):
-                theta_l_k.append(f'{i}: k_{n} * {v}')
+            for v in theta_l:
+                theta_l_k.append(f'k_{n} * {v}')
+    if log_k_theta:
+        theta_l_k = [f'log({v})' for v in theta_l_k]
 
     theta_o = ['a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b / Omega_m',
                'Omega_k / (1 - Omega_k)', 'h']
-    for j, v in enumerate(theta_o):
-        theta_o[j] = f'{len(theta_l_k)+1+j}: {v}'
 
     return theta_l_k + theta_o
