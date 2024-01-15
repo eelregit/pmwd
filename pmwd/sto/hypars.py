@@ -20,14 +20,8 @@ loss_pars = {
 
 # optimizer
 learning_rate = 1e-5
-optimizer = optax.adamw(learning_rate, b1=0.9, b2=0.9, weight_decay=3e-5)
+optimizer = optax.adam(learning_rate)
 optimizer = optax.MultiSteps(optimizer, 1)
-# optimizer = optax.chain(
-#     optax.clip_by_global_norm(3.),
-#     optax.adam(learning_rate),
-# )
-# optimizer = optax.amsgrad(learning_rate, eps=1e-4)
-# optimizer = optax.adamw(learning_rate, weight_decay=1e-4)
 
 # so neural nets
 so_type = 'NN'
@@ -35,7 +29,6 @@ soft_i = 'soft_a'
 n_input = [soft_len(soft_i, k_fac=3), soft_len(soft_i)]
 
 so_nodes = [[3*n] * 5 + [1] for n in n_input]
-
 
 
 # start a new training
