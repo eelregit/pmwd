@@ -25,6 +25,11 @@ def soft_names(soft_i, net):
     return soft_i.soft_names(net)
 
 
+def soft_names_tex(soft_i, net):
+    soft_i = mod_soft_i(soft_i)
+    return soft_i.soft_names_tex(net)
+
+
 def soft_len(soft_i, k_fac=1):
     soft_i = mod_soft_i(soft_i)
     return soft_i.soft_len(k_fac=k_fac)

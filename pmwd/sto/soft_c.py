@@ -98,3 +98,23 @@ def soft_names(net):
                'Omega_k / (1 - Omega_k)', 'h']
 
     return theta_l_k + theta_o
+
+
+def soft_names_tex(net):
+    # soft_names in latex math expressions
+    theta_l = ['l_p', 'l_c', 'l_s']
+    theta_l_k = []
+    if net == 'f':
+        for v in theta_l:
+            theta_l_k.append(f'k {v}')
+    if net == 'g':
+        for n in range(3):
+            for v in theta_l:
+                theta_l_k.append(f'k_{n} {v}')
+    if log_k_theta:
+        theta_l_k = [f'\\ln {v}' for v in theta_l_k]
+
+    theta_o = ['a', 'A_s', 'n_s', '\\Omega_m', '\\Omega_b/\\Omega_m',
+               '\\frac{\Omega_k}{1-\Omega_k}']
+
+    return theta_l_k + theta_o
