@@ -86,7 +86,7 @@ def scale_Sobol(sobol=None, fn='sobol.txt', ind=slice(None)):
     return sobol.T
 
 
-def gen_cc(sobol, mesh_shape=1, a_snapshots=(1,), a_nbody_num=63,
+def gen_cc(sobol, mesh_shape=1, a_snapshots=(1,), a_nbody_num=61,
            so_type=None, so_nodes=None, soft_i=None, a_start=1/16, a_stop=1+1/128,
            dropout_rate=None, dropout_key=jnp.array([0, 0]), cal_boltz=True):
     """Setup conf and cosmo given a sobol."""
