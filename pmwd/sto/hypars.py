@@ -69,7 +69,5 @@ def lr_scheduler(lr, skd_state, loss, patience=15, factor=0.5, threshold=1e-4, l
 
     return lr, skd_state
 
-dropout_rate = None  # set to None for no dropout applied
-
 # mannually turn off nets by setting the corresponding so_nodes to None
 # for i in [0, 2]: so_nodes[i] = None

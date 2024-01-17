@@ -21,13 +21,12 @@ class MLP(nn.Module):
     bias_init: Callable = zeros_init()
 
     @nn.compact
-    def __call__(self, x, dropout=False, dropout_rate=0.5):
+    def __call__(self, x):
         # hidden layers
         for i, fts in enumerate(self.features[:-1]):
             x = nn.Dense(fts, param_dtype=jnp.float64, kernel_init=self.kernel_init,
                          bias_init=self.bias_init)(x)
             x = self.activator(x)
-            x = nn.Dropout(rate=dropout_rate, deterministic=not dropout)(x)
 
         # output layer
         x = nn.Dense(self.features[-1], param_dtype=jnp.float64,
