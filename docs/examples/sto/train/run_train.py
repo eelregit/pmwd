@@ -119,8 +119,6 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch, learning_rat
     np_rng = np.random.default_rng(0)
     # shuffle of data samples across epoch
     np_rng_shuffle = np.random.default_rng(procid)
-    # jax: dropout layer
-    jax_key = jax.random.PRNGKey(0)
 
     skd_state = None
 
@@ -147,11 +145,11 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch, learning_rat
         if epoch == 0:  # evaluate the loss before training, with init so_params
             loss_epoch_mean = loss_epoch(
                 procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_i,
-                so_params, jax_key, loss_pars, verbose)
+                so_params, loss_pars, verbose)
         else:
             loss_epoch_mean, so_params, opt_state = train_epoch(
                 procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_i,
-                so_params, opt_state, optimizer, jax_key, loss_pars, verbose)
+                so_params, opt_state, optimizer, loss_pars, verbose)
 
             # learning rate scheduler
             # learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)

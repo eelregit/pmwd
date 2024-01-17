@@ -52,14 +52,7 @@ def soft_kvec(soft_i, kvec, theta):
 
 def apply_net(nid, conf, cosmo, x):
     net = MLP(features=conf.so_nodes[nid])
-    if conf.dropout_rate is not None:
-        dropout = True
-        rngs = {'dropout': jnp.asarray(conf.dropout_key, dtype=jnp.uint32)}
-    else:
-        dropout = False
-        rngs = None
-    return net.apply(cosmo.so_params[nid], x, dropout=dropout,
-                     dropout_rate=conf.dropout_rate, rngs=rngs)
+    return net.apply(cosmo.so_params[nid], x)
 
 
 def sonn_vmap(k, theta, cosmo, conf, nid):
