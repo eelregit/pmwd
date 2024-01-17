@@ -6,7 +6,9 @@ from pmwd.cosmology import Cosmology, H_deriv, Omega_m_a, SimpleLCDM
 from pmwd.boltzmann import boltzmann, growth, linear_power
 
 
-log_k_theta = True
+# exp(ln(k*scale)) seems to always appear in SR expressions
+# maybe log is not necessary also for NN training
+log_k_theta = False
 
 
 def sotheta(cosmo, conf, a):
