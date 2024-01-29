@@ -7,7 +7,7 @@ from pmwd.boltzmann import boltzmann, growth, linear_power
 
 
 # exp(ln(k*scale)) seems to always appear in SR expressions
-# maybe log is not necessary also for NN training
+# log might be unnecessary for NN training
 log_k_theta = False
 
 
@@ -26,8 +26,8 @@ def sotheta(cosmo, conf, a):
         cosmo.A_s_1e9,
         cosmo.n_s,
         cosmo.Omega_m,
-        cosmo.Omega_b / cosmo.Omega_m,
-        cosmo.Omega_k / (1 - cosmo.Omega_k),
+        cosmo.Omega_b,
+        cosmo.Omega_k,
         cosmo.h,
     ])
     return (theta_l, theta_o)
@@ -96,8 +96,7 @@ def soft_names(net):
     if log_k_theta:
         theta_l_k = [f'log({v})' for v in theta_l_k]
 
-    theta_o = ['a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b / Omega_m',
-               'Omega_k / (1 - Omega_k)', 'h']
+    theta_o = ['a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b', 'Omega_k', 'h']
 
     return theta_l_k + theta_o
 
@@ -116,7 +115,6 @@ def soft_names_tex(net):
     if log_k_theta:
         theta_l_k = [f'\\ln {v}' for v in theta_l_k]
 
-    theta_o = ['a', 'A_s', 'n_s', '\\Omega_m', '\\Omega_b/\\Omega_m',
-               '\\frac{\Omega_k}{1-\Omega_k}']
+    theta_o = ['a', 'A_s', 'n_s', '\\Omega_m', '\\Omega_b', '\\Omega_k', 'h']
 
     return theta_l_k + theta_o
