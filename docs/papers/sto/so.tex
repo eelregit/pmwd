@@ -130,12 +130,13 @@ New York, New York 10010, USA}
 % up to 150 words
 
 We optimize the spatial resolution of cosmological particle-mesh (PM)
-simulations by sharpening the PM force with first neural networks and then
-symbolic regression, taking symmetry and dimensional analysis in consideration.
+simulations by sharpening the PM force with first neural networks and
+then symbolic regression, taking symmetry and dimensional analysis in
+consideration.
 
 We combine differentiable simulation, deep learning, [decision tree
-(feature selection)], and symbolic regression to extract the final kernel
-applicable to all other cosmological simulation code.
+(feature selection)], and symbolic regression to extract the final
+kernel applicable to all other cosmological simulation code.
 
 \end{abstract}
 
@@ -221,10 +222,14 @@ list if we have too many figures to show?\newline
 \section{Introduction}
 % without heading
 
-Abbrs: vector-Jacobian product (VJP), automatic differentiation (AD), neural
-network (NN), particle-mesh (PM), fast-Fourier transform (FFT)
-
 % AI for science and cosmology
+Rapid advances in artificial intelligence (AI) and more specifically
+deep learning (DL) have provided powerful tools that are revolutionizing
+scientific research across disciplines.
+AI for science consists of not only the state-of-art deep neural
+networks, but also more fundamental computational tools and hardwares
+like automatic differentiation (AD) and GPUs.
+One particular application is the numerical simulation of the Universe.
 
 % a brief review of (differentiable) cosmological simulations
 BORG, ELUCID, and BORG-PM \citep{BORG, ELUCID, BORG-PM}
@@ -232,21 +237,39 @@ BORG, ELUCID, and BORG-PM \citep{BORG, ELUCID, BORG-PM}
 
 
 % introduce PM and its limitation on small scales
-The PM method solves the Poisson equation by scattering the particles onto a
-mesh, on which FFT is performed and the Laplacian operator reduces to simple
-multiplication of wavenumbers in Fourier space.
-Although being computationally efficient, the PM method is mainly limited by its
-resolution on small scales, i.e. scales around the mesh cell size.
+The particle-mesh (PM) method solves the Poisson equation by scattering
+the particles onto a mesh, on which FFT is performed and the Laplacian
+operator reduces to simple multiplication of wavenumbers in Fourier
+space.
+Although being computationally efficient, the PM method is mainly
+limited by its resolution on small scales, i.e. scales around the mesh
+cell size.
 This is due to the loss of information during the scattering process of
 continuously distributed particles onto the discrete mesh.
-We use the cloud-in-cell (CIC) scheme \citep{HockneyEastwood1988} to compute the
-mass fractions of a particle scattered to nearby grid points.
-Other schemes include the nearest grid point (NGP) and triangle shaped cloud
-(TSC) etc.
+We use the cloud-in-cell (CIC) scheme \citep{HockneyEastwood1988} to
+compute the mass fractions of a particle scattered to nearby grid
+points.
+Other schemes include the nearest grid point (NGP) and triangle shaped
+cloud (TSC) etc.
 
-Using a hybrid embedding of NNs in differentiable physical simulations, we
-optimize the performance of PM method on small scales in cosmological $N$-body
-simulations by sharpening the gravitational force.
+% motivation of this work
+Optimizing the accuracy of fast and differentiable simulations is
+crucial for their applications in, e.g. generation of mocks for
+cosmological surveys, simulation-based inference or field-level
+inference.
+
+% introduction of this work
+The differentiable cosmological simulation with adjoint method
+\citep{Li2022a} and the corresponding PM $N$-body library \pmwd\
+\citep{Li2022b} lay the foundation of the gradient-based optimization
+discussed in this work.
+Within this fully differentiable framework, we sharpen the gravitational
+force by embedding neural networks (NNs) in the Poisson equation and
+train them for the spatial optimization (SO) of the simulation
+resolution on small scales.
+For better interpretability, we further fit the trained NNs using
+symbolic regression (SR).
+
 
 
 \vspace{1em}
@@ -295,29 +318,35 @@ simulations by sharpening the gravitational force.
   \end{tabular}
   \end{table}
 
-In cosmological $N$-body simulations, the dynamics of the particles is governed
-by the Poisson equation
+In cosmological $N$-body simulations, the dynamics of the particles is
+governed by the Poisson equation
 %
 \begin{equation}
   \nabla^2 \varphi(\vx) = \frac32 \Omegam H_0^2 \delta(\vx),
 \end{equation}
 %
-In Fourier space, the gravitational force field $- \vnabla \varphi$ reads
+where $\Omegam$ is the matter fraction today, $H_0$ is the Hubble
+constant, and the two fields $\delta(\vx)$ and $\varphi(\vx)$ are the
+gravitational potential and matter density fluctuation respectively.
+In Fourier space, the gravitational force field $- \vnabla \varphi$
+follows
 %
 \begin{equation}
 - i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
 \end{equation}
 %
-where we introduce force sharpening for spatial optimization through
+where for each dimension $i\in\{1,2,3\}$ of the 3D field, we then
+introduce SO force sharpening through
 %
 \begin{equation}
 \frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
   f(k_i; \vvartheta) g(k_1, k_2, k_3; \vvartheta),
 \end{equation}
 %
-where $f$ and $g$ are NNs, each approximating a nonlinear function of the
-wavevector components and all possible relevant features $\vvartheta$ summarized
-in \autoref{tab:feat} with more details discussed in \autoref{sec:features}.
+where $f$ and $g$ are NNs, each approximating a nonlinear function of
+the wavevector components and all possible relevant features
+$\vvartheta$ summarized in \autoref{tab:feat} with more details
+discussed in \autoref{sec:features}.
 Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is however
 broken by the PM solver to the O\textsubscript{h} discrete symmetry with
 48 elements involving permutations and reversals of the 3 principal axes
@@ -332,15 +361,16 @@ An even and real kernel in configuration space is also even in Fourier
 space.
 We take the absolute value for the evenness, and sort the 3 wavevector
 compontents to achieve the permutation equivariance.
-Being embedded in the differentiable simulation, the NNs can be trained using
-gradient-based optimization methods as in usual deep learning tasks.
-The parameters of the neural networks, which enter the force evaluation in
-every time integration step, can be treated just the same as other cosmological
-parameters.
-The objective gradients are accumulated, based on which the parameters are then
-optimized.
-For both $f$ and $g$ neural networks, we adopt multilayer perceptron (MLP, i.e.
-fully connected) structures.
+
+Being embedded in the differentiable simulation, the NNs can be trained
+using gradient-based optimization methods as in usual deep learning tasks.
+The parameters of the neural networks, which enter the force evaluation
+in every time integration step, can be treated just the same as other
+cosmological parameters.
+The objective gradients are accumulated, based on which the parameters
+are then optimized.
+For both $f$ and $g$ neural networks, we adopt multilayer perceptron
+(MLP, i.e. fully connected) structures.
 
 
 \begin{table*}
@@ -409,8 +439,9 @@ times and avoid possible related numerical errors in \pmwd, we introduce
 a fractional random offset $\gamma$ that varies between 0 and 1 for
 different simulations.
 }
-In our \pmwd\ model, we generate the snapshot at an arbitrary given time using
-the cubic Hermite interpolation, with more details in \autoref{sec:snapobs}.
+In our \pmwd\ model, we generate the snapshot at an arbitrary given time
+using the cubic Hermite interpolation, with more details in
+\autoref{sec:snapobs}.
 The curvature $\OmegaK$ is related to the separate universe simulation
 \citep{LiEtAl2014, WagnerEtAl2015}.
 \YZ{We refer to this training dataset of 512 \GADGET\ simulations sampled with
@@ -430,55 +461,50 @@ variable, in a follow-up work on the temporal optimization.
 }
 
 
-\subsection{Trained Neural Networks}
+\subsection{Trained Neural Networks \& Symbolic Expressions}
 
-% visualization & comparison of neural nets & symbolic functions
-For the $f(k_i; \vvartheta)$ NN, we show it as a function of $k_i$ at multiple
-different $\vvartheta$ values.
+\begin{figure*}
+  \centering
+  \includegraphics[width=.48\columnwidth]{net_f_a1_j3091776_e3000.pdf}
+  \includegraphics[width=.48\columnwidth]{net_g_a1_j3091776_e3000.pdf}
+  \caption{$f(k_i; \vvartheta)$ and $g(k_1, k_2, k_3; \vvartheta)$
+  functions }
+  \label{fig:func}
+\end{figure*}
 
-For the $g(k_1,k_2,k_3;\vvartheta)$ NN, which is permutationally symmetric about
-$(k_1, k_2, k_3)$, we show it as a function of $k_i$ along axis and face
-diagonal directions.
+With discrete Fourier transform (DFT) on a regular mesh of length $N_c$
+with cell size $l_c$, the range of sampled 1D discrete wavenumbers is
+given by the fundamental $k_{\rm fund} = 2\pi/(l_c N_c)$ and the
+maximum $k_{\rm Nyquist} = \pi/l_c$, where $l_c N_c$ is simply the box
+size.
+To visualize the functions for different box sizes, we normzalize $k$ by
+$k_{\rm Nyquist}$, which gives the same $[2/N_c, 1]$ regardless of the
+box size.
+For the 3D wavenumber $k=\sqrt{\sum_{i=1}^{3}k_i^2}$, the maximum value
+is then $\sqrt{3}$.
+
+For the $g(k_1,k_2,k_3;\vvartheta)$, which is permutationally
+symmetric about $(k_1, k_2, k_3)$, we show it as a function of $k_i$
+along axis, face and body diagonal directions.
 
 
-\subsection{Feature Importance}
-
-We generate a sample of (input, output) data of the trained neural network to
-perform feature importance analysis.
-We use Sobol sequence to generate the sample of (parameters in
-\autoref{tab:param}, $k$, $a$).
-
-We use the random forest regressor for feature selection using impurity-based
-importance.
-We use the \texttt{scikit-learn} \citep{scikit-learn} code for this.
-% more details on the hyperparams in random forest
-\YZ{Maybe we can add another column in \autoref{tab:feat} for feature
-importance?}
-
-
-\subsection{Symbolic Expressions}
-
-The selected important features are then used for SR.
-We use the \texttt{PySR} \citep{PySR} SR code to fit for analytic
-function expressions of the trained SO neural networks.
 
 
 \subsection{Dark Matter Density Fields}
 
 \begin{figure*}
   \centering
-  \includegraphics[width=.8\columnwidth]{tf_snap120_3063821_e888.pdf} \\
-  \includegraphics[width=.8\columnwidth]{cc_snap120_3063821_e888.pdf}
-  \caption{The transfer function $T$ and correlation coefficient $r$ of the
-  \GADGET\ and \pmwd\ simulated density fields, with and without force
-  sharpening. The solid line and shaded region indicate the mean and standard
-  deviation of the 64 Sobol simulation setups. mesh shape=1}
+  \includegraphics[width=.48\columnwidth]{tf_snap120_3091776_e3000.pdf}
+  \includegraphics[width=.48\columnwidth]{cc_snap120_3091776_e3000.pdf}
+  \caption{The TF and CC of PM and PM-SONN simulated density fields with
+  respect to that of the \GADGET. The solid line and shaded region
+  indicate the median and the [16, 84] percentiles of the 64 Sobol
+  simulation setups. last snapshot $a\simeq 1$, mesh shape=1}
   \label{fig:tfcc}
 \end{figure*}
 
-% transfer function & correlation coefficient
-To compare two fields $\hat f$ and $f$, we introduce for each mode the square
-root ratio of the power spectrum
+To compare two fields $\hat f$ and $f$, we introduce for each mode the
+square root ratio of the auto power spectrum
 %
 \begin{equation}
 T(\vk) \triangleq
@@ -486,8 +512,8 @@ T(\vk) \triangleq
 \label{T}
 \end{equation}
 %
-which is also referred to as the transfer function, and the cross correlation
-coefficient
+which is referred to as the transfer function (TF), and the correlation
+coefficient (CC) defined with the cross power spectrum
 %
 \begin{equation}
 r(\vk) \triangleq
@@ -497,12 +523,15 @@ r(\vk) \triangleq
 \end{equation}
 %
 The two fields are identical when both $T$ and $r$ are unity.
-The PM method is accurate on scales much larger than the cell size, therefore we
-expect $T$ and $r$ to be very close to being unity both before and after force
-sharpening optimization.
-To show the $T$ and $r$ for different box sizes, we normalize the wavenumber by
-the Nyquist wavenumber $k_{\rm Nyquist}$ of the particle grid.
+The PM method is accurate on scales much larger than the mesh cell size,
+therefore we expect $T$ and $r$ to be very close to being unity both
+before and after the force sharpening optimization.
+To show the $T$ and $r$ for different box sizes, we normalize the
+wavenumber by the Nyquist wavenumber $k_{\rm Nyquist} = \pi / l_p$ of
+the particle grid, where $l_p$ is the particle spacing.
 \YZ{We show T and r separately for different mesh shapes?}
+
+comparison of PM, PM with SO NN (PM-SONN), PM with SO SR (PM-SOSR)
 
 
 
@@ -516,11 +545,17 @@ the Nyquist wavenumber $k_{\rm Nyquist}$ of the particle grid.
 \end{figure*}
 
 % density field with zoom in (with halos painted as circles?)
-The effect of force sharpening can also be visually shown by looking directly at
-the density field.
+The effect of force sharpening can also be visually shown by looking
+directly at the density field.
 
 
 \subsection{Dark Matter Halos}
+
+
+
+\subsection{Benchmarks}
+We compare the computational cost of \GADGET, \pmwd\ with NNs, and
+\pmwd\ with SR.
 
 
 \vspace{1em}
@@ -536,24 +571,24 @@ the density field.
 \subsection{Differentiable Simulation}
 \label{sec:pmwd}
 
-The differentiable cosmological simulation with adjoint method \citep{Li2022a}
-and the corresponding PM $N$-body library \pmwd\ \citep{Li2022b} are the
-foundation of the gradient-based optimization discussed in this work.
-Within this fully differentiable framework, we are able to embed neural networks
-in physical processes and train them for many purposes, including the
-optimization of spatial resolution by sharpening the gravitational force in this
-work.
+The spatial optimization using gradient descent discussed in this work
+is built in the framework of the PM $N$-body library \pmwd\
+\citep{Li2022b}, which is an implementation of the differentiable
+cosmological simulation with adjoint method \citep{Li2022a}.
 
 Here we briefly recap the equations that are closely related to our
-extensions to the original framework, and setup the notations of the variables.
-Following \cite{Li2022a}, we denote the particles' state with $\vz = (\vx,
-\vp)^\intercal$ and their adjoint variables with $\vlambda = (\vxi, \vpi)$.
-We refer to the quantities that are directly related to the final objective
-function $\cJ$ as the observable $\vo$.
-In this work, our observable includes multiple snapshots at given times.
-For the observation operator $O_{i}^{i-1}$ in the adjoint equations (check
-Eq.(18) in \cite{Li2022a}) from time step $a_i$ back to $a_{i-1}$, the adjoint
-variables are updated through
+extensions of the original framework, and introduce the notations of the
+variables.
+Following \cite{Li2022a}, we denote the particles' state with $\vz =
+(\vx, \vp)^\intercal$, where $\vx$ and $\vp$ are the positions and
+momenta of the particles, and their adjoint variables with $\vlambda =
+(\vxi, \vpi)$.
+We refer to the quantities that are directly related to the final
+objective function $\cJ$ as the observable $\vo$.
+In this work, our observables include multiple snapshots at given times.
+For the observation operator $O_{i}^{i-1}$ in the adjoint equations
+(check Eq.(18) in \cite{Li2022a}) from time step $a_i$ back to
+$a_{i-1}$, the adjoint variables are updated through
 \begin{align}
   \vxi_{i-1} &:= \vxi_{i-1} + \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vx_{i-1}}, \nonumber\\
   \vpi_{i-1} &:= \vpi_{i-1} + \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vp_{i-1}},
@@ -565,43 +600,51 @@ The initial conditions of these adjoint variables are given by
   \vxi_n &= \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p\vx_n}, \nonumber\\
   \vpi_n &= \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p\vp_n},
 \end{align}
-which are zero if no snapshot in $\vo$ depends on $(\vx_n, \vp_n)$.
+which are zero if no snapshot in $\vo$ depends on $(\vx_n, \vp_n)$, the
+state of particles at the final time step.
 The derivative of the objective function with respect to the observable
-($\p\cJ/\p\vo$) and the VJPs of the observation operation ($\p\vo/\p\vx_n$ and
-$\p\vo/\p\vp_n$, mainly the interpolation function discussed in
-\autoref{sec:snapobs} below) can be conveniently computed by AD.
+($\p\cJ/\p\vo$) and the VJPs of the observation operation
+($\p\vo/\p\vx_n$ and $\p\vo/\p\vp_n$, mainly the interpolation function
+discussed in \autoref{sec:snapobs} below) can be conveniently computed
+by AD.
 
 
 \vspace{1em}
 \subsection{Snapshot Observable}
 \label{sec:snapobs}
 
-The N-body time integration is carried out following discrete time steps. Given
-the particle displacements $\vx$ and velocities $\vv = \vp/(a^3H)$ at two
-consecutive time steps $a_i$ and $a_{i+1}$, we get the snapshot of particles in
-between at $a$ using
-the cubic Hermite interpolation.
+The N-body time integration is carried out along discrete time steps in
+terms of the scale factor $a$, and the state of particles at any given
+time can be achieved using interpolation.
+Given the particle displacements $\vs$ and velocities\footnote{This
+velocity is related to the canonical momentum $\vp$ through $\vv =
+\vp/(a^3H)$.} $\vv := \d\vs/\d a$ at two consecutive time steps $a_i$ and
+$a_{i+1}$, we get the snapshot of particles in between at $a$ using the
+cubic Hermite interpolation.
 The interpolated particle displacements are given by
 \begin{align}
-  \vx(a) =\ &h_{00}(\alpha)\vx_i + h_{10}(\alpha)(a_{i+1} - a_i)\vv_i + \nonumber\\
-           &h_{01}(\alpha)\vx_{i+1} + h_{11}(\alpha)(a_{i+1} - a_i)\vv_{i+1},
+  \vs(a) =\ &h_{00}(\alpha)\vs_i + h_{10}(\alpha)(a_{i+1} - a_i)\vv_i + \nonumber\\
+           &h_{01}(\alpha)\vs_{i+1} + h_{11}(\alpha)(a_{i+1} - a_i)\vv_{i+1},
 \end{align}
-where $\alpha := (a - a_i)/(a_{i+1} - a_i)$ and the Hermite basis functions read
+where $\alpha := (a - a_i)/(a_{i+1} - a_i)$ and the Hermite basis
+functions read
 \begin{align}
   h_{00}(\alpha) &= 2\alpha^3 - 3\alpha^2 + 1, \nonumber\\
   h_{10}(\alpha) &= \alpha^3 - 2\alpha^2 + \alpha, \nonumber\\
   h_{01}(\alpha) &= -2\alpha^3 + 3\alpha^2, \nonumber\\
   h_{11}(\alpha) &= \alpha^3 - \alpha^2.
 \end{align}
-The particle velocities are then given by the derivative $\d\vx / \d a$.
-Note that the interpolation is a linear combination of the particle snapshots at
-two consecutive time steps, which therefore can be done in either two steps or
-just one step by carrying the particles from the previous time step.
-We find the two-steps scheme more convenient for the backward evolution of the
-adjoint variables.
-The interpolated snapshots at different times make the observable in this work,
-and the VJPs of the interpolation operation are computed by AD and put into the
-adjoint equations as mentioned in \autoref{sec:pmwd}.
+The particle velocities are then given by the derivative $\vv(a) =
+\d\vs(a) / \d a$.
+The interpolation is a linear combination of the particle snapshots at
+two consecutive time steps, which therefore can be done in either two
+steps or just one step by carrying the particles from the previous step.
+We find the two-steps scheme more convenient for the backward evolution
+of the adjoint variables.
+The interpolated snapshots at different times make the observable in
+this work, and the VJPs of the interpolation functionx are computed by
+AD and put into the adjoint equations as mentioned in
+\autoref{sec:pmwd}.
 
 
 \vspace{1em}
@@ -870,7 +913,7 @@ For gravitational force, we choose pure FMM with $p=5$ and opening angle
 
 
 \vspace{1em}
-\subsection{Training of SO Neural Networks}
+\subsection{Training of Neural Networks}
 
 % hardware setups
 We perform distributed data-parallel training using GPU devices hosted on
@@ -898,6 +941,14 @@ all GPU devices.
 The SO parameters are initialized to be the same for all devices, and being
 updated with the same averaged gradients.
 
+Both $f$ and $g$ networks have $7$ hidden layers with $4\times n_{\rm
+input}$ nodes for each layer, where $n_{\rm input}$ is the size of the
+input layer, which is [...] and [...] for $f$ and $g$ respectively.
+A rectified linear unit (ReLU) activation function is used for hidden
+layers.
+We further apply an exponential function to the output as a regulator
+for positive output.
+
 The SO MLP parameters are initialized in a way such that the MLP output is very
 close to one, i.e. no SO.
 We achieve this by setting the kernel of the output layer to be very small
@@ -923,14 +974,25 @@ use the optimizers in \texttt{Optax}, part of the DeepMind JAX Ecosystem
 \citep{deepmind2020jax}.
 
 
-\vspace{1em}
-\subsection{Feature Importance Analysis}
-
-
 
 \vspace{1em}
 \subsection{Symbolic Regression}
 
+We generate a sample of (input, output) data of the trained neural network to
+perform feature importance analysis.
+We use Sobol sequence to generate the sample of (parameters in
+\autoref{tab:param}, $k$, $a$).
+
+We use the random forest regressor for feature selection using impurity-based
+importance.
+We use the \texttt{scikit-learn} \citep{scikit-learn} code for this.
+% more details on the hyperparams in random forest
+\YZ{Maybe we can add another column in \autoref{tab:feat} for feature
+importance?}
+
+The selected important features are then used for SR.
+We use the \texttt{PySR} \citep{PySR} SR code to fit for analytic
+function expressions of the trained SO neural networks.
 
 \YL{It is interesting to symbolically regress $f$, $k_i f$, and $f g$
 etc to see which one gives simpler expression, given the possible
@@ -944,6 +1006,8 @@ function.}
 We thank Qiufan Lin, Paulo Montero-Camacho, and Yang Wang for helpful
 discussions.
 YZ and YL were supported by The Major Key Project of PCL.
+YZ was also supported by the China Postdoctoral Science Foundation under award
+number 2023M731831.
 The Flatiron Institute is supported by the Simons Foundation.
 
 
@@ -955,12 +1019,13 @@ We make the \GSDATA\ simulation data set public at ...
 \vspace{1em}
 \textit{\large Code Availability:}
 \pmwd\ \citep{Li2022b} is open-source on GitHub
-\href{https://github.com/eelregit/pmwd}{\faGithub}, including the source files
-and scripts of this paper
+\href{https://github.com/eelregit/pmwd}{\faGithub}, including the source
+files and scripts of this paper
 \href{https://github.com/eelregit/pmwd/tree/master/docs/papers/sto}{\faFile}.
-\GADGET\ \citep{GADGET-4}, which can be obtained through a public git-repository
-\href{http://gitlab.mpcdf.mpg.de/vrs/gadget4}{\faGitlab}, hosted by a gitlab
-server at the Max-Planck Computing and Data Facility (MPCDF).
+\GADGET\ \citep{GADGET-4} can be obtained through a public
+git-repository \href{http://gitlab.mpcdf.mpg.de/vrs/gadget4}{\faGitlab},
+hosted by a gitlab server at the Max-Planck Computing and Data Facility
+(MPCDF).
 
 
 
