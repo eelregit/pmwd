@@ -326,7 +326,7 @@ governed by the Poisson equation
 \end{equation}
 %
 where $\Omegam$ is the matter fraction today, $H_0$ is the Hubble
-constant, and the two fields $\delta(\vx)$ and $\varphi(\vx)$ are the
+constant, and the two fields $\varphi(\vx)$ and $\delta(\vx)$ are the
 gravitational potential and matter density fluctuation respectively.
 In Fourier space, the gravitational force field $- \vnabla \varphi$
 follows
@@ -359,19 +359,8 @@ components, so that $f g$ is the most general modification to the force
 kernel.
 An even and real kernel in configuration space is also even in Fourier
 space.
-We take the absolute value for the evenness, and sort the 3 wavevector
-compontents to achieve the permutation equivariance.
-
-Being embedded in the differentiable simulation, the NNs can be trained
-using gradient-based optimization methods as in usual deep learning tasks.
-The parameters of the neural networks, which enter the force evaluation
-in every time integration step, can be treated just the same as other
-cosmological parameters.
-The objective gradients are accumulated, based on which the parameters
-are then optimized.
-For both $f$ and $g$ neural networks, we adopt multilayer perceptron
-(MLP, i.e. fully connected) structures.
-
+We take the absolute value of the wavevectors for the evenness, and sort
+the 3 wavevector compontents to achieve the permutation equivariance.
 
 \begin{table*}
   \centering
@@ -422,8 +411,8 @@ For both $f$ and $g$ neural networks, we adopt multilayer perceptron
   \end{tabular}
   \end{table*}
 
-We generate our target data for training and testing with the \GADGET\
-simulation code \citep{GADGET-4}.
+Our target data samples for training and testing are generated with the
+\GADGET\ simulation code \citep{GADGET-4}.
 We run 512 \GADGET\ simulations that cover a wide range of
 configurations and cosmological parameters, as listed in
 \autoref{tab:param}.
@@ -461,16 +450,36 @@ variable, in a follow-up work on the temporal optimization.
 }
 
 
-\subsection{Trained Neural Networks \& Symbolic Expressions}
+\subsection{Spatial Optimization Neural Networks}
 
 \begin{figure*}
   \centering
   \includegraphics[width=.48\columnwidth]{net_f_a1_j3091776_e3000.pdf}
   \includegraphics[width=.48\columnwidth]{net_g_a1_j3091776_e3000.pdf}
   \caption{$f(k_i; \vvartheta)$ and $g(k_1, k_2, k_3; \vvartheta)$
-  functions }
+  functions. The solid line and shaded region indicate the median and
+  the [16, 84] percentiles of the 64 Sobol simulation setups. $a=1$,
+  mesh shape=1}
   \label{fig:func}
 \end{figure*}
+
+For both $f$ and $g$ NNs, we adopt multilayer perceptron (MLP, i.e.
+fully connected) structures.
+Both $f$ and $g$ networks have $7$ hidden layers with $4\times n_{\rm
+input}$ nodes for each layer, where $n_{\rm input}$ is the size of the
+input layer, which is [...] and [...] for $f$ and $g$ respectively.
+A rectified linear unit (ReLU) activation function is used for hidden
+layers.
+We further apply an exponential function to the output as a regulator
+for positive output.
+Being embedded in the differentiable simulation library \pmwd, the NNs
+can be trained using gradient-based optimization methods as in usual
+deep learning tasks.
+The parameters of the NNs, which enter the force evaluation in every
+time integration step, can be treated just the same as other
+cosmological parameters.
+The objective gradients are accumulated, based on which the parameters
+are then optimized.
 
 With discrete Fourier transform (DFT) on a regular mesh of length $N_c$
 with cell size $l_c$, the range of sampled 1D discrete wavenumbers is
@@ -488,6 +497,9 @@ symmetric about $(k_1, k_2, k_3)$, we show it as a function of $k_i$
 along axis, face and body diagonal directions.
 
 
+\subsection{Analytic Expressions with Symbolic Regression}
+
+We fit the trained NNs with symbolic regression.
 
 
 \subsection{Dark Matter Density Fields}
@@ -723,8 +735,8 @@ g(k_1, k_2, k_3; \vvartheta) = g(\{k_jR_d, k_jR_P, \cdots\}_{j=1,2,3}; G_m, \Ome
 \subsection{Loss Function}
 \label{sec:loss}
 
-The loss function is constructed by comparing the simulated field $\hat f$ with
-the target field $f$.
+The loss function is constructed by comparing the simulated field $\hat
+f$ with the target field $f$.
 \YL{
 For a field $f$ in either Lagrangian or Eulerian space%, we have thought
 %of 3 forms of MSE-inspired loss:
@@ -861,16 +873,16 @@ loss, while our modification is important to balance among all scales so
 that the neural network does not focus too much on either high or low
 $k$'s.
 
-We combine Lagrangian and Eulerian fields to form the total loss for a single
-snapshot:
+We combine Lagrangian and Eulerian fields to form the total loss for a
+single snapshot:
 %
 \begin{equation}
 \cJ = \cL_\vs + \cL_\delta.
 \end{equation}
 %
 
-\YZ{We further sum the loss of all snapshots across a single forward simulation
-at different times, i.e.
+\YZ{We further sum the loss of all snapshots across a single forward
+simulation at different times, i.e.
 \begin{equation}
 \cJ = \sum_{a_i} \cJ |_{a_i}
 \end{equation}
@@ -899,11 +911,11 @@ at different times, i.e.
   \label{fig:sobol}
 \end{figure*}
 
-Small numerical differences in initial conditions (ICs) could become more
-significant with the $N$-body evolution.
+Small numerical differences in initial conditions (ICs) could become
+more significant with the $N$-body evolution.
 We have verified that the IC generation on GPUs is deterministic though
-different from those on CPUs, therefore we generate ICs for both the training
-data and the model on GPUs.
+different from those on CPUs, therefore we generate ICs for both the
+training data and the model on GPUs.
 
 We configure \GADGET\ with high force and time integration accuracy
 settings.
@@ -914,6 +926,7 @@ For gravitational force, we choose pure FMM with $p=5$ and opening angle
 
 \vspace{1em}
 \subsection{Training of Neural Networks}
+
 
 % hardware setups
 We perform distributed data-parallel training using GPU devices hosted on
@@ -941,13 +954,6 @@ all GPU devices.
 The SO parameters are initialized to be the same for all devices, and being
 updated with the same averaged gradients.
 
-Both $f$ and $g$ networks have $7$ hidden layers with $4\times n_{\rm
-input}$ nodes for each layer, where $n_{\rm input}$ is the size of the
-input layer, which is [...] and [...] for $f$ and $g$ respectively.
-A rectified linear unit (ReLU) activation function is used for hidden
-layers.
-We further apply an exponential function to the output as a regulator
-for positive output.
 
 The SO MLP parameters are initialized in a way such that the MLP output is very
 close to one, i.e. no SO.
@@ -976,10 +982,10 @@ use the optimizers in \texttt{Optax}, part of the DeepMind JAX Ecosystem
 
 
 \vspace{1em}
-\subsection{Symbolic Regression}
+\subsection{Symbolic Regression Fitting of the Neural Networks}
 
-We generate a sample of (input, output) data of the trained neural network to
-perform feature importance analysis.
+We generate samples of (input, output) data of the trained neural
+networks to perform symbolic regression.
 We use Sobol sequence to generate the sample of (parameters in
 \autoref{tab:param}, $k$, $a$).
 
