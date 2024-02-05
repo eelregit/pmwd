@@ -96,7 +96,8 @@ def soft_names(net):
     if log_k_theta:
         theta_l_k = [f'log({v})' for v in theta_l_k]
 
-    theta_o = ['a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b', 'Omega_k', 'h']
+    theta_o = ['a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b / Omega_m',
+               'Omega_k / (1 - Omega_k)', 'h']
 
     return theta_l_k + theta_o
 
@@ -115,6 +116,7 @@ def soft_names_tex(net):
     if log_k_theta:
         theta_l_k = [f'\\ln {v}' for v in theta_l_k]
 
-    theta_o = ['a', 'A_s', 'n_s', '\\Omega_m', '\\Omega_b', '\\Omega_k', 'h']
+    theta_o = ['a', 'A_s', 'n_s', '\\Omega_m', '\\frac{\\Omega_b}{\\Omega_m}',
+               '\\frac{\\Omega_k}{1-\\Omega_k}', 'h']
 
     return theta_l_k + theta_o
