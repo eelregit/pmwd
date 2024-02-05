@@ -12,7 +12,7 @@ from pmwd.sto.so import sotheta, soft_k, soft_kvec
 
 
 def gen_sonn_data(so_params, soft_i, n_steps=61, mesh_shape=1, fn=None,
-                  m_extra={'f': 0, 'g': 0}):
+                  vis_mesh_shape=3, m_extra={'f': 0, 'g': 0}):
     """Generate the (input, output) samples of so neural networks, using Sobol."""
     # sample theta params [:, :9], a [:, 9] and k (k1 k2 k3) [:, 10:]
     # using Sobol for f and g neural nets
@@ -25,7 +25,7 @@ def gen_sonn_data(so_params, soft_i, n_steps=61, mesh_shape=1, fn=None,
         a_s[x] = 1/16 + (1 + 1/128 - 1/16) * sobol[x][:, 9]
 
     # sample k w.r.t. the ptcl grid nyquist
-    log_kn_min, log_kn_max = jnp.log10(0.01), jnp.log10(1.05)
+    log_kn_min, log_kn_max = jnp.log10(2/128), jnp.log10(vis_mesh_shape)
     norm_k_s = {}
     norm_k_s['f'] = 10**(log_kn_min + (log_kn_max - log_kn_min) * sobol['f'][:, 10])
     norm_k_s['g'] = jnp.sort(10**(log_kn_min + (log_kn_max - log_kn_min) * sobol['g'][:, 10:]),
@@ -69,8 +69,8 @@ def gen_sonn_data(so_params, soft_i, n_steps=61, mesh_shape=1, fn=None,
 
 
 if __name__ == "__main__":
-    jobid = 3099093
-    epoch = 591
+    jobid = 3091776
+    epoch = 3000
     exp = '4n7'
     soft_i = 'soft_c'
     fn = f'nn_data/{jobid}_e{epoch}.pickle'
