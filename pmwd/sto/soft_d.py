@@ -16,7 +16,6 @@ def sotheta(cosmo, conf, a):
     # quantities of dim L
     theta_l = jnp.asarray([
         conf.ptcl_spacing,
-        conf.cell_size,
         conf.softening_length,
     ])
 
@@ -26,8 +25,8 @@ def sotheta(cosmo, conf, a):
         cosmo.A_s_1e9,
         cosmo.n_s,
         cosmo.Omega_m,
-        cosmo.Omega_b / cosmo.Omega_m,
-        cosmo.Omega_k / (1 - cosmo.Omega_k),
+        cosmo.Omega_b,
+        cosmo.Omega_k,
         cosmo.h,
     ])
     return (theta_l, theta_o)
@@ -84,7 +83,7 @@ def soft_kvec(kv, theta):
 def soft_names(net):
     # str names of input features of the SO neural nets
     # currently hardcoded, should be updated along with functions above
-    theta_l = ['ptcl spacing', 'cell size', 'softening length']
+    theta_l = ['ptcl spacing', 'softening length']
     theta_l_k = []
     if net == 'f':
         for v in theta_l:
@@ -103,7 +102,7 @@ def soft_names(net):
 
 def soft_names_tex(net):
     # soft_names in latex math expressions
-    theta_l = ['l_p', 'l_c', 'l_s']
+    theta_l = ['l_p', 'l_s']
     theta_l_k = []
     if net == 'f':
         for v in theta_l:
