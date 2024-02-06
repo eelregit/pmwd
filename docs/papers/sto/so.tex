@@ -927,38 +927,36 @@ For gravitational force, we choose pure FMM with $p=5$ and opening angle
 \vspace{1em}
 \subsection{Training of Neural Networks}
 
+We perform distributed data-parallel training using GPU devices hosted
+on multiple CPU nodes.
+With each process being binded to a single GPU device, the training data
+samples are uniformly distributed to the processes.
+In total, we use [...] \GPU\ GPUs, each accompanied with [...] CPU cores
+and [...] GB CPU memory mainly for preloading the training data.
+In each training step, a data sample is fed into the GPU from the CPU
+memory where the preloading takes place to save the reading time from
+the disk.
 
-% hardware setups
-We perform distributed data-parallel training using GPU devices hosted on
-multiple CPU nodes.
-With each process being binded to a single GPU device, the training data samples
-are uniformly distributed to the processes.
-In total, we use [...] \GPU\ GPUs, each accompanied with [...] CPU cores and
-[...] GB CPU memory mainly for preloading the training data.
-In each training step, a data sample is fed into the GPU from the CPU memory
-where the preloading takes place to save the reading time from the disk.
+For each training step, we configure and run \pmwd\ with the same
+initial coniditions, cosmological parameters and other common
+configurations as the training data sample.
+As discussed in \autoref{sec:loss}, the loss in a single simulation sums
+over all snapshots.
+Our batch size is [...], i.e. the number of GPU devices, since one
+simulation is run on a single GPU and compared to the corresponding
+training data sample for loss.
+Then the loss and gradients are collected and averaged across all GPU
+devices, with which the optimizer is also updated.
+The SO parameters are initialized to be the same for all devices, and
+hence remain the same for all processes given the same averaged
+gradients.
+We use the Adam \citep{Adam} optimizer.
 
-Following \autoref{tab:param}, in each iteration, we randomly sample the number
-of time steps and the mesh shape, and configure \pmwd\ with the same initial
-coniditions, cosmological parameters and other common configurations.
-To balance the work of GPUs during training, in each iteration we use
-the same number of time steps and mesh shape on all GPUs.
-
-As discussed in \autoref{sec:loss}, the loss in a single simulation sums over
-all snapshots.
-Our batch size is [...], i.e. the number of GPU devices since one simulation is
-run on a given GPU and compared to the corresponding training data sample for
-loss.
-For each training step, the loss and gradients are collected and averaged across
-all GPU devices.
-The SO parameters are initialized to be the same for all devices, and being
-updated with the same averaged gradients.
-
-
-The SO MLP parameters are initialized in a way such that the MLP output is very
-close to one, i.e. no SO.
-We achieve this by setting the kernel of the output layer to be very small
-random values and the bias to be one.
+The SO NN parameters are initialized in a way such that the output
+is very close to one, i.e. no SO.
+We achieve this by setting the kernel of the output layer to be very
+small random values and the bias to be zero, which is around one after
+the exponential function.
 
 Hyperparameters:
 \begin{itemize}
@@ -967,22 +965,24 @@ Hyperparameters:
   \item Loss: fields to include and loss function forms
 \end{itemize}
 
-We use Optuna \citep{optuna_2019} to search for the optimal hyperparameters.
+We use Optuna \citep{optuna_2019} to search for the optimal
+hyperparameters.
 
-We empoly a learning rate scheduler that reduces the learning rate on plateau
-where the loss function stops decreasing.
-The initial learning rate is set at [...] with a reduction factor of [...] after
-[...] epochs of no decreasing on loss.
+We empoly a learning rate scheduler that reduces the learning rate on
+plateau where the loss function stops decreasing.
+The initial learning rate is set at [...] with a reduction factor of
+[...] after [...] epochs of no decreasing on loss.
 
 
-We implement the neural networks with \texttt{Flax} \citep{flax2020github}, and
-use the optimizers in \texttt{Optax}, part of the DeepMind JAX Ecosystem
+We implement the neural networks with \texttt{Flax}
+\citep{flax2020github}, and use the optimizers in \texttt{Optax}, part
+of the DeepMind JAX Ecosystem
 \citep{deepmind2020jax}.
 
 
 
 \vspace{1em}
-\subsection{Symbolic Regression Fitting of the Neural Networks}
+\subsection{Symbolic Regression Fitting}
 
 We generate samples of (input, output) data of the trained neural
 networks to perform symbolic regression.
