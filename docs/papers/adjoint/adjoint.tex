@@ -14,11 +14,12 @@
 %  \allowdisplaybreaks
 \usepackage{bm}
 \usepackage{nicefrac}
+\usepackage{booktabs}
 \usepackage[caption=false]{subfig}
-\usepackage[figure,figure*]{hypcap}
+\usepackage[figure, figure*]{hypcap}
 \usepackage{tikz}
   \usetikzlibrary{positioning, fit, calc, arrows.meta}
-\usepackage{booktabs}
+\usepackage{framed}
 
 
 \newcommand{\pmwd}{{\usefont{T1}{nova}{m}{sl}pmwd}}
@@ -1877,123 +1878,121 @@ D_m'' &= a^m \bigl( m^2 G_1 + 2m G_1' + G_1'' \Bigr).
 \end{align}
 
 
-%\vspace{1em}
-%\section{Hamiltonian Dynamics}
+\begin{framed}
+\vspace{1em}
+\section*{Hamiltonian Dynamics}
+
+Consider a Hamiltonian system, with $\vz = (\vx, \vp)$ where $\vx$ and
+$\vp$ are the canonical coordinates and momenta.
+Other variables split likewise: $\vDelta = (\vDelta_\vx, \vDelta_\vp)$,
+$\vLambda = (\vLambda_\vx, \vLambda_\vp)$, and $\vlambda =
+(\vlambda_\vx, \vlambda_\vp)$.
+Hamilton's equation of motion is
 %
-%Consider a Hamiltonian system, with $\vz = (\vx, \vp)$ where $\vx$ and
-%$\vp$ are the canonical coordinates and momenta.
-%Other variables split likewise: $\vDelta = (\vDelta_\vx, \vDelta_\vp)$,
-%$\vLambda = (\vLambda_\vx, \vLambda_\vp)$, and $\vlambda =
-%(\vlambda_\vx, \vlambda_\vp)$.
-%Hamilton's equation of motion is
-%%
-%\begin{equation}
-%\vf = \begin{pmatrix}
-%  \hphantom{-} \p\cH/\p \vp \\ - \p\cH/\p \vx
-%\end{pmatrix}.
-%\label{Hamilton}
-%\end{equation}
-%%
-%The dynamics is time-reversible: flipping the arrow of time $\d/\d t \to
-%- \d/\d t$ and the direction of momenta $\vp \to -\vp$ preserve the form
-%of \eqref{ode}.
-%It can be reversible even after discretization if appropriate integrator
-%is used.
+\begin{equation}
+\vf = \begin{pmatrix}
+  \hphantom{-} \p\cH/\p \vp \\ - \p\cH/\p \vx
+\end{pmatrix}.
+\label{Hamilton}
+\end{equation}
 %
-%The variational equation \eqref{variational} and the adjoint equation
-%\eqref{adjoint} become
-%%
-%\begin{align}
-%\begin{pmatrix}
-%  \dot\vDelta_{\vx\vx} & \dot\vDelta_{\vx\vp} \\
-%  \dot\vDelta_{\vp\vx} & \dot\vDelta_{\vp\vp}
-%\end{pmatrix}
-%&= \begin{pmatrix}
-%  \hphantom{-} \dfrac{\p^2\cH}{\p\vp\p\vx}
-%  & \hphantom{-} \dfrac{\p^2\cH}{\p\vp\p\vp} \\
-%  - \dfrac{\p^2\cH}{\p\vx\p\vx}
-%  & - \dfrac{\p^2\cH}{\p\vx\p\vp} \\
-%\end{pmatrix}
-%\cdot
-%\begin{pmatrix}
-%  \vDelta_{\vx\vx} & \vDelta_{\vx\vp} \\
-%  \vDelta_{\vp\vx} & \vDelta_{\vp\vp}
-%\end{pmatrix}, \nonumber \\
-%%
-%\qquad
-%- \begin{pmatrix}
-%  \dot\vLambda_{\vx\vx} & \dot\vLambda_{\vx\vp} \\
-%  \dot\vLambda_{\vp\vx} & \dot\vLambda_{\vp\vp}
-%\end{pmatrix}
-%&= \begin{pmatrix}
-%  \hphantom{-} \dfrac{\p^2\cH}{\p\vx\p\vp}
-%  & - \dfrac{\p^2\cH}{\p\vx\p\vx} \\
-%  \hphantom{-} \dfrac{\p^2\cH}{\p\vp\p\vp}
-%  & - \dfrac{\p^2\cH}{\p\vp\p\vx} \\
-%\end{pmatrix}
-%\cdot
-%\begin{pmatrix}
-%  \vLambda_{\vx\vx} & \vLambda_{\vx\vp} \\
-%  \vLambda_{\vp\vx} & \vLambda_{\vp\vp}
-%\end{pmatrix}.
-%\end{align}
-%%
-%Interestingly, their forms are identical once we swap rows of
-%$\vLambda$, and flip the directions of time and momenta.
+The dynamics is time-reversible: flipping the arrow of time $\d/\d t \to
+- \d/\d t$ and the direction of momenta $\vp \to -\vp$ preserve the form
+of \eqref{ode}.
+It can be reversible after discretization if appropriate integrator is
+used.
+
+The variational equation \eqref{variational} and the adjoint equation
+\eqref{adjoint} become
 %
-%As discussed before, $\vlambda$ follows adjoint equations similar to
-%that of $\vLambda$ above.
-%One can integrate it and \eqref{Hamilton} backward together to compute
-%$\d\cJ / \d\vtheta$.
+\begin{align}
+\begin{pmatrix}
+  \dot\vDelta_{\vx\vx} & \dot\vDelta_{\vx\vp} \\
+  \dot\vDelta_{\vp\vx} & \dot\vDelta_{\vp\vp}
+\end{pmatrix}
+&= \begin{pmatrix}
+  \hphantom{-} \dfrac{\p^2\cH}{\p\vp\p\vx}
+  & \hphantom{-} \dfrac{\p^2\cH}{\p\vp\p\vp} \\
+  - \dfrac{\p^2\cH}{\p\vx\p\vx}
+  & - \dfrac{\p^2\cH}{\p\vx\p\vp} \\
+\end{pmatrix}
+\cdot
+\begin{pmatrix}
+  \vDelta_{\vx\vx} & \vDelta_{\vx\vp} \\
+  \vDelta_{\vp\vx} & \vDelta_{\vp\vp}
+\end{pmatrix}, \nonumber \\
 %
+\qquad
+- \begin{pmatrix}
+  \dot\vLambda_{\vx\vx} & \dot\vLambda_{\vx\vp} \\
+  \dot\vLambda_{\vp\vx} & \dot\vLambda_{\vp\vp}
+\end{pmatrix}
+&= \begin{pmatrix}
+  \hphantom{-} \dfrac{\p^2\cH}{\p\vx\p\vp}
+  & - \dfrac{\p^2\cH}{\p\vx\p\vx} \\
+  \hphantom{-} \dfrac{\p^2\cH}{\p\vp\p\vp}
+  & - \dfrac{\p^2\cH}{\p\vp\p\vx} \\
+\end{pmatrix}
+\cdot
+\begin{pmatrix}
+  \vLambda_{\vx\vx} & \vLambda_{\vx\vp} \\
+  \vLambda_{\vp\vx} & \vLambda_{\vp\vp}
+\end{pmatrix}.
+\end{align}
 %
-%\vspace{1em}
-%\section{\texorpdfstring{$N$}{N}-body Dynamics}
+Interestingly, their forms are identical once we swap rows of
+$\vLambda$, and flip the directions of time and momenta.
+
+As discussed before, $\vlambda$ follows adjoint equations similar to
+that of $\vLambda$ above.
+One can integrate it and \eqref{Hamilton} backward together to compute
+$\d\cJ / \d\vtheta$.
+
+
+\vspace{1em}
+\section*{\texorpdfstring{$N$}{N}-body Dynamics}
+
+We model self-gravitating collisionless dark matter with $N$ particles
+each of mass $m$ in a periodic box of comoving volume $V$, whose
+physical length expands proportional to a scale factor $a(t)$.
+The canonical coordinates are the comoving positions $\vx = (\vx_1,
+\cdots, \vx_N)$, and their canonical momenta are $\vp = (\vp_1, \cdots,
+\vp_N)$ with $\vp_i = a^2 m \dot\vx_i$ for each particle.
+
+The $N$-body Hamiltonian is
 %
-%We model self-gravitating collisionless dark matter with $N$ particles
-%each of mass $m$ in a periodic box of comoving volume $V$, whose
-%physical length expands proportional to a scale factor $a(t)$.
-%The canonical coordinates are the comoving positions $\vx = (\vx_1,
-%\cdots, \vx_N)$, and their canonical momenta are $\vp = (\vp_1, \cdots,
-%\vp_N)$ with $\vp_i = a^2 m \dot\vx_i$ for each particle.
+\begin{equation}
+\cH = \sum_i \frac{\vp_i^2}{2 m a^2}
++ \sum_{i<j} \frac{m^2 \varphi(\vx_i - \vx_j)}{a},
+\end{equation}
 %
-%The $N$-body Hamiltonian is
-%%
-%\begin{equation}
-%\cH = \sum_i \frac{\vp_i^2}{2 m a^2}
-%+ \sum_{i<j} \frac{m^2 \varphi(\vx_i - \vx_j)}{a},
-%\end{equation}
-%%
-%where $\varphi$ is the potential of a unit-mass particle at $a=1$ under
-%periodic boundary condition
-%%
-%\begin{equation}
-%\nabla^2 \varphi
-%= 4\pi G \bigl[ \deltaD(\vx - \vx') - V^{-1} \bigr].
-%\end{equation}
-%%
-%So the only nonzero second $\cH$ derivatives are
-%%
-%\begin{equation}
-%\frac{\p^2\cH}{\p\vp_i\p\vp_j} = \frac{\vI_3}{2 m a^2},
-%\qquad
-%\frac{\p^2\cH}{\p\vx_i\p\vx_j}
-%= \deltaK_{ij} \sum_{k \neq i} \frac{m^2}a
-%  \frac{\p\varphi(\vx_i-\vx_k)}{\p\vx_i\p\vx_i}
-%+ \frac{m^2}a \frac{\p\varphi(\vx_i-\vx_j)}{\p\vx_i\p\vx_j},
-%\end{equation}
-%%
-%where $\vI_3$ is the $3\times3$ identity matrix, the sum is the tidal
-%tensor at $\vx_i$, and the second term vanishes when $i=j$.
+where $\varphi$ is the potential of a unit-mass particle at $a=1$ under
+periodic boundary condition
+%
+\begin{equation}
+\nabla^2 \varphi
+= 4\pi G \bigl[ \deltaD(\vx - \vx') - V^{-1} \bigr].
+\end{equation}
+%
+So the only nonzero second $\cH$ derivatives are
+%
+\begin{equation}
+\frac{\p^2\cH}{\p\vp_i\p\vp_j} = \frac{\vI_3}{2 m a^2},
+\qquad
+\frac{\p^2\cH}{\p\vx_i\p\vx_j}
+= \deltaK_{ij} \sum_{k \neq i} \frac{m^2}a
+  \frac{\p\varphi(\vx_i-\vx_k)}{\p\vx_i\p\vx_i}
++ \frac{m^2}a \frac{\p\varphi(\vx_i-\vx_j)}{\p\vx_i\p\vx_j},
+\end{equation}
+%
+where $\vI_3$ is the $3\times3$ identity matrix, the sum is the tidal
+tensor at $\vx_i$, and the second term vanishes when $i=j$.
+\end{framed}
 
 
 
 \bibliographystyle{aasjournal}
 \bibliography{adjoint}
-
-
-
-%\listofchanges
 
 
 
