@@ -453,3 +453,48 @@ def linear_power(k, a, cosmo, conf):
         Plin *= D**2
 
     return Plin.astype(float_dtype)
+
+def linear_transfer(k, a, cosmo, conf):
+    r"""Linear matter transfer function at given wavenumbers and scale factors.
+
+    Parameters
+    ----------
+    k : array_like
+        Wavenumbers in [1/L].
+    a : array_like or None
+        Scale factors. If None, output is not scaled by growth.
+    cosmo : Cosmology
+    conf : Configuration
+
+    Returns
+    -------
+    Tlin : jax.numpy.ndarray of (k * a * 1.).dtype
+        Linear matter transfer function.
+
+    Raises
+    ------
+    ValueError
+        If not in 3D.
+
+    """
+    
+    if conf.dim != 3:
+        raise ValueError(f'dim={conf.dim} not supported')
+
+    k = jnp.asarray(k)
+    float_dtype = jnp.promote_types(k.dtype, float)
+
+    T = transfer(k, cosmo, conf)
+    
+    # TF: the 3/5 is because the primordial amplitude A_s is given for \zeta instead of \Phi
+    Tlin = (3/5) * (2/3) * (conf.c / conf.H_0)**2 / cosmo.Omega_m * T
+
+    if a is not None:
+        a = jnp.asarray(a)
+        float_dtype = jnp.promote_types(float_dtype, a.dtype)
+
+        D = growth(a, cosmo, conf)
+
+        Tlin *= D
+
+    return Tlin.astype(float_dtype)
