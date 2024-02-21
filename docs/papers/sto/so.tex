@@ -958,6 +958,10 @@ We achieve this by setting the kernel of the output layer to be very
 small random values and the bias to be zero, which is around one after
 the exponential function.
 
+Besides the mesh for the force evaluation, we also need meshes when
+computing the power spectra of the density field for the loss function
+as well as for visualization.
+
 Hyperparameters:
 \begin{itemize}
   \item Model: number of hidden layers and nodes of f and g nets, activation function
