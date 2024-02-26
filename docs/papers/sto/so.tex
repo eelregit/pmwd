@@ -141,81 +141,6 @@ kernel applicable to all other cosmological simulation code.
 \end{abstract}
 
 
-
-\section*{TODO}
-\begin{itemize}
-\item (paper) Moving some of the following ongoing and completed tasks
-  to the main text and add preliminary figures.
-\item (data; YL) Incorporate 3lpt branch; testing; find a\_start for
-  different mass resolutions; probably replace linear snapshot spacing
-  according to the nonlinearity (estimate (with PM till convergence) the
-  std acc over the std vel) of each realization.
-\item (model; YL) Change nbody for loop by lax scan and/or while loops.
-  while\_loop can help to save compilation when trained on different
-  snapshots. Performance difference between scan and while?\newline
-  \YZ{It seems that lax.while\_loop only supports fwd grad}
-  \href{https://jax.readthedocs.io/en/latest/notebooks/Common_Gotchas_in_JAX.html#summary}{link}
-\item (model; YL) Compare one pair of \GADGET\ and \pmwd\ (with say 100 to 1000 time
-    steps) results and make sure that they agree perfectly on the large
-    scales. For this purpose the box size should be large enough (in
-    linear regime), say 1 Gpc/$h$.\newline
-    \YZ{\textbf{Update}: for Sobol=6, boxsize=983Mpc, \GADGET\ and \pmwd\ are
-    visually consistent at the field level. For power spectrum: For
-    odd mesh shapes (e.g. 1, 3, 5), pmwd and \GADGET\ are perfectly consistent
-    on large scales. \textbf{While for even mesh shapes (e.g. 2, 4), the powers
-    look slightly different. To figure out this weird issue.}}
-\item (model; YL) Probably necessary to first incorporate List \& Hahn's
-  recent improvement on FastPM integrator arXiv:2301:09655.
-\item (train, test) For $\vs(\vq)$, $\vv(\vq)$, $\delta(\vx)$,
-  $(1+\delta)\vv(\vx)$, $(1+\delta)\vv\vv(\vx)$, show $T - 1$ in symlog
-  with 0.01 linthresh, and $1-r^2$ in log at 3 different $a$'s; Show $f$
-  and $g$ (along axis and face diagonal) at 3 different $a$'s
-\item (train, test) 3 sets of grid for ptcl, force mesh, and loss. Add
-  random offset in loss grid (see \autoref{tab:param}) to remove the
-  position dependence in loss; likewise for force mesh? how about only
-  training (for lower loss), only ``inference'' (for higher accuracy),
-  or both? the random force mesh offset can also be replaced by a
-  structured scheme, e.g., alternating between 2 interlocking grids
-\item (train) Explore if we can use a finer loss grid, from 1x to say
-  1.5x and even 2x.
-\item (train, test) Non-integer multiple mesh shapes: for uniform
-  particle grid, test (with double precision on CPUs) whether they start
-  moving by artifact forces on cell scales, in 3 cases: no
-  deconvolution, with CIC deconvolution, with SO.
-\item (train) find the best loss function for production training
-\item (train) For generalizability and robustness, consider testing
-  weight decay and dropout. Also they're worth adding if they give lower
-  losses at convergence. Note that 512 realization are not too many, and
-  we have features that can be very correlated.\newline
-  \YZ{Dropout with Flax has been coded. We can use Optax AdamW for weight decay.}
-\item (train) optuna hyperparam search on a subset of training data
-  before production training
-  (\href{https://github.com/optuna/optuna-examples/blob/main/haiku/haiku_simple.py}{optuna
-  example}).\newline
-  \YZ{Do we also use another subset of the training data as validation data?}
-\item (train) Reduce learning rate on (mean epoch) loss plateau in
-  production\newline
-  \YZ{A simple scheduler has been coded, to be fine-tuned for production training.}
-\item (test) Interpolation test: compare SO DM and halo fields and
-  summary stats with those of raw pmwd, deconvolved pmwd, and \GADGET,
-  on the last 9 test cases and noncubic box.
-\item (test) Extrapolation test: demonstrate generalization capability,
-  compare extrap PySR, extrap SO, raw pmwd, deconv pmwd, and \GADGET.
-\item (test) Generate a sample of $(X, y)$ data with the trained neural network
-  for feature selection and symbolic regression.
-\item \YZ{Do we also consider pruning and distilling of the trained networks?}
-\item (paper) Think about what figures and tables to show in the paper. Up
-to 6 items could be included. Some tables could be included in the context as
-list if we have too many figures to show?\newline
-  \YZ{figures:
-  1. $f$ and $g$ functions, both NN and Symbolic.
-  2. Density field (and halo?) with zoom in for small scale sharpening.
-  3. Transfer function and correlation coefficient.
-  4. Halo related stats.}
-\item Fix cross references and other journal quirks as a patch
-\end{itemize}
-
-
 % Main text: up to 3500 words: introduction + results + discussion
 % so we should keep introduction and discussion brief
 \vspace{1em}
@@ -279,92 +204,9 @@ symbolic regression (SR).
 
 \subsection{Optimization of Dynamics}
 
-\begin{table}
-  \centering
-  \caption{Possible features that can affect force sharpening.
-  All scales are then multiplied by the wavenumber $k$ to form dimensionless
-  factors.}
-  \label{tab:feat}
-  \begin{tabular}{rl}
-  \toprule
-  type & feature \\
-  \midrule
-  & $R_\mathrm{d}$: RMS linear displacement \\
-  \cmidrule(lr){2-2}
-  & $R_P$: $\Delta_\linear^2(R_P^{-1}) \triangleq 1$ \\
-  \cmidrule(lr){2-2}
-  nonlinear scales & $R_\tophat$: $\sigma_\tophat^2(R_\tophat) \triangleq 1$ \\
-  \cmidrule(lr){2-2}
-  & $R_\gauss$: $\sigma_\gauss^2(R_\gauss) \triangleq 1$ \\
-  \cmidrule(lr){2-2}
-  & $\d R / \d\lna$: time derivatives of the above \\
-  \midrule
-  & particle spacing \\
-  \cmidrule(lr){2-2}
-  other scales & $l$: PM force mesh cell size \\
-  \cmidrule(lr){2-2}
-  & softening length \\
-  \midrule
-  & $G_m(a) \triangleq D_m(a) / a^m, m \in \{1, 2, \YL{3's?}\}$ \\
-  \cmidrule(lr){2-2}
-  & $\d\ln G_m / \d\lna$ \\
-  \cmidrule(lr){2-2}
-  dimensionless factors & $\Omegam(a), \YL{\OmegaK(a)}$ \\
-  \cmidrule(lr){2-2}
-  & $\d\ln\!H / \d\lna$ \\
-  \cmidrule(lr){2-2}
-  & $\Delta\lna$: time step size in $\lna$\YL{. Now this can be an important feature with varying $a_\ic$}\\
-  \bottomrule
-  \end{tabular}
-  \end{table}
-
-In cosmological $N$-body simulations, the dynamics of the particles is
-governed by the Poisson equation
-%
-\begin{equation}
-  \nabla^2 \varphi(\vx) = \frac32 \Omegam H_0^2 \delta(\vx),
-\end{equation}
-%
-where $\Omegam$ is the matter fraction today, $H_0$ is the Hubble
-constant, and the two fields $\varphi(\vx)$ and $\delta(\vx)$ are the
-gravitational potential and matter density fluctuation respectively.
-In Fourier space, the gravitational force field $- \vnabla \varphi$
-follows
-%
-\begin{equation}
-- i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
-\end{equation}
-%
-where for each dimension $i\in\{1,2,3\}$ of the 3D field, we then
-introduce SO force sharpening through
-%
-\begin{equation}
-\frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
-  f(k_i; \vvartheta) g(k_1, k_2, k_3; \vvartheta),
-\end{equation}
-%
-where $f$ and $g$ are NNs, each approximating a nonlinear function of
-the wavevector components and all possible relevant features
-$\vvartheta$ summarized in \autoref{tab:feat} with more details
-discussed in \autoref{sec:features}.
-Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is however
-broken by the PM solver to the O\textsubscript{h} discrete symmetry with
-48 elements involving permutations and reversals of the 3 principal axes
-of the simulation box.
-The PM evaluation of each force component can further break the symmetry
-along that axis, leaving the remaining 2 permutationally symmetric.
-Therefore, we implement $f$ and $g$ to be even functions of the
-wavevector components, and $g$ to be permutation equivariant in all 3
-components, so that $f g$ is the most general modification to the force
-kernel.
-An even and real kernel in configuration space is also even in Fourier
-space.
-We take the absolute value of the wavevectors for the evenness, and sort
-the 3 wavevector compontents to achieve the permutation equivariance.
-
 \begin{table*}
   \centering
-  \caption{Ranges of \GADGET\ and \pmwd\ configuration and cosmological
+  \caption{Ranges of \GADGET\ and \pmwd\ configurations and cosmological
   parameters.
   Note that the grid ratio need next fast len to determine the mesh shape
   for fast FFT.
@@ -411,8 +253,94 @@ the 3 wavevector compontents to achieve the permutation equivariance.
   \end{tabular}
   \end{table*}
 
-Our target data samples for training and testing are generated with the
-\GADGET\ simulation code \citep{GADGET-4}.
+\begin{table}
+  \centering
+  \caption{Possible features that can affect force sharpening.
+  All scales are then multiplied by the wavenumber $k$ to form dimensionless
+  factors.}
+  \label{tab:feat}
+  \begin{tabular}{rl}
+  \toprule
+  type & feature \\
+  \midrule
+  & $R_\mathrm{d}$: RMS linear displacement \\
+  \cmidrule(lr){2-2}
+  & $R_P$: $\Delta_\linear^2(R_P^{-1}) \triangleq 1$ \\
+  \cmidrule(lr){2-2}
+  nonlinear scales & $R_\tophat$: $\sigma_\tophat^2(R_\tophat) \triangleq 1$ \\
+  \cmidrule(lr){2-2}
+  & $R_\gauss$: $\sigma_\gauss^2(R_\gauss) \triangleq 1$ \\
+  \cmidrule(lr){2-2}
+  & $\d R / \d\lna$: time derivatives of the above \\
+  \midrule
+  & particle spacing \\
+  \cmidrule(lr){2-2}
+  other scales & $l$: PM force mesh cell size \\
+  \cmidrule(lr){2-2}
+  & softening length \\
+  \midrule
+  & $G_m(a) \triangleq D_m(a) / a^m, m \in \{1, 2, \YL{3's?}\}$ \\
+  \cmidrule(lr){2-2}
+  & $\d\ln G_m / \d\lna$ \\
+  \cmidrule(lr){2-2}
+  dimensionless factors & $\Omegam(a), \YL{\OmegaK(a)}$ \\
+  \cmidrule(lr){2-2}
+  & $\d\ln\!H / \d\lna$ \\
+  \cmidrule(lr){2-2}
+  & $\Delta\lna$: time step size in $\lna$ \\
+  & \YL{Now this can be an important feature with varying $a_\ic$} \\
+  \bottomrule
+  \end{tabular}
+  \end{table}
+
+Cosmological $N$-body simulations evolve dark matter particles under the
+gravitational force.
+The dynamics of the particles is governed by the Poisson equation
+%
+\begin{equation}
+  \nabla^2 \varphi(\vx) = \frac32 \Omegam H_0^2 \delta(\vx),
+\end{equation}
+%
+where $\Omegam$ is the matter fraction today, $H_0$ is the Hubble
+constant, and the two fields $\varphi(\vx)$ and $\delta(\vx)$ are the
+gravitational potential and matter density fluctuation respectively.
+In Fourier space, the gravitational force field $- \vnabla \varphi$
+follows
+%
+\begin{equation}
+- i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
+\end{equation}
+%
+we then introduce SO force sharpening through
+%
+\begin{equation}
+\frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
+  f(k_i; \vvartheta) g(k_1, k_2, k_3; \vvartheta),
+\end{equation}
+%
+where $f$ and $g$ are NNs, each approximating a nonlinear function of
+the wavevector components and all possible relevant features
+$\vvartheta$.
+The subscript $i\in\{1,2,3\}$ denotes the 3 principal axes of the
+simulation box.
+
+Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is however
+broken by the PM solver to the O\textsubscript{h} discrete symmetry with
+48 elements involving permutations and reversals of the 3 principal axes
+of the simulation box.
+The PM evaluation of each force component can further break the symmetry
+along that axis, leaving the remaining 2 permutationally symmetric.
+Therefore, we implement $f$ and $g$ to be even functions of the
+wavevector components, and $g$ to be permutation equivariant in all 3
+components, so that $f g$ is the most general modification to the force
+kernel.
+An even and real kernel in configuration space is also even in Fourier
+space.
+We take the absolute value of the wavevectors for the evenness, and sort
+the 3 wavevector compontents to achieve the permutation equivariance.
+
+Our target data samples are generated with the \GADGET\ simulation code
+\citep{GADGET-4}.
 We run 512 \GADGET\ simulations that cover a wide range of
 configurations and cosmological parameters, as listed in
 \autoref{tab:param}.
@@ -421,32 +349,32 @@ Each simulation evolves $128^3$ particles from the initial time $a_\ic$
 to the final time $a_\f=1$, saving 64 snapshots linearly spaced in scale
 factor from $a_\ic + \gamma \Delta a$ to $1 - (1 - \gamma) \Delta a$.
 We determine $a_\ic$ for each configuration depending on its cosmology
-and mean particle spacing \citep{MichauxEtAl2021}, \YL{(YL elaborate why and how here.)} which then sets the
-snapshot spacing $\Delta a = (1 - a_\ic) / 64$.
+and mean particle spacing \citep{MichauxEtAl2021}, \YL{(YL elaborate why
+and how here.)} which then sets the snapshot spacing $\Delta a = (1 -
+a_\ic) / 64$.
 To sample different alignment between the snapshots and the start/stop
 times and avoid possible related numerical errors in \pmwd, we introduce
 a fractional random offset $\gamma$ that varies between 0 and 1 for
 different simulations.
 }
-In our \pmwd\ model, we generate the snapshot at an arbitrary given time
-using the cubic Hermite interpolation, with more details in
-\autoref{sec:snapobs}.
 The curvature $\OmegaK$ is related to the separate universe simulation
 \citep{LiEtAl2014, WagnerEtAl2015}.
-\YZ{We refer to this training dataset of 512 \GADGET\ simulations sampled with
-Sobol sequence as \GSDATA.}
-On average each \GADGET\ simulation takes roughly 2K CPU hours to run, and the
-generation of the whole \GSDATA\ dataset consumes 1M CPU hours.
-% to be compare with the speed of pmwd with SO
+\YZ{We refer to this training dataset of 512 \GADGET\ simulations
+sampled with Sobol sequence as \GSDATA.}
+On average each \GADGET\ simulation takes roughly 2K CPU hours to run,
+and the generation of the whole \GSDATA\ dataset consumes 1M CPU hours.
 
 \YL{
 In this work, we train \pmwd\ using $XXX$ time steps from $a_\ic$ to
 $a_\f$, generate snapshots at the same times as in \GADGET, and compare
-them in the loss function.
-Although the number of time steps are fixed here, we emphasize that our
-spatial optimization of course also applies for different number of time
-steps, which we will explore, together with the optimal choice of time
-variable, in a follow-up work on the temporal optimization.
+them in the loss function.}
+In our \pmwd\ model, the snapshot at an arbitrary given time is
+generated using the cubic Hermite interpolation, with more details in
+\autoref{sec:snapobs}.
+\YL{Although the number of time steps are fixed here, we emphasize that
+our spatial optimization of course also applies for different number of
+time steps, which we will explore, together with the optimal choice of
+time variable, in a follow-up work on the temporal optimization.
 }
 
 
@@ -464,13 +392,13 @@ variable, in a follow-up work on the temporal optimization.
 \end{figure*}
 
 For both $f$ and $g$ NNs, we adopt multilayer perceptron (MLP, i.e.
-fully connected) structures.
-Both $f$ and $g$ networks have $7$ hidden layers with $4\times n_{\rm
+fully connected) structures to learn the nonlinear functions.
+Both $f$ and $g$ networks have $XXX$ hidden layers with $XXX\times n_{\rm
 input}$ nodes for each layer, where $n_{\rm input}$ is the size of the
 input layer, which is [...] and [...] for $f$ and $g$ respectively.
-A rectified linear unit (ReLU) activation function is used for hidden
+The rectified linear unit (ReLU) activation function is used for hidden
 layers.
-We further apply an exponential function to the output as a regulator
+We further apply the exponential function to the output as a regulator
 for positive output.
 Being embedded in the differentiable simulation library \pmwd, the NNs
 can be trained using gradient-based optimization methods as in usual
@@ -481,25 +409,28 @@ cosmological parameters.
 The objective gradients are accumulated, based on which the parameters
 are then optimized.
 
-With discrete Fourier transform (DFT) on a regular mesh of length $N_c$
-with cell size $l_c$, the range of sampled 1D discrete wavenumbers is
-given by the fundamental $k_{\rm fund} = 2\pi/(l_c N_c)$ and the
-maximum $k_{\rm Nyquist} = \pi/l_c$, where $l_c N_c$ is simply the box
-size.
-To visualize the functions for different box sizes, we normzalize $k$ by
-$k_{\rm Nyquist}$, which gives the same $[2/N_c, 1]$ regardless of the
-box size.
-For the 3D wavenumber $k=\sqrt{\sum_{i=1}^{3}k_i^2}$, the maximum value
-is then $\sqrt{3}$.
+With discrete Fourier transform (DFT) on a regular grid of length $N_c$
+and cell size $l_c$, the range of sampled 1D discrete wavenumbers is
+limited by the fundamental and Nyquist values, i.e. $k_{\rm fund} =
+2\pi/(l_c N_c)$ and $k_{\rm Nyquist} = \pi/l_c$, where $l_c N_c$ is
+simply the box size.
+Then the normzalized wavenumber $k/k_{\rm Nyquist}$ gives the same range
+$[2/N_c, 1]$ for different box sizes.
+For the 3D wavenumber $k=\sqrt{\sum_{i=1}^{3}k_i^2}$, the maximum
+normalized value is then $\sqrt{3}$.
 
-For the $g(k_1,k_2,k_3;\vvartheta)$, which is permutationally
-symmetric about $(k_1, k_2, k_3)$, we show it as a function of $k_i$
-along axis, face and body diagonal directions.
+For $g(k_1,k_2,k_3;\vvartheta)$, which is permutationally symmetric
+about $(k_1, k_2, k_3)$, we show it as a function of the wavevector
+along axis, face, and body diagonal directions.
 
 
-\subsection{Analytic Expressions with Symbolic Regression}
+\subsection{Symbolic Expressions}
 
-We fit the trained NNs with symbolic regression.
+We fit the trained NNs with symbolic regression for analytic
+expressions of the $f(k_i; \vvartheta)$ and $g(k_1, k_2, k_3;
+\vvartheta)$ functions.
+
+
 
 
 \subsection{Dark Matter Density Fields}
@@ -515,6 +446,9 @@ We fit the trained NNs with symbolic regression.
   \label{fig:tfcc}
 \end{figure*}
 
+Improvements of SO on the dark matter density fields are the first
+things to check.
+We construct these fields by scattering the particles onto a mesh.
 To compare two fields $\hat f$ and $f$, we introduce for each mode the
 square root ratio of the auto power spectrum
 %
@@ -569,6 +503,9 @@ directly at the density field.
 We compare the computational cost of \GADGET, \pmwd\ with NNs, and
 \pmwd\ with SR.
 
+We time the computation of force sharpening for one step using NNs and
+SR respectively.
+
 
 \vspace{1em}
 \section{Discussion}
@@ -583,10 +520,10 @@ We compare the computational cost of \GADGET, \pmwd\ with NNs, and
 \subsection{Differentiable Simulation}
 \label{sec:pmwd}
 
-The spatial optimization using gradient descent discussed in this work
-is built in the framework of the PM $N$-body library \pmwd\
-\citep{Li2022b}, which is an implementation of the differentiable
-cosmological simulation with adjoint method \citep{Li2022a}.
+The SO using gradient descent training discussed in this work is built
+in the framework of the PM $N$-body library \pmwd\ \citep{Li2022b},
+which is an implementation of the differentiable cosmological simulation
+with the adjoint method \citep{Li2022a}.
 
 Here we briefly recap the equations that are closely related to our
 extensions of the original framework, and introduce the notations of the
@@ -597,16 +534,20 @@ momenta of the particles, and their adjoint variables with $\vlambda =
 (\vxi, \vpi)$.
 We refer to the quantities that are directly related to the final
 objective function $\cJ$ as the observable $\vo$.
-In this work, our observables include multiple snapshots at given times.
+In this work, our observables include multiple snapshots at different
+times.
 For the observation operator $O_{i}^{i-1}$ in the adjoint equations
-(check Eq.(18) in \cite{Li2022a}) from time step $a_i$ back to
+(check Eq.(49) in \cite{Li2022a}) from time step $a_i$ back to
 $a_{i-1}$, the adjoint variables are updated through
 \begin{align}
-  \vxi_{i-1} &:= \vxi_{i-1} + \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vx_{i-1}}, \nonumber\\
-  \vpi_{i-1} &:= \vpi_{i-1} + \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vp_{i-1}},
+  O_i^{i-1}: \qquad \vxi_{i-1} &:= \vxi_{i-1} +
+              \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vx_{i-1}}, \nonumber\\
+  \vpi_{i-1} &:= \vpi_{i-1} +
+                          \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vp_{i-1}},
 \end{align}
-where the derivatives of $\vo$ with respect to $\vx_{i-1}$ and $\vp_{i-1}$ would
-be non-zero only if they were used in the generation of any snapshots in $\vo$.
+where the derivatives of $\vo$ with respect to $\vx_{i-1}$ or
+$\vp_{i-1}$ would be non-zero only if $\vx_{i-1}$ or $\vp_{i-1}$ was
+used in the generation of any snapshots in $\vo$.
 The initial conditions of these adjoint variables are given by
 \begin{align}
   \vxi_n &= \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p\vx_n}, \nonumber\\
@@ -614,20 +555,22 @@ The initial conditions of these adjoint variables are given by
 \end{align}
 which are zero if no snapshot in $\vo$ depends on $(\vx_n, \vp_n)$, the
 state of particles at the final time step.
-The derivative of the objective function with respect to the observable
-($\p\cJ/\p\vo$) and the VJPs of the observation operation
-($\p\vo/\p\vx_n$ and $\p\vo/\p\vp_n$, mainly the interpolation function
-discussed in \autoref{sec:snapobs} below) can be conveniently computed
-by AD.
+The derivative of the objective function with respect to the observable,
+i.e. $\p\cJ/\p\vo$, depends on our construction of the loss function on
+the snapshots (\autoref{sec:loss}).
+The VJPs of the observation operation, i.e. $\p\vo/\p\vx_n$ and
+$\p\vo/\p\vp_n$, mainly involves the interpolation function
+(\autoref{sec:snapobs}).
+Both can be conveniently computed by AD.
 
 
 \vspace{1em}
 \subsection{Snapshot Observable}
 \label{sec:snapobs}
 
-The N-body time integration is carried out along discrete time steps in
-terms of the scale factor $a$, and the state of particles at any given
-time can be achieved using interpolation.
+The $N$-body time integration is carried out along discrete time steps
+in terms of the scale factor $a$, and the state of particles at any
+given time can be achieved using interpolation.
 Given the particle displacements $\vs$ and velocities\footnote{This
 velocity is related to the canonical momentum $\vp$ through $\vv =
 \vp/(a^3H)$.} $\vv := \d\vs/\d a$ at two consecutive time steps $a_i$ and
@@ -654,14 +597,62 @@ steps or just one step by carrying the particles from the previous step.
 We find the two-steps scheme more convenient for the backward evolution
 of the adjoint variables.
 The interpolated snapshots at different times make the observable in
-this work, and the VJPs of the interpolation functionx are computed by
+this work, and the VJPs of the interpolation functions are computed by
 AD and put into the adjoint equations as mentioned in
 \autoref{sec:pmwd}.
 
 
 \vspace{1em}
+\subsection{Configurations and Training Data}
+
+\begin{figure*}
+  \centering
+  \includegraphics[width=0.9\linewidth]{sobol.pdf}
+  \caption{Randomized Quasi-Monte Carlo (RQMC) configuration with
+    scrambled Sobol sequence of 512 points in 9D.
+    Lower triangular panels show the 2D projections and the diagonal
+    panels are the 1D cumulative histograms.
+    From left to right (top to bottom), we use each dimension of the
+    sample to scale the parameters as ordered in \autoref{tab:param}.
+    We use the \texttt{scipy.stats.qmc} package \citep{SciPy} to
+    generate the Sobol sequence \citep{Sobol1967}, which uses the
+    direction number from \citet{JoeKuo2008} and the Owen scrambling
+    \citep{Owen1998}.
+    We search among 65536 scrambling seeds to minimize the mixture
+    discrepancy (a uniformity measure) proposed in \citet{Zhou2013MD}.
+  }
+  \label{fig:sobol}
+\end{figure*}
+
+We configure \GADGET\ with high force and time integration accuracy
+settings.
+For gravitational force, we choose pure FMM with $p=5$ and opening angle
+0.4.
+%FIXME list other from Config.sh and param.txt
+
+We sample 512 data points in the 9D space of configurations and
+cosmological parameters using randomized quasi-Monte Carlo (RQMC) method
+with scrambled Sobol sequence (\autoref{fig:sobol}).
+We use the \texttt{scipy.stats.qmc} package \citep{SciPy} to generate
+the Sobol sequence \citep{Sobol1967}, which uses the direction number
+from \citet{JoeKuo2008} and the Owen scrambling \citep{Owen1998}.
+We search among 65536 scrambling seeds to minimize the mixture
+discrepancy (a uniformity measure) proposed in \citet{Zhou2013MD}.
+
+Small numerical differences in initial conditions (ICs) could become
+more significant with the $N$-body evolution.
+We verified that the IC generation on GPUs is deterministic though
+different from those on CPUs, therefore we generate ICs for both the
+training data and the \pmwd\ model on GPUs.
+
+
+\vspace{1em}
 \subsection{Input Features}
 \label{sec:features}
+
+We design the input features of the NNs in a way such that they could
+properly fit and interpolate given our wide coverage of the
+configurations and cosmological parameters.
 
 Multiple scales and dimensionless factors could possibly affect force
 sharpening, which are denoted as $\vvartheta$ and enter the NNs of $f(k_i;
@@ -700,12 +691,12 @@ Then we have $R_\tophat$: $\sigma_\tophat^2(R_\tophat) \triangleq 1$.
 $W_\gauss(kR) = e^{-(kR)^2/2}$, and $R_\gauss$: $\sigma_\gauss^2(R_\gauss)
 \triangleq 1$.
 \end{itemize}
-These nonlinear scales are functions of time since the linear power spectrum
-evolves with time through the growth factor $D(a)$, we also take the time
-derivatives of these scales as input features.
-Other relevant scales include the particle spacing in Lagrangian space, the cell
-size of the chosen mesh grid for force evaluation, and the softening length in
-the target \GADGET\ simulations.
+These nonlinear scales are functions of time since the linear power
+spectrum evolves with time through the growth factor $D(a)$, we also
+take the time derivatives of these scales as input features.
+Other relevant scales include the particle spacing in Lagrangian space,
+the cell size of the chosen mesh grid for force evaluation, and the
+softening length in the target \GADGET\ simulations.
 
 Relevant scale-independent dimensionless factors are
 \begin{itemize}
@@ -718,15 +709,16 @@ Relevant scale-independent dimensionless factors are
 \item $\Delta\lna$: time step size in $\lna$.
 \end{itemize}
 
-Dimensionless combinations are formed by multiplying the wavevector components
-with the scales, i.e.,
+Dimensionless combinations are formed by multiplying the wavevector
+components with the scales, i.e.,
 %
 \begin{equation}
 f(k_i; \vvartheta) = f(k_iR_d, k_iR_P, \cdots; G_m, \Omegam, \cdots),
 \end{equation}
 %
 \begin{equation}
-g(k_1, k_2, k_3; \vvartheta) = g(\{k_jR_d, k_jR_P, \cdots\}_{j=1,2,3}; G_m, \Omegam, \cdots).
+g(k_1, k_2, k_3; \vvartheta) = g(\{k_jR_d, k_jR_P, \cdots\}_{j=1,2,3};
+                                 G_m, \Omegam, \cdots).
 \end{equation}
 %
 
@@ -795,7 +787,8 @@ displaced by $\vs$ in the \GADGET\ snapshot and by $\hat\vs$ in the
 prediction of \pmwd\ model in training.
 Note that we have further taken the logarithm to combine it with the
 other loss(es) below.
-% Say that only s loss is not enough even though in principle it is, and cite DrewEtAl x2 too
+% Say that only s loss is not enough even though in principle it is,
+% and cite DrewEtAl x2 too
 
 %\YL{Even though the log should be enough for adaptive optimizer and
 %fixed sim config, this may create problem when training on all config at
@@ -890,41 +883,6 @@ simulation at different times, i.e.
 
 
 \vspace{1em}
-\subsection{Configurations and Training Data}
-
-\begin{figure*}
-  \centering
-  \includegraphics[width=0.9\linewidth]{sobol.pdf}
-  \caption{Randomized Quasi-Monte Carlo (RQMC) configuration with
-    scrambled Sobol sequence of 512 points in 9D.
-    Lower triangular panels show the 2D projections and the diagonal
-    panels are the 1D cumulative histograms.
-    From left to right (top to bottom), we use each dimension of the
-    sample to scale the parameters as ordered in \autoref{tab:param}.
-    We use the \texttt{scipy.stats.qmc} package \citep{SciPy} to
-    generate the Sobol sequence \citep{Sobol1967}, which uses the
-    direction number from \citet{JoeKuo2008} and the Owen scrambling
-    \citep{Owen1998}.
-    We search among 65536 scrambling seeds to minimize the mixture
-    discrepancy (a uniformity measure) proposed in \citet{Zhou2013MD}.
-  }
-  \label{fig:sobol}
-\end{figure*}
-
-Small numerical differences in initial conditions (ICs) could become
-more significant with the $N$-body evolution.
-We have verified that the IC generation on GPUs is deterministic though
-different from those on CPUs, therefore we generate ICs for both the
-training data and the model on GPUs.
-
-We configure \GADGET\ with high force and time integration accuracy
-settings.
-For gravitational force, we choose pure FMM with $p=5$ and opening angle
-0.4.
-%FIXME list other from Config.sh and param.txt
-
-
-\vspace{1em}
 \subsection{Training of Neural Networks}
 
 We perform distributed data-parallel training using GPU devices hosted
@@ -964,8 +922,10 @@ as well as for visualization.
 
 Hyperparameters:
 \begin{itemize}
-  \item Model: number of hidden layers and nodes of f and g nets, activation function
-  \item Optimization: learning rate scheduler, momentum, weight decay and dropout rate etc
+  \item Model: number of hidden layers and nodes of f and g nets,
+  activation function
+  \item Optimization: learning rate scheduler, momentum, weight decay
+  and dropout rate etc
   \item Loss: fields to include and loss function forms
 \end{itemize}
 
@@ -988,13 +948,17 @@ of the DeepMind JAX Ecosystem
 \vspace{1em}
 \subsection{Symbolic Regression Fitting}
 
-We generate samples of (input, output) data of the trained neural
-networks to perform symbolic regression.
-We use Sobol sequence to generate the sample of (parameters in
-\autoref{tab:param}, $k$, $a$).
+To perform further analyses of the trained NNs, including feature
+importance analysis and symbolic regression fitting, we need to generate
+samples of (input, output) data.
+The input features of the NNs are constructed based on the RQMC
+parameters in \autoref{tab:param}, the wavenumber $k$, and the scale
+factor $a$.
+Again, we use Sobol sequence to sample data points in this high
+dimensional space.
 
-We use the random forest regressor for feature selection using impurity-based
-importance.
+We use the random forest regressor for feature selection using
+impurity-based importance.
 We use the \texttt{scikit-learn} \citep{scikit-learn} code for this.
 % more details on the hyperparams in random forest
 \YZ{Maybe we can add another column in \autoref{tab:feat} for feature
@@ -1016,8 +980,8 @@ function.}
 We thank Qiufan Lin, Paulo Montero-Camacho, and Yang Wang for helpful
 discussions.
 YZ and YL were supported by The Major Key Project of PCL.
-YZ was also supported by the China Postdoctoral Science Foundation under award
-number 2023M731831.
+YZ was also supported by the China Postdoctoral Science Foundation under
+award number 2023M731831.
 The Flatiron Institute is supported by the Simons Foundation.
 
 
@@ -1051,26 +1015,27 @@ hosted by a gitlab server at the Max-Planck Computing and Data Facility
 \vspace{1em}
 \section{Tests of Snapshots Observation in Adjoint Method}
 As discussed in the main text, our objective loss function is defined on
-multiple snapshots at given times, which are constructed through interpolation
-during the observation operation.
+multiple snapshots at given times, which are constructed through
+interpolation during the observation operation.
 Here we perform tests on the gradients of NN parameters to check our
-implementation of the snapshots observation inside the adjoint method of the
-$N$-body time integration.
-The gradients given by the adjoint method are compared against those given by
-the AD where we disable the custom VJP of the $N$-body function, see
+implementation of the snapshots observation inside the adjoint method of
+the $N$-body time integration.
+The gradients given by the adjoint method are compared against those
+given by the AD where we disable the custom VJP of the $N$-body
+function, see
 \autoref{fig:nn_grads_cmp}.
 
 \begin{figure*}
   \centering
   \includegraphics[width=0.5\linewidth]{nn_grads_cmp.pdf}
-  \caption{A comparison of adjoint gradients of all parameters in the $f$ and
-  $g$ NNs to those by AD.
-  This test runs a \pmwd\ simulation of $128^3$ particles, with a $128^3$ mesh
-  and 15 time steps.
-  The size and time steps of this test case is mainly limited by the memory cost
-  of the AD method.
-  The two NNs $f$ and $g$ both have two hidden layers of size $[n, n]$, where
-  $n$ is the size of the input layer.
+  \caption{A comparison of adjoint gradients of all parameters in the
+  $f$ and $g$ NNs to those by AD.
+  This test runs a \pmwd\ simulation of $128^3$ particles, with a
+  $128^3$ mesh and 15 time steps.
+  The size and time steps of this test case is mainly limited by the
+  memory cost of the AD method.
+  The two NNs $f$ and $g$ both have two hidden layers of size $[n, n]$,
+  where $n$ is the size of the input layer.
   The loss function involves 3 snapshots at $a=(0.6, 0.8, 1)$.
   }
   \label{fig:nn_grads_cmp}
@@ -1079,6 +1044,77 @@ the AD where we disable the custom VJP of the $N$-body function, see
 
 %\listofchanges
 
+
+\section*{TODO}
+\begin{itemize}
+\item
+
+\item (paper) Moving some of the following ongoing and completed tasks
+  to the main text and add preliminary figures.
+\item (data; YL) Incorporate 3lpt branch; testing; find a\_start for
+  different mass resolutions; probably replace linear snapshot spacing
+  according to the nonlinearity (estimate (with PM till convergence) the
+  std acc over the std vel) of each realization.
+\item (model; YL) Change nbody for loop by lax scan and/or while loops.
+  while\_loop can help to save compilation when trained on different
+  snapshots. Performance difference between scan and while?\newline
+  \YZ{It seems that lax.while\_loop only supports fwd grad}
+  \href{https://jax.readthedocs.io/en/latest/notebooks/Common_Gotchas_in_JAX.html#summary}{link}
+\item (model; YL) Compare one pair of \GADGET\ and \pmwd\ (with say 100 to 1000 time
+    steps) results and make sure that they agree perfectly on the large
+    scales. For this purpose the box size should be large enough (in
+    linear regime), say 1 Gpc/$h$.\newline
+    \YZ{\textbf{Update}: for Sobol=6, boxsize=983Mpc, \GADGET\ and \pmwd\ are
+    visually consistent at the field level. For power spectrum: For
+    odd mesh shapes (e.g. 1, 3, 5), pmwd and \GADGET\ are perfectly consistent
+    on large scales. \textbf{While for even mesh shapes (e.g. 2, 4), the powers
+    look slightly different. To figure out this weird issue.}}
+\item (model; YL) Probably necessary to first incorporate List \& Hahn's
+  recent improvement on FastPM integrator arXiv:2301:09655.
+\item (train, test) For $\vs(\vq)$, $\vv(\vq)$, $\delta(\vx)$,
+  $(1+\delta)\vv(\vx)$, $(1+\delta)\vv\vv(\vx)$, show $T - 1$ in symlog
+  with 0.01 linthresh, and $1-r^2$ in log at 3 different $a$'s; Show $f$
+  and $g$ (along axis and face diagonal) at 3 different $a$'s
+\item (train, test) 3 sets of grid for ptcl, force mesh, and loss. Add
+  random offset in loss grid (see \autoref{tab:param}) to remove the
+  position dependence in loss; likewise for force mesh? how about only
+  training (for lower loss), only ``inference'' (for higher accuracy),
+  or both? the random force mesh offset can also be replaced by a
+  structured scheme, e.g., alternating between 2 interlocking grids
+\item (train) Explore if we can use a finer loss grid, from 1x to say
+  1.5x and even 2x.
+\item (train, test) Non-integer multiple mesh shapes: for uniform
+  particle grid, test (with double precision on CPUs) whether they start
+  moving by artifact forces on cell scales, in 3 cases: no
+  deconvolution, with CIC deconvolution, with SO.
+\item (train) find the best loss function for production training
+\item (train) For generalizability and robustness, consider testing
+  weight decay and dropout. Also they're worth adding if they give lower
+  losses at convergence. Note that 512 realization are not too many, and
+  we have features that can be very correlated.\newline
+  \YZ{Dropout with Flax has been coded. We can use Optax AdamW for weight decay.}
+\item (train) optuna hyperparam search on a subset of training data
+  before production training
+  (\href{https://github.com/optuna/optuna-examples/blob/main/haiku/haiku_simple.py}{optuna
+  example}).
+\item (train) Reduce learning rate on (mean epoch) loss plateau in
+  production\newline
+  \YZ{A simple scheduler has been coded, to be fine-tuned for production training.}
+\item (test) Interpolation test: compare SO DM and halo fields and
+  summary stats with those of raw pmwd, deconvolved pmwd, and \GADGET,
+  on the last 9 test cases and noncubic box.
+\item (test) Extrapolation test: demonstrate generalization capability,
+  compare extrap PySR, extrap SO, raw pmwd, deconv pmwd, and \GADGET.
+\item (paper) Think about what figures and tables to show in the paper. Up
+to 6 items could be included. Some tables could be included in the context as
+list if we have too many figures to show?\newline
+  \YZ{figures:
+  1. $f$ and $g$ functions, both NN and Symbolic.
+  2. Density field (and halo?) with zoom in for small scale sharpening.
+  3. Transfer function and correlation coefficient.
+  4. Halo related stats.}
+\item Fix cross references and other journal quirks as a patch
+\end{itemize}
 
 
 \end{document}
