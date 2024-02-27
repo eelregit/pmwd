@@ -729,52 +729,12 @@ g(k_1, k_2, k_3; \vvartheta) = g(\{k_jR_d, k_jR_P, \cdots\}_{j=1,2,3};
 
 The loss function is constructed by comparing the simulated field $\hat
 f$ with the target field $f$.
-\YL{
-For a field $f$ in either Lagrangian or Eulerian space%, we have thought
-%of 3 forms of MSE-inspired loss:
-%%
-%\begin{equation}
-%\cL_f = \frac1{N_a} \ln
-%  \frac{\sum_\vq \bigl[ \hat f(\vq) - f(\vq) \bigr]^2}
-%       {\sum_{\vq'} f(\vq')^2},
-%\end{equation}
-%%
-%where $N_a$ is the number of time steps it takes to generate the snapshot for
-%each iteration
-%(or with $\vq$ replaced by $\vx$ for Eulerian fields, or equivalently by
-%their Fourier wavevector $\vk$ in both cases).
-%
-\begin{equation}
-\cL_f = \frac1{N_K N_a} \sum_{ij} \ln \biggl[
-\frac{\sum_{\vk \in K_i} \bigl| \hat f(\vk, a_j) - f(\vk, a_j) \bigr|^2}
-     {\sum_{\vk' \in K_i} | f(\vk', a_j)|^2} + \epsilon \biggr],
-\end{equation}
-%
-where $N_a$ is the number of snapshots and $N_K$ is the number of
-$k$-bins.
-$\epsilon$ sets the relative threshold tolerance, below which we
-consider $\hat f$ in each $K$ accurate enough and the gradients from
-that bin less important.
-%and
-%%
-%\begin{equation}
-%\cL_f = \frac1{N_a} \ln \biggl[ \frac1{N_K} \sum_i
-%\frac{\sum_{k \in K_i} w(\vk)
-%      \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
-%     {\sum_{k' \in K_i} |f(\vk')|^2} \biggl].
-%\end{equation}
-%%
-%Then the question is which loss we should use for which $f$, to get
-%stable and robust results, e.g., no bump for large or small boxes.
-%To further limit our scope in this paper, we should probably only
-%consider $f \in \{\vs, \delta\}$, and optionally the Lagrangian particle
-%velocity $\vv(\vq)$.
-We can use $f \in \{\vs(\vq), \delta(\vx), \vv(\vq), (1+\delta)\vv(\vx),
-(1+\delta)\vv\vv(\vx)\}$.
-}
+In this work, we consider two fields in our loss function, the
+Lagrangian particle displacement field $\vs(\vq)$ and the Eulerian
+density field $\delta(\vx)$.
 
-For the displacement field, we adopt the mean squared error (MSE) loss
-that proved effective in many previous works
+For the displacement field, the mean squared error (MSE) loss has been
+proved effective in many previous works
 \citep[e.g.,][]{HeEtAl2019, LiEtAl2021}:
 %
 \begin{equation}
@@ -786,14 +746,13 @@ in which a particle originating from its Lagrangian position $\vq$ is
 displaced by $\vs$ in the \GADGET\ snapshot and by $\hat\vs$ in the
 prediction of \pmwd\ model in training.
 Note that we have further taken the logarithm to combine it with the
-other loss(es) below.
+other loss(es).
+Even though the logarithm should be enough for adaptive optimizer and
+fixed simulation configuration, this may create problem in our training
+on all configurations at the same time.
+So normalizations inside the logarithm is added above and below.
 % Say that only s loss is not enough even though in principle it is,
 % and cite DrewEtAl x2 too
-
-%\YL{Even though the log should be enough for adaptive optimizer and
-%fixed sim config, this may create problem when training on all config at
-%the same time. So normalizations inside the log is added above and
-%below.}
 
 However, in the Eulerian space, an MSE loss is dominated by the small
 scale modes.
@@ -802,84 +761,54 @@ relative MSE.
 We bin the modes logarithmically by \nicefrac13 octave in scale, with
 the $i$-th $k$-bin $K_i \triangleq [k_i, k_{i+1})$, where $k_i =
 2^{1+i/3} \pi / L$.
-Our loss on the overdensity field $\delta$ sums up its MSE relative to
-the target field power in logarithmic bins:
+We introduce a loss function that sums up its MSE relative to the target
+field power in logarithmic bins:
 %
 \begin{equation}
-\cL_\delta = \frac1{N_K} \sum_i \ln
-\frac{\sum_{k \in K_i} \bigl| \hat\delta(\vk) - \delta(\vk) \bigr|^2}
-     {\sum_{k' \in K_i} |\delta(\vk')|^2},
+  \cL_f = \frac1{N_K} \sum_{i} \ln \biggl[
+  \frac{\sum_{\vk \in K_i} \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
+       {\sum_{\vk' \in K_i} | f(\vk')|^2} + \epsilon \biggr],
+\label{loss_power_ln}
 \end{equation}
 %
-\begin{equation}
-\cL_\delta = \frac1{N_K} \sum_i
-\frac{\sum_{k \in K_i} w(\vk)
-      \bigl| \hat\delta(\vk) - \delta(\vk) \bigr|^2}
-     {\sum_{k' \in K_i} |\delta(\vk')|^2},
-\end{equation}
-%
-where $N_K$ is the number of $k$-bins and $w(\vk)$ is a nonnegative
-factor that suppresses the high $k$ contribution in Eulerian fields such
-as the density field (with $w=1$ for the Lagrangian displacement field).
-This is because a PM solver gradually loses small scale information step
-by step, and without $w$ setting the priority, the loss function could
-encourage the network to fit the small scales at the cost of the
-intermediate scales.
-Note that $\cL_\vs$ is on the displacement field $\vs(\vq)$ in the
-Lagrangian space, while the density and momentum fields are in the
-Eulerian space:
-%
-\begin{align}
-1 + \delta(\vx) &= \int\!\d^3\vq\,
-  \deltaD[ \vx - \vq - \vs(\vq)], \nonumber\\
-(1 + \delta)\vv(\vx) &= \int\!\d^3\vq\,
-  \vv(\vq) \deltaD[ \vx - \vq - \vs(\vq)], \nonumber\\
-(1 + \delta)\vv\vv(\vx) &= \int\!\d^3\vq\,
-  \vv\vv(\vq) \deltaD[ \vx - \vq - \vs(\vq)], \nonumber\\
-\end{align}
-%
-which we compute by scattering particles to the choice of grid for loss.
+where $N_K$ is the number of $k$-bins, and $\epsilon$ sets the relative
+threshold tolerance, below which we consider $\hat f$ in each $K$
+accurate enough and the gradients from that bin less important.
+% Under the mild assumptions that $T$ \eqref{T} and $r$ \eqref{r} are smooth
+% and isotropic, we can show
+% %
+% \begin{equation}
+% \cL_\delta \propto \int \!\d\ln\!k\, \ln
+% \Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
+%   + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq -\infty,
+% \end{equation}
+% %
+% replacing
+% %
+% \begin{equation}
+% \cL_\delta \propto \int \!\d\ln\!k\, w(\vk)
+% \Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
+%   + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq 0,
+% \end{equation}
+% %
+% that only vanishes when both $T$ and $r$ are unity for all modes, i.e.,
+% when $\hat\delta$ is identical to $\delta$.
+% Above we choose the binned version instead for the robustness against
+% the noisy modewise $|\delta(\vk)|^2$ in the denominator.
+% The derivation here is similar to that in \citet{HeEtAl2019} on the MSE
+% loss, while our modification is important to balance among all scales so
+% that the neural network does not focus too much on either high or low
+% $k$'s.
 
-Under the mild assumptions that $T$ \eqref{T} and $r$ \eqref{r} are smooth
-and isotropic, we can show
+In this work, we use the loss function in \eqref{loss_power_ln} for
+both $\vs(\vq)$ and $\delta(\vx)$.
+We combine the two fields to form the total loss for a single snapshot,
+and further sum over all snapshots in a single forward simulation
 %
 \begin{equation}
-\cL_\delta \propto \int \!\d\ln\!k\, \ln
-\Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
-  + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq -\infty,
+\cJ = \sum_{a_i} \left[\cL_{\vs(a_i)} + \cL_{\delta(a_i)}\right].
 \end{equation}
 %
-replacing
-%
-\begin{equation}
-\cL_\delta \propto \int \!\d\ln\!k\, w(\vk)
-\Bigl\{ \bigl[ 1 - T(\vk) \bigr]^2
-  + 2 T(\vk) \bigl[ 1 - r(\vk) \bigr] \Bigr\} \geq 0,
-\end{equation}
-%
-that only vanishes when both $T$ and $r$ are unity for all modes, i.e.,
-when $\hat\delta$ is identical to $\delta$.
-Above we choose the binned version instead for the robustness against
-the noisy modewise $|\delta(\vk)|^2$ in the denominator.
-The derivation here is similar to that in \citet{HeEtAl2019} on the MSE
-loss, while our modification is important to balance among all scales so
-that the neural network does not focus too much on either high or low
-$k$'s.
-
-We combine Lagrangian and Eulerian fields to form the total loss for a
-single snapshot:
-%
-\begin{equation}
-\cJ = \cL_\vs + \cL_\delta.
-\end{equation}
-%
-
-\YZ{We further sum the loss of all snapshots across a single forward
-simulation at different times, i.e.
-\begin{equation}
-\cJ = \sum_{a_i} \cJ |_{a_i}
-\end{equation}
-}
 
 
 \vspace{1em}
