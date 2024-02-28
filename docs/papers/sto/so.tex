@@ -130,13 +130,14 @@ New York, New York 10010, USA}
 % up to 150 words
 
 We optimize the spatial resolution of cosmological particle-mesh (PM)
-simulations by sharpening the PM force with first neural networks and
-then symbolic regression, taking symmetry and dimensional analysis in
-consideration.
-
-We combine differentiable simulation, deep learning, [decision tree
-(feature selection)], and symbolic regression to extract the final
-kernel applicable to all other cosmological simulation code.
+simulations by sharpening the PM force with first neural networks (NNs)
+and then symbolic regression (SR), taking symmetry and dimensional
+analysis in consideration.
+We embed deep NNs in the differentiable cosmological $N$-body
+simulation, and training them to learn for the force kernel.
+We fit the trained NNs with SR to extract an analytic kernel for better
+interpretability and physical insights, which is also applicable to all
+other cosmological PM simulation code.
 
 \end{abstract}
 
