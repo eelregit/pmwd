@@ -438,12 +438,22 @@ expressions of the $f(k_i; \vvartheta)$ and $g(k_1, k_2, k_3;
 
 \begin{figure*}
   \centering
-  \includegraphics[width=.48\columnwidth]{tf_snap120_3091776_e3000.pdf}
-  \includegraphics[width=.48\columnwidth]{cc_snap120_3091776_e3000.pdf}
-  \caption{The TF and CC of PM and PM-SONN simulated density fields with
-  respect to that of the \GADGET. The solid line and shaded region
-  indicate the median and the [16, 84] percentiles of the 64 Sobol
-  simulation setups. last snapshot $a\simeq 1$, mesh shape=1}
+  \includegraphics[width=.48\columnwidth]{tf_snap120_3177874_e3000_mid-per.pdf}
+  \includegraphics[width=.48\columnwidth]{cc_snap120_3177874_e3000_mid-per.pdf} \\
+  \includegraphics[width=.48\columnwidth]{tf_test_snap120_3177874_e3000_mid-per.pdf}
+  \includegraphics[width=.48\columnwidth]{cc_test_snap120_3177874_e3000_mid-per.pdf}
+  \caption{The TF and CC of original PM and optimized PM-SONN simulated
+  density fields with respect to that of the \GADGET.
+  The solid line and shaded region indicate the median and the [16, 84]
+  percentiles of different simulation configurations.
+  The results are shown for the last snapshot sampled in each
+  configuration, which are all around time $a\simeq 1$.
+  The x-axis is the wavenumber $k$ normalized by the Nyquist wavenumber
+  $k_{\rm Nyquist}$ of the particle grid, which is therefore the same
+  for different box sizes.
+  \textit{Upper}: results for the training dataset.
+  \textit{Lower}: results for the test dataset.
+  }
   \label{fig:tfcc}
 \end{figure*}
 
@@ -472,11 +482,13 @@ r(\vk) \triangleq
 The two fields are identical when both $T$ and $r$ are unity.
 The PM method is accurate on scales much larger than the mesh cell size,
 therefore we expect $T$ and $r$ to be very close to being unity both
-before and after the force sharpening optimization.
-To show the $T$ and $r$ for different box sizes, we normalize the
-wavenumber by the Nyquist wavenumber $k_{\rm Nyquist} = \pi / l_p$ of
-the particle grid, where $l_p$ is the particle spacing.
-\YZ{We show T and r separately for different mesh shapes?}
+before and after the SO with force sharpening.
+
+In \autoref{fig:tfcc}, we show the results of $T$ and $r$ for both
+training and test data samples.
+To show different box sizes, we normalize the wavenumber by the Nyquist
+wavenumber $k_{\rm Nyquist} = \pi / l_p$ of the particle grid, where
+$l_p$ is the particle spacing.
 
 comparison of PM, PM with SO NN (PM-SONN), PM with SO SR (PM-SOSR)
 
@@ -604,7 +616,7 @@ AD and put into the adjoint equations as mentioned in
 
 
 \vspace{1em}
-\subsection{Configurations and Training Data}
+\subsection{Configurations and Data Samples}
 
 \begin{figure*}
   \centering
@@ -639,6 +651,10 @@ the Sobol sequence \citep{Sobol1967}, which uses the direction number
 from \citet{JoeKuo2008} and the Owen scrambling \citep{Owen1998}.
 We search among 65536 scrambling seeds to minimize the mixture
 discrepancy (a uniformity measure) proposed in \citet{Zhou2013MD}.
+
+In addition, we sample 9 extra data points for the interpolation test of
+the trained model to different configurations and cosmological
+parameters.
 
 Small numerical differences in initial conditions (ICs) could become
 more significant with the $N$-body evolution.
@@ -855,10 +871,6 @@ hence remain the same during training given the same averaged gradients.
 % The initial learning rate is set at [...] with a reduction factor of
 % [...] after [...] epochs of no decreasing on loss.
 
-Besides the mesh for the force evaluation, we also need meshes when
-estimating the density field for the loss function as well as for
-visualization.
-
 Same as the \pmwd\ library, this work is also implemented using JAX
 \citep{JAX}.
 We implement the NNs with \texttt{Flax} \citep{flax2020github}, and use
@@ -969,72 +981,25 @@ function, see
 
 \section*{TODO}
 \begin{itemize}
-\item
-
-\item (paper) Moving some of the following ongoing and completed tasks
-  to the main text and add preliminary figures.
 \item (data; YL) Incorporate 3lpt branch; testing; find a\_start for
   different mass resolutions; probably replace linear snapshot spacing
   according to the nonlinearity (estimate (with PM till convergence) the
   std acc over the std vel) of each realization.
-\item (model; YL) Change nbody for loop by lax scan and/or while loops.
-  while\_loop can help to save compilation when trained on different
-  snapshots. Performance difference between scan and while?\newline
-  \YZ{It seems that lax.while\_loop only supports fwd grad}
-  \href{https://jax.readthedocs.io/en/latest/notebooks/Common_Gotchas_in_JAX.html#summary}{link}
-\item (model; YL) Compare one pair of \GADGET\ and \pmwd\ (with say 100 to 1000 time
-    steps) results and make sure that they agree perfectly on the large
-    scales. For this purpose the box size should be large enough (in
-    linear regime), say 1 Gpc/$h$.\newline
-    \YZ{\textbf{Update}: for Sobol=6, boxsize=983Mpc, \GADGET\ and \pmwd\ are
-    visually consistent at the field level. For power spectrum: For
-    odd mesh shapes (e.g. 1, 3, 5), pmwd and \GADGET\ are perfectly consistent
-    on large scales. \textbf{While for even mesh shapes (e.g. 2, 4), the powers
-    look slightly different. To figure out this weird issue.}}
-\item (model; YL) Probably necessary to first incorporate List \& Hahn's
-  recent improvement on FastPM integrator arXiv:2301:09655.
-\item (train, test) For $\vs(\vq)$, $\vv(\vq)$, $\delta(\vx)$,
-  $(1+\delta)\vv(\vx)$, $(1+\delta)\vv\vv(\vx)$, show $T - 1$ in symlog
-  with 0.01 linthresh, and $1-r^2$ in log at 3 different $a$'s; Show $f$
-  and $g$ (along axis and face diagonal) at 3 different $a$'s
 \item (train, test) 3 sets of grid for ptcl, force mesh, and loss. Add
   random offset in loss grid (see \autoref{tab:param}) to remove the
   position dependence in loss; likewise for force mesh? how about only
   training (for lower loss), only ``inference'' (for higher accuracy),
   or both? the random force mesh offset can also be replaced by a
   structured scheme, e.g., alternating between 2 interlocking grids
-\item (train) Explore if we can use a finer loss grid, from 1x to say
-  1.5x and even 2x.
 \item (train, test) Non-integer multiple mesh shapes: for uniform
   particle grid, test (with double precision on CPUs) whether they start
   moving by artifact forces on cell scales, in 3 cases: no
   deconvolution, with CIC deconvolution, with SO.
-\item (train) find the best loss function for production training
-\item (train) For generalizability and robustness, consider testing
-  weight decay and dropout. Also they're worth adding if they give lower
-  losses at convergence. Note that 512 realization are not too many, and
-  we have features that can be very correlated.\newline
-  \YZ{Dropout with Flax has been coded. We can use Optax AdamW for weight decay.}
-\item (train) optuna hyperparam search on a subset of training data
-  before production training
-  (\href{https://github.com/optuna/optuna-examples/blob/main/haiku/haiku_simple.py}{optuna
-  example}).
-\item (train) Reduce learning rate on (mean epoch) loss plateau in
-  production\newline
-  \YZ{A simple scheduler has been coded, to be fine-tuned for production training.}
 \item (test) Interpolation test: compare SO DM and halo fields and
   summary stats with those of raw pmwd, deconvolved pmwd, and \GADGET,
   on the last 9 test cases and noncubic box.
 \item (test) Extrapolation test: demonstrate generalization capability,
   compare extrap PySR, extrap SO, raw pmwd, deconv pmwd, and \GADGET.
-\item (paper) Think about what figures and tables to show in the paper. Up
-to 6 items could be included. Some tables could be included in the context as
-list if we have too many figures to show?\newline
-  \YZ{figures:
-  1. $f$ and $g$ functions, both NN and Symbolic.
-  2. Density field (and halo?) with zoom in for small scale sharpening.
-  3. Transfer function and correlation coefficient.
-  4. Halo related stats.}
 \item Fix cross references and other journal quirks as a patch
 \end{itemize}
 
