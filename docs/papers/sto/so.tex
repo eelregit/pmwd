@@ -429,7 +429,8 @@ along axis, face, and body diagonal directions.
 
 \subsection{Symbolic Expressions}
 
-We fit the trained NNs with symbolic regression for analytic
+To make the SO more interpretable and applicable to other simulations,
+we fit the trained NNs with symbolic regression for analytic
 expressions of the $f(k_i; \vvartheta)$ and $g(k_1, k_2, k_3;
 \vvartheta)$ functions.
 
@@ -487,13 +488,13 @@ The PM method is accurate on scales much larger than the mesh cell size,
 therefore we expect $T$ and $r$ to be very close to being unity both
 before and after the SO with force sharpening.
 
-In \autoref{fig:tfcc}, we show the results of $T$ and $r$ for both
+In \autoref{fig:tfcc}, we show the results of TF and CC for both
 training and test data samples.
 To show different box sizes, we normalize the wavenumber by the Nyquist
 wavenumber $k_{\rm Nyquist} = \pi / l_p$ of the particle grid, where
 $l_p$ is the particle spacing.
-
-comparison of PM, PM with SO NN (PM-SONN), PM with SO SR (PM-SOSR)
+Compared to original PM, the TF of PM-SONN is improved to be consistent
+with \GADGET\ within 10\% up to the particle grid Nyquist wavenumber.
 
 
 
@@ -510,9 +511,11 @@ comparison of PM, PM with SO NN (PM-SONN), PM with SO SR (PM-SOSR)
   \label{fig:denslab}
 \end{figure*}
 
-% density field with zoom in (with halos painted as circles?)
 The effect of force sharpening can also be visually shown by looking
-directly at the density field.
+directly at the higher resolution of the density field
+(\autoref{fig:denslab}) on small scales.
+Compared to orginal PM, PM-SONN is more similar to \GADGET\ with sharper
+big halos and more small-scale structures.
 
 
 \subsection{Dark Matter Halos}
@@ -520,11 +523,13 @@ directly at the density field.
 
 
 \subsection{Benchmarks}
-We compare the computational cost of \GADGET, \pmwd\ with NNs, and
-\pmwd\ with SR.
+We compare the computational cost of \GADGET, original PM, PM-SONN, and
+PM-SOSR.
 
-We time the computation of force sharpening for one step using NNs and
-SR respectively.
+The forward evaluation of the NNs is more computation and memory
+expensive compared to the analytic expressions.
+We time the computation of SO for one step using NNs and SR
+respectively.
 
 
 \vspace{1em}
