@@ -10,7 +10,7 @@ def nonlinear_scales(cosmo, conf, a):
     # TopHat variance, var is decreasing with R
     # but for jnp.interp, xp must be increasing, thus the reverse [::-1]
     R_TH = jnp.interp(1 / D**2, cosmo.varlin[::-1], conf.varlin_R[::-1])
-    return R_TH
+    return (R_TH,)
 
 
 def sotheta(cosmo, conf, a):
