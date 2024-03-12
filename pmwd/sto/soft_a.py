@@ -111,12 +111,13 @@ def soft_kvec(kv, theta):
 def soft_names(net):
     # str names of input features of the SO neural nets
     # currently hardcoded, should be updated along with functions above
-    theta_l = '1/k_P, R_TH, R_G, Rd, -dk_P/k_P**2, dR_TH, dR_G, dRd'.split(', ')
+    theta_l = ['1/k_P', 'R_TH', 'R_G', 'Rd',
+               '-dk_P/k_P**2', 'dR_TH', 'dR_G', 'dRd']
     theta_l += ['ptcl spacing', 'cell size', 'softening length']
     theta_l_k = []
     if net == 'f':
         for v in theta_l:
-            theta_l_k.append('k * {v}')
+            theta_l_k.append(f'k * {v}')
     if net == 'g':
         for n in range(3):
             for v in theta_l:
@@ -124,5 +125,25 @@ def soft_names(net):
 
     theta_o = ['D1/a', 'D2/a**2', 'dlnD1-1', 'dlnD2-2', 'Omega_m_a', 'H_deriv',
                'dlna~da/a']
+
+    return theta_l_k + theta_o
+
+
+def soft_names_tex(net):
+    # soft_names in latex math expressions
+    theta_l = ['R_P', 'R_{\\rm TH}', 'R_{\\rm G}', 'R_d',
+               'dR_p/d\\ln a', 'dR_{\\rm TH}/d\\ln a', 'dR_{\\rm G}/d\\ln a', 'dR_d/d\\ln a']
+    theta_l += ['l_p', 'l_c', 'l_s']
+    theta_l_k = []
+    if net == 'f':
+        for v in theta_l:
+            theta_l_k.append(f'k {v}')
+    if net == 'g':
+        for n in range(3):
+            for v in theta_l:
+                theta_l_k.append(f'k_{n} {v}')
+
+    theta_o = ['D_1/a', 'D_2/a^2', 'd\\ln D_1 - 1', 'd\\ln D_2 - 2', '\\Omega_m(a)',
+               'd\\ln H / d\\ln a', '\\Delta\\ln a']
 
     return theta_l_k + theta_o
