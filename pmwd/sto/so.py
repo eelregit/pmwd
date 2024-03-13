@@ -4,16 +4,14 @@ from jax import jit, vmap, checkpoint
 from functools import partial
 
 from pmwd.sto.mlp import MLP
-from pmwd.sto import soft_a, soft_b, soft_c, soft_d, soft_e
+from pmwd.sto import soft_v1, soft_v2, soft_v3
 
 
 def mod_soft_i(soft_i):
     match soft_i:
-        case 'soft_a': soft_i = soft_a
-        case 'soft_b': soft_i = soft_b
-        case 'soft_c': soft_i = soft_c
-        case 'soft_d': soft_i = soft_d
-        case 'soft_e': soft_i = soft_e
+        case 'soft_v1': soft_i = soft_v1
+        case 'soft_v2': soft_i = soft_v2
+        case 'soft_v3': soft_i = soft_v3
     return soft_i
 
 
@@ -34,9 +32,9 @@ def soft_names_tex(soft_i, net):
     return soft_i.soft_names_tex(net)
 
 
-def soft_len(soft_i, k_fac=1):
+def soft_len(soft_i, net):
     soft_i = mod_soft_i(soft_i)
-    return soft_i.soft_len(k_fac=k_fac)
+    return soft_i.soft_len(net)
 
 
 def soft(soft_i, k, theta):

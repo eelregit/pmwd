@@ -6,16 +6,16 @@ import pickle
 from pmwd.sto.so import soft_len
 from pmwd.sto.mlp import init_mlp_params
 
-n_epochs = 2
+n_epochs = 5000
 
 # data
-sobol_ids_global = np.arange(0, 2)
+sobol_ids_global = np.arange(0, 64)
 snap_ids = np.arange(0, 121, 2)
 shuffle_epoch = True  # shuffle the order of sobols across epochs
 
 # loss
 loss_pars = {
-    'log_eps': 1e-3,
+    'log_eps': 0,
 }
 
 # optimizer
@@ -25,8 +25,8 @@ optimizer = optax.MultiSteps(optimizer, 1)
 
 # so neural nets
 so_type = 'NN'
-soft_i = 'soft_a'
-n_input = [soft_len(soft_i, k_fac=3), soft_len(soft_i)]
+soft_i = 'soft_v1'
+n_input = [soft_len('g'), soft_len('f')]
 
 so_nodes = [[3*n] * 5 + [1] for n in n_input]
 
