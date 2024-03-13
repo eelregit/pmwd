@@ -26,20 +26,55 @@ def sotheta(cosmo, conf, a):
         cosmo.A_s_1e9,
         cosmo.n_s,
         cosmo.Omega_m,
-        cosmo.Omega_b / cosmo.Omega_m,
-        cosmo.Omega_k / (1 - cosmo.Omega_k),
+        cosmo.Omega_b,
+        cosmo.Omega_k,
         cosmo.h,
     ])
     return (theta_l, theta_o)
 
 
-def soft_len(k_fac=1):
-    # get the length of SO input features with dummy conf and cosmo
-    conf = Configuration(1., (128,)*3)
-    cosmo = SimpleLCDM(conf)
-    cosmo = boltzmann(cosmo, conf)
-    theta_l, theta_o = sotheta(cosmo, conf, conf.a_start)
-    return len(theta_l) * k_fac + len(theta_o)
+def soft_names(net):
+    # str names of input features of the SO neural nets
+    # currently hardcoded, should be updated along with functions above
+    theta_l = ['ptcl spacing', 'cell size', 'softening length']
+    theta_l_k = []
+    if net == 'f':
+        for v in theta_l:
+            theta_l_k.append(f'k * {v}')
+    if net == 'g':
+        for n in range(3):
+            for v in theta_l:
+                theta_l_k.append(f'k_{n} * {v}')
+    if log_k_theta:
+        theta_l_k = [f'log({v})' for v in theta_l_k]
+
+    theta_o = ['a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b', 'Omega_k', 'h']
+
+    return theta_l_k + theta_o
+
+
+def soft_names_tex(net):
+    # soft_names in latex math expressions
+    theta_l = ['l_p', 'l_c', 'l_s']
+    theta_l_k = []
+    if net == 'f':
+        for v in theta_l:
+            theta_l_k.append(f'k {v}')
+    if net == 'g':
+        for n in range(3):
+            for v in theta_l:
+                theta_l_k.append(f'k_{n} {v}')
+    if log_k_theta:
+        theta_l_k = [f'\\ln {v}' for v in theta_l_k]
+
+    theta_o = ['a', 'A_s', 'n_s', '\\Omega_m', '\\Omega_b', '\\Omega_k', 'h']
+
+    return theta_l_k + theta_o
+
+
+def soft_len(net):
+    # get the length of SO input features
+    return len(soft_names(net))
 
 
 def soft(k, theta):
@@ -79,44 +114,3 @@ def soft_kvec(kv, theta):
     theta_o = jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)  # (128, 128, 65, 6)
     ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 128, 65, 3*8+6)
     return ft
-
-
-def soft_names(net):
-    # str names of input features of the SO neural nets
-    # currently hardcoded, should be updated along with functions above
-    theta_l = ['ptcl spacing', 'cell size', 'softening length']
-    theta_l_k = []
-    if net == 'f':
-        for v in theta_l:
-            theta_l_k.append(f'k * {v}')
-    if net == 'g':
-        for n in range(3):
-            for v in theta_l:
-                theta_l_k.append(f'k_{n} * {v}')
-    if log_k_theta:
-        theta_l_k = [f'log({v})' for v in theta_l_k]
-
-    theta_o = ['a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b / Omega_m',
-               'Omega_k / (1 - Omega_k)', 'h']
-
-    return theta_l_k + theta_o
-
-
-def soft_names_tex(net):
-    # soft_names in latex math expressions
-    theta_l = ['l_p', 'l_c', 'l_s']
-    theta_l_k = []
-    if net == 'f':
-        for v in theta_l:
-            theta_l_k.append(f'k {v}')
-    if net == 'g':
-        for n in range(3):
-            for v in theta_l:
-                theta_l_k.append(f'k_{n} {v}')
-    if log_k_theta:
-        theta_l_k = [f'\\ln {v}' for v in theta_l_k]
-
-    theta_o = ['a', 'A_s', 'n_s', '\\Omega_m', '\\frac{\\Omega_b}{\\Omega_m}',
-               '\\frac{\\Omega_k}{1-\\Omega_k}', 'h']
-
-    return theta_l_k + theta_o

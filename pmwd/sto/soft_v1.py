@@ -19,6 +19,8 @@ def nonlinear_scales(cosmo, conf, a):
     Plin = linear_power(k, None, cosmo, conf)  # no a dependence
     k_P, dk_P = interp_valgrad(1 / D**2, k**3 * Plin / (2 * jnp.pi**2), k)
     dk_P *= dD2i
+    R_P = 1 / k_P
+    dR_P = -dk_P/k_P**2
 
     # TopHat variance, var is decreasing with R
     # but for jnp.interp, xp must be increasing, thus the reverse [::-1]
@@ -35,7 +37,7 @@ def nonlinear_scales(cosmo, conf, a):
     dRd = Rd * dD
     Rd *= D
 
-    return (1/k_P, R_TH, R_G, Rd, -dk_P/k_P**2, dR_TH, dR_G, dRd)
+    return (R_P, R_TH, R_G, Rd, dR_P, dR_TH, dR_G, dRd)
 
 
 def sotheta(cosmo, conf, a):
@@ -66,20 +68,57 @@ def sotheta(cosmo, conf, a):
     return (theta_l, theta_o)
 
 
-def soft_len(k_fac=1):
-    # get the length of SO input features with dummy conf and cosmo
-    conf = Configuration(1., (128,)*3)
-    cosmo = SimpleLCDM(conf)
-    cosmo = boltzmann(cosmo, conf)
-    theta_l, theta_o = sotheta(cosmo, conf, conf.a_start)
-    return len(theta_l) * k_fac + len(theta_o)
-
-
 def soft(k, theta):
     """SO features for neural nets input, with k being a scalar."""
     theta_l, theta_o = theta
     k_theta_l = k * theta_l
     return jnp.concatenate((k_theta_l, theta_o))
+
+
+def soft_names(net):
+    # str names of input features of the SO neural nets
+    # currently hardcoded, should be updated along with functions above
+    theta_l = ['R_P', 'R_TH', 'R_G', 'Rd',
+               'dR_p', 'dR_TH', 'dR_G', 'dRd']
+    theta_l += ['ptcl spacing', 'cell size', 'softening length']
+    theta_l_k = []
+    if net == 'f':
+        for v in theta_l:
+            theta_l_k.append(f'k * {v}')
+    if net == 'g':
+        for n in range(3):
+            for v in theta_l:
+                theta_l_k.append(f'k_{n} * {v}')
+
+    theta_o = ['G1', 'G2', 'dlnG1', 'dlnG2', 'Omega_m_a', 'dlnH',
+               'Dlna']
+
+    return theta_l_k + theta_o
+
+
+def soft_names_tex(net):
+    # soft_names in latex math expressions
+    theta_l = ['R_P', 'R_{\\rm TH}', 'R_{\\rm G}', 'R_d',
+               'R_P\'', 'R_{\\rm TH}\'', 'R_{\\rm G}\'', 'R_d\'']
+    theta_l += ['l_p', 'l_c', 'l_s']
+    theta_l_k = []
+    if net == 'f':
+        for v in theta_l:
+            theta_l_k.append(f'k {v}')
+    if net == 'g':
+        for n in range(3):
+            for v in theta_l:
+                theta_l_k.append(f'k_{n} {v}')
+
+    theta_o = ['G_1', 'G_2', 'G_1\'', 'G_2\'', '\\Omega_m(a)',
+               '\\ln H\'', '\\Delta\\ln a']
+
+    return theta_l_k + theta_o
+
+
+def soft_len(net):
+    # get the length of SO input features
+    return len(soft_names(net))
 
 
 def soft_k(k, theta):
@@ -106,44 +145,3 @@ def soft_kvec(kv, theta):
     theta_o = jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)  # (128, 128, 65, 6)
     ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 128, 65, 3*8+6)
     return ft
-
-
-def soft_names(net):
-    # str names of input features of the SO neural nets
-    # currently hardcoded, should be updated along with functions above
-    theta_l = ['1/k_P', 'R_TH', 'R_G', 'Rd',
-               '-dk_P/k_P**2', 'dR_TH', 'dR_G', 'dRd']
-    theta_l += ['ptcl spacing', 'cell size', 'softening length']
-    theta_l_k = []
-    if net == 'f':
-        for v in theta_l:
-            theta_l_k.append(f'k * {v}')
-    if net == 'g':
-        for n in range(3):
-            for v in theta_l:
-                theta_l_k.append(f'k_{n} * {v}')
-
-    theta_o = ['D1/a', 'D2/a**2', 'dlnD1-1', 'dlnD2-2', 'Omega_m_a', 'H_deriv',
-               'dlna~da/a']
-
-    return theta_l_k + theta_o
-
-
-def soft_names_tex(net):
-    # soft_names in latex math expressions
-    theta_l = ['R_P', 'R_{\\rm TH}', 'R_{\\rm G}', 'R_d',
-               'dR_p/d\\ln a', 'dR_{\\rm TH}/d\\ln a', 'dR_{\\rm G}/d\\ln a', 'dR_d/d\\ln a']
-    theta_l += ['l_p', 'l_c', 'l_s']
-    theta_l_k = []
-    if net == 'f':
-        for v in theta_l:
-            theta_l_k.append(f'k {v}')
-    if net == 'g':
-        for n in range(3):
-            for v in theta_l:
-                theta_l_k.append(f'k_{n} {v}')
-
-    theta_o = ['D_1/a', 'D_2/a^2', 'd\\ln D_1 - 1', 'd\\ln D_2 - 2', '\\Omega_m(a)',
-               'd\\ln H / d\\ln a', '\\Delta\\ln a']
-
-    return theta_l_k + theta_o

@@ -30,46 +30,11 @@ def sotheta(cosmo, conf, a):
     return (theta_l, theta_o)
 
 
-def soft_len(k_fac=1):
-    # get the length of SO input features with dummy conf and cosmo
-    conf = Configuration(1., (128,)*3)
-    cosmo = SimpleLCDM(conf)
-    cosmo = boltzmann(cosmo, conf)
-    theta_l, theta_o = sotheta(cosmo, conf, conf.a_start)
-    return len(theta_l) * k_fac + len(theta_o)
-
-
 def soft(k, theta):
     """SO features for neural nets input, with k being a scalar."""
     theta_l, theta_o = theta
     k_theta_l = k * theta_l
     return jnp.concatenate((k_theta_l, theta_o))
-
-
-def soft_k(k, theta):
-    """Get SO input features (k * l, o)."""
-    theta_l, theta_o = theta  # e.g. (8,), (6,)
-    k_shape = k.shape  # e.g. (128, 1, 1)
-    k = k.reshape(k_shape + (1,))  # (128, 1, 1, 1)
-    theta_l = theta_l.reshape((1,) * len(k_shape) + theta_l.shape)  # (1, 1, 1, 8)
-    ft = k * theta_l  # (128, 1, 1, 8)
-    theta_o = jnp.broadcast_to(theta_o, k_shape+theta_o.shape)  # (128, 1, 1, 6)
-    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 1, 1, 8+6)
-    return ft
-
-
-def soft_kvec(kv, theta):
-    """Get SO input features (k1 * l, k2 * l, k3 * l, o)."""
-    kv_shape = kv.shape  # e.g. (128, 128, 65, 3)
-    kv = kv.reshape(kv_shape + (1,))  # (128, 128, 65, 3, 1)
-
-    theta_l, theta_o = theta  # e.g. (8,), (6,)
-    theta_l = theta_l.reshape((1,) * len(kv_shape) + theta_l.shape)  # (1, 1, 1, 1, 8)
-    ft = kv * theta_l  # (128, 128, 65, 3, 8)
-    ft = ft.reshape(kv_shape[:-1] + (-1,))  # (128, 128, 65, 3*8)
-    theta_o = jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)  # (128, 128, 65, 6)
-    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 128, 65, 3*8+6)
-    return ft
 
 
 def soft_names(net):
@@ -105,3 +70,34 @@ def soft_names_tex(net):
     theta_o = ['D(a)', '\\Omega_m(a)']
 
     return theta_l_k + theta_o
+
+
+def soft_len(net):
+    # get the length of SO input features
+    return len(soft_names(net))
+
+
+def soft_k(k, theta):
+    """Get SO input features (k * l, o)."""
+    theta_l, theta_o = theta  # e.g. (8,), (6,)
+    k_shape = k.shape  # e.g. (128, 1, 1)
+    k = k.reshape(k_shape + (1,))  # (128, 1, 1, 1)
+    theta_l = theta_l.reshape((1,) * len(k_shape) + theta_l.shape)  # (1, 1, 1, 8)
+    ft = k * theta_l  # (128, 1, 1, 8)
+    theta_o = jnp.broadcast_to(theta_o, k_shape+theta_o.shape)  # (128, 1, 1, 6)
+    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 1, 1, 8+6)
+    return ft
+
+
+def soft_kvec(kv, theta):
+    """Get SO input features (k1 * l, k2 * l, k3 * l, o)."""
+    kv_shape = kv.shape  # e.g. (128, 128, 65, 3)
+    kv = kv.reshape(kv_shape + (1,))  # (128, 128, 65, 3, 1)
+
+    theta_l, theta_o = theta  # e.g. (8,), (6,)
+    theta_l = theta_l.reshape((1,) * len(kv_shape) + theta_l.shape)  # (1, 1, 1, 1, 8)
+    ft = kv * theta_l  # (128, 128, 65, 3, 8)
+    ft = ft.reshape(kv_shape[:-1] + (-1,))  # (128, 128, 65, 3*8)
+    theta_o = jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)  # (128, 128, 65, 6)
+    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 128, 65, 3*8+6)
+    return ft
