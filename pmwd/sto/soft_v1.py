@@ -32,12 +32,12 @@ def nonlinear_scales(cosmo, conf, a):
     dR_G *= dD2i
 
     # rms linear theory displacement
-    Rd = (jnp.trapz(k * Plin, x=jnp.log(k)) + k[0] * Plin[0] / 2) / (6 * jnp.pi**2)
-    Rd = jnp.sqrt(Rd)
-    dRd = Rd * dD
-    Rd *= D
+    R_d = (jnp.trapz(k * Plin, x=jnp.log(k)) + k[0] * Plin[0] / 2) / (6 * jnp.pi**2)
+    R_d = jnp.sqrt(R_d)
+    dR_d = R_d * dD
+    R_d *= D
 
-    return (R_P, R_TH, R_G, Rd, dR_P, dR_TH, dR_G, dRd)
+    return (R_P, R_TH, R_G, R_d, dR_P, dR_TH, dR_G, dR_d)
 
 
 def sotheta(cosmo, conf, a):
@@ -79,7 +79,7 @@ def soft_names(net):
     # str names of input features of the SO neural nets
     # currently hardcoded, should be updated along with functions above
     theta_l = ['R_P', 'R_TH', 'R_G', 'R_d',
-               'dR_p', 'dR_TH', 'dR_G', 'dR_d']
+               'dR_P', 'dR_TH', 'dR_G', 'dR_d']
     theta_l += ['ptcl spacing', 'cell size', 'softening length']
     theta_l_k = []
     if net == 'f':
@@ -90,8 +90,7 @@ def soft_names(net):
             for v in theta_l:
                 theta_l_k.append(f'k_{n} * {v}')
 
-    theta_o = ['G1', 'G2', 'dlnG1', 'dlnG2', 'Omega_m_a', 'dlnH',
-               'Dlna']
+    theta_o = ['G1', 'G2', 'dlnG1', 'dlnG2', 'Omega_m_a', 'dlnH', 'Dlna']
 
     return theta_l_k + theta_o
 
