@@ -1,18 +1,18 @@
 import pickle
-import itertools
 import numpy as np
 import jax.numpy as jnp
-from flax.linen import relu
+from jax.tree_util import tree_map
 from tqdm import tqdm
 from scipy.stats.qmc import Sobol
 
 from pmwd.sto.util import load_soparams
-from pmwd.sto.data import gen_sobol, scale_Sobol, gen_cc
+from pmwd.sto.data import scale_Sobol, gen_cc
 from pmwd.sto.mlp import MLP
 from pmwd.sto.so import sotheta, soft_k, soft_kvec
 
 
-def sample_sonn_data(sidx, so_params, soft_i, mesh_shape, m=8, n_steps=61, fn=None):
+def sample_sonn_data(sidx, so_params, soft_i, soft_o, mesh_shape, m=8, n_steps=61,
+                     fn=None):
     """Generate the data samples of SO NNs. Use the training sample of
     simulation setups. Use another Sobol to sample a and k."""
     nsims = len(sidx)
@@ -29,7 +29,7 @@ def sample_sonn_data(sidx, so_params, soft_i, mesh_shape, m=8, n_steps=61, fn=No
     sims = scale_Sobol(ind=sidx)
 
     # rescale a and k
-    log_kn_min, log_kn_max = jnp.log10(2/128), jnp.log10(np.sqrt(3))
+    log_kn_min, log_kn_max = jnp.log10(2/128), jnp.log10(1)
 
     a_s = {}
     for x in ['f', 'g']:
@@ -37,114 +37,75 @@ def sample_sonn_data(sidx, so_params, soft_i, mesh_shape, m=8, n_steps=61, fn=No
 
     norm_k_s = {}
     norm_k_s['f'] = 10**(log_kn_min + (log_kn_max - log_kn_min) * ak[x][:, :, 1])
-    norm_k_s['g'] = jnp.sort(10**(log_kn_min + (log_kn_max - log_kn_min) * ak[x][:, :, 1:]),
-                             axis=-1)  # sort for permutation symmetry
+    norm_k_s['g'] = 10**(log_kn_min + (log_kn_max - log_kn_min) * ak[x][:, :, 1:])
+
+    data = {'f': {'X': []},
+            'g': {'X': [], 'X_us': []}}
+    if soft_o is not None:
+        for n, s in soft_o.items():
+            data['f']['X_'+n] = []
+            data['g']['X_'+n] = []
+            data['g']['X_'+n+'_us'] = []
 
     # construct X
     print('constructing X')
-    X = {'f': [], 'g': []}
-    for i in range(nsims):
-        cal_boltz = True if soft_i == 'soft_a' else False
+    for i in tqdm(range(nsims)):
         conf, cosmo = gen_cc(sims[i], mesh_shape=mesh_shape, a_nbody_num=n_steps,
-                             soft_i=soft_i, cal_boltz=cal_boltz)
+                             soft_i=soft_i, cal_boltz=True)
         for x in ['f', 'g']:
-            k_s = norm_k_s[x][i] * jnp.pi / conf.ptcl_spacing
+            k_s = norm_k_s[x][i] * jnp.pi / conf.cell_size
             for a, k in zip(a_s[x][i], k_s):
                 theta = sotheta(cosmo, conf, a)
                 if x == 'f':
-                    X[x].append(soft_k(soft_i, k, theta))
+                    data['f']['X'].append(soft_k(soft_i, k, theta))
                 if x == 'g':
-                    X[x].append(soft_kvec(soft_i, k, theta))
-    X['f'] = jnp.asarray(X['f'])
-    X['g'] = jnp.asarray(X['g'])
+                    k_sort = jnp.sort(k)  # sort for permutation symmetry
+                    data['g']['X'].append(soft_kvec(soft_i, k_sort, theta))
+                    data['g']['X_us'].append(soft_kvec(soft_i, k, theta))
+
+                if soft_o is not None:
+                    for n, s in soft_o.items():
+                        theta = sotheta(cosmo, conf, a, soft_i=s)
+                        if x == 'f':
+                            data['f']['X_'+n].append(soft_k(s, k, theta))
+                        if x == 'g':
+                            data['g']['X_'+n].append(soft_kvec(s, k_sort, theta))
+                            data['g']['X_'+n+'_us'].append(soft_kvec(s, k, theta))
+
+    data['f']['X'] = jnp.asarray(data['f']['X'])
+    data['g']['X'] = jnp.asarray(data['g']['X'])
+    data['g']['X_us'] = jnp.asarray(data['g']['X_us'])
+    if soft_o is not None:
+        for n, s in soft_o.items():
+            data['f']['X_'+n] = jnp.asarray(data['f']['X_'+n])
+            data['g']['X_'+n] = jnp.asarray(data['g']['X_'+n])
+            data['g']['X_'+n+'_us'] = jnp.asarray(data['g']['X_'+n+'_us'])
 
     # evaluate y
     print('evaluating y')
     so_params, n_input, so_nodes = load_soparams(so_params)
-    y = {}
     for x, nidx in zip(['f', 'g'], [1, 0]):
-        nn = MLP(features=so_nodes[nidx], activator=relu, regulator=jnp.exp)
-        y[x] = nn.apply(so_params[nidx], X[x]).ravel()
+        nn = MLP(features=so_nodes[nidx])
+        data[x]['y'] = nn.apply(so_params[nidx], data[x]['X']).ravel()
 
-    # save the data to file simply with pickle
-    nn_data = {
-        'f': {'X': np.asarray(X['f']), 'y': np.asarray(y['f'])},
-        'g': {'X': np.asarray(X['g']), 'y': np.asarray(y['g'])}
-    }
+    # save the data to file
     if fn is not None:
         with open(fn, 'wb') as f:
-            pickle.dump(nn_data, f)
-        print(f'nn_data saved: {fn}')
+            pickle.dump(data, f)
+        print(f'nn data saved: {fn}')
 
-    return X, y
-
-
-def gen_sonn_data(so_params, soft_i, mesh_shape, n_steps=61, fn=None,
-                  vis_mesh_shape=3, m_extra={'f': 3, 'g': 3}):
-    """Generate the (input, output) samples of so neural networks, using Sobol."""
-    # sample configurations and cosmological params [:, :9]
-    # a [:, 9] and k (k1 k2 k3) [:, 10:]
-    # using Sobol for f and g neural nets
-    sobol = {}
-    sobol_s = {}
-    a_s = {}
-    for x, d in zip(['f', 'g'], [11, 13]):
-        sobol[x] = gen_sobol(d=d, m=d+m_extra[x], extra=0)
-        sobol_s[x] = scale_Sobol(sobol=sobol[x][:, :9].T)
-        a_s[x] = 1/16 + (1 + 1/128 - 1/16) * sobol[x][:, 9]
-
-    # sample k w.r.t. the ptcl grid nyquist
-    log_kn_min, log_kn_max = jnp.log10(2/128), jnp.log10(vis_mesh_shape)
-    norm_k_s = {}
-    norm_k_s['f'] = 10**(log_kn_min + (log_kn_max - log_kn_min) * sobol['f'][:, 10])
-    norm_k_s['g'] = jnp.sort(10**(log_kn_min + (log_kn_max - log_kn_min) * sobol['g'][:, 10:]),
-                             axis=-1)  # sort for permutation symmetry
-
-    # construct X for the network
-    print('constructing X')
-    X = {'f': [], 'g': []}
-    for x in ['f', 'g']:
-        for sob, a, norm_k in tqdm(zip(sobol_s[x], a_s[x], norm_k_s[x]), total=len(sobol_s[x])):
-            cal_boltz = True if soft_i == 'soft_a' else False
-            conf, cosmo = gen_cc(sob, mesh_shape=mesh_shape, a_nbody_num=n_steps,
-                                 soft_i=soft_i, cal_boltz=cal_boltz)
-            k = norm_k * jnp.pi / conf.ptcl_spacing
-            theta = sotheta(cosmo, conf, a)
-            if x == 'f':
-                X[x].append(soft_k(soft_i, k, theta))
-            if x == 'g':
-                X[x].append(soft_kvec(soft_i, k, theta))
-        X[x] = jnp.asarray(X[x])
-
-    # evaluate y
-    print('evaluating y')
-    so_params, n_input, so_nodes = load_soparams(so_params)
-    y = {}
-    for x, nidx in zip(['f', 'g'], [1, 0]):
-        nn = MLP(features=so_nodes[nidx], activator=relu, regulator=jnp.exp)
-        y[x] = nn.apply(so_params[nidx], X[x]).ravel()
-
-    # save the data to file simply with pickle
-    nn_data = {
-        'f': {'X': np.asarray(X['f']), 'y': np.asarray(y['f'])},
-        'g': {'X': np.asarray(X['g']), 'y': np.asarray(y['g'])}
-    }
-    if fn is not None:
-        with open(fn, 'wb') as f:
-            pickle.dump(nn_data, f)
-        print(f'nn_data saved: {fn}')
-
-    return X, y
+    return data
 
 
 if __name__ == "__main__":
     jobid = 3177874
     epoch = 3000
     exp = 'so-1'
-    soft_i = 'soft_d'
     mesh_shape = 1
-    fn = f'nn_data/{jobid}_e{epoch}.pickle'
+    soft_i = 'soft_v2'  # the feature set of NN
+    soft_o = {'v1': 'soft_v1'}  # other features to use/add for SR
+
+    fn = f'nn_data/j{jobid}_e{epoch}.pickle'
     so_params = f'../experiments/{exp}/params/{jobid}/e{epoch:03d}.pickle'
 
-    # X, y = gen_sonn_data(so_params, soft_i, mesh_shape, fn=fn)
-    X, y = sample_sonn_data(np.arange(64), so_params, soft_i, mesh_shape, fn=fn)
+    data = sample_sonn_data(np.arange(64), so_params, soft_i, soft_o, mesh_shape, fn=fn)
