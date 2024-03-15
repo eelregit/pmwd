@@ -78,8 +78,8 @@ def soft(k, theta):
 def soft_names(net):
     # str names of input features of the SO neural nets
     # currently hardcoded, should be updated along with functions above
-    theta_l = ['R_P', 'R_TH', 'R_G', 'Rd',
-               'dR_p', 'dR_TH', 'dR_G', 'dRd']
+    theta_l = ['R_P', 'R_TH', 'R_G', 'R_d',
+               'dR_p', 'dR_TH', 'dR_G', 'dR_d']
     theta_l += ['ptcl spacing', 'cell size', 'softening length']
     theta_l_k = []
     if net == 'f':
