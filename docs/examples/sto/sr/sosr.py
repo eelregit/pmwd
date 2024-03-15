@@ -42,7 +42,7 @@ def save_tex(model, eq_path, eq_file, var_names, net):
 
 
 def load_data(jobid, epoch, soft_i):
-    with open(f'nn_data/{jobid}_e{epoch}.pickle', 'rb') as f:
+    with open(f'nn_data/j{jobid}_e{epoch}.pickle', 'rb') as f:
         data = pickle.load(f)
     var_names_dic = {
         'f': soft_names_tex(soft_i, 'f'),
@@ -103,7 +103,7 @@ def run_pysr(data, net, eq_path, eq_file, var_names_dic):
 if __name__ == "__main__":
     jobid = 3177874
     epoch = 3000
-    soft_i = 'soft_d'
+    soft_i = 'soft_v2'
 
     eq_path = 'eq_files/'
     eq_file = f'{jobid}_e{epoch}'
