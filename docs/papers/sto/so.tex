@@ -309,10 +309,21 @@ In Fourier space, the gravitational force field $- \vnabla \varphi$
 follows
 %
 \begin{equation}
-- i \vk \varphi(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
+\left[- \vnabla \varphi\right]_\vk = - i \vk \varphi(\vk) =
+                  i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
+\label{force}
 \end{equation}
 %
-we then introduce SO force sharpening through
+which then gives the force field in configuration space after an inverse
+Fourier transform.
+
+In the PM simulation, the density field $\delta(\vx)$ is estimated by
+scattering the particles onto the mesh, and then the force on each
+particle is estimated by gathering the force field from the mesh.
+Therefore, the accuracy of the gravitational force estimated for each
+particle depends on the resolution of the mesh.
+To improve the accuracy of the PM solver, we introduce SO force
+sharpening by modifying the force equation \eqref{force} through
 %
 \begin{equation}
 \frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
@@ -383,8 +394,8 @@ time variable, in a follow-up work on the temporal optimization.
 
 \begin{figure*}
   \centering
-  \includegraphics[width=.48\columnwidth]{net_f_a1_j3091776_e3000.pdf}
-  \includegraphics[width=.48\columnwidth]{net_g_a1_j3091776_e3000.pdf}
+  \includegraphics[width=.48\columnwidth]{net_f_a1_j3177874_e3000.pdf}
+  \includegraphics[width=.48\columnwidth]{net_g_a1_j3177874_e3000.pdf}
   \caption{$f(k_i; \vvartheta)$ and $g(k_1, k_2, k_3; \vvartheta)$
   functions. The solid line and shaded region indicate the median and
   the [16, 84] percentiles of the 64 sampled configurations and
@@ -525,11 +536,15 @@ big halos and more small-scale structures.
 \subsection{Benchmarks}
 We compare the computational cost of \GADGET, original PM, PM-SONN, and
 PM-SOSR.
+In the generation of our training data, on average each \GADGET\
+simulation takes about 2K CPU hours.
+
 
 The forward evaluation of the NNs is more computation and memory
 expensive compared to the analytic expressions.
 We time the computation of SO for one step using NNs and SR
-respectively.
+respectively, both after the just-in-time (JIT) compilation function
+transformation in JAX.
 
 
 \vspace{1em}
@@ -845,8 +860,9 @@ and further sum over all snapshots in a single forward simulation
 
 We perform distributed data-parallel training using GPU devices hosted
 on multiple computing nodes.
-Each process is binded to a single GPU device, and the training data
-samples are uniformly distributed to the processes.
+With data parallelism, the training data samples are uniformly
+distributed to the processes, and each process is binded to a single GPU
+device.
 In total, we use XXX \GPU\ GPUs, each accompanied with XXX CPU cores
 and XXX GB CPU memory mainly for preloading the training data.
 The order of data samples within each process is shuffled across
@@ -868,12 +884,13 @@ devices, with which the optimizer is updated.
 We use the Adam \citep{Adam} optimizer.
 
 We initialize the parameters of NNs in a way such that the output is
-very close to one, i.e. no SO.
+around one with slight deviations, i.e. roughly the original PM without
+SO.
 This is achieved by setting the kernel of the output layer to be very
 small random values and the bias to be zero, whose return is then around
 one after the exponential function.
-The parameters are also initialized to be the same for all devices, and
-hence remain the same during training given the same averaged gradients.
+The parameters are initialized to be the same for all devices, and hence
+remain the same during training given the same averaged gradients.
 
 % We use Optuna \citep{optuna_2019} to search for the optimal
 % hyperparameters.
