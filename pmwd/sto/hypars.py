@@ -26,7 +26,7 @@ optimizer = optax.MultiSteps(optimizer, 1)
 # so neural nets
 so_type = 'NN'
 soft_i = 'soft_v1'
-n_input = [soft_len('g'), soft_len('f')]
+n_input = [soft_len(soft_i, 'g'), soft_len(soft_i, 'f')]
 
 so_nodes = [[3*n] * 5 + [1] for n in n_input]
 
