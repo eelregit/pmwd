@@ -1,75 +1,46 @@
+"""SO input features consists of simple Sobol parameters, a and k etc."""
 import jax.numpy as jnp
-
-from pmwd.configuration import Configuration
-from pmwd.cosmology import Omega_m_a, SimpleLCDM
-from pmwd.boltzmann import growth, boltzmann
-
-
-def nonlinear_scales(cosmo, conf, a):
-    D = growth(a, cosmo, conf)
-    # TopHat variance, var is decreasing with R
-    # but for jnp.interp, xp must be increasing, thus the reverse [::-1]
-    R_TH = jnp.interp(1 / D**2, cosmo.varlin[::-1], conf.varlin_R[::-1])
-    return (R_TH,)
 
 
 def sotheta(cosmo, conf, a):
     """Physical quantities to be used in SO input features along with k."""
-    # quantities of dim L
-    theta_l = jnp.asarray([
+    theta = jnp.asarray([
         conf.cell_size,
+        a,
+        cosmo.A_s_1e9,
+        cosmo.n_s,
+        cosmo.Omega_m,
+        cosmo.Omega_b,
+        cosmo.Omega_k,
+        cosmo.h,
         conf.softening_length,
-        *nonlinear_scales(cosmo, conf, a),
     ])
-
-    # dimensionless quantities
-    theta_o = jnp.asarray([
-        growth(a, cosmo, conf),
-        Omega_m_a(a, cosmo),
-    ])
-    return (theta_l, theta_o)
-
-
-def soft(k, theta):
-    """SO features for neural nets input, with k being a scalar."""
-    theta_l, theta_o = theta
-    k_theta_l = k * theta_l
-    return jnp.concatenate((k_theta_l, theta_o))
+    return theta
 
 
 def soft_names(net):
     # str names of input features of the SO neural nets
     # currently hardcoded, should be updated along with functions above
-    theta_l = ['cell size', 'softening length', 'R_TH']
-    theta_l_k = []
+    theta = ['cell size', 'a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b',
+             'Omega_k', 'h', 'softening length']
     if net == 'f':
-        for v in theta_l:
-            theta_l_k.append(f'k * {v}')
+        theta = ['k'] + theta
     if net == 'g':
-        for n in range(3):
-            for v in theta_l:
-                theta_l_k.append(f'k_{n} * {v}')
+        theta = ['k_1', 'k_2', 'k_3'] + theta
 
-    theta_o = ['D(a)', 'Omega_m(a)']
-
-    return theta_l_k + theta_o
+    return theta
 
 
 def soft_names_tex(net):
     # soft_names in latex math expressions
-    theta_l = ['l_c', 'l_s', 'R_{\\rm TH}']
-    theta_l_k = []
+    theta = ['l_c', 'a', 'A_s', 'n_s', '\\Omega_m', '\\Omega_b',
+             '\\Omega_k', 'h', 'l_s']
     if net == 'f':
-        for v in theta_l:
-            theta_l_k.append(f'k {v}')
+        theta = ['k'] + theta
     if net == 'g':
-        for n in range(3):
-            for v in theta_l:
-                theta_l_k.append(f'k_{n} {v}')
+        theta = ['k_1', 'k_2', 'k_3'] + theta
 
-    theta_o = ['D(a)', '\\Omega_m(a)']
-
-    return theta_l_k + theta_o
+    return theta
 
 
 def soft_len(net):
@@ -77,27 +48,20 @@ def soft_len(net):
     return len(soft_names(net))
 
 
+def soft(k, theta):
+    """SO features for neural nets input, with k being a scalar."""
+    return jnp.concatenate((jnp.atleast_1d(k), theta))
+
+
 def soft_k(k, theta):
-    """Get SO input features (k * l, o)."""
-    theta_l, theta_o = theta  # e.g. (8,), (6,)
-    k_shape = k.shape  # e.g. (128, 1, 1)
-    k = k.reshape(k_shape + (1,))  # (128, 1, 1, 1)
-    theta_l = theta_l.reshape((1,) * len(k_shape) + theta_l.shape)  # (1, 1, 1, 8)
-    ft = k * theta_l  # (128, 1, 1, 8)
-    theta_o = jnp.broadcast_to(theta_o, k_shape+theta_o.shape)  # (128, 1, 1, 6)
-    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 1, 1, 8+6)
+    """Get SO input features (k, theta)."""
+    theta = jnp.broadcast_to(theta, k.shape+theta.shape)
+    ft = jnp.concatenate((k.reshape(k.shape + (1,)), theta), axis=-1)
     return ft
 
 
 def soft_kvec(kv, theta):
-    """Get SO input features (k1 * l, k2 * l, k3 * l, o)."""
-    kv_shape = kv.shape  # e.g. (128, 128, 65, 3)
-    kv = kv.reshape(kv_shape + (1,))  # (128, 128, 65, 3, 1)
-
-    theta_l, theta_o = theta  # e.g. (8,), (6,)
-    theta_l = theta_l.reshape((1,) * len(kv_shape) + theta_l.shape)  # (1, 1, 1, 1, 8)
-    ft = kv * theta_l  # (128, 128, 65, 3, 8)
-    ft = ft.reshape(kv_shape[:-1] + (-1,))  # (128, 128, 65, 3*8)
-    theta_o = jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)  # (128, 128, 65, 6)
-    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 128, 65, 3*8+6)
+    """Get SO input features (k1, k2, k3, theta)."""
+    theta = jnp.broadcast_to(theta, kv.shape[:-1]+theta.shape)
+    ft = jnp.concatenate((kv, theta), axis=-1)
     return ft
