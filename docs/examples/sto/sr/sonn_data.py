@@ -8,10 +8,10 @@ from scipy.stats.qmc import Sobol
 from pmwd.sto.util import load_soparams
 from pmwd.sto.data import scale_Sobol, gen_cc
 from pmwd.sto.mlp import MLP
-from pmwd.sto.so import sotheta, soft_k, soft_kvec
+from pmwd.sto.so import sotheta, soft_k, soft_kvec, soft_names, soft_names_tex
 
 
-def sample_sonn_data(sidx, so_params, soft_i, soft_o, mesh_shape, m=8, n_steps=61,
+def sample_sonn_data(sidx, so_params, nnv, nnv_o, mesh_shape, m=8, n_steps=61,
                      fn=None):
     """Generate the data samples of SO NNs. Use the training sample of
     simulation setups. Use another Sobol to sample a and k."""
@@ -39,12 +39,25 @@ def sample_sonn_data(sidx, so_params, soft_i, soft_o, mesh_shape, m=8, n_steps=6
     norm_k_s['f'] = 10**(log_kn_min + (log_kn_max - log_kn_min) * ak[x][:, :, 1])
     norm_k_s['g'] = 10**(log_kn_min + (log_kn_max - log_kn_min) * ak[x][:, :, 1:])
 
-    data = {'f_X': [], 'g_X': [], 'g_X_us': []}
-    if soft_o is not None:
-        for n, s in soft_o.items():
+    soft_i = 'soft_' + nnv
+    data = {'Note': f'NN input features are {nnv}.',
+            'f_X_'+nnv: [], 'g_X_'+nnv: [], 'g_X_'+nnv+'_us': []}
+    if nnv_o is not None:
+        for n in nnv_o:
             data['f_X_'+n] = []
             data['g_X_'+n] = []
             data['g_X_'+n+'_us'] = []
+
+    # feature names
+    for x in ['f', 'g']:
+        data[f'{x}_{nnv}_names'] = soft_names(soft_i, x)
+        data[f'{x}_{nnv}_names_tex'] = soft_names_tex(soft_i, x)
+
+        if nnv_o is not None:
+            for n in nnv_o:
+                s = 'soft_' + n
+                data[f'{x}_{n}_names'] = soft_names(s, x)
+                data[f'{x}_{n}_names_tex'] = soft_names_tex(s, x)
 
     # construct X
     print('constructing X')
@@ -56,14 +69,15 @@ def sample_sonn_data(sidx, so_params, soft_i, soft_o, mesh_shape, m=8, n_steps=6
             for a, k in zip(a_s[x][i], k_s):
                 theta = sotheta(cosmo, conf, a)
                 if x == 'f':
-                    data['f_X'].append(soft_k(soft_i, k, theta))
+                    data['f_X_'+nnv].append(soft_k(soft_i, k, theta))
                 if x == 'g':
                     k_sort = jnp.sort(k)  # sort for permutation symmetry
-                    data['g_X'].append(soft_kvec(soft_i, k_sort, theta))
-                    data['g_X_us'].append(soft_kvec(soft_i, k, theta))
+                    data['g_X_'+nnv].append(soft_kvec(soft_i, k_sort, theta))
+                    data['g_X_'+nnv+'_us'].append(soft_kvec(soft_i, k, theta))
 
-                if soft_o is not None:
-                    for n, s in soft_o.items():
+                if nnv_o is not None:
+                    for n in nnv_o:
+                        s = 'soft_' + n
                         theta = sotheta(cosmo, conf, a, soft_i=s)
                         if x == 'f':
                             data['f_X_'+n].append(soft_k(s, k, theta))
@@ -71,11 +85,11 @@ def sample_sonn_data(sidx, so_params, soft_i, soft_o, mesh_shape, m=8, n_steps=6
                             data['g_X_'+n].append(soft_kvec(s, k_sort, theta))
                             data['g_X_'+n+'_us'].append(soft_kvec(s, k, theta))
 
-    data['f_X'] = jnp.array(data['f_X'])
-    data['g_X'] = jnp.array(data['g_X'])
-    data['g_X_us'] = np.array(data['g_X_us'])
-    if soft_o is not None:
-        for n, s in soft_o.items():
+    data['f_X_'+nnv] = jnp.array(data['f_X_'+nnv])
+    data['g_X_'+nnv] = jnp.array(data['g_X_'+nnv])
+    data['g_X_'+nnv+'_us'] = np.array(data['g_X_'+nnv+'_us'])
+    if nnv_o is not None:
+        for n in nnv_o:
             data['f_X_'+n] = jnp.array(data['f_X_'+n])
             data['g_X_'+n] = jnp.array(data['g_X_'+n])
             data['g_X_'+n+'_us'] = jnp.array(data['g_X_'+n+'_us'])
@@ -85,7 +99,7 @@ def sample_sonn_data(sidx, so_params, soft_i, soft_o, mesh_shape, m=8, n_steps=6
     so_params, n_input, so_nodes = load_soparams(so_params)
     for x, nidx in zip(['f', 'g'], [1, 0]):
         nn = MLP(features=so_nodes[nidx])
-        data[f'{x}_y'] = nn.apply(so_params[nidx], data[f'{x}_X']).ravel()
+        data[f'{x}_y'] = nn.apply(so_params[nidx], data[f'{x}_X_{nnv}']).ravel()
 
     # save the data to file
     if fn is not None:
@@ -100,10 +114,10 @@ if __name__ == "__main__":
     epoch = 3000
     exp = 'so-1'
     mesh_shape = 1
-    soft_i = 'soft_v2'  # the feature set of NN
-    soft_o = {'v1': 'soft_v1'}  # other features to use/add for SR
+    nnv = 'v2'  # the feature set of NN
+    nnv_o = ['v1', 'v3']  # other features to use/add for SR
 
     fn = f'nn_data/j{jobid}_e{epoch}.npz'
     so_params = f'../experiments/{exp}/params/{jobid}/e{epoch:03d}.pickle'
 
-    data = sample_sonn_data(np.arange(64), so_params, soft_i, soft_o, mesh_shape, fn=fn)
+    data = sample_sonn_data(np.arange(64), so_params, nnv, nnv_o, mesh_shape, fn=fn)
