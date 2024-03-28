@@ -1,16 +1,29 @@
 """SO input features consists of simple Sobol parameters, a and k etc."""
 import jax.numpy as jnp
 
+from pmwd.boltzmann import growth
+
+def nonlinear_scales(cosmo, conf, a):
+    D = growth(a, cosmo, conf)
+    # TopHat variance, var is decreasing with R
+    # but for jnp.interp, xp must be increasing, thus the reverse [::-1]
+    R_TH = jnp.interp(1 / D**2, cosmo.varlin[::-1], conf.varlin_R[::-1])
+    return R_TH
+
 
 def sotheta(cosmo, conf, a):
     """Physical quantities to be used in SO input features along with k."""
+    R_TH = nonlinear_scales(cosmo, conf, a)
+
     # quantities to be multiplied with k
     theta_l = jnp.asarray([
-        conf.cell_size,  # k * cell size, important
+        conf.cell_size,  # <-> k / k_Nyquist, same for different box sizes
+        R_TH,  # k scale vs the nonlinear scale
     ])
 
+    # other quantities
     theta_o = jnp.asarray([
-        conf.ptcl_spacing,  # <-> box size, to indicate non linearity
+        R_TH / conf.cell_size,  # nonlinearity vs mesh approximation
         a,
         cosmo.A_s_1e9,
         cosmo.n_s,
@@ -20,13 +33,14 @@ def sotheta(cosmo, conf, a):
         cosmo.h,
         conf.softening_length / conf.ptcl_spacing,  # i.e. softening ratio
     ])
+
     return (theta_l, theta_o)
 
 
 def soft_names(net):
     # str names of input features of the SO neural nets
     # currently hardcoded, should be updated along with functions above
-    theta_l = ['cell size']
+    theta_l = ['l_c', 'R_TH']
     theta_l_k = []
     if net == 'f':
         for v in theta_l:
@@ -36,15 +50,15 @@ def soft_names(net):
             for v in theta_l:
                 theta_l_k.append(f'k_{n} * {v}')
 
-    theta_o = ['ptcl spacing', 'a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b',
-               'Omega_k', 'h', 'softening ratio']
+    theta_o = ['R_TH / l_c', 'a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b',
+               'Omega_k', 'h', 'l_s / l_p', ]
 
     return theta_l_k + theta_o
 
 
 def soft_names_tex(net):
     # soft_names in latex math expressions
-    theta_l = ['l_c']
+    theta_l = ['l_c', 'R_{\\rm TH}']
     theta_l_k = []
     if net == 'f':
         for v in theta_l:
@@ -54,8 +68,8 @@ def soft_names_tex(net):
             for v in theta_l:
                 theta_l_k.append(f'k_{n} {v}')
 
-    theta_o = ['l_p', 'a', 'A_s', 'n_s', '\\Omega_m', '\\Omega_b',
-               '\\Omega_k', 'h', 'l_s/l_p']
+    theta_o = ['R_{\\rm TH} / l_c', 'a', 'A_s', 'n_s', '\\Omega_m', '\\Omega_b',
+               '\\Omega_k', 'h', 'l_s / l_p']
 
     return theta_l_k + theta_o
 
