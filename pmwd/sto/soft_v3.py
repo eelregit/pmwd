@@ -21,8 +21,8 @@ def sotheta(cosmo, conf, a):
 def soft_names(net):
     # str names of input features of the SO neural nets
     # currently hardcoded, should be updated along with functions above
-    theta = ['cell size', 'a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b',
-             'Omega_k', 'h', 'softening length']
+    theta = ['l_c', 'a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b',
+             'Omega_k', 'h', 'l_s']
     if net == 'f':
         theta = ['k'] + theta
     if net == 'g':
