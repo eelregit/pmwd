@@ -80,15 +80,15 @@ def soft_names(net):
     # currently hardcoded, should be updated along with functions above
     theta_l = ['R_P', 'R_TH', 'R_G', 'R_d',
                'dR_P', 'dR_TH', 'dR_G', 'dR_d']
-    theta_l += ['ptcl spacing', 'cell size', 'softening length']
+    theta_l += ['l_p', 'l_c', 'l_s']
     theta_l_k = []
     if net == 'f':
         for v in theta_l:
-            theta_l_k.append(f'k * {v}')
+            theta_l_k.append(f'k{v}')
     if net == 'g':
         for n in range(3):
             for v in theta_l:
-                theta_l_k.append(f'k_{n} * {v}')
+                theta_l_k.append(f'k_{n}{v}')
 
     theta_o = ['G1', 'G2', 'dlnG1', 'dlnG2', 'Omega_m_a', 'dlnH', 'Dlna']
 
