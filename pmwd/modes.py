@@ -8,7 +8,7 @@ from pmwd.boltzmann import linear_power
 from pmwd.pm_util import fftfreq, fftfwd, fftinv
 
 
-#TODO follow pmesh to fill the modes in Fourier space
+# TODO follow pmesh to fill the modes in Fourier space
 @partial(jit, static_argnames=('real', 'unit_abs'))
 def white_noise(seed, conf, real=False, unit_abs=False):
     """White noise Fourier or real modes.
@@ -33,7 +33,8 @@ def white_noise(seed, conf, real=False, unit_abs=False):
     key = random.PRNGKey(seed)
 
     # sample linear modes on Lagrangian particle grid
-    modes = random.normal(key, shape=conf.ptcl_grid_shape, dtype=conf.float_dtype)
+    modes = random.normal(key, shape=conf.ptcl_grid_shape,
+                          dtype=conf.float_dtype)
 
     if real and not unit_abs:
         return modes
@@ -53,20 +54,23 @@ def white_noise(seed, conf, real=False, unit_abs=False):
 def _safe_sqrt(x):
     return jnp.sqrt(x)
 
+
 def _safe_sqrt_fwd(x):
     y = _safe_sqrt(x)
     return y, y
+
 
 def _safe_sqrt_bwd(y, y_cot):
     x_cot = jnp.where(y != 0, 0.5 / y * y_cot, 0)
     return (x_cot,)
 
+
 _safe_sqrt.defvjp(_safe_sqrt_fwd, _safe_sqrt_bwd)
 
 
-@partial(jit, static_argnums=4)
-@partial(checkpoint, static_argnums=4)
-def linear_modes(modes, cosmo, conf, a=None, real=False):
+@jit
+@checkpoint
+def linear_modes(modes, cosmo, conf, a=None):
     """Linear matter overdensity Fourier or real modes.
 
     Parameters
@@ -94,7 +98,8 @@ def linear_modes(modes, cosmo, conf, a=None, real=False):
         \delta(\mathbf{k}) = \sqrt{V P_\mathrm{lin}(k)} \omega(\mathbf{k})
 
     """
-    kvec = fftfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
+    kvec = fftfreq(conf.ptcl_grid_shape, conf.ptcl_spacing,
+                   dtype=conf.float_dtype)
     k = jnp.sqrt(sum(k**2 for k in kvec))
 
     if a is not None:
@@ -107,7 +112,8 @@ def linear_modes(modes, cosmo, conf, a=None, real=False):
 
     modes *= _safe_sqrt(Plin * conf.box_vol)
 
-    if real:
-        modes = fftinv(modes, shape=conf.ptcl_grid_shape, norm=conf.ptcl_spacing)
+    if jnp.isrealobj(modes):
+        modes = fftinv(modes, shape=conf.ptcl_grid_shape,
+                       norm=conf.ptcl_spacing)
 
     return modes
