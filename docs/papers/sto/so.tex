@@ -150,33 +150,54 @@ other cosmological PM simulation code.
 
 % AI for science and cosmology
 Rapid advances in artificial intelligence (AI) and more specifically
-deep learning (DL) have provided powerful tools that are revolutionizing
+deep learning have provided powerful tools that are revolutionizing
 scientific research across disciplines.
-AI for science consists of not only the state-of-art deep neural
-networks, but also more fundamental computational tools and hardwares
-like automatic differentiation (AD) and GPUs.
-One particular application is the numerical simulation of the Universe.
+AI for science benefits from not only the state-of-art architectures of
+deep neural networks (NNs), but also more fundamental computational
+tools and hardwares like automatic differentiation (AD) and GPUs.
+One of the very promising areas of AI in Cosmology is the numerical
+simulation of the Universe.
+
+% combination of differentiable simulations, NN, and SR
+NNs are flexible and efficient universal function approximators
+\citep{Hornik1989}, which can be used to learn physical processes
+when embedded in numerical simulations.
+NNs are typically trained with gradient based optimizers, which requires
+the simulations to be differentiable.
 
 % a brief review of (differentiable) cosmological simulations
-BORG, ELUCID, and BORG-PM \citep{BORG, ELUCID, BORG-PM}
-\texttt{FastPM} and \texttt{FlowPM} \citep{FastPM, vmad, SeljakEtAl2017, FlowPM}
-
+% BORG, ELUCID, and BORG-PM \citep{BORG, ELUCID, BORG-PM}
+% \texttt{FastPM} and \texttt{FlowPM} \citep{FastPM, vmad, SeljakEtAl2017, FlowPM}
 
 % introduce PM and its limitation on small scales
-The particle-mesh (PM) method solves the Poisson equation by scattering
-the particles onto a mesh, on which FFT is performed and the Laplacian
-operator reduces to simple multiplication of wavenumbers in Fourier
-space.
-Although being computationally efficient, the PM method is mainly
-limited by its resolution on small scales, i.e. scales around the mesh
+The particle-mesh (PM) method is a fundamental technique for
+cosmological $N$-body simulations.
+PM solves the Poisson equation by scattering the particles onto an
+auxiliary mesh, on which the fast Fourier transform (FFT) is performed
+and the Laplacian operator reduces to a simple multiplication of
+wavenumbers in Fourier space.
+The cloud-in-cell (CIC) scheme \citep{HockneyEastwood1988} has been
+widely used to compute the mass fractions of a particle at $\vx'$
+scattered to a nearby mesh grid point at $\vx$
+%
+\begin{equation}
+  W(\vx, \vx') = \prod_{i=1}^3
+    \max \Bigl( 1 - \frac{|x_i-x'_i|}{l_c}, 0 \Bigr),
+  \label{cic}
+  \end{equation}
+%
+where $l_c$ is the mesh cell size.
+The gravitational forces on the mesh points are then grathered to form
+the interpolated force for each particle, with the same weights as in
+the scattering process.
+Other scattering schemes include the nearest grid point (NGP) and
+triangle shaped cloud (TSC) etc.
+Although being computationally efficient, the PM method is limited by
+its resolution on small scales, i.e. scales around and below the mesh
 cell size.
-This is due to the loss of information during the scattering process of
-continuously distributed particles onto the discrete mesh.
-We use the cloud-in-cell (CIC) scheme \citep{HockneyEastwood1988} to
-compute the mass fractions of a particle scattered to nearby grid
-points.
-Other schemes include the nearest grid point (NGP) and triangle shaped
-cloud (TSC) etc.
+This is due to the loss of information during the scattering and
+gathering process between the continuously distributed particles and the
+discrete mesh.
 
 % motivation of this work
 Optimizing the accuracy of fast and differentiable simulations is
@@ -190,11 +211,9 @@ The differentiable cosmological simulation with adjoint method
 \citep{Li2022b} lay the foundation of the gradient-based optimization
 discussed in this work.
 Within this fully differentiable framework, we sharpen the gravitational
-force by embedding neural networks (NNs) in the Poisson equation and
-train them for the spatial optimization (SO) of the simulation
-resolution on small scales.
-For better interpretability, we further fit the trained NNs using
-symbolic regression (SR).
+force by embedding NNs in the Poisson equation and train them for the
+spatial optimization (SO) of the simulation resolution on small scales.
+We further interpret the trained NNs using symbolic regression (SR).
 
 
 
@@ -216,11 +235,11 @@ The dynamics of the particles is governed by the Poisson equation
 where $\Omegam$ is the matter fraction today, $H_0$ is the Hubble
 constant, and the two fields $\varphi(\vx)$ and $\delta(\vx)$ are the
 gravitational potential and matter density fluctuation respectively.
-In Fourier space, the gravitational force field $- \vnabla \varphi$
+In Fourier space, the gravitational force field $\vF = - \vnabla \varphi$
 follows
 %
 \begin{equation}
-\left[- \vnabla \varphi\right]_\vk = - i \vk \varphi(\vk) =
+\vF(\vk) = - i \vk \varphi(\vk) =
                   i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
 \label{force}
 \end{equation}
@@ -229,23 +248,25 @@ which then gives the force field in configuration space after an inverse
 Fourier transform.
 
 In the PM simulation, the density field $\delta(\vx)$ is estimated by
-scattering the particles onto the mesh, and then the force on each
-particle is estimated by gathering the force field from the mesh.
+scattering the particles onto the mesh with e.g. the CIC scheme in
+\eqref{cic}.
+Then the force on each particle is estimated by gathering the force
+field from the mesh.
 Therefore, the accuracy of the gravitational force estimated for each
 particle depends on the resolution of the mesh.
 To improve the accuracy of the PM solver, we introduce SO force
-sharpening by modifying the force equation \eqref{force} through
+sharpening by modifying the force equation \eqref{force} to
 %
 \begin{equation}
-\frac{i k_i}{k^2} \to \frac{i k_i}{k^2}
-  f(k_i; \vvartheta) g(k_1, k_2, k_3; \vvartheta),
+F(\vk)_i = i \frac32 \Omegam H_0^2 \,\frac{k_i}{k^2}\,
+                    f(k_i; \vvartheta) g(\vk; \vvartheta) \delta(\vk),
 \end{equation}
 %
-where $f$ and $g$ are NNs, each approximating a nonlinear function of
-the wavevector components and all possible relevant features
-$\vvartheta$.
-The subscript $i\in\{1,2,3\}$ denotes the 3 principal axes of the
-simulation box.
+where $f$ and $g$ are nonlinear functions of the wavevector components
+and all possible relevant features $\vvartheta$, which are approximated
+with NNs.
+$k_i$ is a component of $\vk$, with $i\in\{1,2,3\}$ denoting the 3
+principal axes of the simulation box.
 
 Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is however
 broken by the PM solver to the O\textsubscript{h} discrete symmetry with
