@@ -1,10 +1,13 @@
 """Multi-process SO training using jax pmap, one process contains one gpu."""
 import os
-os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+
 n_procs = int(os.getenv('SLURM_NTASKS'))
 procid = int(os.getenv('SLURM_PROCID'))
 n_tasks_per_node = int(os.getenv('SLURM_NTASKS_PER_NODE'))
 slurm_job_id = os.getenv('SLURM_JOB_ID')
+
+# setup the CUDA device binded to the proc
+os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES'] = str(procid % n_tasks_per_node)
 
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.95'
@@ -19,14 +22,12 @@ from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 import time
 import pickle
-import optax
 
 from pmwd.sto.train import train_epoch, loss_epoch
 from pmwd.sto.vis import track_figs
 from pmwd.sto.data import read_gsdata
 from pmwd.sto.post import pmwd_fwd
 from pmwd.sto.util import pv2ptcl, global_mean
-from pmwd.sto.hypars import lr_scheduler
 
 
 def printinfo(s, procid=procid, flush=False):
@@ -116,11 +117,10 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch, learning_rat
 
     # RNGs with fixed seeds
     # pmwd MC sampling
-    np_rng = np.random.default_rng(0)
-    # shuffle of data samples across epoch
-    np_rng_shuffle = np.random.default_rng(procid)
+    np_rng = np.random.default_rng(42)
 
-    skd_state = None
+    # rng for shuffling data samples across epoch
+    np_rng_shuffle = np.random.default_rng(42+procid)
 
     jax_device_sync()
     if procid == 0:
@@ -135,25 +135,21 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch, learning_rat
     loss_epoch_all = []  # to collect the loss of all epochs
     sobol_ids_epoch = sobol_ids.copy()
 
+    # training loop over epochs
     for epoch in range(0, n_epochs+1):
 
         # shuffle the data samples across epoch
         if shuffle_epoch:
             np_rng_shuffle.shuffle(sobol_ids_epoch)
 
-        # training for one epoch
         if epoch == 0:  # evaluate the loss before training, with init so_params
             loss_epoch_mean = loss_epoch(
                 procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_i,
                 so_params, loss_pars, verbose)
-        else:
+        else:  # training for one epoch
             loss_epoch_mean, so_params, opt_state = train_epoch(
                 procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_i,
                 so_params, opt_state, optimizer, loss_pars, verbose)
-
-            # learning rate scheduler
-            # learning_rate, skd_state = lr_scheduler(learning_rate, skd_state, loss_epoch_mean)
-            # optimizer = get_optimizer(learning_rate)
 
         # TODO test on test data
         # also distribute to multiple devices, evaluate and collect the loss
