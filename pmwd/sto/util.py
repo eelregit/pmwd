@@ -2,11 +2,11 @@ import jax
 import jax.numpy as jnp
 from jax.tree_util import tree_map, tree_flatten
 import pickle
-from pmwd.sto.mlp import mlp_size
 
 from pmwd.scatter import scatter
 from pmwd.spec_util import powspec
 from pmwd.particles import Particles
+from pmwd.sto.mlp import mlp_size
 
 
 def tree_stack(trees):
@@ -20,7 +20,7 @@ def tree_unstack(tree):
     return [treedef.unflatten(leaf) for leaf in zip(*leaves, strict=True)]
 
 
-def global_mean(tree):
+def tree_global_mean(tree):
     """Global average of a pytree x, i.e. for all leaves."""
     def global_mean_arr(x):
         x = jnp.expand_dims(x, axis=0)  # leading axis for pmap

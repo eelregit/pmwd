@@ -27,7 +27,7 @@ from pmwd.sto.train import train_epoch, loss_epoch
 from pmwd.sto.vis import track_figs
 from pmwd.sto.data import read_gsdata
 from pmwd.sto.post import pmwd_fwd
-from pmwd.sto.util import pv2ptcl, global_mean
+from pmwd.sto.util import pv2ptcl, tree_global_mean
 
 
 def printinfo(s, procid=procid, flush=False):
@@ -37,10 +37,10 @@ def printinfo(s, procid=procid, flush=False):
 
 def jax_device_sync(verbose=False):
     """Nothing but to sync all devices, with dummy global mean."""
-    x = global_mean(jnp.array(procid))
+    x = tree_global_mean(jnp.array(procid))
     assert round(2 * x + 1) == n_procs, 'something wrong with global mean'
     if verbose:
-        printinfo(f'# global devices: {len(jax.devices())}, device sync successful',
+        printinfo(f'# global devices: {len(jax.devices())}, sync successful',
                   flush=True)
 
 
@@ -67,33 +67,34 @@ def track(writer, epoch, scalars, check_sobols, check_snaps,
             writer.add_scalar(k, v, epoch)
 
     # check a few training sobols and snaps
-    for sidx in check_sobols:
-        # get target snap and sobol
-        tgts, a_snaps, sobol, snap_ids = (gsdata[sidx][k] for k in (
-                                          'pv', 'a_snaps', 'sobol', 'snap_ids'))
-        a_snaps = tuple(a_snaps[i] for i in check_snaps)
-        tgts = tuple(t[check_snaps] for t in tgts)
-        snap_ids = snap_ids[check_snaps]
+    # for sidx in check_sobols:
+    #     # get target snap and sobol
+    #     tgts, a_snaps, sobol, snap_ids = (gsdata[sidx][k] for k in (
+    #                                       'pv', 'a_snaps', 'sobol', 'snap_ids'))
+    #     a_snaps = tuple(a_snaps[i] for i in check_snaps)
+    #     tgts = tuple(t[check_snaps] for t in tgts)
+    #     snap_ids = snap_ids[check_snaps]
 
-        # run pmwd
-        obsvbl, cosmo, conf = pmwd_fwd(so_params, sidx, sobol, a_snaps,
-                                       mesh_shape, n_steps, so_type, so_nodes,
-                                       soft_i)
+    #     # run pmwd
+    #     obsvbl, cosmo, conf = pmwd_fwd(so_params, sidx, sobol, a_snaps,
+    #                                    mesh_shape, n_steps, so_type, so_nodes,
+    #                                    soft_i)
 
-        # compare
-        for i in range(len(a_snaps)):
-            ptcl = obsvbl['snaps'][i]
-            tgt = tuple(t[i] for t in tgts)
-            ptcl_t = pv2ptcl(*tgt, ptcl.pmid, ptcl.conf)
-            figs = track_figs(ptcl, ptcl_t, cosmo, conf, a_snaps[i])
-            for key, fig in figs.items():
-                writer.add_figure(f'{key}/sobol_{sidx}/snap_{snap_ids[i]}', fig, epoch)
-                fig.clf()
+    #     # compare
+    #     for i in range(len(a_snaps)):
+    #         ptcl = obsvbl['snaps'][i]
+    #         tgt = tuple(t[i] for t in tgts)
+    #         ptcl_t = pv2ptcl(*tgt, ptcl.pmid, ptcl.conf)
+    #         figs = track_figs(ptcl, ptcl_t, cosmo, conf, a_snaps[i])
+    #         for key, fig in figs.items():
+    #             writer.add_figure(f'{key}/sobol_{sidx}/snap_{snap_ids[i]}', fig, epoch)
+    #             fig.clf()
 
     # check the test sobols and snaps
 
 
 def prep_train(sobol_ids_global, snap_ids):
+    """Prepare for training, incl. data loading etc."""
     # check global devices
     jax_device_sync(verbose=True)
 
@@ -102,10 +103,12 @@ def prep_train(sobol_ids_global, snap_ids):
     sobol_ids = np.split(sobol_ids_global, n_procs)[procid]
 
     # load training data to CPU memory
-    printinfo(f'loading gadget-4 data, {len(sobol_ids)} sobol ids: {sobol_ids}', flush=True)
+    printinfo(f'loading gadget-4 data, {len(sobol_ids)} sobol ids: {sobol_ids}',
+              flush=True)
     tic = time.perf_counter()
     gsdata = read_gsdata('gs512', sobol_ids, snap_ids, 'sobol.txt')
-    printinfo(f'loading {len(sobol_ids)} sobols takes {(time.perf_counter() - tic)/60:.1f} mins',
+    toc = time.perf_counter()
+    printinfo(f'loading {len(sobol_ids)} sobols takes {(toc - tic)/60:.1f} mins',
               flush=True)
 
     return sobol_ids, gsdata
@@ -116,9 +119,8 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch, learning_rat
               loss_pars, ret=False, log_id=None, verbose=True):
 
     # RNGs with fixed seeds
-    # pmwd MC sampling
+    # rng for pmwd MC sampling
     np_rng = np.random.default_rng(42)
-
     # rng for shuffling data samples across epoch
     np_rng_shuffle = np.random.default_rng(42+procid)
 
@@ -132,7 +134,7 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch, learning_rat
             log_dir += f'_{log_id}'
         writer = SummaryWriter(log_dir=log_dir)
 
-    loss_epoch_all = []  # to collect the loss of all epochs
+    loss_epoch_list = []  # to collect the loss of all epochs
     sobol_ids_epoch = sobol_ids.copy()
 
     # training loop over epochs
@@ -172,15 +174,14 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch, learning_rat
             n_steps_track = 61
             track(writer, epoch, scalars, check_sobols, check_snaps, so_type,
                   so_nodes, soft_i, so_params, gsdata, mesh_shape_track, n_steps_track)
-            # printinfo('logged for tensorboard')
 
-        loss_epoch_all.append(loss_epoch_mean)
+        loss_epoch_list.append(loss_epoch_mean)
 
     if procid == 0:
         writer.close()
 
     if ret:
-        return loss_epoch_all
+        return loss_epoch_list
 
 
 if __name__ == "__main__":

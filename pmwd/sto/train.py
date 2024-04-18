@@ -5,9 +5,9 @@ from functools import partial
 import time
 
 from pmwd.nbody import nbody
-from pmwd.sto.data import gen_cc, gen_ic
+from pmwd.sto.ccic import gen_cc, gen_ic
 from pmwd.sto.loss import loss_func
-from pmwd.sto.util import global_mean
+from pmwd.sto.util import tree_global_mean
 
 
 def pmodel(ptcl_ic, so_params, cosmo, conf):
@@ -44,7 +44,7 @@ def train_step(tgts, so_params, pmwd_params, opt_params, loss_pars, loss_mesh_sh
                              loss_mesh_shape)
 
     # average over global devices
-    loss, grad = global_mean((loss, grad))
+    loss, grad = tree_global_mean((loss, grad))
 
     # optimize
     optimizer, opt_state = opt_params
@@ -52,7 +52,7 @@ def train_step(tgts, so_params, pmwd_params, opt_params, loss_pars, loss_mesh_sh
     so_params = optax.apply_updates(so_params, updates)
 
     # not necessary, but no harm
-    so_params = global_mean(so_params)
+    so_params = tree_global_mean(so_params)
 
     return so_params, loss, opt_state
 
@@ -61,7 +61,8 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_
                 so_params, opt_state, optimizer, loss_pars, verbose):
     loss_epoch = 0.  # the sum of loss of the whole epoch
 
-    tic = time.perf_counter()
+    if procid == 0:
+        tic = time.perf_counter()
     for step, sidx in enumerate(sobol_ids_epoch):
         tgts, a_snaps, sobol = (gsdata[sidx][k] for k in ('pv', 'a_snaps', 'sobol'))
         tgts = jax.device_put(tgts)  # could be asynchronous
@@ -69,7 +70,7 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_
         # mesh shape, [1, 2, 3, 4]
         # mesh_shape = np_rng.integers(1, 5)
         mesh_shape = 1
-        loss_mesh_shape = 1
+        loss_mesh_shape = 3
         loss_pars['grid_offset'] = 0
 
         # number of nbodytime steps
@@ -86,10 +87,10 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_
 
         # runtime print information
         if procid == 0 and verbose:
-            tt = time.perf_counter() - tic
+            toc = time.perf_counter()
+            print((f'{toc - tic:.0f} s, {epoch}, {sidx:>3d}, {mesh_shape:>3d}, '
+                   + f'{n_steps:>4d}, {loss:12.3e}'), flush=True)
             tic = time.perf_counter()
-            print((f'{tt:.0f} s, {epoch}, {sidx:>3d}, {mesh_shape:>3d}, ' +
-                   f'{n_steps:>4d}, {loss:12.3e}'), flush=True)
 
     loss_epoch_mean = loss_epoch / len(gsdata)
 
@@ -109,7 +110,7 @@ def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_i
         # mesh shape, [1, 2, 3, 4]
         # mesh_shape = np_rng.integers(1, 5)
         mesh_shape = 1
-        loss_mesh_shape = 1
+        loss_mesh_shape = 3
         loss_pars['grid_offset'] = 0
 
         # number of nbody time steps
@@ -120,7 +121,7 @@ def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_i
 
         ptcl_ic, cosmo, conf = init_pmwd(pmwd_params)
         loss = obj(tgts, ptcl_ic, so_params, cosmo, conf, loss_pars, loss_mesh_shape)
-        loss = global_mean(loss)
+        loss = tree_global_mean(loss)
         loss_epoch += float(loss)
 
         # runtime print information

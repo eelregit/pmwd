@@ -3,7 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-from pmwd.sto.data import scale_Sobol, gen_sobol
+from pmwd.sto.sample import scale_Sobol, gen_sobol
 
 
 def plt_proj(filename, max_rows=None, max_cols=None):
