@@ -45,6 +45,7 @@ def jax_device_sync(verbose=False):
 
 
 def checkpoint(epoch, so_params, opt_state, lr, log_id=None, verbose=True):
+    """Checkpoint the model parameters and optimizer state."""
     dic = {
             'so_params': so_params,
             'opt_state': opt_state,
@@ -62,6 +63,7 @@ def checkpoint(epoch, so_params, opt_state, lr, log_id=None, verbose=True):
 
 def track(writer, epoch, scalars, check_sobols, check_snaps,
           so_type, so_nodes, soft_i, so_params, gsdata, mesh_shape, n_steps):
+    """Track the training with tensorboard."""
     if scalars is not None:
         for k, v in scalars.items():
             writer.add_scalar(k, v, epoch)
@@ -146,12 +148,12 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch, learning_rat
 
         if epoch == 0:  # evaluate the loss before training, with init so_params
             loss_epoch_mean = loss_epoch(
-                procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_i,
-                so_params, loss_pars, verbose)
+                procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes,
+                soft_i, so_params, loss_pars, verbose)
         else:  # training for one epoch
             loss_epoch_mean, so_params, opt_state = train_epoch(
-                procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_i,
-                so_params, opt_state, optimizer, loss_pars, verbose)
+                procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes,
+                soft_i, so_params, opt_state, optimizer, loss_pars, verbose)
 
         # TODO test on test data
         # also distribute to multiple devices, evaluate and collect the loss

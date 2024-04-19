@@ -73,7 +73,7 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, so_type, so_nodes, soft_
         loss_mesh_shape = 3
         loss_pars['grid_offset'] = 0
 
-        # number of nbodytime steps
+        # number of nbody time steps
         n_steps = 61
 
         pmwd_params = (a_snaps, sidx, sobol, mesh_shape, n_steps, so_type,
