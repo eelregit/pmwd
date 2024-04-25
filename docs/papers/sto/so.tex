@@ -97,7 +97,7 @@ Particle-Mesh Simulation
 
 
 \author[0000-0002-9300-2632]{\normalsize Yucheng Zhang}
-\affiliation{Peng Cheng Laboratory, Shenzhen, Guangdong 518066, China}
+\affiliation{Peng Cheng Laboratory, Shenzhen, Guangdong 518000, China}
 \affiliation{Center for Cosmology and Particle Physics, New York
 University, New York, New York 10003, USA}
 
@@ -115,6 +115,13 @@ M\"unchen, Germany}
 \author[0000-0003-0745-9431]{\normalsize Libin Lu}
 \affiliation{Center for Computational Mathematics, Flatiron Institute,
 New York, New York 10010, USA}
+
+% \author{\normalsize Heung-Yeung Shum}
+% \affiliation{International Digital Economy Academy, Shenzhen, Guangdong
+% 518000, China}
+% \affiliation{Tsinghua University, Beijing 100084, China}
+% \affiliation{The Hong Kong University of Science and Technology,
+% Hong Kong 999077, China}
 
 
 \shorttitle{Optimized Cosmological Simulation}
@@ -145,6 +152,7 @@ other cosmological PM simulation code.
 % Main text: up to 3500 words: introduction + results + discussion
 \vspace{1em}
 \section{Introduction}
+\label{sec:intro}
 % without heading
 
 % AI for science and cosmology
@@ -154,7 +162,7 @@ scientific research across disciplines.
 AI for science benefits from not only the state-of-art architectures of
 deep neural networks (NNs), but also more fundamental computational
 tools and hardwares like automatic differentiation (AD) and GPUs.
-One of the very promising areas of AI in Cosmology is the numerical
+One of the very promising areas of AI in cosmology is the numerical
 simulation of the Universe.
 
 % a brief review of (differentiable) cosmological simulations
@@ -162,8 +170,8 @@ simulation of the Universe.
 % \texttt{FastPM} and \texttt{FlowPM} \citep{FastPM, vmad, SeljakEtAl2017, FlowPM}
 
 Cosmological $N$-body simulations evolve dark matter particles under the
-gravitational interaction.
-The dynamics of the dark matter is governed by the Poisson equation
+gravitational interaction, which at the field level is described by the
+Poisson equation
 %
 \begin{equation}
   \nabla^2 \varphi(\vx) = \frac32 \Omegam H_0^2 \delta(\vx),
@@ -176,19 +184,20 @@ In Fourier space, the gravitational force field $\vF = - \vnabla
 \varphi$ follows
 %
 \begin{equation}
-\vF(\vk) = - i \vk \varphi(\vk) =
-                  i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
+\vF(\vk) = i \frac32 \Omegam H_0^2 \,\frac{\vk}{k^2} \delta(\vk),
 \label{force}
 \end{equation}
 %
-where the Laplacian operator reduces to simple multiplications.
+where the Laplacian operator reduces to simple multiplications of the
+wavevectors.
 The force field in configuration space $\vF(\vx)$ can then be recovered
-with an inverse Fourier transform.
+with an inverse Fourier transform of $\vF(\vk)$.
 The particle-mesh (PM) method is a fundamental and efficient approach to
-solving the Poisson equation given numerous particles.
-In order to use the fast Fourier transform (FFT), PM estimates the
-matter density field on a regular spatial grid by scattering the
-particles onto an auxiliary mesh.
+solving the Poisson equation in the $N$-body simulation.
+In order to perform the transformation between configuration and Fourier
+spaces efficiently using the fast Fourier transform (FFT), PM estimates
+the matter density field on a regular grid by scattering the particles
+onto an auxiliary mesh.
 The cloud-in-cell (CIC), or trilinear, interpolation scheme
 \citep{HockneyEastwood1988} has been widely used to compute the mass
 fractions of a particle at $\vx'$ scattered to a nearby mesh point
@@ -203,35 +212,36 @@ at $\vx$
 where $l_c$ is the mesh cell size.
 Other scattering schemes include the nearest grid point (NGP) and
 triangle shaped cloud (TSC) etc.
-The gravitational forces on the mesh points are computed in the Fourier
-space and transformed back to the configuration space, which are then
-grathered to form the interpolated force for each particle, with the
-same weights as in the scattering process.
+The gravitational force field is evaluated in the Fourier space and
+transformed back to the configuration space on the mesh points, which
+are then grathered to form the interpolated force for each particle,
+with the same weights as in the scattering process.
 Although being computationally efficient, the accuracy of the
 gravitational force estimated for each particle depends on the
 resolution of the mesh.
-The PM method is mainly limited by its resolution on small scales, i.e.
-scales around and below the mesh cell size.
-This is due to the loss of information during the scattering and
-gathering process between the continuously distributed particles and the
-regular discrete mesh.
+The PM method is mainly limited by its accuracy on small scales around
+and below the mesh cell size, due to the loss of information during the
+scattering and gathering process between the continuously distributed
+particles and the regular discrete mesh.
 
-In this work, we sharpen the gravitational force by embedding NNs in the
-force equation and train them for the spatial optimization (SO) of the
-PM simulation.
+In this work, we perform the spatial optimization (SO) of the PM
+simulation by sharpening the gravitational force.
+We embed NNs in the force equation \eqref{force} and train them towards
+the targets that are more accurate on small scales.
 NNs are flexible and efficient universal function approximators
-\citep{Hornik1989}, which can be used to learn physical processes
-when embedded in numerical simulations.
-NNs are typically trained with gradient based optimizers, which requires
-the simulations to be differentiable.
-The differentiable cosmological simulation with adjoint method
+\citep{Hornik1989}, which can be used to learn physical processes in
+numerical simulations.
+It is necessary for the simulations to be differentiable in order to
+train the NNs with gradient based optimizers \citep[e.g.][]{Adam}.
+We develop our training pipeline of the SO NNs in the framework of
+the differentiable cosmological simulation with adjoint method
 \citep{Li2022a} and the corresponding PM $N$-body library \pmwd\
-\citep{Li2022b} lay the foundation of the gradient-based optimization
-discussed in this work.
-We further interpret the trained NNs using symbolic regression (SR).
-Optimizing the accuracy of fast and differentiable simulations is
-crucial for their applications in, e.g. generation of mocks for
-cosmological surveys, simulation-based inference or field-level
+\citep{Li2022b}.
+To gain further physical insights into the PM method, we fit the trained
+NNs using symbolic regression (SR).
+Optimizing the accuracy of fast and differentiable simulations like
+\pmwd\ is crucial for their applications in, e.g. generation of mocks
+for cosmological surveys, simulation-based inference or field-level
 inference.
 
 
@@ -257,7 +267,6 @@ and all possible relevant features $\vvartheta$, which are approximated
 with NNs.
 $k_i$ is a component of $\vk$, with $i\in\{1,2,3\}$ denoting the 3
 principal axes of the simulation box.
-
 Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is however
 broken by the PM solver to the O\textsubscript{h} discrete symmetry with
 48 elements involving permutations and reversals of the 3 principal axes
@@ -272,6 +281,27 @@ An even and real kernel in configuration space is also even in Fourier
 space.
 We take the absolute value of the wavevectors for the evenness, and sort
 the 3 wavevector compontents to achieve the permutation equivariance.
+
+For both the $f$ and $g$ spatial optimization NNs (SONNs), their input
+features consist of tabular data, therefore we adopt multilayer
+perceptrons (MLPs, i.e. NNs with fully connected layers) to learn the
+nonlinear functions.
+Both $f$ and $g$ networks have $XXX$ hidden layers with $XXX\times
+n_{\rm input}$ nodes for each layer, where $n_{\rm input}$ is the size
+of the input layer, which is [...] and [...] for $f$ and $g$
+respectively.
+The rectified linear unit (ReLU) activation function is used for hidden
+layers.
+We further apply the exponential function to the output as a regulator
+for positive output.
+Being embedded in the differentiable simulation library \pmwd, the NNs
+can be trained using gradient-based optimization methods as in usual
+deep learning tasks.
+The parameters of the NNs, which enter the force evaluation in every
+time integration step, can be treated just the same as other
+cosmological parameters.
+The objective gradients are accumulated, based on which the parameters
+are then optimized.
 
 
 \subsection{Target Simulation and Data}
@@ -326,7 +356,7 @@ the 3 wavevector compontents to achieve the permutation equivariance.
   \end{table*}
 
 Our target data samples are generated with the \GADGET\ simulation code
-\citep{GADGET-4}.
+\citep{GADGET-4}, configured with high force accuracy settings.
 We run 512 \GADGET\ simulations that cover a wide range of
 configurations and cosmological parameters, as listed in
 \autoref{tab:param}.
@@ -345,8 +375,8 @@ different simulations.
 }
 The curvature $\OmegaK$ is related to the separate universe simulation
 \citep{LiEtAl2014, WagnerEtAl2015}.
-\YZ{We refer to this training dataset of 512 \GADGET\ simulations
-sampled with Sobol sequence as \GSDATA.}
+We refer to this training dataset of 512 \GADGET\ simulations
+sampled with Sobol sequence as \GSDATA.
 On average each \GADGET\ simulation takes roughly 2K CPU hours to run,
 and the generation of the whole \GSDATA\ dataset consumes 1M CPU hours.
 
@@ -364,60 +394,20 @@ time variable, in a follow-up work on the temporal optimization.
 }
 
 
-\subsection{Spatial Optimization Neural Networks}
+\subsection{Optimized Dark Matter Density Fields}
 
 \begin{figure*}
   \centering
-  \includegraphics[width=.48\columnwidth]{net_f_a1_j3177874_e3000.pdf}
-  \includegraphics[width=.48\columnwidth]{net_g_a1_j3177874_e3000.pdf}
-  \caption{$f(k_i; \vvartheta)$ and $g(k_1, k_2, k_3; \vvartheta)$
-  functions. The solid line and shaded region indicate the median and
-  the [16, 84] percentiles of the 64 sampled configurations and
-  cosmological parameters. $a=1$,
-  mesh shape=1}
-  \label{fig:func}
+  \includegraphics[width=.98\columnwidth]{slab_s0_snap120_3177874_e3000.pdf}
+  \caption{Projected dark matter density fields of \GADGET, original PM,
+  and optimized PM-SONN.
+  The examples here are shown for the 0th data point in our samples of
+  configurations and cosmological parameters.
+  This corresponds to an overall simulation box size of 79 Mpc$/h$.
+  We show a zoom-in view with window length XXX Mpc$/h$, and a projected
+  slab thickness of XXX Mpc$/h$.}
+  \label{fig:denslab}
 \end{figure*}
-
-For both the $f$ and $g$ spatial optimization NNs (SONNs), the input
-features consist of tabular data, therefore we adopt multilayer
-perceptron (MLP, i.e. NN with fully connected layers) structures to
-learn the nonlinear functions.
-Both $f$ and $g$ networks have $XXX$ hidden layers with $XXX\times n_{\rm
-input}$ nodes for each layer, where $n_{\rm input}$ is the size of the
-input layer, which is [...] and [...] for $f$ and $g$ respectively.
-The rectified linear unit (ReLU) activation function is used for hidden
-layers.
-We further apply the exponential function to the output as a regulator
-for positive output.
-Being embedded in the differentiable simulation library \pmwd, the NNs
-can be trained using gradient-based optimization methods as in usual
-deep learning tasks.
-The parameters of the NNs, which enter the force evaluation in every
-time integration step, can be treated just the same as other
-cosmological parameters.
-The objective gradients are accumulated, based on which the parameters
-are then optimized.
-
-For $g(k_1,k_2,k_3;\vvartheta)$, which is permutationally symmetric
-about $(k_1, k_2, k_3)$, we show it as a function of the wavevector
-along axis, face, and body diagonal directions.
-
-
-\subsection{Symbolic Expressions}
-
-To make the SO more interpretable and applicable to other simulations,
-we fit the trained NNs with SR for analytic expressions of the $f(k_i;
-\vvartheta)$ and $g(k_1, k_2, k_3; \vvartheta)$ functions.
-
-The data for SR fitting is generated from the trained NNs, while the
-input features for SR could be different from those of the NNs.
-Based on the NN input features, we could further design other features
-for SR fitting.
-
-
-
-
-\subsection{Dark Matter Density Fields}
 
 \begin{figure*}
   \centering
@@ -440,9 +430,17 @@ for SR fitting.
   \label{fig:tfcc}
 \end{figure*}
 
-Improvements of SO on the dark matter density fields are the first
-things to check.
-We construct these fields by scattering the particles onto a mesh.
+As discussed in \autoref{sec:intro}, our main motivation on performing
+SO of the PM method is to improve its accuracy on simulating dark matter
+distribution on small scales.
+
+The effect of SO can be visually shown by looking directly at the
+density field (\autoref{fig:denslab}) on small scales.
+We construct the dark matter density fields by scattering the particles
+onto another mesh.
+Compared to orginal PM, optimized PM with SONN is more similar to
+\GADGET\ with sharper big halos and more small-scale structures.
+
 To compare two fields $\hat f$ and $f$, we introduce for each mode the
 transfer function (TF), which is defined as the square root ratio of the
 auto power spectrum:
@@ -464,58 +462,65 @@ r(\vk) \triangleq
 %
 where the numerator is the real part of the cross power spectrum.
 The two fields are identical when both $T$ and $r$ are unity.
-The PM method is accurate on scales much larger than the mesh cell size,
-therefore we expect $T$ and $r$ to be very close to being unity both
-before and after the SO with force sharpening.
 
 In \autoref{fig:tfcc}, we show the results of TF and CC for both
 training and test data samples.
-To show different box sizes, we normalize the wavenumber by the Nyquist
-wavenumber $k_{\rm Nyquist} = \pi / l_p$ of the particle grid, where
-$l_p$ is the particle spacing.
 With discrete Fourier transform (DFT) on a regular grid of length $N_c$
 and cell size $l_c$, the range of sampled 1D discrete wavenumbers is
 limited by the fundamental and Nyquist values, i.e. $k_{\rm fund} =
 2\pi/(l_c N_c)$ and $k_{\rm Nyquist} = \pi/l_c$, where $l_c N_c$ is
 simply the box size.
+To show different box sizes, we normalize the wavenumber by the Nyquist
+value $k_{\rm Nyquist} = \pi / l_c$ of the force mesh grid, where
+$l_c$ is the cell size.
 Then the normzalized wavenumber $k/k_{\rm Nyquist}$ gives the same range
 $[2/N_c, 1]$ for different box sizes.
 For the 3D wavenumber $k=\sqrt{\sum_{i=1}^{3}k_i^2}$, the maximum
 normalized value is then $\sqrt{3}$.
+The original PM method is accurate on scales much larger than the mesh
+cell size, therefore $T$ and $r$ are already very close to one without
+the application of SONN.
 Compared to original PM, the TF of PM-SONN is improved to be consistent
 with \GADGET\ within 10\% up to the particle grid Nyquist wavenumber.
 
 
+\subsection{Optimized Dark Matter Halo Distributions}
+
+
+\subsection{Neural Networks and Symbolic Expressions}
 
 \begin{figure*}
   \centering
-  \includegraphics[width=.98\columnwidth]{slab_s0_snap120_3177874_e3000.pdf}
-  \caption{Projected dark matter density fields of \GADGET, original PM,
-  and optimized PM-SONN.
-  The examples here are shown for the 0th data point in our samples of
-  configurations and cosmological parameters.
-  This corresponds to an overall simulation box size of 79 Mpc$/h$.
-  We show a zoom-in view with window length XXX Mpc$/h$, and a projected
-  slab thickness of XXX Mpc$/h$.}
-  \label{fig:denslab}
+  \includegraphics[width=.48\columnwidth]{net_f_a1_j3177874_e3000.pdf}
+  \includegraphics[width=.48\columnwidth]{net_g_a1_j3177874_e3000.pdf}
+  \caption{$f(k_i; \vvartheta)$ and $g(k_1, k_2, k_3; \vvartheta)$
+  functions. The solid line and shaded region indicate the median and
+  the [16, 84] percentiles of the 64 sampled configurations and
+  cosmological parameters. $a=1$,
+  mesh shape=1}
+  \label{fig:func}
 \end{figure*}
 
-The effect of force sharpening can also be visually shown by looking
-directly at the higher resolution of the density field
-(\autoref{fig:denslab}) on small scales.
-Compared to orginal PM, PM-SONN is more similar to \GADGET\ with sharper
-big halos and more small-scale structures.
+For $g(k_1,k_2,k_3;\vvartheta)$, which is permutationally symmetric
+about $(k_1, k_2, k_3)$, we show it as a function of the wavevector
+along axis, face, and body diagonal directions.
 
 
-\subsection{Dark Matter Halos}
+To make the SO more interpretable and applicable to other simulations,
+we fit the trained NNs with SR for analytic expressions of the $f(k_i;
+\vvartheta)$ and $g(k_1, k_2, k_3; \vvartheta)$ functions.
 
+The data for SR fitting is generated from the trained NNs, while the
+input features for SR could be different from those of the NNs.
+Based on the NN input features, we could further design other features
+for SR fitting.
 
 
 \subsection{Benchmarks}
 We compare the computational cost of \GADGET, original PM, PM-SONN, and
 PM-SOSR.
 In the generation of our training data, on average each \GADGET\
-simulation takes about 2K CPU hours.
+simulation takes about 2,000 CPU hours.
 
 
 The forward evaluation of the NNs is more computation and memory
@@ -621,7 +626,7 @@ AD and put into the adjoint equations as mentioned in
 
 
 \vspace{1em}
-\subsection{Configurations and Data Samples}
+\subsection{Training Data and Configurations}
 
 \begin{figure*}
   \centering
@@ -968,7 +973,7 @@ The Flatiron Institute is supported by the Simons Foundation.
 
 \vspace{1em}
 \textit{\large Data Availability:}
-We make the \GSDATA\ simulation data set public at ...
+We make the \GSDATA\ simulation dataset public at ...
 
 
 \vspace{1em}
