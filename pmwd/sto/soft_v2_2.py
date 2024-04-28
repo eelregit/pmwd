@@ -21,7 +21,7 @@ def sotheta(cosmo, conf, a):
         cosmo.n_s,
         cosmo.Omega_m,
         cosmo.Omega_b,
-        cosmo.Omega_k,
+        1 - cosmo.Omega_k,
         cosmo.h,
     ])
     if log_ft:
