@@ -4,7 +4,11 @@ from jax import jit, vmap, checkpoint
 from functools import partial
 
 from pmwd.sto.mlp import MLP
-from pmwd.sto import soft_v1, soft_v2, soft_v3, soft_v4, soft_v2_1
+from pmwd.sto import (
+    soft_v1,
+    soft_v2, soft_v2_1, soft_v2_2,
+    soft_v3,
+    soft_v4)
 
 
 def mod_soft_i(soft_i):
@@ -12,6 +16,7 @@ def mod_soft_i(soft_i):
         case 'soft_v1': soft_i = soft_v1
         case 'soft_v2': soft_i = soft_v2
         case 'soft_v2_1': soft_i = soft_v2_1
+        case 'soft_v2_2': soft_i = soft_v2_2
         case 'soft_v3': soft_i = soft_v3
         case 'soft_v4': soft_i = soft_v4
     return soft_i
