@@ -399,8 +399,9 @@ time variable, in a follow-up work on the temporal optimization.
 \begin{figure*}
   \centering
   \includegraphics[width=.98\columnwidth]{slab_s0_snap120_3177874_e3000.pdf}
-  \caption{Projected dark matter density fields of \GADGET, original PM,
-  and optimized PM-SONN.
+  \caption{Projected dark matter density fields of \GADGET\
+  (\textit{middle}), original PM (\textit{left}), and optimized PM-SONN
+  (\textit{right}).
   The examples here are shown for the 0th data point in our samples of
   configurations and cosmological parameters.
   This corresponds to an overall simulation box size of 79 Mpc$/h$.
@@ -514,6 +515,15 @@ The data for SR fitting is generated from the trained NNs, while the
 input features for SR could be different from those of the NNs.
 Based on the NN input features, we could further design other features
 for SR fitting.
+
+We design the input features of the NNs and SR in a way such that they
+could properly fit and interpolate given our wide coverage of the
+configurations and cosmological parameters.
+Given the difference between NNs and SR, we could have different input
+features for the two.
+When generating the data for SR with the trained NNs, we could reduce or
+add more features based on the existing features, with the output
+unchanged.
 
 
 \subsection{Benchmarks}
@@ -679,9 +689,9 @@ training data and the \pmwd\ model on GPUs.
 
 \begin{table}
   \centering
-  \caption{Possible features that can affect force sharpening.
-  All scales are then multiplied by the wavenumber $k$ to form dimensionless
-  factors.}
+  \caption{Possible features that can affect force sharpening, detailed
+  in \autoref{sec:features}. Scales could be multiplied by the
+  wavenumber $k$ to form dimensionless factors.}
   \label{tab:feat}
   \begin{tabular}{rl}
   \toprule
@@ -697,11 +707,11 @@ training data and the \pmwd\ model on GPUs.
   \cmidrule(lr){2-2}
   & $\d R / \d\lna$: time derivatives of the above \\
   \midrule
-  & particle spacing \\
+  & $l_p$: particle spacing \\
   \cmidrule(lr){2-2}
-  other scales & $l$: PM force mesh cell size \\
+  other scales & $l_c$: PM force mesh cell size \\
   \cmidrule(lr){2-2}
-  & softening length \\
+  & $l_s$: softening length \\
   \midrule
   & $G_m(a) \triangleq D_m(a) / a^m, m \in \{1, 2, \YL{3's?}\}$ \\
   \cmidrule(lr){2-2}
@@ -717,17 +727,16 @@ training data and the \pmwd\ model on GPUs.
   \end{tabular}
   \end{table}
 
-We design the input features of the NNs in a way such that they could
-properly fit and interpolate given our wide coverage of the
-configurations and cosmological parameters.
-
+In this section, we introduce a list of physical quantities that could
+be of possible importance in SO.
+These quantities are used in the input features for either the NNs or
+SR.
 Multiple scales and dimensionless factors could possibly affect force
-sharpening, which are denoted as $\vvartheta$ and enter the NNs of $f(k_i;
-\vvartheta)$ and $g(k_1, k_2, k_3; \vvartheta)$ as input features.
-A list of these features is summarized in \autoref{tab:feat}, and here we
-present relevant definations and more details.
+sharpening.
+A list of these features is summarized in \autoref{tab:feat}, and here
+we present relevant definitions and more details.
 
-Below are some definations related to the typical scales.
+Below are some definitions related to the typical scales.
 \begin{itemize}
 \item The root-mean-square (RMS) linear displacement is given by
 %
@@ -753,17 +762,18 @@ $\Delta_\linear^2(R_P^{-1}) \triangleq 1$.
 %
 where $W_\tophat(kR) = 3[\sin(kR) - kR\cos(kR)] / (kR)^3$ is the
 Fourier transform of the top-hat window.
-Then we have $R_\tophat$: $\sigma_\tophat^2(R_\tophat) \triangleq 1$.
-\item Likewise $\sigma_\gauss^2(R)$ is defined with a Gaussian window
-$W_\gauss(kR) = e^{-(kR)^2/2}$, and $R_\gauss$: $\sigma_\gauss^2(R_\gauss)
+Then we have $R_\tophat$ defined through $\sigma_\tophat^2(R_\tophat)
 \triangleq 1$.
+\item Likewise $\sigma_\gauss^2(R)$ is defined with a Gaussian window
+$W_\gauss(kR) = e^{-(kR)^2/2}$, and $R_\gauss$ with
+$\sigma_\gauss^2(R_\gauss) \triangleq 1$.
 \end{itemize}
 These nonlinear scales are functions of time since the linear power
-spectrum evolves with time through the growth factor $D(a)$, we also
-take the time derivatives of these scales as input features.
-Other relevant scales include the particle spacing in Lagrangian space,
-the cell size of the chosen mesh grid for force evaluation, and the
-softening length in the target \GADGET\ simulations.
+spectrum evolves with time through the growth factor $D(a)$, we could
+also take the time derivatives of these scales as possible features.
+Other relevant scales include the particle spacing $l_p$ in Lagrangian
+space, the cell size $l_c$ of the chosen mesh grid for force evaluation,
+and the softening length $l_s$ in the target \GADGET\ simulations.
 
 Relevant scale-independent dimensionless factors are
 \begin{itemize}
@@ -776,19 +786,11 @@ Relevant scale-independent dimensionless factors are
 \item $\Delta\lna$: time step size in $\lna$.
 \end{itemize}
 
-Dimensionless combinations are formed by multiplying the wavevector
-components with the scales, i.e.,
-%
-\begin{equation}
-f(k_i; \vvartheta) = f(k_iR_d, k_iR_P, \cdots; G_m, \Omegam, \cdots),
-\end{equation}
-%
-\begin{equation}
-g(k_1, k_2, k_3; \vvartheta) = g(\{k_jR_d, k_jR_P, \cdots\}_{j=1,2,3};
-                                 G_m, \Omegam, \cdots).
-\end{equation}
-%
-
+Scales could be multiplied with the wavenumber $k$ to form dimensionless
+quantities.
+For example, the product of $k$ with the mesh cell size $l_c$ results in
+a quantity $kl_c = \pi k/k_{\rm Nyquist}$ that is invariant to different
+box sizes, which should be an important feature.
 
 \vspace{1em}
 \subsection{Loss Function}
