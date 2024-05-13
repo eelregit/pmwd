@@ -41,9 +41,10 @@ def scatter_dens(ptcls, conf, mesh_shape, offset=0):
     """A wrapper to scatter particles onto a given mesh shape for dens."""
     # mesh_shape should be int or float
     cell_size = conf.ptcl_spacing / mesh_shape
+    val = mesh_shape**conf.dim
     mesh_shape = tuple(round(mesh_shape * s) for s in conf.ptcl_grid_shape)
     denss = (scatter(p, conf, mesh=jnp.zeros(mesh_shape, dtype=conf.float_dtype),
-                     val=1, cell_size=cell_size, offset=offset) for p in ptcls)
+                     val=val, cell_size=cell_size, offset=offset) for p in ptcls)
     return denss, cell_size
 
 
