@@ -66,7 +66,7 @@ _safe_sqrt.defvjp(_safe_sqrt_fwd, _safe_sqrt_bwd)
 
 @partial(jit, static_argnums=4)
 @partial(checkpoint, static_argnums=4)
-def linear_modes(modes, cosmo, conf, a=None, real=False):
+def _linear_modes(modes, cosmo, conf, a, real):
     """Linear matter overdensity Fourier or real modes.
 
     Parameters
@@ -111,3 +111,7 @@ def linear_modes(modes, cosmo, conf, a=None, real=False):
         modes = fftinv(modes, shape=conf.ptcl_grid_shape, norm=conf.ptcl_spacing)
 
     return modes
+
+
+def linear_modes(modes, cosmo, conf, a=None, real=False):
+    return _linear_modes(modes, cosmo, conf, a, real)
