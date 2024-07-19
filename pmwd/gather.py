@@ -72,7 +72,7 @@ def _gather_chunk(carry, chunk):
     # gather
     ind = tuple(ind[..., i] for i in range(spatial_ndim))
     frac = jnp.expand_dims(frac, chan_axis)
-    val += (mesh.at[ind].get(mode='drop', fill_value=0) * frac).sum(axis=1)
+    val = val + (mesh.at[ind].get(mode='drop', fill_value=0) * frac).sum(axis=1)
 
     return carry, val
 
@@ -107,7 +107,7 @@ def _gather_chunk_adj(carry, chunk):
 
     disp_cot = (val_cot * val).sum(axis=chan_axis)
     disp_cot = (disp_cot[..., jnp.newaxis] * frac_grad).sum(axis=1)
-    disp_cot /= cell_size if cell_size is not None else conf.cell_size
+    disp_cot = disp_cot / (cell_size if cell_size is not None else conf.cell_size)
 
     frac = jnp.expand_dims(frac, chan_axis)
     mesh_cot = mesh_cot.at[ind].add(val_cot * frac)

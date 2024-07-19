@@ -49,9 +49,9 @@ def gravity(a, ptcl, cosmo, conf):
     kvec = fftfreq(conf.mesh_shape, conf.cell_size, dtype=conf.float_dtype)
 
     dens = scatter(ptcl, conf)
-    dens -= 1  # overdensity
+    dens = dens - 1  # overdensity
 
-    dens *= 1.5 * cosmo.Omega_m.astype(conf.float_dtype)
+    dens = 1.5 * cosmo.Omega_m.astype(conf.float_dtype) * dens
 
     dens = fftfwd(dens)  # normalization canceled by that of irfftn below
 
