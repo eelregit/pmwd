@@ -99,7 +99,6 @@ class Cosmology:
 
         cosmo = cls(conf, 1, *args, **kwargs)
         cosmo = boltzmann(cosmo, conf)
-        print(sigma8, cosmo.sigma8)
 
         A_s_1e9 = (sigma8 / cosmo.sigma8)**2
 
