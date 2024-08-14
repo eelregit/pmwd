@@ -284,6 +284,7 @@ def varlin_integ(cosmo, conf):
         ``(len(conf.varlin_R),)`` and ``conf.cosmo_dtype``.
 
     """
+    # no scale factor specified here!!!
     Plin = linear_power(conf.var_tophat.x, None, cosmo, conf)
 
     _, varlin = conf.var_tophat(Plin, extrap=True)

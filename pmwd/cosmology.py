@@ -99,6 +99,7 @@ class Cosmology:
 
         cosmo = cls(conf, 1, *args, **kwargs)
         cosmo = boltzmann(cosmo, conf)
+        print(sigma8, cosmo.sigma8)
 
         A_s_1e9 = (sigma8 / cosmo.sigma8)**2
 
@@ -153,7 +154,7 @@ class Cosmology:
         """Linear matter rms overdensity within a tophat sphere of 8 Mpc/h radius at a=1."""
         from pmwd.boltzmann import varlin
         R = 8 * self.conf.Mpc_SI / self.conf.L
-        return jnp.sqrt(varlin(R, 1, self, self.conf))
+        return jnp.sqrt(varlin(R, 1., self, self.conf))
 
     @property
     def ptcl_mass(self):
