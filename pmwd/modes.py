@@ -66,6 +66,26 @@ _safe_sqrt.defvjp(_safe_sqrt_fwd, _safe_sqrt_bwd)
 
 @partial(jit, static_argnums=4)
 @partial(checkpoint, static_argnums=4)
+def _linear_modes(modes, cosmo, conf, a, real):
+    kvec = fftfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
+    k = jnp.sqrt(sum(k**2 for k in kvec))
+
+    if a is not None:
+        a = jnp.asarray(a, dtype=conf.float_dtype)
+
+    Plin = linear_power(k, a, cosmo, conf)
+
+    if jnp.isrealobj(modes):
+        modes = fftfwd(modes, norm='ortho')
+
+    modes *= _safe_sqrt(Plin * conf.box_vol)
+
+    if real:
+        modes = fftinv(modes, shape=conf.ptcl_grid_shape, norm=conf.ptcl_spacing)
+
+    return modes
+
+
 def linear_modes(modes, cosmo, conf, a=None, real=False):
     """Linear matter overdensity Fourier or real modes.
 
@@ -94,20 +114,4 @@ def linear_modes(modes, cosmo, conf, a=None, real=False):
         \delta(\mathbf{k}) = \sqrt{V P_\mathrm{lin}(k)} \omega(\mathbf{k})
 
     """
-    kvec = fftfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
-    k = jnp.sqrt(sum(k**2 for k in kvec))
-
-    if a is not None:
-        a = jnp.asarray(a, dtype=conf.float_dtype)
-
-    Plin = linear_power(k, a, cosmo, conf)
-
-    if jnp.isrealobj(modes):
-        modes = fftfwd(modes, norm='ortho')
-
-    modes *= _safe_sqrt(Plin * conf.box_vol)
-
-    if real:
-        modes = fftinv(modes, shape=conf.ptcl_grid_shape, norm=conf.ptcl_spacing)
-
-    return modes
+    return _linear_modes(modes, cosmo, conf, a, real)
