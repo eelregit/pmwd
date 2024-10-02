@@ -2,6 +2,7 @@ from functools import partial
 
 from jax import value_and_grad, jit, vjp, custom_vjp
 import jax.numpy as jnp
+from jax.lax import scan
 from jax.tree_util import tree_map
 
 from pmwd.boltzmann import growth
@@ -216,12 +217,29 @@ def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
 def nbody(ptcl, obsvbl, cosmo, conf, reverse=False):
     """N-body time integration."""
     a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
+    a_nbody_arr = jnp.array([a_nbody[:-1], a_nbody[1:]]).T
 
     ptcl, obsvbl = nbody_init(a_nbody[0], ptcl, obsvbl, cosmo, conf)
+
     for a_prev, a_next in zip(a_nbody[:-1], a_nbody[1:]):
         ptcl, obsvbl = nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
     return ptcl, obsvbl
 
+@partial(custom_vjp, nondiff_argnums=(4,))
+def nbody_scan(ptcl, obsvbl, cosmo, conf, reverse=False):
+    """N-body time integration. Use jax.lax.scan to speed up the compilation."""
+    a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
+    a_nbody_arr = jnp.array([a_nbody[:-1], a_nbody[1:]]).T
+
+    ptcl, obsvbl = nbody_init(a_nbody[0], ptcl, obsvbl, cosmo, conf)
+
+    def _nbody_step(carry, x):
+        ptcl, obsvbl = carry
+        a_prev, a_next = x
+        ptcl, obsvbl = nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
+        return (ptcl, obsvbl), None
+    (ptcl, obsvbl), _ = scan(_nbody_step, (ptcl, obsvbl), a_nbody_arr)
+    return ptcl, obsvbl
 
 @jit
 def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl_cot, cosmo, conf):
@@ -259,9 +277,33 @@ def nbody_adj(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf, reverse=False):
             a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
     return ptcl, ptcl_cot, cosmo_cot
 
+def nbody_adj_scan(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf, reverse=False):
+    """N-body time integration with adjoint equation. Use jax.lax.scan to speed up the compilation."""
+    a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
+    a_nbody_arr = jnp.array([a_nbody[:0:-1], a_nbody[-2::-1]]).T
+
+
+    ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_init(
+        a_nbody[-1], ptcl, ptcl_cot, obsvbl_cot, cosmo, conf)
+
+    def _nbody_adj_step(carry, x):
+        ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = carry
+        a_prev, a_next = x
+        ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_step(
+            a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+        return (ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force), None
+    
+    (ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force), _ = scan(_nbody_adj_step, (ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force), a_nbody_arr)
+
+    return ptcl, ptcl_cot, cosmo_cot
+
 
 def nbody_fwd(ptcl, obsvbl, cosmo, conf, reverse):
     ptcl, obsvbl = nbody(ptcl, obsvbl, cosmo, conf, reverse)
+    return (ptcl, obsvbl), (ptcl, cosmo, conf)
+
+def nbody_fwd_scan(ptcl, obsvbl, cosmo, conf, reverse):
+    ptcl, obsvbl = nbody_scan(ptcl, obsvbl, cosmo, conf, reverse)
     return (ptcl, obsvbl), (ptcl, cosmo, conf)
 
 def nbody_bwd(reverse, res, cotangents):
@@ -273,4 +315,14 @@ def nbody_bwd(reverse, res, cotangents):
 
     return ptcl_cot, obsvbl_cot, cosmo_cot, None
 
+def nbody_bwd_scan(reverse, res, cotangents):
+    ptcl, cosmo, conf = res
+    ptcl_cot, obsvbl_cot = cotangents
+
+    ptcl, ptcl_cot, cosmo_cot = nbody_adj_scan(ptcl, ptcl_cot, obsvbl_cot, cosmo, conf,
+                                          reverse=reverse)
+
+    return ptcl_cot, obsvbl_cot, cosmo_cot, None
+
 nbody.defvjp(nbody_fwd, nbody_bwd)
+nbody_scan.defvjp(nbody_fwd_scan, nbody_bwd_scan)
