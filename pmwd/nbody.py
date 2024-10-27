@@ -24,14 +24,16 @@ def _G_K(a, cosmo, conf):
 
 def drift_factor(a_vel, a_prev, a_next, cosmo, conf):
     """Drift time step factor of conf.float_dtype in [1/H_0]."""
-    return ((growth(a_next, cosmo, conf) - growth(a_prev, cosmo, conf))
-            / _G_D(a_vel, cosmo, conf))
+    factor = growth(a_next, cosmo, conf) - growth(a_prev, cosmo, conf)
+    factor /= _G_D(a_vel, cosmo, conf)
+    return factor
 
 
 def kick_factor(a_acc, a_prev, a_next, cosmo, conf):
     """Kick time step factor of conf.float_dtype in [1/H_0]."""
-    return ((_G_D(a_next, cosmo, conf) - _G_D(a_prev, cosmo, conf))
-            / _G_K(a_acc, cosmo, conf))
+    factor = _G_D(a_next, cosmo, conf) - _G_D(a_prev, cosmo, conf)
+    factor /= _G_K(a_acc, cosmo, conf)
+    return factor
 
 
 def drift(a_vel, a_prev, a_next, ptcl, cosmo, conf):
@@ -59,8 +61,8 @@ def drift_adj(a_vel, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf):
     ptcl_cot = ptcl_cot.replace(vel=vel_cot)
 
     # cosmology adjoint
-    cosmo_cot_drift = cosmo_cot_drift * (ptcl_cot.disp * ptcl.vel).sum()
-    cosmo_cot = cosmo_cot - cosmo_cot_drift
+    cosmo_cot_drift *= (ptcl_cot.disp * ptcl.vel).sum()
+    cosmo_cot -= cosmo_cot_drift
 
     return ptcl, ptcl_cot, cosmo_cot
 
@@ -90,9 +92,9 @@ def kick_adj(a_acc, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_
     ptcl_cot = ptcl_cot.replace(disp=disp_cot)
 
     # cosmology adjoint
-    cosmo_cot_kick = cosmo_cot_kick * (ptcl_cot.vel * ptcl.acc).sum()
-    cosmo_cot_force = cosmo_cot_force * factor
-    cosmo_cot = cosmo_cot - cosmo_cot_kick - cosmo_cot_force
+    cosmo_cot_kick *= (ptcl_cot.vel * ptcl.acc).sum()
+    cosmo_cot_force *= factor
+    cosmo_cot -= cosmo_cot_kick + cosmo_cot_force
 
     return ptcl, ptcl_cot, cosmo_cot
 

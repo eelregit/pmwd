@@ -113,7 +113,7 @@ def _scatter_chunk_adj(carry, chunk):
 
     disp_cot = (val_cot * val).sum(axis=chan_axis)
     disp_cot = (disp_cot[..., jnp.newaxis] * frac_grad).sum(axis=1)
-    disp_cot = disp_cot / (cell_size if cell_size is not None else conf.cell_size)
+    disp_cot /= cell_size if cell_size is not None else conf.cell_size
 
     frac = jnp.expand_dims(frac, chan_axis)
     val_cot = (val_cot * frac).sum(axis=1)
