@@ -1,51 +1,60 @@
-from dataclasses import field
 from functools import partial
-from itertools import chain
 import math
-from operator import add, sub, mul
+#FIXME can use tuple now?
+#FIXME Union shorthand is ?
 from typing import Optional, Tuple, Union
 
-from jax import Array, ensure_compile_time_eval, value_and_grad
+from jax import Array, ensure_compile_time_eval
 from jax.typing import ArrayLike, DTypeLike
 import jax.numpy as jnp
-from jax.lax import switch
-from jax.tree_util import tree_map
-from mcfit import TophatVar
+from mcfit import mcfit, TophatVar
 
-from pmwd import boltzmann
-from pmwd.tree_util import pytree_dataclass
+from pmwd import perturbation
+from pmwd.tree_util import DataTree, pytree_dataclass, dyn_field, fxd_field, aux_field, asarray_of  # FIXME asarray_of to tree.py, as in JAX?
+from pmwd.background import distance_cache
+from pmwd.perturbation import transfer_cache, growth_cache, varlin_cache
 
 
-@partial(
-    pytree_dataclass,
-    aux_fields=[
-        'distance_lga_min', 'distance_lga_max', 'distance_lga_maxstep',
-        'transfer_fit', 'transfer_fit_nowiggle',
-        'transfer_lgk_min', 'transfer_lgk_max', 'transfer_lgk_maxstep',
-        'growth_rtol', 'growth_atol', 'growth_inistep',
-        'growth_lga_min', 'growth_lga_max', 'growth_lga_maxstep',
-        'dtype'],
-    frozen=True)
-class Cosmology:
-    r"""Cosmological parameters and related configurations.
+cosmo_dyn_field = partial(dyn_field, validate=asarray_of())
+cosmo_dyn_field.__doc__ = 'Like ``dyn_field`` with default dtype.'
+cosmo_fxd_field = partial(fxd_field, validate=asarray_of())
+cosmo_fxd_field.__doc__ = 'Like ``fxd_field`` with default dtype.'
 
-    Parameters with one trailing underscore, e.g.,  ``foo_``, are optional as extensions
-    to the dynamic free parameters without trailing underscores. They are None and
-    deactivated by default, taking the fixed values set by variable ``foo__`` (see
-    below). They should be accessed through corresponding properties named without the
-    trailing underscores, i.e., ``foo``.
 
-    Parameters with two trailing underscore, e.g.,  ``bar__``, are fixed and do not
-    receive gradients. Some of them set the fixed values of the deactivated optional
-    parameters above. Others including the constants and units also belong to this
-    category. They should be accessed through corresponding properties named without the
-    trailing underscores, i.e., ``bar``.
+def _eps2tol(dtype):
+    return math.sqrt(jnp.finfo(dtype).eps)
 
-    Linear operators (addition, subtraction, and scalar multiplication) are defined for
-    Cosmology tangent and cotangent vectors.
 
-    Parameters are converted to JAX arrays at instantiation, for ``dtype`` casting and
-    to avoid possible JAX weak type problems.
+#FIXME search: can I return within "with"?
+def _init_var_tophat(self):
+    with ensure_compile_time_eval():
+        return TophatVar(self.transfer_k[1:], lowring=True, backend='jax')
+
+
+@pytree_dataclass
+class Cosmology(DataTree):
+    r"""Cosmological parameters and relevant configurations.
+
+    #Fields marked by ``aux_field`` are auxiliary data (see
+    #``tree_util.pytree_dataclass``), and the other fields
+
+    #Parameters with one trailing underscore, e.g.,  ``foo_``, are optional as extensions
+    #to the dynamic free parameters without trailing underscores. They are None and
+    #deactivated by default, taking the fixed values set by variable ``foo__`` (see
+    #below). They should be accessed through corresponding properties named without the
+    #trailing underscores, i.e., ``foo``.
+
+    #Parameters marked by ``fxd_field`` are fixed and do not receive gradients, including
+    #physical constants and units.
+
+    #They should be accessed through corresponding properties named without the trailing
+    #underscores, i.e., ``foo``.
+
+    #Linear operators (addition, subtraction, and scalar multiplication) are defined for
+    #Cosmology tangent and cotangent vectors.
+
+    #Parameters are converted to JAX arrays at instantiation, for ``dtype`` casting and
+    #to avoid possible JAX weak type problems.
 
     Parameters
     ----------
@@ -59,40 +68,32 @@ class Cosmology:
         Baryonic matter density parameter today :math:`\Omega_\mathrm{b}`.
     h : float ArrayLike
         Hubble constant in unit of 100 km/s/Mpc :math:`h`.
-    T_cmb_ : None or float ArrayLike, optional
-        CMB temperature in Kelvin today :math:`T_\mathrm{CMB}`. Default is None.
-    T_cmb__ : float ArrayLike, optional
-        Fixed value if ``T_cmb_`` is not specified.
-    Omega_K_ : None or float ArrayLike, optional
-        Spatial curvature density parameter today :math:`Omega_K`. Default is None.
-    Omega_K__ : float ArrayLike, optional
-        Fixed value if ``Omega_K_`` is not specified.
-    w_0_ : None or float ArrayLike, optional
-        Dark energy equation of state constant parameter :math:`w_0`. Default is None.
-    w_0__ : float ArrayLike, optional
-        Fixed value if ``w_0_`` is not specified.
-    w_a_ : None or float ArrayLike, optional
-        Dark energy equation of state linear parameter :math:`w_a`. Default is None.
-    w_a__ : float ArrayLike, optional
-        Fixed value if ``w_a_`` is not specified.
-    k_pivot_Mpc__ : float ArrayLike, optional
+    T_cmb : float ArrayLike, optional
+        CMB temperature in Kelvin today :math:`T_\mathrm{CMB}`.
+    Omega_K : float ArrayLike, optional
+        Spatial curvature density parameter today :math:`Omega_K`
+    w_0 : float ArrayLike, optional
+        Dark energy equation of state constant parameter :math:`w_0`.
+    w_a : float ArrayLike, optional
+        Dark energy equation of state linear parameter :math:`w_a`.
+    k_pivot_Mpc : float ArrayLike, optional
         Primordial scalar power spectrum pivot scale :math:`k_\mathrm{pivot}` in 1/Mpc.
-    M_sun_SI__ : float ArrayLike, optional
+    M_sun_SI : float ArrayLike, optional
         Solar mass :math:`M_\odot` in kg.
-    Mpc_SI__ : float ArrayLike, optional
+    Mpc_SI : float ArrayLike, optional
         Mpc in m.
-    H_0_SI__ : float ArrayLike, optional
+    H_0_SI : float ArrayLike, optional
         Hubble constant :math:`H_0` in :math:`h`/s.
-    c_SI__ : float ArrayLike, optional
+    c_SI : float ArrayLike, optional
         Speed of light :math:`c` in m/s.
-    G_SI__ : float ArrayLike, optional
+    G_SI : float ArrayLike, optional
         Gravitational constant :math:`G` in m:math:`^3`/kg/s:math:`^2`
-    M__ : float ArrayLike, optional
+    M : float ArrayLike, optional
         Mass unit :math:`M` defined in kg/:math:`h`. Default is :math:`10^{10}
         M_\odot/h`.
-    L__ : float ArrayLike, optional
+    L : float ArrayLike, optional
         Length unit :math:`L` defined in m/:math:`h`. Default is Mpc/:math:`h`.
-    T__ : float ArrayLike, optional
+    T : float ArrayLike, optional
         Time unit :math:`T` defined in s/:math:`h`. Default is Hubble time :math:`1/H_0
         \sim 10^{10}` years/:math:`h \sim` age of the Universe. So the default velocity
         unit is :math:`L/T =` 100 km/s.
@@ -104,11 +105,12 @@ class Cosmology:
         Maximum distance scale factor step size in log10. It determines the number of
         scale factors ``distance_a_num``, the actual step size ``distance_lga_step``,
         and the scale factors ``distance_a``.
-    transfer_fit : bool, optional
-        Whether to use Eisenstein & Hu fit to transfer function. Default is True
-        (subject to change when False is implemented).
-    transfer_fit_nowiggle : bool, optional
-        Whether to use non-oscillatory transfer function fit.
+    #FIXME use transfer_function: Callable = aux_field(...) instead
+    #transfer_fit : bool, optional
+    #    Whether to use Eisenstein & Hu fit to transfer function. Default is True
+    #    (subject to change when False is implemented).
+    #transfer_fit_nowiggle : bool, optional
+    #    Whether to use non-oscillatory transfer function fit.
     transfer_lgk_min : float, optional
         Minimum transfer function wavenumber in :math:`1/L` in log10.
     transfer_lgk_max : float, optional
@@ -118,14 +120,14 @@ class Cosmology:
         determines the number of wavenumbers ``transfer_k_num``, the actual step size
         ``transfer_lgk_step``, and the wavenumbers ``transfer_k``.
     growth_rtol : float, optional
-        Relative tolerance for solving the growth ODEs. Default is sqrt of ``dtype``
-        epsilon, i.e., :math:`1.5 \times 10^{-8}` for float64 and :math:`3.5 \times
-        10^{-4}` for float32.
+        Relative tolerance for solving the growth ODEs. Default is sqrt of
+        ``Omega_m.dtype`` epsilon, i.e., :math:`1.5 \times 10^{-8}` for float64 and
+        :math:`3.5 \times 10^{-4}` for float32.
     growth_atol : float, optional
-        Absolute tolerance for solving the growth ODEs. Default is sqrt of ``dtype``
-        epsilon, i.e., :math:`1.5 \times 10^{-8}` for float64 and :math:`3.5 \times
-        10^{-4}` for float32.
-    growth_inistep: float, None, or 2-tuple of float or None, optional
+        Absolute tolerance for solving the growth ODEs. Default is sqrt of
+        ``Omega_m.dtype`` epsilon, i.e., :math:`1.5 \times 10^{-8}` for float64 and
+        :math:`3.5 \times 10^{-4}` for float32.
+    growth_inistep: float, None, or 2-tuple of them, optional
         The initial step size for solving the growth ODEs. If None, use estimation. If a
         tuple, use the two step sizes for forward and reverse integrations,
         respectively.
@@ -137,165 +139,165 @@ class Cosmology:
         Maximum growth function scale factor step size in log10. It determines the
         number of scale factors ``growth_a_num``, the actual step size
         ``growth_lga_step``, and the scale factors ``growth_a``.
-    dtype : DTypeLike, optional
-        Parameter float dtype.
+    #dtype : DTypeLike, optional
+    #    Parameter float dtype.
 
     """
 
     # TODO keyword-only for python>=3.10
 
-    # dynamic free parameters
-    A_s_1e9: ArrayLike
-    n_s: ArrayLike
-    Omega_m: ArrayLike
-    Omega_b: ArrayLike
-    h: ArrayLike
+    A_s_1e9: ArrayLike = cosmo_dyn_field()
+    n_s: ArrayLike = cosmo_dyn_field()
+    Omega_m: ArrayLike = cosmo_dyn_field()
+    Omega_b: ArrayLike = cosmo_dyn_field()
+    h: ArrayLike = cosmo_dyn_field()
 
-    # optional extension parameters
-    T_cmb_: Optional[ArrayLike] = None
-    T_cmb__: ArrayLike = 2.7255  # Fixsen 2009, arXiv:0911.1955
-    Omega_K_: Optional[ArrayLike] = None
-    Omega_K__: ArrayLike = 0.
-    w_0_: Optional[ArrayLike] = None
-    w_0__: ArrayLike = -1.
-    w_a_: Optional[ArrayLike] = None
-    w_a__: ArrayLike = 0.
-
-    # fixed parameters
-    k_pivot_Mpc__: ArrayLike = 0.05
+    T_cmb: ArrayLike = cosmo_fxd_field(default=2.7255)  # Fixsen 2009, arXiv:0911.1955
+    Omega_K: ArrayLike = cosmo_fxd_field(default=0.)
+    w_0: ArrayLike = cosmo_fxd_field(default=-1.)
+    w_a: ArrayLike = cosmo_fxd_field(default=0.)
+    k_pivot_Mpc: ArrayLike = cosmo_fxd_field(default=0.05)
 
     # constants in SI units
-    M_sun_SI__: ArrayLike = 1.98847e30
-    Mpc_SI__: ArrayLike = 3.0856775815e22
-    H_0_SI__: ArrayLike = 1e5 / Mpc_SI__
-    c_SI__: ArrayLike = 299792458.
-    G_SI__: ArrayLike = 6.67430e-11
+    M_sun_SI: ArrayLike = cosmo_fxd_field(default=1.98847e30)
+    Mpc_SI: ArrayLike = cosmo_fxd_field(default=3.0856775815e22)
+    H_0_SI: ArrayLike = cosmo_fxd_field(default_function=lambda self: 1e5 / self.Mpc_SI)
+    c_SI: ArrayLike = cosmo_fxd_field(default=299792458.)
+    G_SI: ArrayLike = cosmo_fxd_field(default=6.67430e-11)
 
     # units
-    M__: ArrayLike = 1e10 * M_sun_SI__
-    L__: ArrayLike = Mpc_SI__
-    T__: ArrayLike = 1 / H_0_SI__
+    M: ArrayLike = cosmo_fxd_field(default_function=lambda self: 1e10 * self.M_sun_SI)
+    L: ArrayLike = cosmo_fxd_field(default_function=lambda self: self.Mpc_SI)
+    T: ArrayLike = cosmo_fxd_field(default_function=lambda self: 1 / self.H_0_SI)
 
-    distance_lga_min: float = -3
-    distance_lga_max: float = 1
-    distance_lga_maxstep: float = 1/128
-    distance: Optional[Array] = field(default=None, compare=False)
+    distance_lga_min: float = aux_field(default=-3)
+    distance_lga_max: float = aux_field(default=1)
+    distance_lga_maxstep: float = aux_field(default=1/128)
+    distance: Optional[Array] = cosmo_dyn_field(cache=distance_cache, compare=False)
+    # FIXME | None is shorter than Optional
 
-    transfer_fit: bool = True
-    transfer_fit_nowiggle: bool = False
-    transfer_lgk_min: float = -4
-    transfer_lgk_max: float = 3
-    transfer_lgk_maxstep: float = 1/128
-    transfer: Optional[Array] = field(default=None, compare=False)
+    transfer_fit: bool = aux_field(default=True)
+    transfer_fit_nowiggle: bool = aux_field(default=False)
+    transfer_lgk_min: float = aux_field(default=-4)
+    transfer_lgk_max: float = aux_field(default=3)
+    transfer_lgk_maxstep: float = aux_field(default=1/128)
+    transfer: Optional[Array] = cosmo_dyn_field(cache=transfer_cache, compare=False)
 
-    growth_rtol: Optional[float] = None
-    growth_atol: Optional[float] = None
+    growth_rtol: Optional[float] = aux_field(
+        default_function=lambda self: _eps2tol(self.Omega_m.dtype))
+    growth_atol: Optional[float] = aux_field(
+        default_function=lambda self: _eps2tol(self.Omega_m.dtype))
     growth_inistep: Union[float, None,
-                          Tuple[Optional[float], Optional[float]]] = (1, None)
-    growth_lga_min: float = -3
-    growth_lga_max: float = 1
-    growth_lga_maxstep: float = 1/128
-    growth: Optional[Array] = field(default=None, compare=False)
+                          Tuple[Optional[float],
+                                Optional[float]]] = aux_field(default=(1, 1))  # (1, None) used to work? but now also causes nan in sigma_8 gradients
+    growth_lga_min: float = aux_field(default=-3)
+    growth_lga_max: float = aux_field(default=1)
+    growth_lga_maxstep: float = aux_field(default=1/128)
+    growth: Optional[Array] = cosmo_dyn_field(cache=growth_cache, compare=False)
 
-    varlin: Optional[Array] = field(default=None, compare=False)
+    varlin: Optional[Array] = cosmo_dyn_field(cache=varlin_cache, compare=False)
 
-    dtype: DTypeLike = jnp.float64
+    #FIXME although mcfit.mcfit is hashable but maybe this can be more functional
+    _var_tophat: mcfit = aux_field(default_function=_init_var_tophat)
 
-    def __post_init__(self):
-        if self._is_transforming():
-            return
+    #dtype: DTypeLike = aux_field(default=jnp.float64)
 
-        object.__setattr__(self, 'dtype', jnp.dtype(self.dtype))
-        if not jnp.issubdtype(self.dtype, jnp.floating):
-            raise ValueError('dtype must be floating point numbers')
+    #def __post_init__(self):
+    #    if self._is_transforming():
+    #        return
 
-        for key, value in chain(self.dyn_data_with_keys(), self.opt_data_with_keys()):
-            value = tree_map(partial(jnp.asarray, dtype=self.dtype), value)
-            object.__setattr__(self, key.name, value)
+    #    object.__setattr__(self, 'dtype', jnp.dtype(self.dtype))
+    #    if not jnp.issubdtype(self.dtype, jnp.floating):
+    #        raise ValueError('dtype must be floating point numbers')
 
-        with ensure_compile_time_eval():
-            object.__setattr__(
-                self,
-                'var_tophat',
-                TophatVar(self.transfer_k[1:], lowring=True, backend='jax'),
-            )
+    #    if self.H_0_SI is None:
+    #        object.__setattr__(self, 'H_0_SI', 1e5 / self.Mpc_SI)
+    #    if self.M is None:
+    #        object.__setattr__(self, 'M', 1e10 * self.M_sun_SI)
+    #    if self.T is None:
+    #        object.__setattr__(self, 'T', 1 / self.H_0_SI)
 
-        growth_tol = math.sqrt(jnp.finfo(self.dtype).eps)
-        if self.growth_rtol is None:
-            object.__setattr__(self, 'growth_rtol', growth_tol)
-        if self.growth_atol is None:
-            object.__setattr__(self, 'growth_atol', growth_tol)
+    #    for key, value in self.dyn_data_with_keys():
+    #        value = tree_map(partial(jnp.asarray, dtype=self.dtype), value)
+    #        object.__setattr__(self, key.name, value)
 
-    def __add__(self, other):
-        return tree_map(add, self, other)
+    #    with ensure_compile_time_eval():
+    #        object.__setattr__(
+    #            self,
+    #            'var_tophat',
+    #            TophatVar(self.transfer_k[1:], lowring=True, backend='jax'),
+    #        )
 
-    def __sub__(self, other):
-        return tree_map(sub, self, other)
-
-    def __mul__(self, other):
-        return tree_map(partial(mul, other), self)
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
+    #    growth_tol = math.sqrt(jnp.finfo(self.dtype).eps)
+    #    if self.growth_rtol is None:
+    #        object.__setattr__(self, 'growth_rtol', growth_tol)
+    #    if self.growth_atol is None:
+    #        object.__setattr__(self, 'growth_atol', growth_tol)
 
     @classmethod
-    def from_sigma8(cls, sigma8, *args, **kwargs):
+    def from_sigma_8(cls, sigma_8, *args, **kwargs):
         r"""Construct cosmology with :math:`\sigma_8` instead of :math:`A_s`."""
         cosmo = cls(1, *args, **kwargs)
-        cosmo = cosmo.prime(distance=False)
+        cosmo = cosmo.cache_purge(transfer=True, growth=True, varlin=True)
 
-        A_s_1e9 = (sigma8 / cosmo.sigma8)**2
+        A_s_1e9 = (sigma_8 / cosmo.sigma_8)**2
 
         return cls(A_s_1e9, *args, **kwargs)
 
-    def prime(self, distance=True, transfer=True, growth=True, varlin=True):
-        """Tabulate and cache transfer function, growth functions, etc.
+    #def cache(self, distance=True, transfer=True, growth=True, varlin=True):
+    #    """Cache distance, transfer, growth, and linear variance tables.
 
-        Parameters
-        ----------
-        distance : bool or None, optional
-            Whether to cache the distances, leave it as is, or set it to None.
-        transfer : bool or None, optional
-            Whether to cache the transfer function, leave it as is, or set it to None.
-        growth : bool or None, optional
-            Whether to cache the growth functions, leave it as is, or set it to None.
-        varlin : bool or None, optional
-            Whether to cache the linear matter overdensity variance, leave it as is,
-            or set it to None.
+    #    Parameters
+    #    ----------
+    #    distance : bool or None, optional
+    #        Whether to cache the distances, leave it as is, or set it to None.
+    #    transfer : bool or None, optional
+    #        Whether to cache the transfer function, leave it as is, or set it to None,
+    #        overridden if ``varlin=True``.
+    #    growth : bool or None, optional
+    #        Whether to cache the growth functions, leave it as is, or set it to None,
+    #        overridden if ``varlin=True``.
+    #    varlin : bool or None, optional
+    #        Whether to cache the linear matter overdensity variance, leave it as is,
+    #        or set it to None.
 
-        Returns
-        -------
-        cosmo : Cosmology
-            A new instance containing cached tables.
+    #    Returns
+    #    -------
+    #    cosmo : Cosmology
+    #        A new instance containing cached tables.
 
-        """
-        cosmo = self
+    #    """
+    #    cosmo = self
 
-        if distance:
-            cosmo = distance_tab(cosmo)
-        elif distance is None:
-            cosmo = cosmo.replace(distance=None)
+    #    if distance:
+    #        #cosmo = distance_cache(cosmo)
+    #        cosmo = cosmo.replace(distance=distance_cache(cosmo))
+    #    elif distance is None:
+    #        cosmo = cosmo.replace(distance=None)
 
-        if transfer:
-            cosmo = boltzmann.transfer_tab(cosmo)
-        elif transfer is None:
-            cosmo = cosmo.replace(transfer=None)
+    #    if transfer or varlin:
+    #        #cosmo = boltzmann.transfer_cache(cosmo)
+    #        cosmo = cosmo.replace(transfer=boltzmann.transfer_cache(cosmo))
+    #    elif transfer is None:
+    #        cosmo = cosmo.replace(transfer=None)
 
-        if growth:
-            cosmo = boltzmann.growth_tab(cosmo)
-        elif growth is None:
-            cosmo = cosmo.replace(growth=None)
+    #    if growth or varlin:
+    #        #cosmo = boltzmann.growth_cache(cosmo)
+    #        cosmo = cosmo.replace(growth=boltzmann.growth_cache(cosmo))
+    #    elif growth is None:
+    #        cosmo = cosmo.replace(growth=None)
 
-        if varlin:
-            cosmo = boltzmann.varlin_tab(cosmo)
-        elif varlin is None:
-            cosmo = cosmo.replace(varlin=None)
+    #    if varlin:
+    #        #cosmo = boltzmann.varlin_cache(cosmo)
+    #        cosmo = cosmo.replace(varlin=boltzmann.varlin_cache(cosmo))
+    #    elif varlin is None:
+    #        cosmo = cosmo.replace(varlin=None)
 
-        return cosmo
+    #    return cosmo
 
-    def astype(self, dtype):
-        """Cast parameters to dtype."""
-        return self.replace(dtype=dtype)  # calls __init__ and then __post_init__
+    #def astype(self, dtype):
+    #    """Cast parameters to dtype."""
+    #    return self.replace(dtype=dtype)  # calls __init__ and then __post_init__
 
     @property
     def H_0(self):
@@ -339,7 +341,7 @@ class Cosmology:
 
     @property
     def K(self):
-        r"""Spatial Gaussian curvature :math:`K` in :math:`1/L^2`."""
+        """Spatial Gaussian curvature :math:`K` in :math:`1/L^2`."""
         return - self.Omega_K / self.d_H**2
 
     @property
@@ -348,10 +350,10 @@ class Cosmology:
         return 1 - (self.Omega_m + self.Omega_K)
 
     @property
-    def sigma8(self):
+    def sigma_8(self):
         r"""Linear matter rms overdensity within a tophat sphere of 8 Mpc/:math:`h` radius today :math:`\sigma_8`."""
         R = 8 * self.Mpc_SI / self.L
-        return jnp.sqrt(boltzmann.varlin(R, 1, self))
+        return jnp.sqrt(perturbation.varlin(R, 1, self))
 
     @property
     def distance_a_num(self):
@@ -369,7 +371,7 @@ class Cosmology:
     def distance_a(self):
         """Distance scale factors."""
         a = jnp.logspace(self.distance_lga_min, self.distance_lga_max,
-                         num=self.distance_a_num - 1, dtype=self.dtype)
+                         num=self.distance_a_num - 1, dtype=self.Omega_m.dtype)
         return jnp.concatenate((jnp.array([0]), a))
 
     @property
@@ -388,7 +390,7 @@ class Cosmology:
     def transfer_k(self):
         """Transfer function wavenumbers in :math:`1/L`."""
         k = jnp.logspace(self.transfer_lgk_min, self.transfer_lgk_max,
-                         num=self.transfer_k_num - 1, dtype=self.dtype)
+                         num=self.transfer_k_num - 1, dtype=self.Omega_m.dtype)
         return jnp.concatenate((jnp.array([0]), k))
 
     @property
@@ -407,14 +409,14 @@ class Cosmology:
     def growth_a(self):
         """Growth function scale factors."""
         a = jnp.logspace(self.growth_lga_min, self.growth_lga_max,
-                         num=self.growth_a_num - 1, dtype=self.dtype)
+                         num=self.growth_a_num - 1, dtype=self.Omega_m.dtype)
         return jnp.concatenate((jnp.array([0]), a))
 
     @property
     def varlin_R(self):
         """Radii of tophat spheres in :math:`L` for linear matter overdensity variance,
         determined by ``transfer_k`` and the FFTLog algorithm."""
-        return self.var_tophat.y
+        return self._var_tophat.y
 
 
 SimpleLCDM = partial(
@@ -425,7 +427,7 @@ SimpleLCDM = partial(
     Omega_b=0.05,
     h=0.7,
 )
-SimpleLCDM.__doc__ = "Simple ΛCDM cosmology, for convenience and subject to change."
+SimpleLCDM.__doc__ = 'Simple ΛCDM cosmology, for convenience and subject to change.'
 
 Planck18 = partial(
     Cosmology,
@@ -435,238 +437,4 @@ Planck18 = partial(
     Omega_b=0.04897,
     h=0.6766,
 )
-Planck18.__doc__ = "Planck 2018 cosmology, arXiv:1807.06209 Table 2 last column."
-
-
-def E2(a, cosmo):
-    r"""Squared Hubble parameter time scaling factors, :math:`E^2`.
-
-    Parameters
-    ----------
-    a : ArrayLike
-        Scale factors.
-    cosmo : Cosmology
-
-    Returns
-    -------
-    E2 : jax.Array of cosmo.dtype
-        Squared Hubble parameter time scaling factors.
-
-    Notes
-    -----
-    The squared Hubble parameter
-
-    .. math::
-
-        H^2(a) = H_0^2 E^2(a),
-
-    has time scaling
-
-    .. math::
-
-        E^2(a) = \Omega_\mathrm{m} a^{-3} + \Omega_\mathrm{k} a^{-2}
-                 + \Omega_\mathrm{de} a^{-3 (1 + w_0 + w_a)} e^{-3 w_a (1 - a)}.
-
-    """
-    a = jnp.asarray(a, dtype=cosmo.dtype)
-
-    de_a = a**(-3 * (1 + cosmo.w_0 + cosmo.w_a)) * jnp.exp(-3 * cosmo.w_a * (1 - a))
-    return cosmo.Omega_m * a**-3 + cosmo.Omega_K * a**-2 + cosmo.Omega_de * de_a
-
-
-@partial(jnp.vectorize, excluded=(1,))
-def H_deriv(a, cosmo):
-    r"""Hubble parameter derivatives, :math:`\mathrm{d}\ln H / \mathrm{d}\ln a`.
-
-    Parameters
-    ----------
-    a : ArrayLike
-        Scale factors.
-    cosmo : Cosmology
-
-    Returns
-    -------
-    dlnH_dlna : jax.Array of cosmo.dtype
-        Hubble parameter derivatives.
-
-    """
-    a = jnp.asarray(a, dtype=cosmo.dtype)
-
-    E2_value, E2_grad = value_and_grad(E2)(a, cosmo)
-    return 0.5 * a * E2_grad / E2_value
-
-
-def Omega_m_a(a, cosmo):
-    r"""Matter density parameters, :math:`\Omega_\mathrm{m}(a)`.
-
-    Parameters
-    ----------
-    a : ArrayLike
-        Scale factors.
-    cosmo : Cosmology
-
-    Returns
-    -------
-    Omega : jax.Array of cosmo.dtype
-        Matter density parameters.
-
-    Notes
-    -----
-
-    .. math::
-
-        \Omega_\mathrm{m}(a) = \frac{\Omega_\mathrm{m} a^{-3}}{E^2(a)}
-
-    """
-    a = jnp.asarray(a, dtype=cosmo.dtype)
-
-    return cosmo.Omega_m / (a**3 * E2(a, cosmo))
-
-
-def distance_tab(cosmo):
-    r"""Tabulate the comoving and physical distances at ``cosmo.distance_a``.
-
-    Parameters
-    ----------
-    cosmo : Cosmology
-
-    Returns
-    -------
-    cosmo : Cosmology
-        A new instance containing a distance table, in unit :math:`L`, shape
-        ``(2, cosmo.distance_a_num,)``, and precision ``cosmo.dtype``.
-
-    Notes
-    -----
-    The comoving horizon in the conformal time :math:`\eta`
-
-    .. math::
-
-        c \eta = \int_0^t \frac{c \mathrm{d} t}{a(t)}
-               = d_H \int_0^a \frac{\mathrm{d} a'}{a'^2 E(a')}
-               = d_H \int_z^\infty \frac{\mathrm{d} z'}{E(z')}.
-
-    The light-travel distance in the age or physical time :math:`t`
-
-    .. math::
-
-        ct = \int_0^t c \mathrm{d} t
-           = d_H \int_0^a \frac{\mathrm{d} a'}{a' E(a')}
-           = d_H \int_z^\infty \frac{\mathrm{d} z'}{(1+z') E(z')}.
-
-    """
-    #FIXME in the future use jax.scipy.integrate.cumulative_trapezoid or Cubic Hermite spline antiderivatives
-    a = cosmo.distance_a[1:]
-    da = jnp.diff(cosmo.distance_a, prepend=0)
-
-    cdetada = cosmo.d_H / (a**2 * jnp.sqrt(E2(a, cosmo)))
-    cdetada = jnp.concatenate((jnp.array([0, 0]), cdetada))
-    cdeta = (cdetada[:-1] + cdetada[1:]) / 2 * da
-    ceta = jnp.cumsum(cdeta)
-
-    cdtda = cosmo.d_H / (a * jnp.sqrt(E2(a, cosmo)))
-    cdtda = jnp.concatenate((jnp.array([0, 0]), cdtda))
-    cdt = (cdtda[:-1] + cdtda[1:]) / 2 * da
-    ct = jnp.cumsum(cdt)
-
-    distance = jnp.stack((ceta, ct), axis=0)
-
-    return cosmo.replace(distance=distance)
-
-
-def _SK_closed(chi, Ksqrt):
-    return jnp.sin(Ksqrt * chi) / Ksqrt
-
-def _SK_flat(chi, Ksqrt):
-    return chi
-
-def _SK_open(chi, Ksqrt):
-    return jnp.sinh(Ksqrt * chi) / Ksqrt
-
-
-def distance(a_e, cosmo, type='radial', a_o=1):
-    r"""Interpolate the distances and compute different distance or time measures
-    between emissions and observations.
-
-    Parameters
-    ----------
-    a_e : ArrayLike
-        Scale factors at emission.
-    cosmo : Cosmology
-    type : str in {'radial', 'transverse', 'angdiam', 'luminosity', 'light', 'conformal', 'lookback'}, optional
-        Type of distances or times to return, among radial comoving distance, transverse
-        comoving distance, angular diameter distance, luminosity distance, light-travel
-        distance, conformal time, and lookback time.
-    a_o : ArrayLike, optional
-        Scale factors at observation.
-
-    Returns
-    -------
-    d : jax.Array
-        Distances in :math:`L` or times in :math:`T`.
-
-    Notes
-    -----
-    The line-of-sight or radial comoving distance, related to the conformal time
-    :math:`\eta`
-
-    .. math::
-
-        \chi = c \eta
-             = \int_{t_\mathrm{e}}^{t_\mathrm{o}} \frac{c \mathrm{d} t}{a(t)}
-             = d_H \int_{a_\mathrm{e}}^{a_\mathrm{o}} \frac{\mathrm{d} a'}{a'^2 E(a'}
-             = d_H \int_{z_\mathrm{o}}^{z_\mathrm{e}} \frac{\mathrm{d} z'}{E(z')}.
-
-    The transverse comoving or comoving angular diameter distance
-
-    .. math::
-
-        r = \frac{S_K(\sqrt{|K|} \chi)}{\sqrt{|K|}},
-
-    where :math:`S_K` is sin, identity, or sinh for positive, zero, or negative
-    :math:`K`, respectively.
-
-    The angular diameter distance and luminosity distance
-
-    .. math::
-
-        d_\mathrm{A} &= \frac{a_\mathrm{e}}{a_\mathrm{o}} r, \\
-        d_L &= \frac{a_\mathrm{o}}{a_\mathrm{e}} r.
-
-    The light-travel distance in the lookback or physical time :math:`t`
-
-    .. math::
-
-        ct = \int_{t_\mathrm{e}}^{t_\mathrm{o}} c \mathrm{d} t
-           = d_H \int_{a_\mathrm{e}}^{a_\mathrm{o}} \frac{\mathrm{d} a'}{a' E(a'}
-           = d_H \int_{z_\mathrm{o}}^{z_\mathrm{e}} \frac{\mathrm{d} z'}{(1+z') E(z')}.
-
-    """
-    if cosmo.distance is None:
-        raise ValueError('distance table is empty: run Cosmology.prime or distance_tab first')
-
-    a_e = jnp.asarray(a_e)
-    a_o = jnp.asarray(a_o)
-
-    phys = 1 if type in {'light', 'lookback'} else 0
-    d_o = jnp.interp(a_o, cosmo.distance_a, cosmo.distance[phys])
-    d_e = jnp.interp(a_e, cosmo.distance_a, cosmo.distance[phys])
-    d = d_o - d_e
-
-    if type in {'lookback', 'conformal'}:
-        d /= cosmo.c
-
-    if type in {'radial', 'light', 'lookback', 'conformal'}:
-        return d
-
-    branches = _SK_closed, _SK_flat, _SK_open
-    Ksqrt = jnp.sqrt(jnp.abs(cosmo.K))
-    d = switch(jnp.int8(jnp.sign(cosmo.Omega_K)) + 1, branches, d, Ksqrt)
-    if type == 'transverse':
-        return d
-    if type == 'angdiam':
-        return a_e / a_o * d
-    if type == 'luminosity':
-        return a_o / a_e * d
-
-    raise ValueError(f'type={type} not supported')
+Planck18.__doc__ = 'Planck 2018 cosmology, arXiv:1807.06209 Table 2 last column.'
