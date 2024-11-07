@@ -1,13 +1,13 @@
 from jax import jit, custom_vjp, ensure_compile_time_eval
 import jax.numpy as jnp
 
-from pmwd import cosmology
+from pmwd.background import H_deriv, Omega_m_a
 from pmwd.ode_util import odeint
 
 
 @jit
-def transfer_tab(cosmo):
-    """Tabulate the matter transfer function at ``cosmo.transfer_k``.
+def transfer_cache(cosmo):
+    """Cache the matter transfer function table at ``cosmo.transfer_k``.
 
     Parameters
     ----------
@@ -22,12 +22,15 @@ def transfer_tab(cosmo):
     """
     if cosmo.transfer_fit:
         transfer = transfer_fit(cosmo.transfer_k, cosmo)
-        return cosmo.replace(transfer=transfer)
+        #return cosmo.replace(transfer=transfer)
+        return transfer
 
     raise NotImplementedError('TODO')
 
 
 # TODO Wayne's website: neutrino no wiggle case
+# TODO test on n-dim k to compare with fixed values
+# TODO add Bartlett et al.
 def transfer_fit(k, cosmo):
     """Eisenstein & Hu fit of matter transfer function.
 
@@ -143,7 +146,7 @@ def transfer(k, cosmo):
 
     """
     if cosmo.transfer is None:
-        raise ValueError('transfer table is empty: run Cosmology.prime or transfer_tab first')
+        raise ValueError('transfer table is empty: run Cosmology.cache or transfer_cache first')
 
     k = jnp.asarray(k)
 
@@ -153,8 +156,8 @@ def transfer(k, cosmo):
 
 
 @jit
-def growth_tab(cosmo):
-    r"""Tabulate the (LPT) growth functions and derivatives at ``cosmo.growth_a``.
+def growth_cache(cosmo):
+    r"""Cache the (LPT) growth function and derivative tables at ``cosmo.growth_a``.
 
     Parameters
     ----------
@@ -172,7 +175,7 @@ def growth_tab(cosmo):
 
     """
     with ensure_compile_time_eval():  # FIXME math.cbrt for python >= 3.11
-        eps = jnp.finfo(cosmo.dtype).eps
+        eps = jnp.finfo(cosmo.Omega_m.dtype).eps
         a_ic = 0.5 * jnp.cbrt(eps).item()  # ~ 3e-6 for float64, 2e-3 for float32
         a_ic = min(a_ic, 0.5 * 10**cosmo.growth_lga_min)
 
@@ -185,14 +188,14 @@ def growth_tab(cosmo):
     # G and lna can either be at a single time, or have leading time axes
     def ode(G, lna, cosmo):
         a = jnp.exp(lna)
-        dlnH_dlna = cosmology.H_deriv(a, cosmo)
-        Omega_fac = 1.5 * cosmology.Omega_m_a(a, cosmo)
+        dlnH_dlna = H_deriv(a, cosmo)
+        Omega_fac = 1.5 * Omega_m_a(a, cosmo)
         G1, G1p, G2, G2p = jnp.split(G, num_order * (num_deriv-1), axis=-1)
         G1pp = -(3 + dlnH_dlna - Omega_fac) * G1 - (4 + dlnH_dlna) * G1p
         G2pp = Omega_fac * G1**2 - (8 + 2*dlnH_dlna - Omega_fac) * G2 - (6 + dlnH_dlna) * G2p
         return jnp.concatenate((G1p, G1pp, G2p, G2pp), axis=-1)
 
-    G_ic = jnp.array((1, 0, 3/7, 0), dtype=cosmo.dtype)
+    G_ic = jnp.array((1, 0, 3/7, 0), dtype=cosmo.Omega_m.dtype)
 
     G = odeint(ode, G_ic, lna, cosmo,
                rtol=cosmo.growth_rtol, atol=cosmo.growth_atol, dt0=cosmo.growth_inistep)
@@ -207,14 +210,15 @@ def growth_tab(cosmo):
     # D_m /a^m = G
     # D_m'/a^m = m G + G'
     # D_m"/a^m = m^2 G + 2m G' + G"
-    m = jnp.array((1, 2), dtype=cosmo.dtype)[:, jnp.newaxis]
+    m = jnp.array((1, 2))[:, jnp.newaxis]
     growth = jnp.stack((
         G[:, 0],
         m * G[:, 0] + G[:, 1],
         m**2 * G[:, 0] + 2 * m * G[:, 1] + G[:, 2],
     ), axis=1)
 
-    return cosmo.replace(growth=growth)
+    #return cosmo.replace(growth=growth)
+    return growth
 
 
 # TODO 3rd order has two factors, so `order` probably need to support str
@@ -245,7 +249,7 @@ def growth(a, cosmo, order=1, deriv=0):
 
     """
     if cosmo.growth is None:
-        raise ValueError('growth table is empty: run Cosmology.prime or growth_tab first')
+        raise ValueError('growth table is empty: run Cosmology.cache or growth_cache first')
 
     a = jnp.asarray(a)
 
@@ -254,8 +258,8 @@ def growth(a, cosmo, order=1, deriv=0):
     return D
 
 
-def varlin_tab(cosmo):
-    """Tabulate the linear matter overdensity variance within tophat spheres of
+def varlin_cache(cosmo):
+    """Cache the linear matter overdensity variance table within tophat spheres of
     ``cosmo.varlin_R`` radii.
 
     Parameters
@@ -269,11 +273,12 @@ def varlin_tab(cosmo):
         ``(len(cosmo.varlin_R),)`` and precision ``cosmo.dtype``.
 
     """
-    Plin = linear_power(cosmo.var_tophat.x, None, cosmo)
+    Plin = linear_power(cosmo._var_tophat.x, None, cosmo)
 
-    _, varlin = cosmo.var_tophat(Plin, extrap=True)
+    _, varlin = cosmo._var_tophat(Plin, extrap=True)
 
-    return cosmo.replace(varlin=varlin)
+    #return cosmo.replace(varlin=varlin)
+    return varlin
 
 
 def varlin(R, a, cosmo):
@@ -299,7 +304,7 @@ def varlin(R, a, cosmo):
 
     """
     if cosmo.varlin is None:
-        raise ValueError('varlin table is empty: run Cosmology.prime or varlin_tab first')
+        raise ValueError('varlin table is empty: run Cosmology.cache or varlin_cache first')
 
     R = jnp.asarray(R)
 
@@ -345,7 +350,7 @@ def linear_power(k, a, cosmo):
     k : ArrayLike
         Wavenumbers in :math:`1/L`.
     a : ArrayLike or None
-        Scale factors. If None, output is not scaled by growth.
+        Scale factors for linear growth. If None, no growth scaling.
     cosmo : Cosmology
 
     Returns

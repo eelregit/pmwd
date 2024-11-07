@@ -23,7 +23,7 @@ setup(
     use_scm_version={'write_to': 'pmwd/_version.py'},
     setup_requires=['setuptools_scm'],
     packages=find_packages(),
-    python_requires='>=3.8',  # math.prod
+    python_requires='>=3.8',  # math.prod  # https://jax.readthedocs.io/en/latest/deprecation.html
     install_requires=[
         'jax>=0.4.7',
         'mcfit>=0.0.18',  # jax backend
