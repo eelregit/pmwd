@@ -145,6 +145,9 @@ class Configuration:
 
     chunk_size: int = 2**24
 
+    # observables
+    a_snapshots: Optional[Tuple[float]] = None
+
     def __post_init__(self):
         if self._is_transforming():
             return
