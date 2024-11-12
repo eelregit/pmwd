@@ -313,11 +313,17 @@ class Configuration:
         """N-body time integration scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
         return jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
                             dtype=self.cosmo_dtype)
+    
+    @property
+    def growth_a_num(self):
+        """Number of growth factor points."""
+        return math.ceil(1. / self.a_lpt_maxstep)
 
     @property
     def growth_a(self):
         """Growth function scale factors, for both LPT and N-body, of ``cosmo_dtype``."""
-        return jnp.concatenate((self.a_lpt, self.a_nbody[1:]))
+        return jnp.linspace(0., 1., num=self.growth_a_num,
+                            dtype=self.cosmo_dtype)
 
     @property
     def varlin_R(self):
