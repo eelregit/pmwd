@@ -6,7 +6,7 @@ from jax.lax import switch
 
 
 def E2(a, cosmo):
-    """Squared relative Hubble parameter, :math:`E^2`, normalized at :math:`a=1`.
+    r"""Squared relative Hubble parameter, :math:`E^2`, normalized at :math:`a=1`.
 
     Parameters
     ----------
@@ -16,7 +16,7 @@ def E2(a, cosmo):
 
     Returns
     -------
-    E2 : jax.Array of cosmo.Omega_m.dtype
+    E2 : jax.Array of cosmo.dtype
         Squared relative Hubble parameter.
 
     Notes
@@ -35,7 +35,7 @@ def E2(a, cosmo):
                  + \Omega_\mathrm{de} a^{-3 (1 + w_0 + w_a)} e^{-3 w_a (1 - a)}.
 
     """
-    a = jnp.asarray(a, dtype=cosmo.Omega_m.dtype)
+    a = jnp.asarray(a, dtype=cosmo.dtype)
 
     de_a = a**(-3 * (1 + cosmo.w_0 + cosmo.w_a)) * jnp.exp(-3 * cosmo.w_a * (1 - a))
     return cosmo.Omega_m * a**-3 + cosmo.Omega_K * a**-2 + cosmo.Omega_de * de_a
@@ -43,7 +43,7 @@ def E2(a, cosmo):
 
 @partial(jnp.vectorize, excluded=(1,))
 def H_deriv(a, cosmo):
-    """Hubble parameter derivatives, :math:`\mathrm{d}\ln H / \mathrm{d}\ln a`.
+    r"""Hubble parameter derivatives, :math:`\mathrm{d}\ln H / \mathrm{d}\ln a`.
 
     Parameters
     ----------
@@ -53,11 +53,11 @@ def H_deriv(a, cosmo):
 
     Returns
     -------
-    dlnH_dlna : jax.Array of cosmo.Omega_m.dtype
+    dlnH_dlna : jax.Array of cosmo.dtype
         Hubble parameter derivatives.
 
     """
-    a = jnp.asarray(a, dtype=cosmo.Omega_m.dtype)
+    a = jnp.asarray(a, dtype=cosmo.dtype)
 
     E2_value, E2_grad = value_and_grad(E2)(a, cosmo)
     return 0.5 * a * E2_grad / E2_value
@@ -74,7 +74,7 @@ def Omega_m_a(a, cosmo):
 
     Returns
     -------
-    Omega : jax.Array of cosmo.Omega_m.dtype
+    Omega : jax.Array of cosmo.dtype
         Matter density parameters.
 
     Notes
@@ -85,7 +85,7 @@ def Omega_m_a(a, cosmo):
         \Omega_\mathrm{m}(a) = \frac{\Omega_\mathrm{m} a^{-3}}{E^2(a)}
 
     """
-    a = jnp.asarray(a, dtype=cosmo.Omega_m.dtype)
+    a = jnp.asarray(a, dtype=cosmo.dtype)
 
     return cosmo.Omega_m / (a**3 * E2(a, cosmo))
 
@@ -100,8 +100,8 @@ def distance_cache(cosmo):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing a distance table, in unit :math:`L`, shape
-        ``(2, cosmo.distance_a_num,)``, and precision ``cosmo.Omega_m.dtype``.
+        A new object containing a distance table, in unit :math:`L`, shape ``(2,
+        cosmo.distance_a_num,)``, and precision `cosmo.dtype`.
 
     Notes
     -----

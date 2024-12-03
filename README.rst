@@ -4,8 +4,9 @@
    :alt: logo
 
 
+##############################
 particle mesh with derivatives
-==============================
+##############################
 
 ``pmwd`` is a differentiable cosmological particle-mesh forward model.
 The C\ :sub:`2` symmetry of the name symbolizes the reversibility of the
@@ -29,8 +30,9 @@ interesting projected patterns.
   <video src="https://user-images.githubusercontent.com/7311098/212061152-2b1be0ac-bfc4-4b57-87fe-d5b9b5c38e8c.mp4"></video>
 
 
+************
 Installation
-------------
+************
 
 .. code:: sh
 
@@ -41,15 +43,19 @@ Installation
   pip install -e .[dev]  # to install development dependencies
 
 
+********
 Examples
---------
+********
 
 See `docs/examples <docs/examples>`_.
 
 
 ..
+  *******
   Testing
-  -------
+  *******
+  pytest-mypy
+  pytest-mypy-testing
 
   .. code:: sh
 
@@ -70,8 +76,9 @@ See `docs/examples <docs/examples>`_.
 
 
 ..
+  **********************
   References & Citations
-  ----------------------
+  **********************
 
   We refer the users to the following references for ...
   Please cite the following papers:
