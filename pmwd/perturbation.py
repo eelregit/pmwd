@@ -16,7 +16,7 @@ def transfer_cache(cosmo):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing a transfer table, in shape ``(cosmo.transfer_k_num,)``
+        A new object containing a transfer table, in shape ``(cosmo.transfer_k_num,)``
         and precision ``cosmo.dtype``.
 
     """
@@ -166,7 +166,7 @@ def growth_cache(cosmo):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing a growth table, in shape ``(num_lpt_order,
+        A new object containing a growth table, in shape ``(num_lpt_order,
         num_derivatives, len(cosmo.growth_a))`` and precision ``cosmo.dtype``.
 
     Notes
@@ -175,7 +175,7 @@ def growth_cache(cosmo):
 
     """
     with ensure_compile_time_eval():  # FIXME math.cbrt for python >= 3.11
-        eps = jnp.finfo(cosmo.Omega_m.dtype).eps
+        eps = jnp.finfo(cosmo.dtype).eps
         a_ic = 0.5 * jnp.cbrt(eps).item()  # ~ 3e-6 for float64, 2e-3 for float32
         a_ic = min(a_ic, 0.5 * 10**cosmo.growth_lga_min)
 
@@ -195,7 +195,7 @@ def growth_cache(cosmo):
         G2pp = Omega_fac * G1**2 - (8 + 2*dlnH_dlna - Omega_fac) * G2 - (6 + dlnH_dlna) * G2p
         return jnp.concatenate((G1p, G1pp, G2p, G2pp), axis=-1)
 
-    G_ic = jnp.array((1, 0, 3/7, 0), dtype=cosmo.Omega_m.dtype)
+    G_ic = jnp.array((1, 0, 3/7, 0), dtype=cosmo.dtype)
 
     G = odeint(ode, G_ic, lna, cosmo,
                rtol=cosmo.growth_rtol, atol=cosmo.growth_atol, dt0=cosmo.growth_inistep)
@@ -269,7 +269,7 @@ def varlin_cache(cosmo):
     Returns
     -------
     cosmo : Cosmology
-        A new instance containing a linear variance table, in shape
+        A new object containing a linear variance table, in shape
         ``(len(cosmo.varlin_R),)`` and precision ``cosmo.dtype``.
 
     """

@@ -4,17 +4,15 @@
 import jax
 import jax.numpy as jnp
 
-#print(f'{jnp.array(1.)!r}')
 
-#FIXME should use absolute in package __init__.py??
-#FIXME somehow JAX automatically enable x64 after the following line?
-from pmwd.cosmology import Cosmology, SimpleLCDM, Planck18
-#print(f'{jnp.array(2.)!r}, NOTE dtype changes mysteriously now')
+
+# TODO pmwd.cosmology.{background,perturbation,cosmology} ?
 from pmwd.background import E2, H_deriv, Omega_m_a, distance_cache, distance
 from pmwd.perturbation import (transfer_cache, transfer_fit, transfer,
                                growth_cache, growth,
                                varlin_cache, varlin,
                                linear_power)
+from pmwd.cosmology import Cosmology, SimpleLCDM, Planck18
 from pmwd.solver import Solver
 from pmwd.modes import white_noise, linear_modes
 #from pmwd.particles import (Particles, ptcl_mass, ptcl_enmesh,  #FIXME conf problem
@@ -32,7 +30,8 @@ except ModuleNotFoundError:
     pass  # not installed
 
 
-#jax.config.update("jax_enable_x64", True)
+#FIXME bump version of mcfit (after disabled x64) and make that minimum requirement here
+#FIXME jax.config.update("jax_enable_x64", False)
 
 
 #move this to some style script for ipynb's, or the worst to every ipynb

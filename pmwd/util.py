@@ -7,7 +7,7 @@ def is_float0_array(obj):
 
 
 def float0_like(array):
-    return np.empty(array.shape, dtype=float0)  # see jax issues #4433, #19386, #20620
+    return np.empty(array.shape, dtype=float0)  # see JAX issues #4433, #19386, #20620
 
 
 def add(a, b):
