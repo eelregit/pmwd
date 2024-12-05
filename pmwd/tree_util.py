@@ -12,11 +12,17 @@ from jax.tree_util import GetAttrKey, register_pytree_with_keys, tree_leaves, tr
 from pmwd.util import add, sub, neg, scalar_mul, scalar_div
 
 
+# FIXME DataDescriptor -> Data
+#       DataTree -> Tree
+#       any problem?
+
+
 # FIXME tutorial idea:
 #   linear regression to noisy data: z = 0 + x + eps
 #       1. y = a + b x  # dyn_field
 #       2. y = 0 + b x  # fxd_field
 #       3. dtype from f8 to f4?  # aux_field
+# show that fxd_field does not trigger re-compilation
 
 
 
@@ -139,7 +145,7 @@ BREAK = _BREAK_TYPE()
 
 
 class DataDescriptor:
-    """Descriptor to specify computation rules of described data.
+    """Data descriptor with computation rules.
 
     Parameters
     ----------
@@ -343,7 +349,7 @@ def field(*, mandatory=True, default=None, default_function=None, cache=None,
 
 
 def break_on_jax_placeholder(obj):
-    """Break out of validation loops on placeholders traced by JAX transformations.
+    """Signal loop breaking on JAX transformation placeholders.
 
     References
     ----------
@@ -382,9 +388,9 @@ def dyn_field(*, mandatory=True, default=None, default_function=None, cache=None
     """Descriptor dataclass field for dynamic pytree children.
 
     `break_on_jax_placeholder` is prepended to `validate` and `transform` to skip on JAX
-    placeholders whose `type` is `object`. `dataclasses.Field.metadata` is updated with
-    ``'ftype'``. See `DataDescriptor`, `dataclasses.field`, and JAX pytree
-    documentations.
+    transformation placeholders whose `type` is `object`. `dataclasses.Field.metadata`
+    is updated with ``'ftype'``. See `DataDescriptor`, `dataclasses.field`, and JAX
+    pytree documentations.
 
     Parameters
     ----------
@@ -413,9 +419,9 @@ def fxd_field(*, mandatory=True, default=None, default_function=None, cache=None
     """Descriptor dataclass field for fixed pytree children.
 
     `break_on_jax_placeholder` is prepended to `validate` and `transform` to skip on JAX
-    placeholders whose `type` is `object`. `lax.stop_gradient` is appended to
-    `transform` if not already in it. `dataclasses.Field.metadata` is updated with
-    ``'ftype'``. `repr` is supppressed by default. See `DataDescriptor`,
+    transformation placeholders whose `type` is `object`. `lax.stop_gradient` is
+    appended to `transform` if not already in it. `dataclasses.Field.metadata` is
+    updated with ``'ftype'``. `repr` is supppressed by default. See `DataDescriptor`,
     `dataclasses.field`, and JAX pytree documentations.
 
     Parameters
@@ -478,7 +484,7 @@ class DataTree(ABC):
     Raises
     ------
     TypeError
-        If not `dataclasses.dataclass` at the instance creation or initialization.     ####################### FIXME
+        If not a `dataclasses.dataclass` at instance creation.
 
     Examples
     --------
@@ -498,11 +504,10 @@ class DataTree(ABC):
 
     """
 
-    # FIXME
-    #def __new__(cls, *args, **kwargs):
-    #    if not dataclasses.is_dataclass(cls):
-    #        raise TypeError(f'{cls.__qualname__} must be dataclasses.dataclass')
-    #    return super().__new__(cls, *args, **kwargs)
+    def __new__(cls, *args, **kwargs):
+        if not dataclasses.is_dataclass(cls):
+            raise TypeError(f'{cls.__qualname__} must be a dataclasses.dataclass')
+        return super().__new__(cls)
 
     @abstractmethod
     def __init__(self, *args, **kwargs):
@@ -588,10 +593,8 @@ class DataTree(ABC):
 
 # TODO maybe move this and add, sub, etc to something like tan.py
 class TanMixin:
-    """combining pytree and dataclass.
-
-    Linear operators (addition and scalar multiplication) are defined for tangent and
-    cotangent vector spaces.
+    """Addition and scalar multiplication operations for tangent and cotangent vector
+    spaces.
 
     """
 
