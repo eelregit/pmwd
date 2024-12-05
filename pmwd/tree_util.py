@@ -12,11 +12,6 @@ from jax.tree_util import GetAttrKey, register_pytree_with_keys, tree_leaves, tr
 from pmwd.util import add, sub, neg, scalar_mul, scalar_div
 
 
-# FIXME DataDescriptor -> Data
-#       DataTree -> Tree
-#       any problem?
-
-
 # FIXME tutorial idea:
 #   linear regression to noisy data: z = 0 + x + eps
 #       1. y = a + b x  # dyn_field
@@ -38,7 +33,7 @@ def issubdtype_of(dtype):
     """Return a function that raises `ValueError` if input object is not equal or lower
     than specified `dtype`.
 
-    Useful for validation in `DataDescriptor`.
+    Useful for validation in `Data`.
 
     """
     def fun(value):
@@ -52,8 +47,8 @@ def asarray_of(dtype=None, field=None):
     """Return a function that converts input pytree children to JAX arrays of specified
     `dtype`, or dtype given by the specified `field` of pytree dataclass.
 
-    Useful for validation in `DataDescriptor`. `dtype` can be `None` or `float`, while
-    more specific conversions can be done using e.g. `jnp.float32` instead of
+    Useful for validation in `Data`. `dtype` can be `None` or `float`, while more
+    specific conversions can be done using e.g. `jnp.float32` instead of
     ``asarray_of(dtype=jnp.float32)``.
 
     """
@@ -80,7 +75,7 @@ def reshape_to(shape=None, field=None):
     """Return a function that reshapes input pytree children to specified `shape`, or
     shape given by the specified `field` of pytree dataclass.
 
-    Useful for validation in `DataDescriptor`.
+    Useful for validation in `Data`.
 
     """
     if field is None:
@@ -144,7 +139,7 @@ class _BREAK_TYPE:
 BREAK = _BREAK_TYPE()
 
 
-class DataDescriptor:
+class Data:
     """Data descriptor with computation rules.
 
     Parameters
@@ -157,10 +152,10 @@ class DataDescriptor:
     default_function : callable or None, optional
         Default function to compute the value, if not already initialized to anything
         else but `None`, from the instance of the owner class, ``value =
-        default_function(obj)``, runned by e.g. `DataTree.__post_init__`.
+        default_function(obj)``, runned by e.g. `Tree.__post_init__`.
     cache : callable or None, optional
         Caching function to compute the value from the instance of the owner class,
-        ``value = cache(obj)``, runned by e.g. `DataTree.cache`.
+        ``value = cache(obj)``, runned by e.g. `Tree.cache`.
     validate : callable, sequence of callable, or None, optional
         Validator functions before setting the value, ``value = fun(value)`` or ``value
         = fun(value, obj)``. Skipped if input ``value is None``. If a sequence, apply
@@ -262,7 +257,7 @@ class DataDescriptor:
     def __get__(self, obj, objtype=None):
         #print(f'__get__: {type(obj)=!r}, {obj=!r}', flush=True)  #FIXME convert to logging if needed
         #print(f'__get__: {type(objtype)=!r}, {objtype=!r}', flush=True)
-        # DataDescriptor directly as field default value
+        # Data directly as field default value
         if obj is None:
             #print(f'__get__: obj is None, {objtype=!r}', flush=True)
             return self.default
@@ -275,7 +270,7 @@ class DataDescriptor:
         #except AttributeError as err:
         #    print(f'__set__: {type(obj)=!r}, AttributeError: {err} when print(obj)', flush=True)
         #print(f'__set__: {type(value)=!r}, {value=!r}', flush=True)
-        # field(default=DataDescriptor(...), init=True, ...)
+        # field(default=Data(...), init=True, ...)
         # "broken behavior" in cpython issue #102646
         if value is self:
             #print(f'__set__: {value=!r} is self', flush=True)
@@ -331,19 +326,17 @@ def field(*, mandatory=True, default=None, default_function=None, cache=None,
              validate=None, transform=None, **kwargs):
     """Descriptor dataclass field.
 
-    See `DataDescriptor` and `dataclasses.field` documentations. For JAX pytrees, use
-    `dyn_field`, `fxd_field`, and `aux_field` instead.
+    See `Data` and `dataclasses.field` documentations. For JAX pytrees, use `dyn_field`,
+    `fxd_field`, and `aux_field` instead.
 
     Parameters
     ----------
     **kwargs
-        Parameters for `dataclasses.field` (with the other ones before them for
-        `DataDescriptor`).
+        Parameters for `dataclasses.field` (with the other ones before them for `Data`).
 
     """
     return dataclasses.field(
-        default=DataDescriptor(mandatory, default, default_function, cache,
-                               validate, transform),
+        default=Data(mandatory, default, default_function, cache, validate, transform),
         **kwargs,
     )
 
@@ -389,14 +382,13 @@ def dyn_field(*, mandatory=True, default=None, default_function=None, cache=None
 
     `break_on_jax_placeholder` is prepended to `validate` and `transform` to skip on JAX
     transformation placeholders whose `type` is `object`. `dataclasses.Field.metadata`
-    is updated with ``'ftype'``. See `DataDescriptor`, `dataclasses.field`, and JAX
-    pytree documentations.
+    is updated with ``'ftype'``. See `Data`, `dataclasses.field`, and JAX pytree
+    documentations.
 
     Parameters
     ----------
     **kwargs
-        Parameters for `dataclasses.field` (with the other ones before them for
-        `DataDescriptor`).
+        Parameters for `dataclasses.field` (with the other ones before them for `Data`).
 
     """
     validate = _canonicalize_callables(validate)
@@ -408,8 +400,7 @@ def dyn_field(*, mandatory=True, default=None, default_function=None, cache=None
     kwargs = _update_metadata(kwargs, FType.DYNAMIC)
 
     return dataclasses.field(
-        default=DataDescriptor(mandatory, default, default_function, cache,
-                               validate, transform),
+        default=Data(mandatory, default, default_function, cache, validate, transform),
         **kwargs,
     )
 
@@ -421,14 +412,14 @@ def fxd_field(*, mandatory=True, default=None, default_function=None, cache=None
     `break_on_jax_placeholder` is prepended to `validate` and `transform` to skip on JAX
     transformation placeholders whose `type` is `object`. `lax.stop_gradient` is
     appended to `transform` if not already in it. `dataclasses.Field.metadata` is
-    updated with ``'ftype'``. `repr` is supppressed by default. See `DataDescriptor`,
+    updated with ``'ftype'``. `repr` is supppressed by default. See `Data`,
     `dataclasses.field`, and JAX pytree documentations.
 
     Parameters
     ----------
     **kwargs
         Parameters for `dataclasses.field` besides `repr` (with the other ones before
-        them for `DataDescriptor`).
+        them for `Data`).
 
     """
     validate = _canonicalize_callables(validate)
@@ -442,8 +433,7 @@ def fxd_field(*, mandatory=True, default=None, default_function=None, cache=None
     kwargs = _update_metadata(kwargs, FType.FIXED)
 
     return dataclasses.field(
-        default=DataDescriptor(mandatory, default, default_function, cache,
-                               validate, transform),
+        default=Data(mandatory, default, default_function, cache, validate, transform),
         repr=repr, **kwargs,
     )
 
@@ -453,33 +443,32 @@ def aux_field(*, mandatory=True, default=None, default_function=None, cache=None
     """Descriptor dataclass field for pytree auxiliary data, which must be hashable.
 
     `dataclasses.Field.metadata` is updated with ``'ftype'``. `repr` is supppressed by
-    default. See `DataDescriptor`, `dataclasses.field`, and JAX pytree documentations.
+    default. See `Data`, `dataclasses.field`, and JAX pytree documentations.
 
     Parameters
     ----------
     **kwargs
         Parameters for `dataclasses.field` besides `repr` (with the other ones before
-        them for `DataDescriptor`).
+        them for `Data`).
 
     """
     kwargs = _update_metadata(kwargs, FType.AUXILIARY)
 
     return dataclasses.field(
-        default=DataDescriptor(mandatory, default, default_function, cache,
-                               validate, transform),
+        default=Data(mandatory, default, default_function, cache, validate, transform),
         repr=repr, **kwargs,
     )
 
 
-class DataTree(ABC):
-    """Base class for combining `DataDescriptor`, `dataclasses.dataclass`, and
-    optionally JAX pytree.
+class Tree(ABC):
+    """Base class for combining `Data`, `dataclasses.dataclass`, and optionally JAX
+    pytree.
 
     Use it together with either `dataclasses.dataclass` or `pytree_dataclass`.
     `dataclasses.__post_init__` is implemented to check missing mandatory arguments, and
-    to compute and fill values using `DataDescriptor.default_function`. Also added are
-    pretty string by `pprint.pformat`, a method that `replace` fields with changes, and
-    methods to `cache` and `purge` fields.
+    to compute and fill values using `Data.default_function`. Also added are pretty
+    string by `pprint.pformat`, a method that `replace` fields with changes, and methods
+    to `cache` and `purge` fields.
 
     Raises
     ------
@@ -489,12 +478,12 @@ class DataTree(ABC):
     Examples
     --------
     >>> @dataclasses.dataclass(frozen=True)
-    ... class Euler(DataTree):
+    ... class Euler(Tree):
     ...     e: float = field(default=2.7182818, validate=float, init=False)
     ...     pi: float = field(default=3.1415926, validate=float, init=False)
-    ...     i: complex = DataDescriptor(default=1j, validate=complex)
-    ...     one: complex = DataDescriptor(default=1, validate=complex)
-    ...     zero: complex = DataDescriptor(
+    ...     i: complex = Data(default=1j, validate=complex)
+    ...     one: complex = Data(default=1, validate=complex)
+    ...     zero: complex = Data(
     ...         default_function=lambda self: self.e ** (self.i * self.pi) + self.one,
     ...         validate=(abs, float, lambda value: round(value, ndigits=5), complex))
     >>> print(Euler())
@@ -519,8 +508,8 @@ class DataTree(ABC):
     def __post_init__(self):
         for field in dataclasses.fields(self):
             descr = vars(type(self)).get(field.name, None)
-            if isinstance(descr, DataDescriptor):
-                # field(default=DataDescriptor(...), init=False, ...)
+            if isinstance(descr, Data):
+                # field(default=Data(...), init=False, ...)
                 # "broken behavior" in cpython issue #102646
                 # TODO add a test for init=False, and then a pointer to that here
                 if not field.init:
@@ -552,7 +541,7 @@ class DataTree(ABC):
 
         Returns
         -------
-        obj : DataTree
+        obj : Tree
             A new object with specified fields cached.
 
         """
@@ -561,7 +550,7 @@ class DataTree(ABC):
         obj = self
         for name in args:
             descr = vars(type(self)).get(name, None)
-            if isinstance(descr, DataDescriptor):
+            if isinstance(descr, Data):
                 value = descr.run_cache(obj)
                 if value is not obj:
                     obj = obj.replace(**{name: value})
@@ -577,7 +566,7 @@ class DataTree(ABC):
 
         Returns
         -------
-        obj : DataTree
+        obj : Tree
             A new object with specified fields set to `None`.
 
         """
@@ -586,7 +575,7 @@ class DataTree(ABC):
         obj = self
         for name in args:
             descr = vars(type(self)).get(name, None)
-            if isinstance(descr, DataDescriptor) and descr.cache is not None:
+            if isinstance(descr, Data) and descr.cache is not None:
                 obj = obj.replace(**{name: None})
         return obj
 
@@ -621,7 +610,7 @@ def pytree_dataclass(cls, *, frozen=True, **kwargs):
     """Register classes as dataclasses and pytree nodes.
 
     `iter_fields` is implemented to iterate over fields of selected pytree dataclass
-    field type. See the example below for how to combine this with `DataTree`,
+    field type. See the example below for how to combine this with `Tree`,
     `dyn_field`, `fxd_field`, and `aux_field` for full power.
 
     Parameters
@@ -671,7 +660,7 @@ def pytree_dataclass(cls, *, frozen=True, **kwargs):
     Examples
     --------
     >>> @pytree_dataclass
-    ... class Parameters(TanMixin, DataTree):
+    ... class Parameters(TanMixin, Tree):
     ...     dtype: DTypeLike = aux_field(default=jnp.complex64,
     ...                                  validate=issubdtype_of(jnp.complexfloating)
     ...                                  repr=True)
@@ -698,7 +687,7 @@ def pytree_dataclass(cls, *, frozen=True, **kwargs):
 
         Parameters
         ----------
-        self : DataTree, optional
+        self : Tree, optional
             Pytree dataclass object, `None` by default, so that we can get names and/or
             keys (but not values) without an object.
         ftype : FType or its members, optional
