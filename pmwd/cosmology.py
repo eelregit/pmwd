@@ -47,8 +47,8 @@ class Cosmology:
         Dark energy equation of state linear parameter. Default is None.
     h : float ArrayLike
         Hubble constant in unit of 100 [km/s/Mpc].
-    f_nl_loc : float or jax.numpy.ndarray, optional
-        amplitude of local primordial non-Gaussianity
+    f_nl_loc_ : float or jax.numpy.ndarray, optional
+        amplitude of local primordial non-Gaussianity. Default is None.
     """
 
     conf: Configuration = field(repr=False)
@@ -65,7 +65,7 @@ class Cosmology:
     w_0_fixed: ClassVar[float] = -1
     w_a_: Optional[ArrayLike] = None
     w_a_fixed: ClassVar[float] = 0
-    f_nl_loc: Optional[ArrayLike] = None
+    f_nl_loc_: Optional[ArrayLike] = None
     f_nl_loc_fixed: ClassVar[float] = 0
 
     transfer: Optional[Array] = field(default=None, compare=False)
@@ -150,6 +150,11 @@ class Cosmology:
     def w_a(self):
         """Dark energy equation of state linear parameter."""
         return self.w_a_fixed if self.w_a_ is None else self.w_a_
+
+    @property
+    def f_nl_loc(self):
+        """Amplitude of local primordial non-Gaussianity."""
+        return self.f_nl_loc_fixed if self.f_nl_loc_ is None else self.f_nl_loc_
 
     @property
     def sigma8(self):
