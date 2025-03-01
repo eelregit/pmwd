@@ -1,13 +1,13 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import FuncNorm
-try:
-    shell = get_ipython().__class__.__name__
-    if shell == 'ZMQInteractiveShell':
-        import matplotlib_inline
-        matplotlib_inline.backend_inline.set_matplotlib_formats('jpeg')
-except NameError:
-    pass  # if not plotting in Jupyter
+#try:
+#    shell = get_ipython().__class__.__name__
+#    if shell == 'ZMQInteractiveShell':
+#        import matplotlib_inline
+#        matplotlib_inline.backend_inline.set_matplotlib_formats('jpeg')
+#except NameError:
+#    pass  # if not plotting in Jupyter
 
 
 def simshow(x, figsize=(6.3, 4.9), dpi=96, cmap='inferno', norm=None, colorbar=True,
