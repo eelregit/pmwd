@@ -7,7 +7,7 @@ from pmwd.ode_util import odeint
 
 @jit
 def transfer_cache(cosmo):
-    """Cache the matter transfer function table at ``cosmo.transfer_k``.
+    """Matter transfer function table at ``cosmo.transfer_k``.
 
     Parameters
     ----------
@@ -15,9 +15,8 @@ def transfer_cache(cosmo):
 
     Returns
     -------
-    cosmo : Cosmology
-        A new object containing a transfer table, in shape ``(cosmo.transfer_k_num,)``
-        and precision ``cosmo.dtype``.
+    transfer : jax.Array of cosmo.dtype and shape (cosmo.transfer_k_num,)
+        Transfer table.
 
     """
     if cosmo.transfer_fit:
@@ -30,7 +29,6 @@ def transfer_cache(cosmo):
 
 # TODO Wayne's website: neutrino no wiggle case
 # TODO test on n-dim k to compare with fixed values
-# TODO add Bartlett et al.
 def transfer_fit(k, cosmo):
     """Eisenstein & Hu fit of matter transfer function.
 
@@ -146,7 +144,7 @@ def transfer(k, cosmo):
 
     """
     if cosmo.transfer is None:
-        raise ValueError('transfer table is empty: run Cosmology.cache or transfer_cache first')
+        raise ValueError('transfer table is empty: run Cosmology.cache first')
 
     k = jnp.asarray(k)
 
@@ -157,7 +155,7 @@ def transfer(k, cosmo):
 
 @jit
 def growth_cache(cosmo):
-    r"""Cache the (LPT) growth function and derivative tables at ``cosmo.growth_a``.
+    r"""LPT growth function and derivative tables at ``cosmo.growth_a``.
 
     Parameters
     ----------
@@ -165,9 +163,8 @@ def growth_cache(cosmo):
 
     Returns
     -------
-    cosmo : Cosmology
-        A new object containing a growth table, in shape ``(num_lpt_order,
-        num_derivatives, len(cosmo.growth_a))`` and precision ``cosmo.dtype``.
+    growth : jax.Array of cosmo.dtype and shape (num_lpt_order, num_derivatives, len(cosmo.growth_a))
+        Growth table.
 
     Notes
     -----
@@ -249,7 +246,7 @@ def growth(a, cosmo, order=1, deriv=0):
 
     """
     if cosmo.growth is None:
-        raise ValueError('growth table is empty: run Cosmology.cache or growth_cache first')
+        raise ValueError('growth table is empty: run Cosmology.cache first')
 
     a = jnp.asarray(a)
 
@@ -259,7 +256,7 @@ def growth(a, cosmo, order=1, deriv=0):
 
 
 def varlin_cache(cosmo):
-    """Cache the linear matter overdensity variance table within tophat spheres of
+    """Linear matter overdensity variance table within tophat spheres of
     ``cosmo.varlin_R`` radii.
 
     Parameters
@@ -268,9 +265,8 @@ def varlin_cache(cosmo):
 
     Returns
     -------
-    cosmo : Cosmology
-        A new object containing a linear variance table, in shape
-        ``(len(cosmo.varlin_R),)`` and precision ``cosmo.dtype``.
+    varlin : jax.Array of cosmo.dtype and shape (len(cosmo.varlin_R),)
+        Linear variance table.
 
     """
     Plin = linear_power(cosmo._var_tophat.x, None, cosmo)
@@ -304,7 +300,7 @@ def varlin(R, a, cosmo):
 
     """
     if cosmo.varlin is None:
-        raise ValueError('varlin table is empty: run Cosmology.cache or varlin_cache first')
+        raise ValueError('varlin table is empty: run Cosmology.cache first')
 
     R = jnp.asarray(R)
 

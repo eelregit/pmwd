@@ -7,13 +7,13 @@ import jax.numpy as jnp
 from mcfit import mcfit, TophatVar
 
 from pmwd import background, perturbation
-from pmwd.tree_util import DataTree, pytree_dataclass, dyn_field, fxd_field, aux_field, issubdtype_of, asarray_of
+from pmwd.tree_util import Tree, TanMixin, pytree_dataclass, dyn_field, fxd_field, aux_field, issubdtype_of, asarray_of
 
 
 cosmo_dyn_field = partial(dyn_field, validate=asarray_of(field='dtype'))
-cosmo_dyn_field.__doc__ = 'Like `tree_util.dyn_field` with `Cosmology.dtype` casting.'
+cosmo_dyn_field.__doc__ = '`tree_util.dyn_field` with `Cosmology.dtype` casting.'
 cosmo_fxd_field = partial(fxd_field, validate=asarray_of(field='dtype'))
-cosmo_fxd_field.__doc__ = 'Like `tree_util.fxd_field` with `Cosmology.dtype` casting.'
+cosmo_fxd_field.__doc__ = '`tree_util.fxd_field` with `Cosmology.dtype` casting.'
 
 
 # FIXME is float32 enough for cosmology? especially parameter gradients?
@@ -30,7 +30,7 @@ def _init_var_tophat(self):
 
 
 @pytree_dataclass
-class Cosmology(DataTree):
+class Cosmology(TanMixin, Tree):
     r"""Cosmological parameters and configurations.
 
     Parameters
@@ -132,23 +132,23 @@ class Cosmology(DataTree):
     Omega_b: ArrayLike = cosmo_dyn_field()
     h: ArrayLike = cosmo_dyn_field()
 
-    T_cmb: ArrayLike = cosmo_fxd_field(default=2.7255)  # Fixsen 2009, arXiv:0911.1955
-    Omega_K: ArrayLike = cosmo_fxd_field(default=0)
-    w_0: ArrayLike = cosmo_fxd_field(default=-1)
-    w_a: ArrayLike = cosmo_fxd_field(default=0)
-    k_pivot_Mpc: ArrayLike = cosmo_fxd_field(default=0.05)
+    T_cmb: ArrayLike = fxd_field(default=2.7255)  # Fixsen 2009, arXiv:0911.1955
+    Omega_K: ArrayLike = fxd_field(default=0)
+    w_0: ArrayLike = fxd_field(default=-1)
+    w_a: ArrayLike = fxd_field(default=0)
+    k_pivot_Mpc: ArrayLike = fxd_field(default=0.05)
 
     # constants in SI units
-    M_sun_SI: ArrayLike = cosmo_fxd_field(default=1.98847e30)
-    Mpc_SI: ArrayLike = cosmo_fxd_field(default=3.0856775815e22)
-    H_0_SI: ArrayLike = cosmo_fxd_field(default_function=lambda self: 1e5 / self.Mpc_SI)
-    c_SI: ArrayLike = cosmo_fxd_field(default=299792458)
-    G_SI: ArrayLike = cosmo_fxd_field(default=6.67430e-11)
+    M_sun_SI: ArrayLike = fxd_field(default=1.98847e30)
+    Mpc_SI: ArrayLike = fxd_field(default=3.0856775815e22)
+    H_0_SI: ArrayLike = fxd_field(default_function=lambda self: 1e5 / self.Mpc_SI)
+    c_SI: ArrayLike = fxd_field(default=299792458)
+    G_SI: ArrayLike = fxd_field(default=6.67430e-11)
 
     # units in SI units
-    M: ArrayLike = cosmo_fxd_field(default_function=lambda self: 1e10 * self.M_sun_SI)
-    L: ArrayLike = cosmo_fxd_field(default_function=lambda self: self.Mpc_SI)
-    T: ArrayLike = cosmo_fxd_field(default_function=lambda self: 1 / self.H_0_SI)
+    M: ArrayLike = fxd_field(default_function=lambda self: 1e10 * self.M_sun_SI)
+    L: ArrayLike = fxd_field(default_function=lambda self: self.Mpc_SI)
+    T: ArrayLike = fxd_field(default_function=lambda self: 1 / self.H_0_SI)
 
     distance_lga_min: float = aux_field(default=-3)
     distance_lga_max: float = aux_field(default=1)
@@ -264,7 +264,7 @@ class Cosmology(DataTree):
 
     @property
     def distance_a(self):
-        """Distance scale factors."""
+        """Distance scale factors, starting from 0."""
         a = jnp.logspace(self.distance_lga_min, self.distance_lga_max,
                          num=self.distance_a_num - 1, dtype=self.dtype)
         return jnp.concatenate((jnp.array([0]), a))
@@ -283,7 +283,7 @@ class Cosmology(DataTree):
 
     @property
     def transfer_k(self):
-        """Transfer function wavenumbers in :math:`1/L`."""
+        """Transfer function wavenumbers in :math:`1/L`, starting from 0."""
         k = jnp.logspace(self.transfer_lgk_min, self.transfer_lgk_max,
                          num=self.transfer_k_num - 1, dtype=self.dtype)
         return jnp.concatenate((jnp.array([0]), k))

@@ -6,7 +6,7 @@ from functools import partial
 from pprint import pformat
 
 import jax.numpy as jnp
-from jax import lax
+from jax import Array, lax
 from jax.tree_util import GetAttrKey, register_pytree_with_keys, tree_leaves, tree_map
 
 from pmwd.util import add, sub, neg, scalar_mul, scalar_div
@@ -29,27 +29,42 @@ from pmwd.util import add, sub, neg, scalar_mul, scalar_div
 # TODO tensorstore is probably better
 
 
-def issubdtype_of(dtype):
-    """Return a function that raises `ValueError` if input object is not equal or lower
-    than specified `dtype`.
+def issubdtype_of(stype):
+    """Return a validator function that raises `ValueError` if its input object is not
+    equal or lower than the specified scalar type.
 
-    Useful for validation in `Data`.
+    Parameters
+    ----------
+    stype : scalar type
+        ``jnp.number``, ``jnp.integer``, ``jnp.signedinteger``, ``jnp.unsignedinteger``,
+        ``jnp.inexact``, ``jnp.floating``, ``jnp.complexfloating``, or ``jnp.bool``.
 
     """
     def fun(value):
-        if not jnp.issubdtype(value, dtype):
-            raise ValueError(f'{obj!r} must be sub-dtype of {dtype!r}')
+        if not jnp.issubdtype(value, stype):
+            raise ValueError(f'{obj!r} must be sub-dtype of {stype!r}')
         return value
     return fun
 
 
 def asarray_of(dtype=None, field=None):
-    """Return a function that converts input pytree children to JAX arrays of specified
-    `dtype`, or dtype given by the specified `field` of pytree dataclass.
+    """Return a validator function that casts the children of its input pytree to JAX
+    arrays of the specified dtype.
 
-    Useful for validation in `Data`. `dtype` can be `None` or `float`, while more
-    specific conversions can be done using e.g. `jnp.float32` instead of
-    ``asarray_of(dtype=jnp.float32)``.
+    Parameters
+    ----------
+    dtype : DTypeLike, optional
+        `dtype` can be `None`, `float`, or `int`, while more specific conversions can be
+        done using, e.g., `validate=jnp.float32` instead of the more cumbersome
+        ``validate=asarray_of(dtype=jnp.float32)``.
+    field : str, optional
+        If not `None`, use dtype inferred from `field` of the owner dataclass, which can
+        be either a `DTypeLike` or an `Array`.
+
+    Raises
+    ------
+    ValueError
+        If both `dtype` and `field` are not `None`.
 
     """
     if field is None:
@@ -61,21 +76,26 @@ def asarray_of(dtype=None, field=None):
         raise ValueError('dtype and field are mutually exclusive')
 
     def fun(value, obj):
-        # FIXME are these line necessary/useful? this uses treemap and jnp anyway?
-        #if not hasattr(obj, 'iter_fields'):
-        #    raise TypeError(f'{obj=} not a pytree dataclass')
-        #if field not in obj.iter_fields(ftype=FType.AUXILIARY, name=True):
-        #    raise ValueError(f'{field=} not in auxiliary fields of {obj=}')
-        dtype = getattr(obj, field)
+        dtype = jnp.dtype(getattr(obj, field))
         return tree_map(partial(jnp.asarray, dtype=dtype), value)
     return fun
 
 
 def reshape_to(shape=None, field=None):
-    """Return a function that reshapes input pytree children to specified `shape`, or
-    shape given by the specified `field` of pytree dataclass.
+    """Return a validator function that reshapes the children of its input pytree to the
+    specified shape.
 
-    Useful for validation in `Data`.
+    Parameters
+    ----------
+    shape : tuple, optional
+    field : str, optional
+        If not `None`, use shape inferred from `field` of the owner dataclass, which can
+        be either a `tuple` or an `Array`.
+
+    Raises
+    ------
+    ValueError
+        If both `shape` and `field` are not `None`.
 
     """
     if field is None:
@@ -87,12 +107,8 @@ def reshape_to(shape=None, field=None):
         raise ValueError('shape and field are mutually exclusive')
 
     def fun(value, obj):
-        # FIXME are these line necessary/useful? this uses treemap and jnp anyway?
-        #if not hasattr(obj, iter_fields):
-        #    raise TypeError(f'{obj=} not a pytree dataclass')
-        #if field not in obj.iter_fields(ftype=FType.AUXILIARY, name=True):
-        #    raise ValueError(f'{field=} not in auxiliary fields of {obj=}')
         shape = getattr(obj, field)
+        shape = shape.shape if isinstance(shape, Array) else shape
         return tree_map(partial(jnp.reshape, shape=shape), value)
     return fun
 
@@ -152,10 +168,10 @@ class Data:
     default_function : callable or None, optional
         Default function to compute the value, if not already initialized to anything
         else but `None`, from the instance of the owner class, ``value =
-        default_function(obj)``, runned by e.g. `Tree.__post_init__`.
+        default_function(obj)``, runned by, e.g., `Tree.__post_init__`.
     cache : callable or None, optional
         Caching function to compute the value from the instance of the owner class,
-        ``value = cache(obj)``, runned by e.g. `Tree.cache`.
+        ``value = cache(obj)``, runned by, e.g., `Tree.cache`.
     validate : callable, sequence of callable, or None, optional
         Validator functions before setting the value, ``value = fun(value)`` or ``value
         = fun(value, obj)``. Skipped if input ``value is None``. If a sequence, apply
@@ -282,7 +298,7 @@ class Data:
         """Raise if mandatory but missing."""
         if self.mandatory and all(x is None for x in (
                 self.default, self.default_function, self.cache, self.__get__(obj))):
-            raise ValueError(f'mandatory {self.name} missing for '
+            raise ValueError(f'mandatory data {self.name} missing for '
                              f'{self.objtype.__qualname__}')
 
     def run_default_function(self, obj):
@@ -333,6 +349,7 @@ def field(*, mandatory=True, default=None, default_function=None, cache=None,
     ----------
     **kwargs
         Parameters for `dataclasses.field` (with the other ones before them for `Data`).
+        `default_factory` is forbidden.
 
     """
     return dataclasses.field(
@@ -389,6 +406,7 @@ def dyn_field(*, mandatory=True, default=None, default_function=None, cache=None
     ----------
     **kwargs
         Parameters for `dataclasses.field` (with the other ones before them for `Data`).
+        `default_factory` is forbidden.
 
     """
     validate = _canonicalize_callables(validate)
@@ -419,7 +437,7 @@ def fxd_field(*, mandatory=True, default=None, default_function=None, cache=None
     ----------
     **kwargs
         Parameters for `dataclasses.field` besides `repr` (with the other ones before
-        them for `Data`).
+        them for `Data`). `default_factory` is forbidden.
 
     """
     validate = _canonicalize_callables(validate)
@@ -449,7 +467,7 @@ def aux_field(*, mandatory=True, default=None, default_function=None, cache=None
     ----------
     **kwargs
         Parameters for `dataclasses.field` besides `repr` (with the other ones before
-        them for `Data`).
+        them for `Data`). `default_factory` is forbidden.
 
     """
     kwargs = _update_metadata(kwargs, FType.AUXILIARY)
@@ -521,6 +539,7 @@ class Tree(ABC):
                 if value is not self:
                     descr.__set__(self, value)
 
+    #TODO warn reserved member names replace, cache, & purge. How?
     def replace(self, **changes):
         """Create a new object of the same type, replacing fields with changes.
 
@@ -662,12 +681,12 @@ def pytree_dataclass(cls, *, frozen=True, **kwargs):
     >>> @pytree_dataclass
     ... class Parameters(TanMixin, Tree):
     ...     dtype: DTypeLike = aux_field(default=jnp.complex64,
-    ...                                  validate=issubdtype_of(jnp.complexfloating)
+    ...                                  validate=issubdtype_of(jnp.complexfloating),
     ...                                  repr=True)
     ...     theta: ArrayLike = dyn_field(default=jnp.array([0, 1, 1j]),
     ...                                  validate=asarray_of(field='dtype'))
     ...     const: ArrayLike = fxd_field(default=jnp.array([2.7182818, 3.1415926]),
-    ...                                  validate=jnp.float32
+    ...                                  validate=jnp.float32,
     ...                                  repr=True)
     >>> print(Parameters())
     Parameters(dtype=<class 'jax.numpy.complex64'>,
