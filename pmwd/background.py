@@ -124,45 +124,6 @@ def distance_cache(cosmo):
     return cT
 
 
-def SK(chi, cosmo):
-    r"""Convert radial comoving distances to transverse ones.
-
-    Parameters
-    ----------
-    chi : ArrayLike
-        Radial/line-of-sight comoving distances in :math:`L`.
-    cosmo : Cosmology
-
-    Returns
-    -------
-    r : jax.Array
-        Transverse comoving / comoving angular diameter distances in :math:`L`.
-
-    Notes
-    -----
-    .. math::
-
-        r = \frac{S_K(\sqrt{|K|} \chi)}{\sqrt{|K|}},
-
-    where :math:`K` is `Cosmology.K`, and :math:`S_K` is sine, identity, or hyperbolic
-    sine for positive, zero, or negative :math:`K`, respectively.
-
-    """
-    branches = _SK_closed, _SK_flat, _SK_open
-    Ksqrt = jnp.sqrt(jnp.abs(cosmo.K))
-    r = switch(jnp.int8(jnp.sign(cosmo.Omega_K)) + 1, branches, chi, Ksqrt)
-    return r
-
-def _SK_closed(chi, Ksqrt):
-    return jnp.sin(Ksqrt * chi) / Ksqrt
-
-def _SK_flat(chi, Ksqrt):
-    return chi
-
-def _SK_open(chi, Ksqrt):
-    return jnp.sinh(Ksqrt * chi) / Ksqrt
-
-
 def distance(a, cosmo, type='radial', a_ref=1):
     r"""Interpolate and compute different distance or time measures from some events via
     relativistic messengers to some references, e.g., from light emissions to
@@ -259,3 +220,42 @@ def distance(a, cosmo, type='radial', a_ref=1):
         return a_ref / a * d
 
     raise ValueError(f'BUG: {type=} not handled after the above match case')
+
+
+def SK(chi, cosmo):
+    r"""Convert radial comoving distances to transverse ones.
+
+    Parameters
+    ----------
+    chi : ArrayLike
+        Radial/line-of-sight comoving distances in :math:`L`.
+    cosmo : Cosmology
+
+    Returns
+    -------
+    r : jax.Array
+        Transverse comoving / comoving angular diameter distances in :math:`L`.
+
+    Notes
+    -----
+    .. math::
+
+        r = \frac{S_K(\sqrt{|K|} \chi)}{\sqrt{|K|}},
+
+    where :math:`K` is `Cosmology.K`, and :math:`S_K` is sine, identity, or hyperbolic
+    sine for positive, zero, or negative :math:`K`, respectively.
+
+    """
+    branches = _SK_closed, _SK_flat, _SK_open
+    Ksqrt = jnp.sqrt(jnp.abs(cosmo.K))
+    r = switch(jnp.int8(jnp.sign(cosmo.Omega_K)) + 1, branches, chi, Ksqrt)
+    return r
+
+def _SK_closed(chi, Ksqrt):
+    return jnp.sin(Ksqrt * chi) / Ksqrt
+
+def _SK_flat(chi, Ksqrt):
+    return chi
+
+def _SK_open(chi, Ksqrt):
+    return jnp.sinh(Ksqrt * chi) / Ksqrt
