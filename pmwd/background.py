@@ -91,7 +91,7 @@ def Omega_m_a(a, cosmo):
 
 
 def distance_cache(cosmo):
-    r"""Cache the comoving and physical distance tables at ``cosmo.distance_a``.
+    r"""Distance tables at ``cosmo.distance_a`` in unit :math:`L`.
 
     Parameters
     ----------
@@ -99,47 +99,29 @@ def distance_cache(cosmo):
 
     Returns
     -------
-    cosmo : Cosmology
-        A new object containing a distance table, in unit :math:`L`, shape ``(2,
-        cosmo.distance_a_num,)``, and precision `cosmo.dtype`.
+    cT : jax.Array of cosmo.dtype and shape (4, cosmo.distance_a_num,)
+        Distance table.
 
     Notes
     -----
-    The comoving horizon in the conformal time :math:`\eta`
-
-    .. math::
-
-        c \eta = \int_0^t \frac{c \mathrm{d} t}{a(t)}
-               = d_H \int_0^a \frac{\mathrm{d} a'}{a'^2 E(a')}
-               = d_H \int_z^\infty \frac{\mathrm{d} z'}{E(z')}.
-
-    The light-travel distance in the age or physical time :math:`t`
-
-    .. math::
-
-        ct = \int_0^t c \mathrm{d} t
-           = d_H \int_0^a \frac{\mathrm{d} a'}{a' E(a')}
-           = d_H \int_z^\infty \frac{\mathrm{d} z'}{(1+z') E(z')}.
+    :math:`cT_n` (see `distance`) relative to the end of ``cosmo.distance_a``.
 
     """
-    #FIXME in the future use jax.scipy.integrate.cumulative_trapezoid or Cubic Hermite spline antiderivatives
-    a = cosmo.distance_a[1:]
-    da = jnp.diff(cosmo.distance_a, prepend=0)
+    #FIXME maybe Cubic Hermite spline antiderivatives in the future
+    a = cosmo.distance_a[1:]  # put aside leading 0
+    n = jnp.arange(4)[:, jnp.newaxis]
+    cdTda = cosmo.d_H / (a**(n+1) * jnp.sqrt(E2(a, cosmo)))
+    # NOTE approximate c dT/da for n=1
+    cdTda = jnp.concatenate(
+        (jnp.array([[0], [0], [jnp.inf], [jnp.inf]], dtype=cosmo.dtype), cdTda))
 
-    cdetada = cosmo.d_H / (a**2 * jnp.sqrt(E2(a, cosmo)))
-    cdetada = jnp.concatenate((jnp.array([0, 0]), cdetada))
-    cdeta = (cdetada[:-1] + cdetada[1:]) / 2 * da
-    ceta = jnp.cumsum(cdeta)
+    da = jnp.diff(cosmo.distance_a)
+    cdT = (cdTda[:-1] + cdTda[1:]) / 2 * da
+    cdT = jnp.concatenate((cdT, jnp.zero_like(n)))
 
-    cdtda = cosmo.d_H / (a * jnp.sqrt(E2(a, cosmo)))
-    cdtda = jnp.concatenate((jnp.array([0, 0]), cdtda))
-    cdt = (cdtda[:-1] + cdtda[1:]) / 2 * da
-    ct = jnp.cumsum(cdt)
+    cT = jnp.cumsum(cdT[::-1])[::-1]
 
-    distance = jnp.stack((ceta, ct), axis=0)
-
-    #return cosmo.replace(distance=distance)
-    return distance
+    return cT
 
 
 def _SK_closed(chi, Ksqrt):
@@ -152,21 +134,29 @@ def _SK_open(chi, Ksqrt):
     return jnp.sinh(Ksqrt * chi) / Ksqrt
 
 
-def distance(a_e, cosmo, type='radial', a_o=1):
-    r"""Interpolate the distances and compute different distance or time measures
-    between emissions and observations.
+def distance(a, cosmo, type='radial', a_ref=1):
+    r"""Interpolate and compute different distance or time measures from some events via
+    relativistic messengers to some references, e.g., from light emissions to
+    observations.
 
     Parameters
     ----------
-    a_e : ArrayLike
-        Scale factors at emission.
+    a : ArrayLike
+        Scale factors of events.
     cosmo : Cosmology
-    type : str in {'radial', 'transverse', 'angdiam', 'luminosity', 'light', 'conformal', 'lookback'}, optional
-        Type of distances or times to return, among radial comoving distance, transverse
-        comoving distance, angular diameter distance, luminosity distance, light-travel
-        distance, conformal time, and lookback time.
-    a_o : ArrayLike, optional
-        Scale factors at observation.
+    type : {'light' or 0, 'radial' or 1, 'transverse', 'angdiam', 'luminosity', 'super'
+            or 2, 'coldens' or 3}, optional
+        Type of distances or times to return, among physical/light-travel distance,
+        radial/line-of-sight comoving distance, transverse comoving distance, angular
+        diameter distance, luminosity distance, supercomoving / superconformal /
+        dispersion measure distance, and that related to non-relativistic particle
+        column density.
+    time : bool, optional
+        Whether to divide by the speed of light to return time measure instead, e.g.,
+        for physical/lookback time with ``type='light'`` or conformal time with
+        ``type='radial'``.
+    a_ref : ArrayLike, optional
+        Scale factors of references.
 
     Returns
     -------
@@ -175,15 +165,17 @@ def distance(a_e, cosmo, type='radial', a_o=1):
 
     Notes
     -----
-    The line-of-sight or radial comoving distance, related to the conformal time
-    :math:`\eta`
-
     .. math::
 
-        \chi = c \eta
-             = \int_{t_\mathrm{e}}^{t_\mathrm{o}} \frac{c \mathrm{d} t}{a(t)}
-             = d_H \int_{a_\mathrm{e}}^{a_\mathrm{o}} \frac{\mathrm{d} a'}{a'^2 E(a'}
-             = d_H \int_{z_\mathrm{o}}^{z_\mathrm{e}} \frac{\mathrm{d} z'}{E(z')}.
+        cT_n(t, t_\mathrm{ref})
+            = \int_t^{t_\mathrm{ref}} \frac{c \mathrm{d} t}{a^n(t)}
+            = d_H \int_a^{a_\mathrm{ref}} \frac{\mathrm{d} a'}{{a'}^{n+1} E(a')}
+            = d_H \int_{z_\mathrm{ref}}^z \frac{(1+z')^{n-1} \mathrm{d} z'}{E(z')},
+
+    which for :math:`n = 0, 1, 2, 3` are physical/light-travel/lookback,
+    (radial/line-of-sight) comoving / conformal, supercomoving / superconformal /
+    related to dispersion measure, and related to non-relativistic particle column
+    density, respectively. So :math:`T_0 = t` and :math:`cT_1 = \chi`.
 
     The transverse comoving or comoving angular diameter distance
 
@@ -191,40 +183,47 @@ def distance(a_e, cosmo, type='radial', a_o=1):
 
         r = \frac{S_K(\sqrt{|K|} \chi)}{\sqrt{|K|}},
 
-    where :math:`S_K` is sin, identity, or sinh for positive, zero, or negative
-    :math:`K`, respectively.
+    where :math:`S_K` is sine, identity, or hyperbolic sine for positive, zero, or
+    negative :math:`K`, respectively.
 
     The angular diameter distance and luminosity distance
 
     .. math::
 
-        d_\mathrm{A} &= \frac{a_\mathrm{e}}{a_\mathrm{o}} r, \\
-        d_L &= \frac{a_\mathrm{o}}{a_\mathrm{e}} r.
+        d_\mathrm{A} &= \frac{a}{a_\mathrm{ref}} r, \\
+        d_\mathrm{L} &= \frac{a_\mathrm{ref}}{a} r,
 
-    The light-travel distance in the lookback or physical time :math:`t`
-
-    .. math::
-
-        ct = \int_{t_\mathrm{e}}^{t_\mathrm{o}} c \mathrm{d} t
-           = d_H \int_{a_\mathrm{e}}^{a_\mathrm{o}} \frac{\mathrm{d} a'}{a' E(a'}
-           = d_H \int_{z_\mathrm{o}}^{z_\mathrm{e}} \frac{\mathrm{d} z'}{(1+z') E(z')}.
+    where :math:`a` and :math:`a_\mathrm{ref}` are for emission and observation,
+    respectively.
 
     """
     if cosmo.distance is None:
-        raise ValueError('distance table is empty: run Cosmology.cache or distance_cache first')
+        raise ValueError('distance table is empty: run Cosmology.cache first')
 
-    a_e = jnp.asarray(a_e)
-    a_o = jnp.asarray(a_o)
+    a = jnp.asarray(a)
+    a_ref = jnp.asarray(a_ref)
 
-    phys = 1 if type in {'light', 'lookback'} else 0
-    d_o = jnp.interp(a_o, cosmo.distance_a, cosmo.distance[phys])
-    d_e = jnp.interp(a_e, cosmo.distance_a, cosmo.distance[phys])
-    d = d_o - d_e
+    match type:
+        case int() if 0 <= type <= 3:
+            n = type
+        case 'light':
+            n = 0
+        case 'radial' | 'transverse' | 'angdiam' | 'luminosity':
+            n = 1
+        case 'super':
+            n = 2
+        case 'coldens':
+            n = 3
+        case _:
+            raise ValueError(f'{type=} not supported')
+    d = jnp.interp(a, cosmo.distance_a, cosmo.distance[n])
+    d_ref = jnp.interp(a_ref, cosmo.distance_a, cosmo.distance[n])
+    d -= d_ref
 
-    if type in {'lookback', 'conformal'}:
+    if time:
         d /= cosmo.c
 
-    if type in {'radial', 'light', 'lookback', 'conformal'}:
+    if type in {'light', 'radial', 'super', 'coldens'}:
         return d
 
     branches = _SK_closed, _SK_flat, _SK_open
@@ -233,8 +232,9 @@ def distance(a_e, cosmo, type='radial', a_o=1):
     if type == 'transverse':
         return d
     if type == 'angdiam':
-        return a_e / a_o * d
+        return a / a_ref * d  # FIXME: keep only `a` following Hogg (& ?),
+                              # FIXME: or find way to reorganize the scale factors?
     if type == 'luminosity':
-        return a_o / a_e * d
+        return a_ref / a * d
 
-    raise ValueError(f'{type=} not supported')
+    raise ValueError(f'BUG: {type=} not handled after the above match case')
