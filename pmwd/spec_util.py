@@ -47,7 +47,7 @@ def _getbins(grid_shape, bins, cut_nyq):
     return bnum, bcut, bins, right
 
 
-@partial(jit, static_argnames=('bins', 'cut_zero', 'cut_nyq', 'dtype', 'int_dtype'))
+@partial(jit, static_argnums=(2, 4, 5, 6, 7, 8))
 def powspec(f, spacing, bins=1j/3, g=None, deconv=None, cut_zero=True, cut_nyq=True,
             dtype=jnp.float64, int_dtype=jnp.uint32):
     """Compute auto or cross power spectrum in 3D averaged in spherical bins.
