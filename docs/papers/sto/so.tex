@@ -15,20 +15,21 @@
 \usepackage{nicefrac}
 \usepackage[caption=false]{subfig}
 \usepackage[figure,figure*]{hypcap}
-%\usepackage{tikz}
-%  \usetikzlibrary{positioning, fit, calc, arrows.meta}
+\usepackage{tikz}
+ \usetikzlibrary{positioning, fit, calc, arrows.meta}
 \usepackage{booktabs}
+\usepackage{framed}
 
 
 \newcommand{\pmwd}{{\usefont{T1}{nova}{m}{sl}pmwd}}
 \newcommand{\GADGET}{{{\fontsize{10pt}{12pt}\selectfont GADGET}-4}}
 \newcommand{\GSDATA}{{GS512}}
 
-%\renewcommand{\sectionautorefname}{Sec.}
-%\renewcommand{\subsectionautorefname}{Sec.}
-%\renewcommand{\appendixautorefname}{App.}
-%\renewcommand{\figureautorefname}{Fig.}
-%\newcommand{\subfigureautorefname}{\figureautorefname}
+\renewcommand{\sectionautorefname}{Sec.}
+\renewcommand{\subsectionautorefname}{Sec.}
+\renewcommand{\appendixautorefname}{App.}
+\renewcommand{\figureautorefname}{Fig.}
+\newcommand{\subfigureautorefname}{\figureautorefname}
 
 %FIXME copied from ../adjoint/adjoint.tex
 \newcommand{\deltaD}{\delta^\textsc{d}}
@@ -260,6 +261,7 @@ to
 \begin{equation}
 F(\vk)_i = i \frac32 \Omegam H_0^2 \,\frac{k_i}{k^2}\,
                     f(k_i; \vvartheta) g(\vk; \vvartheta) \delta(\vk),
+\label{force_so}
 \end{equation}
 %
 where $f$ and $g$ are nonlinear functions of the wavevector components
@@ -553,8 +555,95 @@ transformation in JAX.
 \subsection{Differentiable Simulation}
 \label{sec:pmwd}
 
-The SO using gradient descent training discussed in this work is built
-in the framework of the PM $N$-body library \pmwd\ \citep{Li2022b},
+\begin{figure*}[t]
+\centering
+\tikzstyle{node style}=[
+  node distance=2.8em, minimum size=2.8em, text centered,
+  to/.style={-to, gray, thick},
+  oto/.style={-to, gray, thick, dashed},
+  toto/.style={double distance=1pt, -Implies, gray, thick},
+  from/.style={to-, gray, thick},
+  ofrom/.style={to-, gray, thick, dashed},
+]
+\tikzstyle{box style}=[
+  rectangle, inner sep=0.4em, rounded corners, draw=gray, thick,
+]
+\subfloat[integration-observation loop]{
+\label{fig:loop}
+\begin{tikzpicture}[node style]
+  \node (ic) {LPT};
+  \node (integ_1) [right=of ic] {$I_1(\vvartheta)$}
+        edge [from] (ic);
+  \node (obs_1) [below=of integ_1] {$O_1$}
+        edge [from] (integ_1);
+  \node (integ_1i) [right=of integ_1] {$\cdots$}
+        edge [from] (integ_1);
+  \node (obs_1i) [below=of integ_1i] {$\cdots$}
+        edge [from] (integ_1i)
+        edge [ofrom] (obs_1);
+  \node (integ_i) [right=of integ_1i] {$I_i(\vvartheta)$}
+        edge [from] (integ_1i);
+  \node (obs_i) [below=of integ_i] {$O_i$}
+        edge [from] (integ_i)
+        edge [ofrom] (obs_1i);
+  \node (integ_in) [right=of integ_i] {$\cdots$}
+        edge [from] (integ_i);
+  \node (obs_in) [below=of integ_in] {$\cdots$}
+        edge [from] (integ_in)
+        edge [ofrom] (obs_i);
+  \node (integ_n) [right=of integ_in] {$I_n(\vvartheta)$}
+        edge [from] (integ_in);
+  \node (obs_n) [below=of integ_n] {$O_n$}
+        edge [from] (integ_n)
+        edge [ofrom] (obs_in);
+  \node (obj) [right=of obs_n] {Obj}
+        edge [ofrom] (obs_n);
+  \node (box) [box style, fit=(integ_1) (obs_n)] {};
+  \node [box style, inner sep=0em, dotted, fit=(integ_i) (obs_i)] {};
+  \useasboundingbox ($ (box.south) - (0, 1em) $) --
+                    ($ (box.north) + (0, 1em) $);
+\end{tikzpicture}
+}
+\\
+\subfloat[$i$-th (leapfrog) integration-observation step]{
+\label{fig:step}
+\begin{tikzpicture}[node style, node distance=2em and 1.5em]
+  \node (kick_a) {$K_{i-1}^{i-\half}$};
+  \node (drift) [right=of kick_a] {$D_{i-1}^i$}
+        edge [from] (kick_a);
+  \node (force) [right=of drift] {$F_i(\vvartheta)$}
+        edge [from] (drift);
+  \node (kick_b) [right=of force] {$K_{i-\half}^i$}
+        edge [from] (force);
+  \node (obs) [below=of kick_b] {$O_{i-1}^i$} edge [from] (kick_b);
+  \node (integ_im1) [left=of kick_a, minimum width=0em] {}
+        edge [to] (kick_a);
+  \node (integ_ip1) [right=of kick_b, minimum width=0em] {}
+        edge [from] (kick_b);
+  \node (obs_im1) [below=of integ_im1, minimum width=0em] {}
+        edge [oto] (obs);
+  \node (obs_ip1) [below=of integ_ip1, minimum width=0em] {}
+        edge [ofrom] (obs);
+  \node (box) [box style, dotted, fit=(kick_a) (kick_b) (obs)] {};
+  \useasboundingbox ($ (box.south) - (0, 1em) $) --
+                    ($ (box.north) + (0, 1em) $);
+\end{tikzpicture}
+}
+\caption{The cosmological N-body forward simulation model.
+The solid arrows denote the flow of particles' state $(\vx, \vp)$, which
+are initialized with LPT and updated in the N-body
+integration-observation loop.
+As shown in \eqref{force_so}, our spatial optimization neural networks
+with parameters $\vvartheta$ are embedded in the Poisson equation of the
+force operator $F_i$, which is part of the integration operator $I_i$.
+The dashed arrows denote the flow of the observable $\vo$, which in the
+end enters the objective function.}
+\end{figure*}
+
+The gradient descent optimization of the neural networks embedded in the
+Poisson equation \eqref{force_so} relies on the backpropagation of the
+gradients throughout the simulation.
+In this work, we use the PM $N$-body library \pmwd\ \citep{Li2022b},
 which is an implementation of the differentiable cosmological simulation
 with the adjoint method \citep{Li2022a}.
 
@@ -577,6 +666,7 @@ $a_{i-1}$, the adjoint variables are updated through
               \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vx_{i-1}}, \nonumber\\
   \vpi_{i-1} &:= \vpi_{i-1} +
                           \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vp_{i-1}},
+\label{adjoint_obs}
 \end{align}
 where the derivatives of $\vo$ with respect to $\vx_{i-1}$ or
 $\vp_{i-1}$ would be non-zero only if $\vx_{i-1}$ or $\vp_{i-1}$ was
@@ -585,6 +675,7 @@ The initial conditions of these adjoint variables are given by
 \begin{align}
   \vxi_n &= \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p\vx_n}, \nonumber\\
   \vpi_n &= \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p\vp_n},
+\label{adjoint_init}
 \end{align}
 which are zero if no snapshot in $\vo$ depends on $(\vx_n, \vp_n)$, the
 state of particles at the final time step.
@@ -604,11 +695,11 @@ Both can be conveniently computed by AD.
 The $N$-body time integration is carried out along discrete time steps
 in terms of the scale factor $a$, and the state of particles at any
 given time can be achieved using interpolation.
-Given the particle displacements $\vs$ and velocities\footnote{This
+Given the particle displacements $\vs$ and velocities\footnote{The
 velocity is related to the canonical momentum $\vp$ through $\vv =
-\vp/(a^3H)$.} $\vv := \d\vs/\d a$ at two consecutive time steps $a_i$ and
-$a_{i+1}$, we get the snapshot of particles in between at $a$ using the
-cubic Hermite interpolation.
+\vp/(a^3H)$, where $H$ is the Hubble parameter.} $\vv := \d\vs/\d a$ at
+two consecutive time steps $a_i$ and $a_{i+1}$, we get the snapshot of
+particles in between at $a$ using the cubic Hermite interpolation.
 The interpolated particle displacements are given by
 \begin{align}
   \vs(a) =\ &h_{00}(\alpha)\vs_i + h_{10}(\alpha)(a_{i+1} - a_i)\vv_i + \nonumber\\
@@ -629,10 +720,11 @@ two consecutive time steps, which therefore can be done in either two
 steps or just one step by carrying the particles from the previous step.
 We find the two-steps scheme more convenient for the backward evolution
 of the adjoint variables.
-The interpolated snapshots at different times make the observable in
-this work, and the VJPs of the interpolation functions are computed by
-AD and put into the adjoint equations as mentioned in
-\autoref{sec:pmwd}.
+The interpolated snapshots at different times constitute our observable,
+where the VJPs of the interpolation functions are computed by AD as an
+intermediate step during the computation of $\partial\vo / \partial\vx$
+and $\partial\vo / \partial\vp$ in the adjoint equations
+\eqref{adjoint_obs} and \eqref{adjoint_init}.
 
 
 \vspace{1em}
