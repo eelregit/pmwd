@@ -5,7 +5,7 @@ from pmwd.particles import Particles
 from pmwd.cosmology import E2
 
 
-def itp_prev(ptcl0, a0, a1, a, cosmo):
+def itp_prev(ptcl, a0, a1, a, cosmo):
     """Cubic Hermite interpolation is a linear combination of two ptcls, this
        function returns the disp and vel from the first ptcl at a0."""
     Da = a1 - a0
@@ -14,22 +14,22 @@ def itp_prev(ptcl0, a0, a1, a, cosmo):
     # displacement
     h00 = 2 * t**3 - 3 * t**2 + 1
     h10 = t**3 - 2 * t**2 + t
-    disp = h00 * ptcl0.disp + h10 * Da / a3E0 * ptcl0.vel
+    disp = h00 * ptcl.disp + h10 * Da / a3E0 * ptcl.vel
     # velocity
     # derivatives of the Hermite basis functions
     h00 = 6 * t**2 - 6 * t
     h10 = 3 * t**2 - 4 * t + 1
-    vel = h00 / Da * ptcl0.disp + h10 / a3E0 * ptcl0.vel
+    vel = h00 / Da * ptcl.disp + h10 / a3E0 * ptcl.vel
     vel *= a**3 * jnp.sqrt(E2(a, cosmo))
 
-    dtype = ptcl0.conf.float_dtype
+    dtype = ptcl.conf.float_dtype
     return disp.astype(dtype), vel.astype(dtype)
 
 
-def itp_prev_adj(ptcl_cot, cosmo_cot, iptcl_cot, ptcl0, a0, a1, a, cosmo):
+def itp_prev_adj(ptcl_cot, cosmo_cot, iptcl_cot, ptcl, a0, a1, a, cosmo):
     """Update ptcl_cot and cosmo_cot given the iptcl_cot and the vjp with itp_prev."""
     # iptcl_cot is the cotangent of the interpolated ptcl
-    (disp, vel), itp_prev_vjp = vjp(itp_prev, ptcl0, a0, a1, a, cosmo)
+    (disp, vel), itp_prev_vjp = vjp(itp_prev, ptcl, a0, a1, a, cosmo)
     ptcl0_cot, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_prev_vjp(
                                             (iptcl_cot.disp, iptcl_cot.vel))
 
@@ -40,7 +40,7 @@ def itp_prev_adj(ptcl_cot, cosmo_cot, iptcl_cot, ptcl0, a0, a1, a, cosmo):
     return ptcl_cot, cosmo_cot
 
 
-def itp_next(ptcl1, a0, a1, a, cosmo):
+def itp_next(ptcl, a0, a1, a, cosmo):
     """Cubic Hermite interpolation is a linear combination of two ptcls, this
        function returns the disp and vel from the second ptcl at a1."""
     Da = a1 - a0
@@ -49,22 +49,22 @@ def itp_next(ptcl1, a0, a1, a, cosmo):
     # displacement
     h01 = - 2 * t**3 + 3 * t**2
     h11 = t**3 - t**2
-    disp = h01 * ptcl1.disp + h11 * Da / a3E1 * ptcl1.vel
+    disp = h01 * ptcl.disp + h11 * Da / a3E1 * ptcl.vel
     # velocity
     # derivatives of the Hermite basis functions
     h01 = - 6 * t**2 + 6 * t
     h11 = 3 * t**2 - 2 * t
-    vel = h01 / Da * ptcl1.disp + h11 / a3E1 * ptcl1.vel
+    vel = h01 / Da * ptcl.disp + h11 / a3E1 * ptcl.vel
     vel *= a**3 * jnp.sqrt(E2(a, cosmo))
 
-    dtype = ptcl1.conf.float_dtype
+    dtype = ptcl.conf.float_dtype
     return disp.astype(dtype), vel.astype(dtype)
 
 
-def itp_next_adj(ptcl_cot, cosmo_cot, iptcl_cot, ptcl1, a0, a1, a, cosmo):
+def itp_next_adj(ptcl_cot, cosmo_cot, iptcl_cot, ptcl, a0, a1, a, cosmo):
     """Update ptcl_cot and cosmo_cot given the iptcl_cot and the vjp with itp_next."""
     # iptcl_cot is the cotangent of the interpolated ptcl
-    (disp, vel), itp_next_vjp = vjp(itp_next, ptcl1, a0, a1, a, cosmo)
+    (disp, vel), itp_next_vjp = vjp(itp_next, ptcl, a0, a1, a, cosmo)
     ptcl1_cot, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_next_vjp(
                                             (iptcl_cot.disp, iptcl_cot.vel))
 

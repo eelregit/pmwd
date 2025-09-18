@@ -9,7 +9,7 @@ from jax.lax import cond, scan, while_loop
 from pmwd.boltzmann import growth
 from pmwd.cosmology import E2, H_deriv
 from pmwd.gravity import gravity
-from pmwd.obs_util import interptcl, itp_prev_adj, itp_next_adj
+from pmwd.obs_util import itp_prev, itp_next, itp_prev_adj, itp_next_adj
 from pmwd.particles import Particles
 
 
@@ -187,26 +187,34 @@ def coevolve_init(a, ptcl, cosmo, conf):
 
 
 def observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
-    i = jnp.searchsorted(obsvbl['a_snaps'], a_prev, side='left')
-    j = jnp.searchsorted(obsvbl['a_snaps'], a_next, side='left')
-    init_state = (i, j, obsvbl)
 
-    def cond_fun(state):
-        i, j, _ = state
-        return i < j
-
-    def body_fun(state):
-        i, j, obsvbl = state
+    def obs_interp(obsvbl, i):
         a_snap = obsvbl['a_snaps'][i]
-        snap_itp = interptcl(obsvbl['ptcl_prev'], ptcl, a_prev, a_next, a_snap, cosmo)
-        obsvbl['snaps'] = obsvbl['snaps'].replace(
-            disp=obsvbl['snaps'].disp.at[i].set(snap_itp.disp),
-            vel=obsvbl['snaps'].vel.at[i].set(snap_itp.vel))
-        return (i + 1, j, obsvbl)
+        a_step = obsvbl['snap_a_step'][i]
 
-    _, _, obsvbl = while_loop(cond_fun, body_fun, init_state)
+        def _obs_prev(obsvbl):
+            disp, vel = itp_prev(ptcl, a_step[0], a_step[1], a_snap, cosmo)
+            obsvbl['snaps'] = obsvbl['snaps'].replace(
+                disp=obsvbl['snaps'].disp.at[i].set(disp),
+                vel=obsvbl['snaps'].vel.at[i].set(vel))
+            return obsvbl
 
-    obsvbl['ptcl_prev'] = ptcl
+        obsvbl = cond(jnp.isclose(a_step[0], a_next), _obs_prev, lambda _: _,
+                      obsvbl)
+
+        def _obs_next(obsvbl):
+            disp, vel = itp_next(ptcl, a_step[0], a_step[1], a_snap, cosmo)
+            obsvbl['snaps'] = obsvbl['snaps'].replace(
+                disp=obsvbl['snaps'].disp.at[i].add(disp),  # add next itp
+                vel=obsvbl['snaps'].vel.at[i].add(vel))
+            return obsvbl
+
+        obsvbl = cond(jnp.isclose(a_step[1], a_next), _obs_next, lambda _: _,
+                      obsvbl)
+
+        return obsvbl, None
+
+    obsvbl = scan(obs_interp, obsvbl, jnp.arange(len(conf.a_snapshots)))[0]
 
     return obsvbl
 
@@ -214,9 +222,6 @@ def observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
 def observe_init(a, ptcl, obsvbl, cosmo, conf):
     # a dict to carry all observables and related useful information
     obsvbl = {}
-
-    # to carry the prev ptcl, starting with lpt ptcl
-    obsvbl['ptcl_prev'] = ptcl
 
     if conf.a_snapshots is not None:
         obsvbl['a_snaps'] = jnp.array(conf.a_snapshots)
@@ -226,7 +231,7 @@ def observe_init(a, ptcl, obsvbl, cosmo, conf):
         # transposed pytree with leading axis for scan
         obsvbl['snaps'] = tree_map(lambda *xs: jnp.stack(xs), *obsvbl['snaps'])
 
-        # the nbody a step of output snapshots, (,]
+        # the nbody a_prev and a_next step for each output snapshot, (,]
         idx = jnp.searchsorted(conf.a_nbody, jnp.array(conf.a_snapshots), side='left')
         obsvbl['snap_a_step'] = jnp.array((conf.a_nbody[idx-1], conf.a_nbody[idx])).T
 
@@ -238,11 +243,11 @@ def observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo
     def itp_cond_adj(carry, x):
         ptcl_cot, cosmo_cot = carry
         a_snap, a_step, snap_cot = x
-        ptcl_cot, cosmo_cot = cond(a_step[1] == a_next, itp_next_adj,
+        ptcl_cot, cosmo_cot = cond(jnp.isclose(a_step[1], a_next), itp_next_adj,
                                    lambda *args: (ptcl_cot, cosmo_cot),
                                    ptcl_cot, cosmo_cot, snap_cot, ptcl,
                                    a_step[0], a_step[1], a_snap, cosmo)
-        ptcl_cot, cosmo_cot = cond(a_step[1] == a_prev, itp_prev_adj,
+        ptcl_cot, cosmo_cot = cond(jnp.isclose(a_step[1], a_prev), itp_prev_adj,
                                    lambda *args: (ptcl_cot, cosmo_cot),
                                    ptcl_cot, cosmo_cot, snap_cot, ptcl,
                                    a_step[0], a_step[1], a_snap, cosmo)
@@ -261,7 +266,7 @@ def observe_adj_init(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo_cot, co
     def itp_cond_adj(carry, x):
         ptcl_cot, cosmo_cot = carry
         a_snap, a_step, snap_cot = x
-        ptcl_cot, cosmo_cot = cond(a_step[1] == a, itp_next_adj,
+        ptcl_cot, cosmo_cot = cond(jnp.isclose(a_step[1], a), itp_next_adj,
                                    lambda *args: (ptcl_cot, cosmo_cot),
                                    ptcl_cot, cosmo_cot, snap_cot, ptcl,
                                    a_step[0], a_step[1], a_snap, cosmo)
