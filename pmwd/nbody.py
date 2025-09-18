@@ -190,7 +190,7 @@ def observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
 
     def obs_interp(obsvbl, i):
         a_snap = obsvbl['a_snaps'][i]
-        a_step = obsvbl['snap_a_step'][i]
+        a_step = obsvbl['itp_a_step'][i]
 
         def _obs_prev(obsvbl):
             disp, vel = itp_prev(ptcl, a_step[0], a_step[1], a_snap, cosmo)
@@ -205,7 +205,7 @@ def observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
         def _obs_next(obsvbl):
             disp, vel = itp_next(ptcl, a_step[0], a_step[1], a_snap, cosmo)
             obsvbl['snaps'] = obsvbl['snaps'].replace(
-                disp=obsvbl['snaps'].disp.at[i].add(disp),  # add next itp
+                disp=obsvbl['snaps'].disp.at[i].add(disp),  # add itp next part
                 vel=obsvbl['snaps'].vel.at[i].add(vel))
             return obsvbl
 
@@ -231,9 +231,10 @@ def observe_init(a, ptcl, obsvbl, cosmo, conf):
         # transposed pytree with leading axis for scan
         obsvbl['snaps'] = tree_map(lambda *xs: jnp.stack(xs), *obsvbl['snaps'])
 
-        # the nbody a_prev and a_next step for each output snapshot, (,]
+        # the nbody (a_prev, a_next] step for each interpolated snapshot
+        # used in observe to determine the time for interpolation
         idx = jnp.searchsorted(conf.a_nbody, jnp.array(conf.a_snapshots), side='left')
-        obsvbl['snap_a_step'] = jnp.array((conf.a_nbody[idx-1], conf.a_nbody[idx])).T
+        obsvbl['itp_a_step'] = jnp.array((conf.a_nbody[idx-1], conf.a_nbody[idx])).T
 
     return obsvbl
 
@@ -247,7 +248,7 @@ def observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo
                                    lambda *args: (ptcl_cot, cosmo_cot),
                                    ptcl_cot, cosmo_cot, snap_cot, ptcl,
                                    a_step[0], a_step[1], a_snap, cosmo)
-        ptcl_cot, cosmo_cot = cond(jnp.isclose(a_step[1], a_prev), itp_prev_adj,
+        ptcl_cot, cosmo_cot = cond(jnp.isclose(a_step[0], a_next), itp_prev_adj,
                                    lambda *args: (ptcl_cot, cosmo_cot),
                                    ptcl_cot, cosmo_cot, snap_cot, ptcl,
                                    a_step[0], a_step[1], a_snap, cosmo)
@@ -255,7 +256,7 @@ def observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo
 
     if conf.a_snapshots is not None:
         ptcl_cot, cosmo_cot = scan(itp_cond_adj, (ptcl_cot, cosmo_cot),
-                                   (obsvbl['a_snaps'], obsvbl['snap_a_step'],
+                                   (obsvbl['a_snaps'], obsvbl['itp_a_step'],
                                    obsvbl_cot['snaps']))[0]
 
     return ptcl_cot, cosmo_cot
@@ -275,7 +276,7 @@ def observe_adj_init(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo_cot, co
     if conf.a_snapshots is not None:
         # check if the last ptcl is used in interpolation
         ptcl_cot, cosmo_cot = scan(itp_cond_adj, (ptcl_cot, cosmo_cot),
-                                   (obsvbl['a_snaps'], obsvbl['snap_a_step'],
+                                   (obsvbl['a_snaps'], obsvbl['itp_a_step'],
                                    obsvbl_cot['snaps']))[0]
 
     return ptcl_cot, cosmo_cot
