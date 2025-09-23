@@ -244,14 +244,17 @@ def observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo
     def itp_cond_adj(carry, x):
         ptcl_cot, cosmo_cot = carry
         a_snap, a_step, snap_cot = x
+
         ptcl_cot, cosmo_cot = cond(jnp.isclose(a_step[1], a_next), itp_next_adj,
                                    lambda *args: (ptcl_cot, cosmo_cot),
                                    ptcl_cot, cosmo_cot, snap_cot, ptcl,
                                    a_step[0], a_step[1], a_snap, cosmo)
+
         ptcl_cot, cosmo_cot = cond(jnp.isclose(a_step[0], a_next), itp_prev_adj,
                                    lambda *args: (ptcl_cot, cosmo_cot),
                                    ptcl_cot, cosmo_cot, snap_cot, ptcl,
                                    a_step[0], a_step[1], a_snap, cosmo)
+
         return (ptcl_cot, cosmo_cot), None
 
     if conf.a_snapshots is not None:
