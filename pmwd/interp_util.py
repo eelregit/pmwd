@@ -12,18 +12,17 @@ def itp_prev(ptcl0, a0, a1, a, cosmo):
     Da = a1 - a0
     t = (a - a0) / Da
     a3E0 = a0**3 * jnp.sqrt(E2(a0, cosmo))
-    # displacement
+    a3E = a**3 * jnp.sqrt(E2(a, cosmo))
+    # Hermite basis functions and derivatives
     h00 = 2 * t**3 - 3 * t**2 + 1
     h10 = t**3 - 2 * t**2 + t
+    h00p = 6 * t**2 - 6 * t
+    h10p = 3 * t**2 - 4 * t + 1
+
     disp = (h00.astype(dtype) * ptcl0.disp +
             (h10 * Da / a3E0).astype(dtype) * ptcl0.vel)
-    # velocity
-    # derivatives of the Hermite basis functions
-    h00 = 6 * t**2 - 6 * t
-    h10 = 3 * t**2 - 4 * t + 1
-    vel = ((h00 / Da).astype(dtype) * ptcl0.disp +
-           (h10 / a3E0).astype(dtype) * ptcl0.vel)
-    vel *= (a**3 * jnp.sqrt(E2(a, cosmo))).astype(dtype)
+    vel = ((a3E * h00p / Da).astype(dtype) * ptcl0.disp +
+           (a3E * h10p / a3E0).astype(dtype) * ptcl0.vel)
 
     return disp, vel
 
@@ -49,18 +48,17 @@ def itp_next(ptcl1, a0, a1, a, cosmo):
     Da = a1 - a0
     t = (a - a0) / Da
     a3E1 = a1**3 * jnp.sqrt(E2(a1, cosmo))
-    # displacement
+    a3E = a**3 * jnp.sqrt(E2(a, cosmo))
+    # Hermite basis functions and derivatives
     h01 = - 2 * t**3 + 3 * t**2
     h11 = t**3 - t**2
+    h01p = - 6 * t**2 + 6 * t
+    h11p = 3 * t**2 - 2 * t
+
     disp = (h01.astype(dtype) * ptcl1.disp +
             (h11 * Da / a3E1).astype(dtype) * ptcl1.vel)
-    # velocity
-    # derivatives of the Hermite basis functions
-    h01 = - 6 * t**2 + 6 * t
-    h11 = 3 * t**2 - 2 * t
-    vel = ((h01 / Da).astype(dtype) * ptcl1.disp +
-           (h11 / a3E1).astype(dtype) * ptcl1.vel)
-    vel *= (a**3 * jnp.sqrt(E2(a, cosmo))).astype(dtype)
+    vel = ((a3E * h01p / Da).astype(dtype) * ptcl1.disp +
+           (a3E * h11p / a3E1).astype(dtype) * ptcl1.vel)
 
     return disp, vel
 
@@ -87,26 +85,25 @@ def interptcl(ptcl0, ptcl1, a0, a1, a, cosmo):
     t = (a - a0) / Da
     a3E0 = a0**3 * jnp.sqrt(E2(a0, cosmo))
     a3E1 = a1**3 * jnp.sqrt(E2(a1, cosmo))
-    # displacement
+    a3E = a**3 * jnp.sqrt(E2(a, cosmo))
+    # Hermite basis functions and derivatives
     h00 = 2 * t**3 - 3 * t**2 + 1
     h10 = t**3 - 2 * t**2 + t
     h01 = - 2 * t**3 + 3 * t**2
     h11 = t**3 - t**2
+    h00p = 6 * t**2 - 6 * t
+    h10p = 3 * t**2 - 4 * t + 1
+    h01p = - 6 * t**2 + 6 * t
+    h11p = 3 * t**2 - 2 * t
+
     disp = (h00.astype(dtype) * ptcl0.disp +
             (h10 * Da / a3E0).astype(dtype) * ptcl0.vel +
             h01.astype(dtype) * ptcl1.disp +
             (h11 * Da / a3E1).astype(dtype) * ptcl1.vel)
-    # velocity
-    # derivatives of the Hermite basis functions
-    h00 = 6 * t**2 - 6 * t
-    h10 = 3 * t**2 - 4 * t + 1
-    h01 = - 6 * t**2 + 6 * t
-    h11 = 3 * t**2 - 2 * t
-    vel = ((h00 / Da).astype(dtype) * ptcl0.disp +
-           (h10 / a3E0).astype(dtype) * ptcl0.vel +
-           (h01 / Da).astype(dtype) * ptcl1.disp +
-           (h11 / a3E1).astype(dtype) * ptcl1.vel)
-    vel *= (a**3 * jnp.sqrt(E2(a, cosmo))).astype(dtype)
+    vel = ((a3E * h00p / Da).astype(dtype) * ptcl0.disp +
+           (a3E * h10p / a3E0).astype(dtype) * ptcl0.vel +
+           (a3E * h01p / Da).astype(dtype) * ptcl1.disp +
+           (a3E * h11p / a3E1).astype(dtype) * ptcl1.vel)
 
     iptcl = Particles(ptcl0.conf, ptcl0.pmid, disp, vel=vel)
     return iptcl
