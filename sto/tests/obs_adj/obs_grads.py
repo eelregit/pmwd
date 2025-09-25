@@ -18,38 +18,34 @@ from pmwd import (
 from pmwd.vis_util import simshow
 
 
-def gen_ic(modes, cosmo, conf):
+def model(modes, cosmo, conf):
+    cosmo = boltzmann(cosmo, conf)
     modes = linear_modes(modes, cosmo, conf)
-    ptcl, _ = lpt(modes, cosmo, conf)
-    return ptcl
-
-
-def model(ptcl, cosmo, conf):  # we focus on nbody only
+    ptcl, obsvbl = lpt(modes, cosmo, conf)
     ptcl, obsvbl = nbody(ptcl, None, cosmo, conf)  # obsvbl init in nbody
     def _scatter(carry, x):
         ptcl = x
         dens = scatter(ptcl, conf)
         return None, dens
     # make dens for all obsvbl snapshots
-    dens = scan(_scatter, None, obsvbl['snaps'])
+    _, dens = scan(_scatter, None, obsvbl['snaps'])
     return dens
 
 
-def obj(tgt_dens, ptcl, cosmo, conf):
-    dens = model(ptcl, cosmo, conf)
+def obj(tgt_dens, modes, cosmo, conf):
+    dens = model(modes, cosmo, conf)
     return (dens - tgt_dens).var()
 
 obj_grad = jax.grad(obj, argnums=(1, 2))
 
 
 ptcl_spacing = 1.
-ptcl_grid_shape = (128,) * 3
+ptcl_grid_shape = (32,) * 3
 conf = Configuration(ptcl_spacing, ptcl_grid_shape, mesh_shape=2,
-                     a_start=1/16, a_stop=1, a_nbody_num=16,
-                     a_snapshots=(0.5, 0.7, 0.9))  # set observable snapshots
+                     a_start=1/16, a_stop=1, a_nbody_num=15,
+                     a_snapshots=(15.001/16,))  # set observable snapshots
 
 cosmo = SimpleLCDM(conf)
-cosmo = boltzmann(cosmo, conf)
 
 
 # control the target dens variation
@@ -57,9 +53,8 @@ fname = 'dens.npy'
 if not os.path.exists(fname):
     seed = 0  # seed for target
     modes = white_noise(seed, conf)
-    ptcl = gen_ic(modes, cosmo, conf)
 
-    dens = model(ptcl, cosmo, conf)  # target density
+    dens = model(modes, cosmo, conf)  # target density
     jnp.save(fname, dens)
 dens = jnp.load(fname)
 
@@ -71,25 +66,24 @@ if not os.path.exists(fname):
     modes = white_noise(seed, conf, real=True)
     jnp.save(fname, modes)
 modes = jnp.load(fname)
-ptcl = gen_ic(modes, cosmo, conf)
 
 
-n = 64
+n = 16
 fname_am = 'grads_am{}.npy'  # adjoint mode gradients
 fname_ad = 'grads_ad{}.npy'  # AD mode gradients
 
 if not os.path.exists(fname_am.format(0)):  # adjoint gradients
     print('#### adjoint method ####')
     for i in range(n):
-        ptcl_grad, cosmo_grad = obj_grad(dens, ptcl, cosmo, conf)
-        jnp.save(fname_am.format(i), ptcl_grad.disp)
+        modes_grad, cosmo_grad = obj_grad(dens, modes, cosmo, conf)
+        jnp.save(fname_am.format(i), modes_grad)
         print(cosmo_grad)
 elif not os.path.exists(fname_ad.format(0)):  # AD gradients
     # HACK for AD: commenting out custom_vjp and defvjp on scatter, gather, and nbody
     print('#### AD ####')
     for i in range(n):
-        ptcl_grad, cosmo_grad = obj_grad(dens, ptcl, cosmo, conf)
-        jnp.save(fname_ad.format(i), ptcl_grad.disp)
+        modes_grad, cosmo_grad = obj_grad(dens, modes, cosmo, conf)
+        jnp.save(fname_ad.format(i), modes_grad)
         print(cosmo_grad)
 else:  # making plots
     gam = np.stack([np.load(fname_am.format(i)) for i in range(n)], axis=0)
@@ -98,14 +92,14 @@ else:  # making plots
     from matplotlib.colors import SymLogNorm, LogNorm
     plt.style.use('adjoint.mplstyle')
 
-    fig, _ = simshow(gam[0, 32], figsize=(3.5, 2.7), cmap='RdBu_r',
+    fig, _ = simshow(gam[0, 16], figsize=(3.5, 2.7), cmap='RdBu_r',
                      norm=SymLogNorm(0.01, vmin=-0.1, vmax=0.1), colorbar=True,
                      interpolation='none')
     fig.savefig('obs_grads.pdf')
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(2.5, 2.5))
-    bins = np.linspace(-0.32, 0.32, num=65, endpoint=True)
+    bins = np.linspace(-0.5, 0.5, num=65, endpoint=True)
     ax.hist2d(gam.ravel(), gad.ravel(), bins=[bins, bins], cmap='binary', norm=LogNorm())
     ax.set_yticks(ax.get_xticks())
     ax.set_xlim(bins[0], bins[-1])
