@@ -24,10 +24,9 @@ def observe_init(a, ptcl, obsvbl, cosmo, conf):
         idx = jnp.searchsorted(conf.a_nbody, jnp.array(conf.a_snapshots), side='left')
         obsvbl['itp_a_step'] = jnp.array((conf.a_nbody[idx-1], conf.a_nbody[idx])).T
 
-        # check if the first ptcl is used in interpolation
-        def obs_interp(obsvbl, i):
-            a_snap = obsvbl['a_snaps'][i]
-            a_step = obsvbl['itp_a_step'][i]
+        # in case the first ptcl is used in interpolation
+        def obs_interp(obsvbl, x):
+            i, a_snap, a_step = x
 
             def _obs_prev(obsvbl):
                 disp, vel = itp_prev(ptcl, a_step[0], a_step[1], a_snap, cosmo)
@@ -41,7 +40,8 @@ def observe_init(a, ptcl, obsvbl, cosmo, conf):
 
             return obsvbl, None
 
-        obsvbl, _ = scan(obs_interp, obsvbl, jnp.arange(len(conf.a_snapshots)))
+        obsvbl, _ = scan(obs_interp, obsvbl, (jnp.arange(len(conf.a_snapshots)),
+                                              obsvbl['a_snaps'], obsvbl['itp_a_step']))
 
     return obsvbl
 
@@ -92,7 +92,7 @@ def observe_adj_init(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo_cot, co
         return (ptcl_cot, cosmo_cot), None
 
     if conf.a_snapshots is not None:
-        # check if the last ptcl is used in interpolation
+        # in case the last ptcl is used in interpolation
         (ptcl_cot, cosmo_cot), _ = scan(obs_interp_adj, (ptcl_cot, cosmo_cot),
                                         (obsvbl['a_snaps'], obsvbl['itp_a_step'],
                                          obsvbl_cot['snaps']))
@@ -128,7 +128,7 @@ def observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo
 
 # def observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo_cot, conf):
 #     _, observe_vjp = vjp(observe, a_prev, a_next, ptcl, obsvbl, cosmo, conf)
-#     _, _, ptcl_cot_obs, obsvbl_cot_obs, cosmo_cot_obs, _ = observe_vjp(obsvbl_cot)
+#     _, _, ptcl_cot_obs, _, cosmo_cot_obs, _ = observe_vjp(obsvbl_cot)
 
 #     disp_cot = ptcl_cot.disp + ptcl_cot_obs.disp
 #     vel_cot = ptcl_cot.vel + ptcl_cot_obs.vel

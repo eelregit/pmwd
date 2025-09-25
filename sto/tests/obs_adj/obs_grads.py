@@ -42,8 +42,8 @@ obj_grad = jax.grad(obj, argnums=(1, 2))
 ptcl_spacing = 1.
 ptcl_grid_shape = (32,) * 3
 conf = Configuration(ptcl_spacing, ptcl_grid_shape, mesh_shape=2,
-                     a_start=1/16, a_stop=1, a_nbody_num=15,
-                     a_snapshots=(15.001/16,))  # set observable snapshots
+                     a_start=1/16, a_stop=2/16, a_nbody_num=1,
+                     a_snapshots=(1.5/16,))  # set observable snapshots
 
 cosmo = SimpleLCDM(conf)
 
@@ -68,7 +68,7 @@ if not os.path.exists(fname):
 modes = jnp.load(fname)
 
 
-n = 16
+n = 3
 fname_am = 'grads_am{}.npy'  # adjoint mode gradients
 fname_ad = 'grads_ad{}.npy'  # AD mode gradients
 

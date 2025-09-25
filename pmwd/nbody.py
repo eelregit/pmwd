@@ -187,7 +187,7 @@ def coevolve_init(a, ptcl, cosmo, conf):
 def nbody_init(a, ptcl, obsvbl, cosmo, conf):
     ptcl = force(a, ptcl, cosmo, conf)
 
-    ptcl = coevolve_init(a, ptcl, cosmo, conf)
+    # ptcl = coevolve_init(a, ptcl, cosmo, conf)
 
     obsvbl = observe_init(a, ptcl, obsvbl, cosmo, conf)
 
@@ -198,7 +198,7 @@ def nbody_init(a, ptcl, obsvbl, cosmo, conf):
 def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
     ptcl = integrate(a_prev, a_next, ptcl, cosmo, conf)
 
-    ptcl = coevolve(a_prev, a_next, ptcl, cosmo, conf)
+    # ptcl = coevolve(a_prev, a_next, ptcl, cosmo, conf)
 
     obsvbl = observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
 
