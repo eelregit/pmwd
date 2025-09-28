@@ -734,16 +734,20 @@ and $\p\vo / \p\vp$ in the adjoint equations
 Following \cite{Li2022a}, here we derive the adjoint equations with
 observables that are explicitly formulated for this work.
 For the forward modeling, we consider the evolution of the observable
-$\vo$ along with the state $\vz$
+$\vo$ along with the state $\vz$ following
 \begin{align}
 \vz_{i+1} &= \vz_i + \vI_i(\vz_i, \vtheta), \\
-\vo_{i+1} &= \vo_i + \vO_{i+1}(\vz_{i+1}, \vtheta),
+\vo_{i+1} &= \vo_i + \vO_{i+1}(\vz_{i+1}, \vtheta), \label{obsvbl_fwd}
 \end{align}
-where $i=0, \cdots, n-1$ and the observe function $\vO$ depends only on
-the state but not the observable itself, which is consistent with the
-case in this work.
-The observable is initialized by observing the initial state, i.e.
-$\vo_0 = \vO_0(\vz_0, \vtheta)$.
+where $i=0, \cdots, n-1$, and the observable is initialized by observing
+the initial state, i.e. $\vo_0 = \vO_0(\vz_0, \vtheta)$.
+We take an observe function $\vO$ that depends only on the state but not
+the observable itself, which is consistent with the case in this work
+where the state of particles at each step contributes independently to
+the observable.
+The derivation below remains much the same with very few modifications
+for a more general observe function.
+
 Assuming an objective function of the final observable, the Lagrangian
 reads
 \begin{align}
@@ -751,21 +755,28 @@ reads
 &- \sum_{i=0}^{n-1} \vlambda_{i+1}
   \cdot \bigl[ \vz_{i+1} - \vz_i - \vF_i(\vz_i, \vtheta) \bigr] \nonumber\\
 &- \sum_{i=0}^{n-1} \vmu_{i+1}
-  \cdot \bigl[ \vo_{i+1} - \vo_i - \vO_{i+1}(\vz_{i+1}, \vtheta) \bigr].
+  \cdot \bigl[ \vo_{i+1} - \vo_i - \vO_{i+1}(\vz_{i+1}, \vtheta) \bigr],
 \end{align}
-The adjoint equations could be derived
+where the multipliers $\vlambda$ and $\vmu$ are the adjoint variables of
+$\vz$ and $\vo$ respectively.
+Taking the full derivative of $\cL$ with respect to $\vtheta$ and
+collecting the terms with $\p\vz_i/\p\vtheta$ and $\p\vo_i/\p\vtheta$,
+the adjoint equations arise as
 \begin{align}
 \vmu_{i-1} &= \vmu_{i}, \\
 \vlambda_{i-1} &= \vlambda_{i}
   + \vlambda_{i}\cdot\frac{\p\vI_{i-1}}{\p\vz_{i-1}}
   + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vz_{i-1}},
 \end{align}
-where $i = n, \cdots, 1$.
-The initial conditions of the adjoint variables are
+for $i = n, \cdots, 1$ and the initial conditions of the adjoint
+variables are
 \begin{align}
 \vmu_n &= \frac{\p\cJ}{\p\vo_n}, \\
 \vlambda_n &= \vmu_n\cdot\frac{\p\vO_n}{\p\vz_n}.
 \end{align}
+The simple constant backpropagation of $\vmu$ results from the form of
+the forward modeling, where neither the integrate ($\vI$) nor the
+observe ($\vO$) function depends on the observable ($\vo$).
 Finally, the objective gradients could be accumulated through
 \begin{align}
 \frac{d\cJ}{d\vtheta} =
