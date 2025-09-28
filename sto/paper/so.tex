@@ -56,6 +56,8 @@
 \bmdefine{\va}{a}  % accelerations
 \bmdefine{\vz}{z}  % states
 \bmdefine{\vo}{o}  % observable
+\bmdefine{\vmu}{\mu}  % observable adjoint
+\bmdefine{\vO}{O}
 \bmdefine{\vf}{f}
 \bmdefine{\vF}{F}
 \bmdefine{\vDelta}{\Delta}
@@ -722,9 +724,56 @@ We find the two-steps scheme more convenient for the backward evolution
 of the adjoint variables.
 The interpolated snapshots at different times constitute our observable,
 where the VJPs of the interpolation functions are computed by AD as an
-intermediate step during the computation of $\partial\vo / \partial\vx$
-and $\partial\vo / \partial\vp$ in the adjoint equations
+intermediate step during the computation of $\p\vo / \p\vx$
+and $\p\vo / \p\vp$ in the adjoint equations
 \eqref{adjoint_obs} and \eqref{adjoint_init}.
+
+
+% \vspace{1em}
+\subsection{Adjoint Equations with Observables}
+Following \cite{Li2022a}, here we derive the adjoint equations with
+observables that are explicitly formulated for this work.
+For the forward modeling, we consider the evolution of the observable
+$\vo$ along with the state $\vz$
+\begin{align}
+\vz_{i+1} &= \vz_i + \vI_i(\vz_i, \vtheta), \\
+\vo_{i+1} &= \vo_i + \vO_{i+1}(\vz_{i+1}, \vtheta),
+\end{align}
+where $i=0, \cdots, n-1$ and the observe function $\vO$ depends only on
+the state but not the observable itself, which is consistent with the
+case in this work.
+The observable is initialized by observing the initial state, i.e.
+$\vo_0 = \vO_0(\vz_0, \vtheta)$.
+Assuming an objective function of the final observable, the Lagrangian
+reads
+\begin{align}
+\cL = \cJ(\vo_n)
+&- \sum_{i=0}^{n-1} \vlambda_{i+1}
+  \cdot \bigl[ \vz_{i+1} - \vz_i - \vF_i(\vz_i, \vtheta) \bigr] \nonumber\\
+&- \sum_{i=0}^{n-1} \vmu_{i+1}
+  \cdot \bigl[ \vo_{i+1} - \vo_i - \vO_{i+1}(\vz_{i+1}, \vtheta) \bigr].
+\end{align}
+The adjoint equations could be derived
+\begin{align}
+\vmu_{i-1} &= \vmu_{i}, \\
+\vlambda_{i-1} &= \vlambda_{i}
+  + \vlambda_{i}\cdot\frac{\p\vI_{i-1}}{\p\vz_{i-1}}
+  + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vz_{i-1}},
+\end{align}
+where $i = n, \cdots, 1$.
+The initial conditions of the adjoint variables are
+\begin{align}
+\vmu_n &= \frac{\p\cJ}{\p\vo_n}, \\
+\vlambda_n &= \vmu_n\cdot\frac{\p\vO_n}{\p\vz_n}.
+\end{align}
+Finally, the objective gradients could be accumulated through
+\begin{align}
+\frac{d\cJ}{d\vtheta} =
+\vmu_0\cdot\frac{\p\vo_0}{\p\vtheta}
++ \left(\vlambda_0 - \vmu_0\cdot\frac{\p\vO_0}{\p\vz_0}\right)\cdot\frac{\p\vz_0}{\p\vtheta}
++ \sum_{i=1}^{n}\left[\vlambda_{i}\cdot\frac{\p\vI_{i-1}}{\p\vtheta}
++ \vmu_{i}\cdot\frac{\p\vO_{i}}{\p\vtheta}\right].
+\end{align}
 
 
 \vspace{1em}
