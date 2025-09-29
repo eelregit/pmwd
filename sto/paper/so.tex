@@ -739,8 +739,12 @@ $\vo$ along with the state $\vz$ following
 \vz_{i+1} &= \vz_i + \vI_i(\vz_i, \vtheta), \\
 \vo_{i+1} &= \vo_i + \vO_{i+1}(\vz_{i+1}, \vtheta), \label{obsvbl_fwd}
 \end{align}
-where $i=0, \cdots, n-1$, and the observable is initialized by observing
-the initial state, i.e. $\vo_0 = \vO_0(\vz_0, \vtheta)$.
+where $i=0, \cdots, n-1$, and the observable is initialized with zero
+values and the addition of observing the initial state
+\begin{equation}
+\vo_0 = \bm{0} + \vO_0(\vz_0, \vtheta).
+\label{obsvbl_init}
+\end{equation}
 We take an observe function $\vO$ that depends only on the state but not
 the observable itself, which is consistent with the case in this work
 where the state of particles at each step contributes independently to
@@ -777,13 +781,19 @@ variables are
 The simple constant backpropagation of $\vmu$ results from the form of
 the forward modeling, where neither the integrate ($\vI$) nor the
 observe ($\vO$) function depends on the observable ($\vo$).
+The initial condition of the observable \eqref{obsvbl_init} gives
+\begin{equation}
+\frac{\p\vo_0}{\p\vtheta} = \frac{\p\vO_0}{\p\vtheta}
++ \frac{\p\vO_0}{\p\vz_0}\cdot\frac{\p\vz_0}{\p\vtheta},
+\end{equation}
+which could be substituted into the full derivative for further
+simplification.
 Finally, the objective gradients could be accumulated through
 \begin{align}
 \frac{d\cJ}{d\vtheta} =
-\vmu_0\cdot\frac{\p\vo_0}{\p\vtheta}
-+ \left(\vlambda_0 - \vmu_0\cdot\frac{\p\vO_0}{\p\vz_0}\right)\cdot\frac{\p\vz_0}{\p\vtheta}
-+ \sum_{i=1}^{n}\left[\vlambda_{i}\cdot\frac{\p\vI_{i-1}}{\p\vtheta}
-+ \vmu_{i}\cdot\frac{\p\vO_{i}}{\p\vtheta}\right].
+\vlambda_0\cdot\frac{\p\vz_0}{\p\vtheta}
++ \sum_{i=1}^{n} \vlambda_{i}\cdot\frac{\p\vI_{i-1}}{\p\vtheta}
++ \sum_{i=0}^{n} \vmu_{i}\cdot\frac{\p\vO_{i}}{\p\vtheta}.
 \end{align}
 
 
