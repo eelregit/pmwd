@@ -1,14 +1,12 @@
-from jax import jit, vjp
+from jax import jit, vjp, custom_vjp
 import jax.numpy as jnp
+from functools import partial
 
 from pmwd.particles import Particles
 from pmwd.cosmology import E2
 
 
-def itp_prev(ptcl0, a0, a1, a, cosmo):
-    """Cubic Hermite interpolation is a linear combination of two ptcls, this
-       function returns the disp and vel from the first ptcl at a0."""
-    dtype = cosmo.conf.float_dtype
+def coefs_prev(a0, a1, a, cosmo):
     Da = a1 - a0
     t = (a - a0) / Da
     a3E0 = a0**3 * jnp.sqrt(E2(a0, cosmo))
@@ -19,18 +17,15 @@ def itp_prev(ptcl0, a0, a1, a, cosmo):
     h00p = 6 * t**2 - 6 * t
     h10p = 3 * t**2 - 4 * t + 1
 
-    disp = (h00.astype(dtype) * ptcl0.disp +
-            (h10 * Da / a3E0).astype(dtype) * ptcl0.vel)
-    vel = ((a3E * h00p / Da).astype(dtype) * ptcl0.disp +
-           (a3E * h10p / a3E0).astype(dtype) * ptcl0.vel)
-
-    return disp, vel
-
-
-def itp_next(ptcl1, a0, a1, a, cosmo):
-    """Cubic Hermite interpolation is a linear combination of two ptcls, this
-       function returns the disp and vel from the second ptcl at a1."""
     dtype = cosmo.conf.float_dtype
+    dd = h00.astype(dtype)
+    dv = (h10 * Da / a3E0).astype(dtype)
+    vd = (a3E * h00p / Da).astype(dtype)
+    vv = (a3E * h10p / a3E0).astype(dtype)
+    return dd, dv, vd, vv
+
+
+def coefs_next(a0, a1, a, cosmo):
     Da = a1 - a0
     t = (a - a0) / Da
     a3E1 = a1**3 * jnp.sqrt(E2(a1, cosmo))
@@ -41,40 +36,53 @@ def itp_next(ptcl1, a0, a1, a, cosmo):
     h01p = - 6 * t**2 + 6 * t
     h11p = 3 * t**2 - 2 * t
 
-    disp = (h01.astype(dtype) * ptcl1.disp +
-            (h11 * Da / a3E1).astype(dtype) * ptcl1.vel)
-    vel = ((a3E * h01p / Da).astype(dtype) * ptcl1.disp +
-           (a3E * h11p / a3E1).astype(dtype) * ptcl1.vel)
-
-    return disp, vel
-
-
-def itp_prev_adj(ptcl_cot, cosmo_cot, iptcl_cot, ptcl0, a0, a1, a, cosmo):
-    """Update ptcl_cot and cosmo_cot given the iptcl_cot and the vjp with itp_prev."""
-    # iptcl_cot is the cotangent of the interpolated ptcl
-    (disp, vel), itp_prev_vjp = vjp(itp_prev, ptcl0, a0, a1, a, cosmo)
-    ptcl0_cot, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_prev_vjp(
-                                            (iptcl_cot.disp, iptcl_cot.vel))
-
-    disp_cot = ptcl_cot.disp + ptcl0_cot.disp
-    vel_cot = ptcl_cot.vel + ptcl0_cot.vel
-    ptcl_cot = ptcl_cot.replace(disp=disp_cot, vel=vel_cot)
-    cosmo_cot += cosmo_cot_itp
-    return ptcl_cot, cosmo_cot
+    dtype = cosmo.conf.float_dtype
+    dd = h01.astype(dtype)
+    dv = (h11 * Da / a3E1).astype(dtype)
+    vd = (a3E * h01p / Da).astype(dtype)
+    vv = (a3E * h11p / a3E1).astype(dtype)
+    return dd, dv, vd, vv
 
 
-def itp_next_adj(ptcl_cot, cosmo_cot, iptcl_cot, ptcl1, a0, a1, a, cosmo):
-    """Update ptcl_cot and cosmo_cot given the iptcl_cot and the vjp with itp_next."""
-    # iptcl_cot is the cotangent of the interpolated ptcl
-    (disp, vel), itp_next_vjp = vjp(itp_next, ptcl1, a0, a1, a, cosmo)
-    ptcl1_cot, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_next_vjp(
-                                            (iptcl_cot.disp, iptcl_cot.vel))
+@partial(custom_vjp, nondiff_argnums=(0,))
+def itp_snap(order, disp, vel, a0, a1, a, cosmo):
+    """Cubic Hermite interpolation is a linear combination of two ptcls, this
+       function returns the disp and vel from the first ptcl at a0."""
+    if order == 'prev':
+        dd, dv, vd, vv = coefs_prev(a0, a1, a, cosmo)
+    if order == 'next':
+        dd, dv, vd, vv = coefs_next(a0, a1, a, cosmo)
 
-    disp_cot = ptcl_cot.disp + ptcl1_cot.disp
-    vel_cot = ptcl_cot.vel + ptcl1_cot.vel
-    ptcl_cot = ptcl_cot.replace(disp=disp_cot, vel=vel_cot)
-    cosmo_cot += cosmo_cot_itp
-    return ptcl_cot, cosmo_cot
+    disp_itp = dd * disp + dv * vel
+    vel_itp = vd * disp + vv * vel
+
+    return disp_itp, vel_itp
+
+def itp_snap_fwd(order, disp, vel, a0, a1, a, cosmo):
+    return itp_snap(order, disp, vel, a0, a1, a, cosmo), (disp, vel, a0, a1, a, cosmo)
+
+def itp_snap_bwd(order, res, cots):
+    disp, vel, a0, a1, a, cosmo = res
+    disp_itp_cot, vel_itp_cot = cots
+
+    if order == 'prev':
+        (dd, dv, vd, vv), coefs_vjp = vjp(coefs_prev, a0, a1, a, cosmo)
+    if order == 'next':
+        (dd, dv, vd, vv), coefs_vjp = vjp(coefs_next, a0, a1, a, cosmo)
+
+    disp_cot = disp_itp_cot * dd + vel_itp_cot * dv
+    vel_cot = disp_itp_cot * vd + vel_itp_cot * vv
+
+    dd_cot = (disp_itp_cot * disp).sum()
+    dv_cot = (disp_itp_cot * vel).sum()
+    vd_cot = (vel_itp_cot * disp).sum()
+    vv_cot = (vel_itp_cot * vel).sum()
+    a0_cot, a1_cot, a_cot, cosmo_cot = coefs_vjp((dd_cot, dv_cot, vd_cot, vv_cot))
+
+    return (disp_cot, vel_cot, a0_cot, a1_cot, a_cot, cosmo_cot)
+
+itp_snap.defvjp(itp_snap_fwd, itp_snap_bwd)
+
 
 
 def interptcl(ptcl0, ptcl1, a0, a1, a, cosmo):

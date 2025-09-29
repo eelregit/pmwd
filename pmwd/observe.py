@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from jax.lax import cond, scan
 from jax.tree_util import tree_map
 
-from pmwd.interp_util import itp_prev, itp_next, itp_prev_adj, itp_next_adj
+from pmwd.interp_util import itp_snap
 from pmwd.particles import Particles
 
 
@@ -37,14 +37,16 @@ def observe(a, ptcl, obsvbl, cosmo, conf):
         i, a_snap, a_step = x
 
         def _obs_prev(obsvbl):
-            disp, vel = itp_prev(ptcl, a_step[0], a_step[1], a_snap, cosmo)
+            disp, vel = itp_snap('prev', ptcl.disp, ptcl.vel,
+                                 a_step[0], a_step[1], a_snap, cosmo)
             obsvbl['snaps'] = obsvbl['snaps'].replace(
                 disp=obsvbl['snaps'].disp.at[i].add(disp),
                 vel=obsvbl['snaps'].vel.at[i].add(vel))
             return obsvbl
 
         def _obs_next(obsvbl):
-            disp, vel = itp_next(ptcl, a_step[0], a_step[1], a_snap, cosmo)
+            disp, vel = itp_snap('next', ptcl.disp, ptcl.vel,
+                                 a_step[0], a_step[1], a_snap, cosmo)
             obsvbl['snaps'] = obsvbl['snaps'].replace(
                 disp=obsvbl['snaps'].disp.at[i].add(disp),
                 vel=obsvbl['snaps'].vel.at[i].add(vel))
@@ -76,29 +78,3 @@ def observe_adj(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo_cot, conf):
     cosmo_cot += cosmo_cot_obs
 
     return ptcl_cot, cosmo_cot
-
-
-# def observe_adj(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo_cot, conf):
-
-#     def obs_interp_adj(carry, x):
-#         ptcl_cot, cosmo_cot = carry
-#         a_snap, a_step, snap_cot = x
-
-#         ptcl_cot, cosmo_cot = cond(_isclose(a_step[1], a), itp_next_adj,
-#                                    lambda *args: (ptcl_cot, cosmo_cot),
-#                                    ptcl_cot, cosmo_cot, snap_cot, ptcl,
-#                                    a_step[0], a_step[1], a_snap, cosmo)
-
-#         ptcl_cot, cosmo_cot = cond(_isclose(a_step[0], a), itp_prev_adj,
-#                                    lambda *args: (ptcl_cot, cosmo_cot),
-#                                    ptcl_cot, cosmo_cot, snap_cot, ptcl,
-#                                    a_step[0], a_step[1], a_snap, cosmo)
-
-#         return (ptcl_cot, cosmo_cot), None
-
-#     if conf.a_snapshots is not None:
-#         (ptcl_cot, cosmo_cot), _ = scan(obs_interp_adj, (ptcl_cot, cosmo_cot),
-#                                         (obsvbl['a_snaps'], obsvbl['itp_a_step'],
-#                                          obsvbl_cot['snaps']))
-
-#     return ptcl_cot, cosmo_cot
