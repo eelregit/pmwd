@@ -770,7 +770,7 @@ the adjoint equations arise as
 \vmu_{i-1} &= \vmu_{i}, \\
 \vlambda_{i-1} &= \vlambda_{i}
   + \vlambda_{i}\cdot\frac{\p\vI_{i-1}}{\p\vz_{i-1}}
-  + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vz_{i-1}},
+  + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vz_{i-1}}, \label{state_adj}
 \end{align}
 for $i = n, \cdots, 1$ and the initial conditions of the adjoint
 variables are
@@ -792,9 +792,12 @@ Finally, the objective gradients could be accumulated through
 \begin{align}
 \frac{d\cJ}{d\vtheta} =
 \vlambda_0\cdot\frac{\p\vz_0}{\p\vtheta}
-+ \sum_{i=1}^{n} \vlambda_{i}\cdot\frac{\p\vI_{i-1}}{\p\vtheta}
-+ \sum_{i=0}^{n} \vmu_{i}\cdot\frac{\p\vO_{i}}{\p\vtheta}.
++ \sum_{i=1}^{n} \left[\vlambda_{i}\cdot\frac{\p\vI_{i-1}}{\p\vtheta}
++ \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vtheta}\right]
++ \vmu_{n}\cdot\frac{\p\vO_{n}}{\p\vtheta},
 \end{align}
+where the terms are organized to be consistent with the adjoint
+equations.
 
 
 \vspace{1em}
