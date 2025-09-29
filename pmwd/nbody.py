@@ -7,7 +7,7 @@ from jax.tree_util import tree_map
 from pmwd.boltzmann import growth
 from pmwd.cosmology import E2, H_deriv
 from pmwd.gravity import gravity
-from pmwd.observe import observe, observe_init, observe_adj, observe_adj_init
+from pmwd.observe import observe, observe_adj
 
 
 def _G_D(a, cosmo, conf):
@@ -141,7 +141,7 @@ def integrate(a_prev, a_next, ptcl, cosmo, conf):
     return ptcl
 
 
-def integrate_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
+def integrate_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
     """Symplectic integration adjoint for one step."""
     K = D = 0
     a_disp = a_vel = a_acc = a_prev
@@ -163,33 +163,11 @@ def integrate_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
 
-def form(a_prev, a_next, ptcl, cosmo, conf):
-    pass
-
-
-def form_init(a, ptcl, cosmo, conf):
-    pass  # TODO necessary?
-
-
-def coevolve(a_prev, a_next, ptcl, cosmo, conf):
-    attr = form(a_prev, a_next, ptcl, cosmo, conf)
-    return ptcl.replace(attr=attr)
-
-
-def coevolve_init(a, ptcl, cosmo, conf):
-    if ptcl.attr is None:
-        attr = form_init(a, ptcl, cosmo, conf)
-        ptcl = ptcl.replace(attr=attr)
-    return ptcl
-
-
 @jit
 def nbody_init(a, ptcl, obsvbl, cosmo, conf):
     ptcl = force(a, ptcl, cosmo, conf)
 
-    # ptcl = coevolve_init(a, ptcl, cosmo, conf)
-
-    obsvbl = observe_init(a, ptcl, obsvbl, cosmo, conf)
+    obsvbl = observe(a, ptcl, obsvbl, cosmo, conf)
 
     return ptcl, obsvbl
 
@@ -198,9 +176,7 @@ def nbody_init(a, ptcl, obsvbl, cosmo, conf):
 def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
     ptcl = integrate(a_prev, a_next, ptcl, cosmo, conf)
 
-    # ptcl = coevolve(a_prev, a_next, ptcl, cosmo, conf)
-
-    obsvbl = observe(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
+    obsvbl = observe(a_next, ptcl, obsvbl, cosmo, conf)
 
     return ptcl, obsvbl
 
@@ -219,14 +195,12 @@ def nbody(ptcl, obsvbl, cosmo, conf, reverse=False):
 @jit
 def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, conf):
 
-    #ptcl, ptcl_cot = coevolve_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo)
-
     ptcl, ptcl_cot, cosmo_cot_force = force_adj(a, ptcl, ptcl_cot, cosmo, conf)
 
     cosmo_cot = tree_map(jnp.zeros_like, cosmo)
 
-    ptcl_cot, cosmo_cot = observe_adj_init(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
-                                           cosmo, cosmo_cot, conf)
+    ptcl_cot, cosmo_cot = observe_adj(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
+                                      cosmo, cosmo_cot, conf)
 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
@@ -235,12 +209,10 @@ def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, conf):
 def nbody_adj_step(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
                    cosmo, cosmo_cot, cosmo_cot_force, conf):
 
-    #ptcl, ptcl_cot = coevolve_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, conf)
-
     ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = integrate_adj(
-        a_prev, a_next, ptcl, ptcl_cot, obsvbl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+        a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
 
-    ptcl_cot, cosmo_cot = observe_adj(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
+    ptcl_cot, cosmo_cot = observe_adj(a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
                                       cosmo, cosmo_cot, conf)
 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force

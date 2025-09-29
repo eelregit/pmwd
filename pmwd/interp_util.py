@@ -27,20 +27,6 @@ def itp_prev(ptcl0, a0, a1, a, cosmo):
     return disp, vel
 
 
-def itp_prev_adj(ptcl_cot, cosmo_cot, iptcl_cot, ptcl0, a0, a1, a, cosmo):
-    """Update ptcl_cot and cosmo_cot given the iptcl_cot and the vjp with itp_prev."""
-    # iptcl_cot is the cotangent of the interpolated ptcl
-    (disp, vel), itp_prev_vjp = vjp(itp_prev, ptcl0, a0, a1, a, cosmo)
-    ptcl0_cot, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_prev_vjp(
-                                            (iptcl_cot.disp, iptcl_cot.vel))
-
-    disp_cot = ptcl_cot.disp + ptcl0_cot.disp
-    vel_cot = ptcl_cot.vel + ptcl0_cot.vel
-    ptcl_cot = ptcl_cot.replace(disp=disp_cot, vel=vel_cot)
-    cosmo_cot += cosmo_cot_itp  # cosmo used in interp, TODO keep or comment out
-    return ptcl_cot, cosmo_cot
-
-
 def itp_next(ptcl1, a0, a1, a, cosmo):
     """Cubic Hermite interpolation is a linear combination of two ptcls, this
        function returns the disp and vel from the second ptcl at a1."""
@@ -63,6 +49,20 @@ def itp_next(ptcl1, a0, a1, a, cosmo):
     return disp, vel
 
 
+def itp_prev_adj(ptcl_cot, cosmo_cot, iptcl_cot, ptcl0, a0, a1, a, cosmo):
+    """Update ptcl_cot and cosmo_cot given the iptcl_cot and the vjp with itp_prev."""
+    # iptcl_cot is the cotangent of the interpolated ptcl
+    (disp, vel), itp_prev_vjp = vjp(itp_prev, ptcl0, a0, a1, a, cosmo)
+    ptcl0_cot, a0_cot, a1_cot, a_cot, cosmo_cot_itp = itp_prev_vjp(
+                                            (iptcl_cot.disp, iptcl_cot.vel))
+
+    disp_cot = ptcl_cot.disp + ptcl0_cot.disp
+    vel_cot = ptcl_cot.vel + ptcl0_cot.vel
+    ptcl_cot = ptcl_cot.replace(disp=disp_cot, vel=vel_cot)
+    cosmo_cot += cosmo_cot_itp
+    return ptcl_cot, cosmo_cot
+
+
 def itp_next_adj(ptcl_cot, cosmo_cot, iptcl_cot, ptcl1, a0, a1, a, cosmo):
     """Update ptcl_cot and cosmo_cot given the iptcl_cot and the vjp with itp_next."""
     # iptcl_cot is the cotangent of the interpolated ptcl
@@ -73,7 +73,7 @@ def itp_next_adj(ptcl_cot, cosmo_cot, iptcl_cot, ptcl1, a0, a1, a, cosmo):
     disp_cot = ptcl_cot.disp + ptcl1_cot.disp
     vel_cot = ptcl_cot.vel + ptcl1_cot.vel
     ptcl_cot = ptcl_cot.replace(disp=disp_cot, vel=vel_cot)
-    cosmo_cot += cosmo_cot_itp  # cosmo used in interp, TODO keep or comment out
+    cosmo_cot += cosmo_cot_itp
     return ptcl_cot, cosmo_cot
 
 
