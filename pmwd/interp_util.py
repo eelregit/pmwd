@@ -59,7 +59,8 @@ def itp_snap(order, disp, vel, a0, a1, a, cosmo):
     return disp_itp, vel_itp
 
 def itp_snap_fwd(order, disp, vel, a0, a1, a, cosmo):
-    return itp_snap(order, disp, vel, a0, a1, a, cosmo), (disp, vel, a0, a1, a, cosmo)
+    disp_itp, vel_itp = itp_snap(order, disp, vel, a0, a1, a, cosmo)
+    return (disp_itp, vel_itp), (disp, vel, a0, a1, a, cosmo)
 
 def itp_snap_bwd(order, res, cots):
     disp, vel, a0, a1, a, cosmo = res
