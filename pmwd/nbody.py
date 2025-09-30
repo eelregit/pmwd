@@ -244,6 +244,6 @@ def nbody_bwd(reverse, res, cotangents):
     ptcl, ptcl_cot, cosmo_cot = nbody_adj(
         ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, conf, reverse=reverse)
 
-    return ptcl_cot, None, cosmo_cot, None
+    return ptcl_cot, obsvbl_cot, cosmo_cot, None
 
 nbody.defvjp(nbody_fwd, nbody_bwd)

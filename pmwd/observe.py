@@ -2,6 +2,7 @@ from jax import vjp
 import jax.numpy as jnp
 from jax.lax import cond, scan
 from jax.tree_util import tree_map
+from functools import partial
 
 from pmwd.interp_util import itp_snap
 from pmwd.particles import Particles
@@ -36,27 +37,19 @@ def observe(a, ptcl, obsvbl, cosmo, conf):
     def obs_interp(obsvbl, x):
         i, a_snap, a_step = x
 
-        def _obs_prev(obsvbl):
-            disp, vel = itp_snap('prev', ptcl.disp, ptcl.vel,
-                                 a_step[0], a_step[1], a_snap, cosmo)
+        def obs_snap(obsvbl, order):
+            disp_itp, vel_itp = itp_snap(order, ptcl.disp, ptcl.vel,
+                                         a_step[0], a_step[1], a_snap, cosmo)
             obsvbl['snaps'] = obsvbl['snaps'].replace(
-                disp=obsvbl['snaps'].disp.at[i].add(disp),
-                vel=obsvbl['snaps'].vel.at[i].add(vel))
+                disp=obsvbl['snaps'].disp.at[i].add(disp_itp),
+                vel=obsvbl['snaps'].vel.at[i].add(vel_itp))
             return obsvbl
 
-        def _obs_next(obsvbl):
-            disp, vel = itp_snap('next', ptcl.disp, ptcl.vel,
-                                 a_step[0], a_step[1], a_snap, cosmo)
-            obsvbl['snaps'] = obsvbl['snaps'].replace(
-                disp=obsvbl['snaps'].disp.at[i].add(disp),
-                vel=obsvbl['snaps'].vel.at[i].add(vel))
-            return obsvbl
+        obsvbl = cond(_isclose(a_step[0], a), partial(obs_snap, order='prev'),
+                      lambda _: _, obsvbl)
 
-        obsvbl = cond(_isclose(a_step[0], a), _obs_prev, lambda _: _,
-                      obsvbl)
-
-        obsvbl = cond(_isclose(a_step[1], a), _obs_next, lambda _: _,
-                      obsvbl)
+        obsvbl = cond(_isclose(a_step[1], a), partial(obs_snap, order='next'),
+                      lambda _: _, obsvbl)
 
         return obsvbl, None
 
