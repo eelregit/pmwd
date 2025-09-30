@@ -48,8 +48,6 @@ def coefs_next(a0, a1, a, cosmo):
 
 @partial(custom_vjp, nondiff_argnums=(0,))
 def itp_snap(order, disp, vel, a0, a1, a, cosmo):
-    """Cubic Hermite interpolation is a linear combination of two ptcls, this
-       function returns the disp and vel from the first ptcl at a0."""
     if order == 'prev':
         dd, dv, vd, vv = coefs_prev(a0, a1, a, cosmo)
     if order == 'next':

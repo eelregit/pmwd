@@ -19,8 +19,11 @@ def create_obsvbl(ptcl, conf):
     if conf.a_snapshots is not None:
         obsvbl['a_snaps'] = jnp.array(conf.a_snapshots)
         # all output snapshots, at times given by conf.a_snapshots
-        obsvbl['snaps'] = [Particles(ptcl.conf, ptcl.pmid, jnp.zeros_like(ptcl.disp),
-                           vel=jnp.zeros_like(ptcl.vel))] * len(conf.a_snapshots)
+        obsvbl['snaps'] = [Particles(ptcl.conf,
+                                     ptcl.pmid,
+                                     jnp.zeros_like(ptcl.disp),
+                                     vel=jnp.zeros_like(ptcl.vel))
+                           ] * len(conf.a_snapshots)
         # transposed pytree with leading axis for scan
         obsvbl['snaps'] = tree_map(lambda *xs: jnp.stack(xs), *obsvbl['snaps'])
 
