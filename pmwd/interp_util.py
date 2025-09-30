@@ -11,6 +11,7 @@ def coefs_prev(a0, a1, a, cosmo):
     t = (a - a0) / Da
     a3E0 = a0**3 * jnp.sqrt(E2(a0, cosmo))
     a3E = a**3 * jnp.sqrt(E2(a, cosmo))
+
     # Hermite basis functions and derivatives
     h00 = 2 * t**3 - 3 * t**2 + 1
     h10 = t**3 - 2 * t**2 + t
@@ -30,6 +31,7 @@ def coefs_next(a0, a1, a, cosmo):
     t = (a - a0) / Da
     a3E1 = a1**3 * jnp.sqrt(E2(a1, cosmo))
     a3E = a**3 * jnp.sqrt(E2(a, cosmo))
+
     # Hermite basis functions and derivatives
     h01 = - 2 * t**3 + 3 * t**2
     h11 = t**3 - t**2
@@ -70,8 +72,8 @@ def itp_snap_bwd(order, res, cots):
     if order == 'next':
         (dd, dv, vd, vv), coefs_vjp = vjp(coefs_next, a0, a1, a, cosmo)
 
-    disp_cot = disp_itp_cot * dd + vel_itp_cot * dv
-    vel_cot = disp_itp_cot * vd + vel_itp_cot * vv
+    disp_cot = disp_itp_cot * dd + vel_itp_cot * vd
+    vel_cot = disp_itp_cot * dv + vel_itp_cot * vv
 
     dd_cot = (disp_itp_cot * disp).sum()
     dv_cot = (disp_itp_cot * vel).sum()
