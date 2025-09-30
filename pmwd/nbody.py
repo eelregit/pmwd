@@ -194,13 +194,12 @@ def nbody(ptcl, obsvbl, cosmo, conf, reverse=False):
 
 @jit
 def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, conf):
-
-    ptcl, ptcl_cot, cosmo_cot_force = force_adj(a, ptcl, ptcl_cot, cosmo, conf)
-
     cosmo_cot = tree_map(jnp.zeros_like, cosmo)
 
     ptcl_cot, cosmo_cot = observe_adj(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
                                       cosmo, cosmo_cot, conf)
+
+    ptcl, ptcl_cot, cosmo_cot_force = force_adj(a, ptcl, ptcl_cot, cosmo, conf)
 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
