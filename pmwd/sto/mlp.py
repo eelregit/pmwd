@@ -1,6 +1,7 @@
 import jax.numpy as jnp
 from jax import random, jit
 from typing import Sequence, Callable
+from jax.typing import DTypeLike
 import flax.linen as nn
 from flax.core.frozen_dict import unfreeze, freeze
 from flax.linen.initializers import he_normal, zeros_init
@@ -19,17 +20,18 @@ class MLP(nn.Module):
     regulator: Callable[[jnp.ndarray], jnp.ndarray] = jnp.exp
     kernel_init: Callable = he_normal()
     bias_init: Callable = zeros_init()
+    dtype: DTypeLike = jnp.float64
 
     @nn.compact
     def __call__(self, x):
         # hidden layers
         for i, fts in enumerate(self.features[:-1]):
-            x = nn.Dense(fts, param_dtype=jnp.float64, kernel_init=self.kernel_init,
+            x = nn.Dense(fts, param_dtype=self.dtype, kernel_init=self.kernel_init,
                          bias_init=self.bias_init)(x)
             x = self.activator(x)
 
         # output layer
-        x = nn.Dense(self.features[-1], param_dtype=jnp.float64,
+        x = nn.Dense(self.features[-1], param_dtype=self.dtype,
                      kernel_init=self.kernel_init, bias_init=self.bias_init)(x)
         if self.regulator is not None:
             x = self.regulator(x)
@@ -38,8 +40,8 @@ class MLP(nn.Module):
 
 
 def init_mlp_params(n_input, nodes, kernel_init=he_normal(), bias_init=zeros_init(),
-                    scheme=None, last_ws=1e-8, last_b=0, seed=42):
-    """Initialize MLP parameters."""
+                    scheme=None, last_ws=1e-8, last_b=0, seed=42, dtype=jnp.float64):
+    """Initialize a list of MLP parameters."""
     nets = [MLP(features=n, kernel_init=kernel_init, bias_init=bias_init) for n in nodes]
     xs = [jnp.ones(n) for n in n_input]  # dummy inputs
     keys = random.split(random.PRNGKey(seed), len(n_input))
@@ -53,7 +55,7 @@ def init_mlp_params(n_input, nodes, kernel_init=he_normal(), bias_init=zeros_ini
             p['params'][f'Dense_{len(nodes[i])-1}']['kernel'] = (
                 jnp.zeros((nodes[i][-2], nodes[i][-1])))
             p['params'][f'Dense_{len(nodes[i])-1}']['bias'] = (
-                jnp.full(nodes[i][-1], last_b, dtype=jnp.float64))
+                jnp.full(nodes[i][-1], last_b, dtype=dtype))
             params[i] = freeze(p)
 
     # for the last layer: set bias to the given value & weights to small random values
@@ -64,7 +66,7 @@ def init_mlp_params(n_input, nodes, kernel_init=he_normal(), bias_init=zeros_ini
             p['params'][f'Dense_{len(nodes[i])-1}']['kernel'] = (
                 random.normal(keys[i], (nodes[i][-2], nodes[i][-1]))) * last_ws
             p['params'][f'Dense_{len(nodes[i])-1}']['bias'] = (
-                jnp.full(nodes[i][-1], last_b, dtype=jnp.float64))
+                jnp.full(nodes[i][-1], last_b, dtype=dtype))
             params[i] = freeze(p)
 
     return params

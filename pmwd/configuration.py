@@ -2,10 +2,9 @@ from functools import partial
 import math
 from typing import ClassVar, Optional, Tuple, Union
 
-from numpy.typing import DTypeLike
 import jax
 from jax import ensure_compile_time_eval
-from jax.typing import ArrayLike
+from jax.typing import DTypeLike
 import jax.numpy as jnp
 from jax.tree_util import tree_map
 from mcfit import TophatVar, GaussVar
