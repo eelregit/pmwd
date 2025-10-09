@@ -18,7 +18,6 @@ from pmwd import (
     scatter,
 )
 from pmwd.vis_util import simshow
-from pmwd.observe import create_obsvbl
 
 
 def gen_ic(modes, cosmo, conf):
@@ -27,8 +26,8 @@ def gen_ic(modes, cosmo, conf):
     return ptcl
 
 
-def model(ptcl, obsvbl, cosmo, conf):
-    ptcl, obsvbl = nbody(ptcl, obsvbl, cosmo, conf)  # obsvbl init in nbody
+def model(ptcl, cosmo, conf):
+    ptcl, obsvbl = nbody(ptcl, None, cosmo, conf)  # obsvbl init in nbody
     def _scatter(_, x):
         ptcl = x
         dens = scatter(ptcl, conf)
@@ -38,11 +37,11 @@ def model(ptcl, obsvbl, cosmo, conf):
     return dens
 
 
-def obj(tgt_dens, ptcl, obsvbl, cosmo, conf):
-    dens = model(ptcl, obsvbl, cosmo, conf)
+def obj(tgt_dens, ptcl, cosmo, conf):
+    dens = model(ptcl, cosmo, conf)
     return (dens - tgt_dens).var()
 
-obj_grad = jax.grad(obj, argnums=(1, 2, 3), allow_int=True)
+obj_grad = jax.grad(obj, argnums=(1, 2), allow_int=True)
 
 
 ptcl_spacing = 1.
@@ -61,8 +60,7 @@ if not os.path.exists(fname):
     seed = 0  # seed for target
     modes = white_noise(seed, conf, real=True)
     ptcl = gen_ic(modes, cosmo, conf)
-    obsvbl = create_obsvbl(ptcl, conf)
-    dens = model(ptcl, obsvbl, cosmo, conf)  # target density
+    dens = model(ptcl, cosmo, conf)  # target density
     jnp.save(fname, dens)
 dens = jnp.load(fname)
 
@@ -75,7 +73,6 @@ if not os.path.exists(fname):
     jnp.save(fname, modes)
 modes = jnp.load(fname)
 ptcl = gen_ic(modes, cosmo, conf)
-obsvbl = create_obsvbl(ptcl, conf)
 
 
 n = 3
@@ -85,17 +82,15 @@ fname_ad = 'grads_ad{}.npy'  # AD mode gradients
 if not os.path.exists(fname_am.format(0)):  # adjoint gradients
     print('#### adjoint method ####')
     for i in range(n):
-        ptcl_cot, obsvbl_cot, cosmo_cot = obj_grad(dens, ptcl, obsvbl, cosmo, conf)
+        ptcl_cot, cosmo_cot = obj_grad(dens, ptcl, cosmo, conf)
         jnp.save(fname_am.format(i), ptcl_cot.disp.ravel())
-        # jnp.save(fname_am.format(i), obsvbl_cot['snaps'][0].disp.ravel())
         print(cosmo_cot.Omega_m)
 elif not os.path.exists(fname_ad.format(0)):  # AD gradients
     # HACK for AD: commenting out custom_vjp and defvjp on scatter, gather, and nbody
     print('#### AD ####')
     for i in range(n):
-        ptcl_cot, obsvbl_cot, cosmo_cot = obj_grad(dens, ptcl, obsvbl, cosmo, conf)
+        ptcl_cot, cosmo_cot = obj_grad(dens, ptcl, cosmo, conf)
         jnp.save(fname_ad.format(i), ptcl_cot.disp.ravel())
-        # jnp.save(fname_ad.format(i), obsvbl_cot['snaps'][0].disp.ravel())
         print(cosmo_cot.Omega_m)
 else:  # making plots
     gam = np.stack([np.load(fname_am.format(i)) for i in range(n)], axis=0)

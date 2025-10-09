@@ -7,7 +7,7 @@ from jax.tree_util import tree_map
 from pmwd.boltzmann import growth
 from pmwd.cosmology import E2, H_deriv
 from pmwd.gravity import gravity
-from pmwd.observe import observe, observe_adj
+from pmwd.observe import init_obsvbl, observe, observe_adj
 
 
 def _G_D(a, cosmo, conf):
@@ -167,6 +167,7 @@ def integrate_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_fo
 def nbody_init(a, ptcl, obsvbl, cosmo, conf):
     ptcl = force(a, ptcl, cosmo, conf)
 
+    obsvbl = init_obsvbl(ptcl, conf)
     obsvbl = observe(a, ptcl, obsvbl, cosmo, conf)
 
     return ptcl, obsvbl
@@ -243,6 +244,6 @@ def nbody_bwd(reverse, res, cotangents):
     ptcl, ptcl_cot, cosmo_cot = nbody_adj(
         ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, conf, reverse=reverse)
 
-    return ptcl_cot, obsvbl_cot, cosmo_cot, None
+    return ptcl_cot, None, cosmo_cot, None
 
 nbody.defvjp(nbody_fwd, nbody_bwd)

@@ -12,7 +12,7 @@ def _isclose(a1, a2, rtol=0, atol=1e-6):
     return jnp.isclose(a1, a2, rtol=rtol, atol=atol)
 
 
-def create_obsvbl(ptcl, conf):
+def init_obsvbl(ptcl, conf):
     # a dict to carry all observables and related useful information
     obsvbl = {}
 
