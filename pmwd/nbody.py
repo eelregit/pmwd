@@ -214,6 +214,10 @@ def nbody_adj_step(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
 
     ptcl_cot, cosmo_cot = observe_adj(a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
                                       cosmo, cosmo_cot, conf)
+    # ptcl_cot.vel updated in observe_adj, therefore ptcl_cot_force and
+    # cosmo_cot_force need to be updated with gravity_vjp
+    #TODO could be more efficient by carrying gravity_vjp from integrate_adj?
+    ptcl, ptcl_cot, cosmo_cot_force = force_adj(a_next, ptcl, ptcl_cot, cosmo, conf)
 
     return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
 
