@@ -78,7 +78,7 @@ def kick(a_acc, a_prev, a_next, ptcl, cosmo, conf):
     return ptcl.replace(vel=vel)
 
 
-def kick_adj(a_acc, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
+def kick_adj(a_acc, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, gravity_vjp, conf):
     """Kick, and particle and cosmology adjoints."""
     factor_valgrad = value_and_grad(kick_factor, argnums=3)
     factor, cosmo_cot_kick = factor_valgrad(a_acc, a_prev, a_next, cosmo, conf)
@@ -88,8 +88,11 @@ def kick_adj(a_acc, a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_
     vel = ptcl.vel + ptcl.acc * factor
     ptcl = ptcl.replace(vel=vel)
 
+    # force adjoints
+    _, ptcl_cot_force, cosmo_cot_force, _ = gravity_vjp(ptcl_cot.vel)
+
     # particle adjoint
-    disp_cot = ptcl_cot.disp - ptcl_cot.acc * factor
+    disp_cot = ptcl_cot.disp - ptcl_cot_force.disp * factor
     ptcl_cot = ptcl_cot.replace(disp=disp_cot)
 
     # cosmology adjoint
@@ -107,16 +110,12 @@ def force(a, ptcl, cosmo, conf):
 
 
 def force_adj(a, ptcl, ptcl_cot, cosmo, conf):
-    """Force, and particle and cosmology vjp."""
+    """Force, and gravity_vjp."""
     # force
     acc, gravity_vjp = vjp(gravity, a, ptcl, cosmo, conf)
     ptcl = ptcl.replace(acc=acc)
 
-    # particle and cosmology vjp
-    _, ptcl_cot_force, cosmo_cot_force, _ = gravity_vjp(ptcl_cot.vel)
-    ptcl_cot = ptcl_cot.replace(acc=ptcl_cot_force.disp)
-
-    return ptcl, ptcl_cot, cosmo_cot_force
+    return ptcl, ptcl_cot, gravity_vjp
 
 
 def integrate(a_prev, a_next, ptcl, cosmo, conf):
@@ -141,7 +140,7 @@ def integrate(a_prev, a_next, ptcl, cosmo, conf):
     return ptcl
 
 
-def integrate_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf):
+def integrate_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, gravity_vjp, conf):
     """Symplectic integration adjoint for one step."""
     K = D = 0
     a_disp = a_vel = a_acc = a_prev
@@ -149,7 +148,7 @@ def integrate_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_fo
         if k != 0:
             K += k
             a_vel_next = a_prev * (1 - K) + a_next * K
-            ptcl, ptcl_cot, cosmo_cot = kick_adj(a_acc, a_vel, a_vel_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+            ptcl, ptcl_cot, cosmo_cot = kick_adj(a_acc, a_vel, a_vel_next, ptcl, ptcl_cot, cosmo, cosmo_cot, gravity_vjp, conf)
             a_vel = a_vel_next
 
         if d != 0:
@@ -157,10 +156,10 @@ def integrate_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_fo
             a_disp_next = a_prev * (1 - D) + a_next * D
             ptcl, ptcl_cot, cosmo_cot = drift_adj(a_vel, a_disp, a_disp_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf)
             a_disp = a_disp_next
-            ptcl, ptcl_cot, cosmo_cot_force = force_adj(a_disp, ptcl, ptcl_cot, cosmo, conf)
+            ptcl, ptcl_cot, gravity_vjp = force_adj(a_disp, ptcl, ptcl_cot, cosmo, conf)
             a_acc = a_disp
 
-    return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
+    return ptcl, ptcl_cot, cosmo_cot, gravity_vjp
 
 
 @jit
@@ -200,39 +199,35 @@ def nbody_adj_init(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, conf):
     ptcl_cot, cosmo_cot = observe_adj(a, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
                                       cosmo, cosmo_cot, conf)
 
-    ptcl, ptcl_cot, cosmo_cot_force = force_adj(a, ptcl, ptcl_cot, cosmo, conf)
+    ptcl, ptcl_cot, gravity_vjp = force_adj(a, ptcl, ptcl_cot, cosmo, conf)
 
-    return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
+    return ptcl, ptcl_cot, cosmo_cot, gravity_vjp
 
 
 @jit
 def nbody_adj_step(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
-                   cosmo, cosmo_cot, cosmo_cot_force, conf):
+                   cosmo, cosmo_cot, gravity_vjp, conf):
 
-    ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = integrate_adj(
-        a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, cosmo_cot_force, conf)
+    ptcl, ptcl_cot, cosmo_cot, gravity_vjp = integrate_adj(
+        a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, gravity_vjp, conf)
 
     ptcl_cot, cosmo_cot = observe_adj(a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
                                       cosmo, cosmo_cot, conf)
-    # ptcl_cot.vel updated in observe_adj, therefore ptcl_cot_force and
-    # cosmo_cot_force need to be updated with gravity_vjp
-    #TODO could be more efficient by carrying gravity_vjp from integrate_adj?
-    ptcl, ptcl_cot, cosmo_cot_force = force_adj(a_next, ptcl, ptcl_cot, cosmo, conf)
 
-    return ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force
+    return ptcl, ptcl_cot, cosmo_cot, gravity_vjp
 
 
 def nbody_adj(ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, conf, reverse=False):
     """N-body time integration with adjoint equation."""
     a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
 
-    ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_init(
+    ptcl, ptcl_cot, cosmo_cot, gravity_vjp = nbody_adj_init(
         a_nbody[-1], ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, conf)
 
     for a_prev, a_next in zip(a_nbody[:0:-1], a_nbody[-2::-1]):
-        ptcl, ptcl_cot, cosmo_cot, cosmo_cot_force = nbody_adj_step(
+        ptcl, ptcl_cot, cosmo_cot, gravity_vjp = nbody_adj_step(
             a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
-            cosmo, cosmo_cot, cosmo_cot_force, conf)
+            cosmo, cosmo_cot, gravity_vjp, conf)
 
     return ptcl, ptcl_cot, cosmo_cot
 
