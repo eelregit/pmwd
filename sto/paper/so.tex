@@ -554,18 +554,16 @@ transformation in JAX.
 
 
 \vspace{1em}
-\subsection{Differentiable Simulation}
+\subsection{Differentiable Simulation with Observables}
 \label{sec:pmwd}
 
 \begin{figure*}[t]
 \centering
 \tikzstyle{node style}=[
   node distance=2.8em, minimum size=2.8em, text centered,
-  to/.style={-to, gray, thick},
-  oto/.style={-to, gray, thick, dashed},
-  toto/.style={double distance=1pt, -Implies, gray, thick},
-  from/.style={to-, gray, thick},
-  ofrom/.style={to-, gray, thick, dashed},
+  integ/.style={to-, gray, thick},
+  obs/.style={to-, gray, thick, dashed},
+  from/.style={to-, gray, thick, dotted},
 ]
 \tikzstyle{box style}=[
   rectangle, inner sep=0.4em, rounded corners, draw=gray, thick,
@@ -573,73 +571,64 @@ transformation in JAX.
 \subfloat[integration-observation loop]{
 \label{fig:loop}
 \begin{tikzpicture}[node style]
-  \node (ic) {LPT};
-  \node (integ_1) [right=of ic] {$I_1(\vvartheta)$}
-        edge [from] (ic);
-  \node (obs_1) [below=of integ_1] {$O_1$}
-        edge [from] (integ_1);
-  \node (integ_1i) [right=of integ_1] {$\cdots$}
-        edge [from] (integ_1);
-  \node (obs_1i) [below=of integ_1i] {$\cdots$}
-        edge [from] (integ_1i)
-        edge [ofrom] (obs_1);
-  \node (integ_i) [right=of integ_1i] {$I_i(\vvartheta)$}
-        edge [from] (integ_1i);
-  \node (obs_i) [below=of integ_i] {$O_i$}
-        edge [from] (integ_i)
-        edge [ofrom] (obs_1i);
-  \node (integ_in) [right=of integ_i] {$\cdots$}
-        edge [from] (integ_i);
-  \node (obs_in) [below=of integ_in] {$\cdots$}
-        edge [from] (integ_in)
-        edge [ofrom] (obs_i);
-  \node (integ_n) [right=of integ_in] {$I_n(\vvartheta)$}
-        edge [from] (integ_in);
-  \node (obs_n) [below=of integ_n] {$O_n$}
-        edge [from] (integ_n)
-        edge [ofrom] (obs_in);
-  \node (obj) [right=of obs_n] {Obj}
-        edge [ofrom] (obs_n);
-  \node (box) [box style, fit=(integ_1) (obs_n)] {};
-  \node [box style, inner sep=0em, dotted, fit=(integ_i) (obs_i)] {};
+  \node (z_0) {$\vz_0$};
+  \node (o_0) [below=of z_0] {$\vo_0$}
+        edge [obs] (z_0);
+  \node (z_0i) [right=of z_0] {$\cdots$}
+        edge [integ] (z_0);
+  \node (o_1i) [below=of z_0i] {$\cdots$}
+        edge [obs] (z_0i)
+        edge [from] (o_0);
+  \node (z_i) [right=of z_0i] {$\vz_i$}
+        edge [integ] (z_0i);
+  \node (o_i) [below=of z_i] {$\vo_i$}
+        edge [obs] (z_i)
+        edge [from] (o_1i);
+  \node (z_in) [right=of z_i] {$\cdots$}
+        edge [integ] (z_i);
+  \node (o_in) [below=of z_in] {$\cdots$}
+        edge [obs] (z_in)
+        edge [from] (o_i);
+  \node (z_n) [right=of z_in] {$\vz_n$}
+        edge [integ] (z_in);
+  \node (o_n) [below=of z_n] {$\vo_n$}
+        edge [obs] (z_n)
+        edge [from] (o_in);
+  \node (obj) [right=of o_n] {$\cJ$}
+        edge [from] (o_n);
+  \node (box) [box style, fit=(z_0) (o_n)] {};
   \useasboundingbox ($ (box.south) - (0, 1em) $) --
                     ($ (box.north) + (0, 1em) $);
 \end{tikzpicture}
 }
-\\
-\subfloat[$i$-th (leapfrog) integration-observation step]{
-\label{fig:step}
-\begin{tikzpicture}[node style, node distance=2em and 1.5em]
-  \node (kick_a) {$K_{i-1}^{i-\half}$};
-  \node (drift) [right=of kick_a] {$D_{i-1}^i$}
-        edge [from] (kick_a);
-  \node (force) [right=of drift] {$F_i(\vvartheta)$}
-        edge [from] (drift);
-  \node (kick_b) [right=of force] {$K_{i-\half}^i$}
-        edge [from] (force);
-  \node (obs) [below=of kick_b] {$O_{i-1}^i$} edge [from] (kick_b);
-  \node (integ_im1) [left=of kick_a, minimum width=0em] {}
-        edge [to] (kick_a);
-  \node (integ_ip1) [right=of kick_b, minimum width=0em] {}
-        edge [from] (kick_b);
-  \node (obs_im1) [below=of integ_im1, minimum width=0em] {}
-        edge [oto] (obs);
-  \node (obs_ip1) [below=of integ_ip1, minimum width=0em] {}
-        edge [ofrom] (obs);
-  \node (box) [box style, dotted, fit=(kick_a) (kick_b) (obs)] {};
-  \useasboundingbox ($ (box.south) - (0, 1em) $) --
-                    ($ (box.north) + (0, 1em) $);
-\end{tikzpicture}
-}
-\caption{The cosmological N-body forward simulation model.
-The solid arrows denote the flow of particles' state $(\vx, \vp)$, which
-are initialized with LPT and updated in the N-body
-integration-observation loop.
-As shown in \eqref{force_so}, our spatial optimization neural networks
-with parameters $\vvartheta$ are embedded in the Poisson equation of the
-force operator $F_i$, which is part of the integration operator $I_i$.
-The dashed arrows denote the flow of the observable $\vo$, which in the
-end enters the objective function.}
+% \\
+% \subfloat[$i$-th (leapfrog) integration-observation step]{
+% \label{fig:step}
+% \begin{tikzpicture}[node style, node distance=2em and 1.5em]
+%   \node (kick_a) {$K_{i-1}^{i-\half}$};
+%   \node (drift) [right=of kick_a] {$D_{i-1}^i$}
+%         edge [from] (kick_a);
+%   \node (force) [right=of drift] {$F_i(\vvartheta)$}
+%         edge [from] (drift);
+%   \node (kick_b) [right=of force] {$K_{i-\half}^i$}
+%         edge [from] (force);
+%   \node (obs) [below=of kick_b] {$O_{i-1}^i$} edge [from] (kick_b);
+%   \node (integ_im1) [left=of kick_a, minimum width=0em] {}
+%         edge [to] (kick_a);
+%   \node (integ_ip1) [right=of kick_b, minimum width=0em] {}
+%         edge [from] (kick_b);
+%   \node (obs_im1) [below=of integ_im1, minimum width=0em] {}
+%         edge [oto] (obs);
+%   \node (obs_ip1) [below=of integ_ip1, minimum width=0em] {}
+%         edge [ofrom] (obs);
+%   \node (box) [box style, dotted, fit=(kick_a) (kick_b) (obs)] {};
+%   \useasboundingbox ($ (box.south) - (0, 1em) $) --
+%                     ($ (box.north) + (0, 1em) $);
+% \end{tikzpicture}
+% }
+\caption{\subref{fig:loop} shows the flow of the state $\vz$ and the
+observable $\vo$ in the integration-observation loop of the forward
+simulation.}
 \end{figure*}
 
 The gradient descent optimization of the neural networks embedded in the
@@ -649,45 +638,108 @@ In this work, we use the PM $N$-body library \pmwd\ \citep{Li2022b},
 which is an implementation of the differentiable cosmological simulation
 with the adjoint method \citep{Li2022a}.
 
-Here we briefly recap the equations that are closely related to our
-extensions of the original framework, and introduce the notations of the
-variables.
+Here we extend the original framework with a more detailed
+implementation of observables that is explicitly formulated for this
+work.
 Following \cite{Li2022a}, we denote the particles' state with $\vz =
 (\vx, \vp)^\intercal$, where $\vx$ and $\vp$ are the positions and
-momenta of the particles, and their adjoint variables with $\vlambda =
-(\vxi, \vpi)$.
-We refer to the quantities that are directly related to the final
-objective function $\cJ$ as the observable $\vo$.
-In this work, our observables include multiple snapshots at different
-times.
-For the observation operator $O_{i}^{i-1}$ in the adjoint equations
-(check Eq.(49) in \cite{Li2022a}) from time step $a_i$ back to
-$a_{i-1}$, the adjoint variables are updated through
+momenta of the particles.
+For the forward simulation (\autoref{fig:loop}), we consider the
+evolution of the observable $\vo$ along with the state $\vz$ following
 \begin{align}
-  O_i^{i-1}: \qquad \vxi_{i-1} &:= \vxi_{i-1} +
-              \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vx_{i-1}}, \nonumber\\
-  \vpi_{i-1} &:= \vpi_{i-1} +
-                          \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p \vp_{i-1}},
-\label{adjoint_obs}
+\vz_i &= \vz_{i-1} + \vI_{i-1}(\vz_{i-1}, \vtheta), \\
+\vo_i &= \vo_{i-1} + \vO_i(\vz_i, \vtheta), \label{obsvbl_fwd}
 \end{align}
-where the derivatives of $\vo$ with respect to $\vx_{i-1}$ or
-$\vp_{i-1}$ would be non-zero only if $\vx_{i-1}$ or $\vp_{i-1}$ was
-used in the generation of any snapshots in $\vo$.
-The initial conditions of these adjoint variables are given by
+where $\vI$ and $\vO$ are the integration and observation functions
+respectively, $i=1, \cdots, n$, and we observe the new state every
+step after it is updated from the integration function.
+The observable is initialized by observing the initial state
+\begin{equation}
+\vo_0 = \vO_0(\vz_0, \vtheta).
+\label{obsvbl_init}
+\end{equation}
+Notice that we take an observation function $\vO$ that depends only on
+the state but not the observable itself, which is consistent with the
+case in this work where the observable includes multiple snapshots at
+different times and therefore the state of particles at each step
+contributes independently to the observable, as discussed in
+\autoref{sec:snapobs}.
+The derivation below remains much the same with minor modifications for
+a more general observation function.
+
+Now we derive the adjoint equations with observables.
+Assuming an objective function of the observable at the final time step,
+the Lagrangian reads
 \begin{align}
-  \vxi_n &= \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p\vx_n}, \nonumber\\
-  \vpi_n &= \frac{\p\cJ}{\p\vo}\frac{\p\vo}{\p\vp_n},
-\label{adjoint_init}
+\cL = \cJ(\vo_n)
+&- \sum_{i=1}^{n} \vlambda_i
+  \cdot \bigl[ \vz_i - \vz_{i-1} - \vI_{i-1}(\vz_{i-1}, \vtheta) \bigr] \nonumber\\
+&- \sum_{i=1}^{n} \vmu_i
+  \cdot \bigl[ \vo_i - \vo_{i-1} - \vO_i(\vz_i, \vtheta) \bigr],
 \end{align}
-which are zero if no snapshot in $\vo$ depends on $(\vx_n, \vp_n)$, the
-state of particles at the final time step.
-The derivative of the objective function with respect to the observable,
-i.e. $\p\cJ/\p\vo$, depends on our construction of the loss function on
-the snapshots (\autoref{sec:loss}).
-The VJPs of the observation operation, i.e. $\p\vo/\p\vx_n$ and
-$\p\vo/\p\vp_n$, mainly involves the interpolation function
-(\autoref{sec:snapobs}).
-Both can be conveniently computed by AD.
+where the multipliers $\vlambda$ and $\vmu$ are the adjoint variables of
+$\vz$ and $\vo$ respectively.
+Taking the full derivative of $\cL$ with respect to $\vtheta$ and
+collecting the terms with $\p\vz_i/\p\vtheta$ and $\p\vo_i/\p\vtheta$,
+the adjoint equations arise as
+\begin{align}
+\vmu_{i-1} &= \vmu_i, \\
+\vlambda_{i-1} &= \vlambda_i
+  + \vlambda_i\cdot\frac{\p\vI_{i-1}}{\p\vz_{i-1}}
+  + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vz_{i-1}}, \label{state_adj}
+\end{align}
+for $i = n, \cdots, 1$ and the initial conditions of the adjoint
+variables are
+\begin{align}
+\vmu_n &= \frac{\p\cJ}{\p\vo_n}, \\
+\vlambda_n &= \vmu_n\cdot\frac{\p\vO_n}{\p\vz_n}.
+\end{align}
+The simple constant backpropagation of $\vmu$ results from the form of
+the forward modeling, where neither the integration nor the observation
+function depends on the observable.
+The initial condition of the observable \eqref{obsvbl_init} gives
+\begin{equation}
+\frac{\p\vo_0}{\p\vtheta} = \frac{\p\vO_0}{\p\vtheta}
++ \frac{\p\vO_0}{\p\vz_0}\cdot\frac{\p\vz_0}{\p\vtheta},
+\end{equation}
+which could be substituted into the full derivative for further
+simplification.
+Finally, the objective gradients could be accumulated through
+\begin{align}
+\frac{d\cJ}{d\vtheta} =
+\vlambda_0\cdot\frac{\p\vz_0}{\p\vtheta}
++ \sum_{i=1}^{n} \left[\vlambda_i\cdot\frac{\p\vI_{i-1}}{\p\vtheta}
++ \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vtheta}\right]
++ \vmu_{n}\cdot\frac{\p\vO_{n}}{\p\vtheta},
+\end{align}
+where the terms are organized to be consistent with the adjoint
+equations.
+
+With the particles' state $\vz = (\vx, \vp)^\intercal$ updated with the
+leapfrog integrator, each integration-observation step could be
+explicitly expanded as
+\begin{align}
+\vp_{i-\half} &= \vp_{i-1} + \va_{i-1} K(t_{i-1}, t_{i-1}, t_{i-\half}), \nonumber\\
+\vx_i &= \vx_{i-1} + \vp_{i-\half} D(t_{i-\half}, t_{i-1}, t_i), \nonumber\\
+\vp_i &= \vp_{i-\half} + \va_i K(t_i, t_{i-\half}, t_i), \nonumber\\
+\vo_i &= \vo_{i-1} + \vO_i(\vx_i, \vp_i),
+\label{KDKO}
+\end{align}
+where $K$ and $D$ are the kick and drift operators \citep{Li2022a}, and
+the acceleration is computed with force evaluation as
+\begin{equation}
+\va_i \triangleq -\vnabla\varphi(\vx_i).
+\end{equation}
+Now the explicit adjoint equations with observables for the leapfrog
+integrator follows
+\begin{align}
+\vmu_{i-1} &= \vmu_i, \nonumber\\
+\vxi_{i-\half} &= \vxi_i + \vpi_i \cdot \frac{\p\va_i}{\p\vx_i} K(t_i, t_i, t_{i-\half}), \nonumber\\
+\tilde{\vpi}_{i-1} &= \vpi_i - \vxi_{i-\half} D(t_{i-\half}, t_i, t_{i-1}), \nonumber\\
+\tilde{\vxi}_{i-1} &= \vxi_{i-\half} + \tilde{\vpi}_{i-1} \cdot \frac{\p\va_{i-1}}{\p\vx_{i-1}} K(t_{i-1}, t_{i-\half}, t_{i-1}), \nonumber\\
+\vxi_{i-1} &= \tilde{\vxi}_{i-1} + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vx_{i-1}}, \nonumber\\
+\vpi_{i-1} &= \tilde{\vpi}_{i-1} + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vp_{i-1}}.
+\end{align}
 
 
 \vspace{1em}
@@ -725,79 +777,7 @@ of the adjoint variables.
 The interpolated snapshots at different times constitute our observable,
 where the VJPs of the interpolation functions are computed by AD as an
 intermediate step during the computation of $\p\vo / \p\vx$
-and $\p\vo / \p\vp$ in the adjoint equations
-\eqref{adjoint_obs} and \eqref{adjoint_init}.
-
-
-% \vspace{1em}
-\subsection{Adjoint Equations with Observables}
-Following \cite{Li2022a}, here we derive the adjoint equations with
-observables that are explicitly formulated for this work.
-For the forward modeling, we consider the evolution of the observable
-$\vo$ along with the state $\vz$ following
-\begin{align}
-\vz_{i+1} &= \vz_i + \vI_i(\vz_i, \vtheta), \\
-\vo_{i+1} &= \vo_i + \vO_{i+1}(\vz_{i+1}, \vtheta), \label{obsvbl_fwd}
-\end{align}
-where $i=0, \cdots, n-1$, and the observable is initialized with zero
-values and the addition of observing the initial state
-\begin{equation}
-\vo_0 = \bm{0} + \vO_0(\vz_0, \vtheta).
-\label{obsvbl_init}
-\end{equation}
-We take an observe function $\vO$ that depends only on the state but not
-the observable itself, which is consistent with the case in this work
-where the state of particles at each step contributes independently to
-the observable.
-The derivation below remains much the same with very few modifications
-for a more general observe function.
-
-Assuming an objective function of the final observable, the Lagrangian
-reads
-\begin{align}
-\cL = \cJ(\vo_n)
-&- \sum_{i=0}^{n-1} \vlambda_{i+1}
-  \cdot \bigl[ \vz_{i+1} - \vz_i - \vI_i(\vz_i, \vtheta) \bigr] \nonumber\\
-&- \sum_{i=0}^{n-1} \vmu_{i+1}
-  \cdot \bigl[ \vo_{i+1} - \vo_i - \vO_{i+1}(\vz_{i+1}, \vtheta) \bigr],
-\end{align}
-where the multipliers $\vlambda$ and $\vmu$ are the adjoint variables of
-$\vz$ and $\vo$ respectively.
-Taking the full derivative of $\cL$ with respect to $\vtheta$ and
-collecting the terms with $\p\vz_i/\p\vtheta$ and $\p\vo_i/\p\vtheta$,
-the adjoint equations arise as
-\begin{align}
-\vmu_{i-1} &= \vmu_{i}, \\
-\vlambda_{i-1} &= \vlambda_{i}
-  + \vlambda_{i}\cdot\frac{\p\vI_{i-1}}{\p\vz_{i-1}}
-  + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vz_{i-1}}, \label{state_adj}
-\end{align}
-for $i = n, \cdots, 1$ and the initial conditions of the adjoint
-variables are
-\begin{align}
-\vmu_n &= \frac{\p\cJ}{\p\vo_n}, \\
-\vlambda_n &= \vmu_n\cdot\frac{\p\vO_n}{\p\vz_n}.
-\end{align}
-The simple constant backpropagation of $\vmu$ results from the form of
-the forward modeling, where neither the integrate ($\vI$) nor the
-observe ($\vO$) function depends on the observable ($\vo$).
-The initial condition of the observable \eqref{obsvbl_init} gives
-\begin{equation}
-\frac{\p\vo_0}{\p\vtheta} = \frac{\p\vO_0}{\p\vtheta}
-+ \frac{\p\vO_0}{\p\vz_0}\cdot\frac{\p\vz_0}{\p\vtheta},
-\end{equation}
-which could be substituted into the full derivative for further
-simplification.
-Finally, the objective gradients could be accumulated through
-\begin{align}
-\frac{d\cJ}{d\vtheta} =
-\vlambda_0\cdot\frac{\p\vz_0}{\p\vtheta}
-+ \sum_{i=1}^{n} \left[\vlambda_{i}\cdot\frac{\p\vI_{i-1}}{\p\vtheta}
-+ \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vtheta}\right]
-+ \vmu_{n}\cdot\frac{\p\vO_{n}}{\p\vtheta},
-\end{align}
-where the terms are organized to be consistent with the adjoint
-equations.
+and $\p\vo / \p\vp$ in the adjoint equations.
 
 
 \vspace{1em}
@@ -999,7 +979,7 @@ We introduce a loss function that sums up its MSE relative to the target
 field power in logarithmic bins:
 %
 \begin{equation}
-  \cL_f = \frac1{N_K} \sum_{i} \ln \biggl[
+  \cL_f = \frac1{N_K} \sum_i \ln \biggl[
   \frac{\sum_{\vk \in K_i} \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
        {\sum_{\vk' \in K_i} | f(\vk')|^2} + \epsilon \biggr],
 \label{loss_power_ln}
