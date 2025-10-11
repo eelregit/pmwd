@@ -601,34 +601,47 @@ transformation in JAX.
                     ($ (box.north) + (0, 1em) $);
 \end{tikzpicture}
 }
-% \\
-% \subfloat[$i$-th (leapfrog) integration-observation step]{
-% \label{fig:step}
-% \begin{tikzpicture}[node style, node distance=2em and 1.5em]
-%   \node (kick_a) {$K_{i-1}^{i-\half}$};
-%   \node (drift) [right=of kick_a] {$D_{i-1}^i$}
-%         edge [from] (kick_a);
-%   \node (force) [right=of drift] {$F_i(\vvartheta)$}
-%         edge [from] (drift);
-%   \node (kick_b) [right=of force] {$K_{i-\half}^i$}
-%         edge [from] (force);
-%   \node (obs) [below=of kick_b] {$O_{i-1}^i$} edge [from] (kick_b);
-%   \node (integ_im1) [left=of kick_a, minimum width=0em] {}
-%         edge [to] (kick_a);
-%   \node (integ_ip1) [right=of kick_b, minimum width=0em] {}
-%         edge [from] (kick_b);
-%   \node (obs_im1) [below=of integ_im1, minimum width=0em] {}
-%         edge [oto] (obs);
-%   \node (obs_ip1) [below=of integ_ip1, minimum width=0em] {}
-%         edge [ofrom] (obs);
-%   \node (box) [box style, dotted, fit=(kick_a) (kick_b) (obs)] {};
-%   \useasboundingbox ($ (box.south) - (0, 1em) $) --
-%                     ($ (box.north) + (0, 1em) $);
-% \end{tikzpicture}
-% }
-\caption{\subref{fig:loop} shows the flow of the state $\vz$ and the
+\\
+\subfloat[leapfrog integration-observation step]{
+\label{fig:step}
+\begin{tikzpicture}[node style]
+  \node (z_left) [minimum height=3.5em] {};
+  \node (o_left) [below=of z_left] {};
+  \node (z_0) [minimum height=3.5em, right=of z_left]
+        {$\begin{pmatrix} \vx_{i-1} \\ \vp_{i-1} \end{pmatrix}$}
+        edge [integ] (z_left);
+  \node (o_0) [below=of z_0] {$\vo_{i-1}$}
+        edge [obs] (z_0)
+        edge [from] (o_left);
+  \node (z_01) [minimum height=3.5em, right=of z_0]
+        {$\begin{pmatrix} \vx_{i-1} \\ \vp_{i-\half} \end{pmatrix}$}
+        edge [integ] (z_0);
+  \node (z_02) [minimum height=3.5em, right=of z_01]
+        {$\begin{pmatrix} \vx_i \\ \vp_{i-\half} \end{pmatrix}$}
+        edge [integ] (z_01);
+  \node (z_1) [minimum height=3.5em, right=of z_02]
+        {$\begin{pmatrix} \vx_i \\ \vp_i \end{pmatrix}$}
+        edge [integ] (z_02);
+  \node (o_1) [below=of z_1] {$\vo_i$}
+        edge [obs] (z_1)
+        edge [from] (o_0);
+  \node (z_right) [minimum height=3.5em, right=of z_1] {}
+        edge [integ] (z_1);
+  \node (o_right) [right=of o_1] {}
+        edge [from] (o_1);
+  \useasboundingbox ($ (box.south) - (0, 1em) $) --
+                    ($ (box.north) + (0, 1em) $);
+\end{tikzpicture}
+}
+\caption{Forward simulation with observables.
+\subref{fig:loop} shows the flow of the state $\vz$ and the
 observable $\vo$ in the integration-observation loop of the forward
-simulation.}
+simulation.
+\subref{fig:step} shows explicitly one integration-observation step for
+the leapfrog integrator.
+The solid lines denote the integration of the state, the dashed lines
+denote the observation of the state added to the observable, and the
+dotted lines are simply the forward pass of the previous observable.}
 \end{figure*}
 
 The gradient descent optimization of the neural networks embedded in the
