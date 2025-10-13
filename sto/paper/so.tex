@@ -756,7 +756,7 @@ integrator follows
 
 
 \vspace{1em}
-\subsection{Snapshot Observable}
+\subsection{Observation of Snapshots with Interpolation}
 \label{sec:snapobs}
 
 The $N$-body time integration is carried out along discrete time steps
@@ -764,16 +764,17 @@ in terms of the scale factor $a$, and the state of particles at any
 given time can be achieved using interpolation.
 Given the particle displacements $\vs$ and velocities\footnote{The
 velocity is related to the canonical momentum $\vp$ through $\vv =
-\vp/(a^3H)$, where $H$ is the Hubble parameter.} $\vv := \d\vs/\d a$ at
-two consecutive time steps $a_i$ and $a_{i+1}$, we get the snapshot of
-particles in between at $a$ using the cubic Hermite interpolation.
+\vp/(a^3H)$, where $H$ is the Hubble parameter.} $\vv \triangleq
+\d\vs/\d a$ at two consecutive time steps $a_i$ and $a_{i+1}$, we get
+the snapshot of particles in between at $a$ using the cubic Hermite
+interpolation.
 The interpolated particle displacements are given by
 \begin{align}
   \vs(a) =\ &h_{00}(\alpha)\vs_i + h_{10}(\alpha)(a_{i+1} - a_i)\vv_i + \nonumber\\
            &h_{01}(\alpha)\vs_{i+1} + h_{11}(\alpha)(a_{i+1} - a_i)\vv_{i+1},
 \end{align}
-where $\alpha := (a - a_i)/(a_{i+1} - a_i)$ and the Hermite basis
-functions read
+where $\alpha \triangleq (a - a_i)/(a_{i+1} - a_i)$ and the Hermite
+basis functions read
 \begin{align}
   h_{00}(\alpha) &= 2\alpha^3 - 3\alpha^2 + 1, \nonumber\\
   h_{10}(\alpha) &= \alpha^3 - 2\alpha^2 + \alpha, \nonumber\\
@@ -782,15 +783,22 @@ functions read
 \end{align}
 The particle velocities are then given by the derivative $\vv(a) =
 \d\vs(a) / \d a$.
-The interpolation is a linear combination of the particle snapshots at
-two consecutive time steps, which therefore can be done in either two
-steps or just one step by carrying the particles from the previous step.
-We find the two-steps scheme more convenient for the backward evolution
-of the adjoint variables.
-The interpolated snapshots at different times constitute our observable,
-where the VJPs of the interpolation functions are computed by AD as an
-intermediate step during the computation of $\p\vo / \p\vx$
-and $\p\vo / \p\vp$ in the adjoint equations.
+Notice that the cubic Hermite interpolation is a linear combination of
+the particles' states at two consecutive time steps and each state
+contributes independently to the interpolated snapshot, which is
+consistent with our formulation in \eqref{obsvbl_fwd} where the
+observation function does not depend on the observable from the previous
+step.
+The coefficients are the only difference between the first and second
+half of the interpolation.
+A series of interpolated snapshots at given times constitute our
+observable for the objective function.
+Therefore for the observation at each step, we first determine if the
+current particles' state contributes to any of the interpolated
+snapshots in observable.
+If it does, we then perform the interpolation depending on whether it
+is the first or the second half, and finally add this update to the
+corresponding snapshot in observable.
 
 
 \vspace{1em}
