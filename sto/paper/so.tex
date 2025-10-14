@@ -661,7 +661,8 @@ For the forward simulation (\autoref{fig:loop}), we consider the
 evolution of the observable $\vo$ along with the state $\vz$ following
 \begin{align}
 \vz_i &= \vz_{i-1} + \vI_{i-1}(\vz_{i-1}, \vtheta), \\
-\vo_i &= \vo_{i-1} + \vO_i(\vz_i, \vtheta), \label{obsvbl_fwd}
+\vo_i &= \vo_{i-1} + \vO_i(\vz_i, \vtheta),
+\label{IO_fwd}
 \end{align}
 where $\vI$ and $\vO$ are the integration and observation functions
 respectively, $i=1, \cdots, n$, and we observe the new state every
@@ -669,7 +670,7 @@ step after it is updated from the integration function.
 The observable is initialized by observing the initial state
 \begin{equation}
 \vo_0 = \vO_0(\vz_0, \vtheta).
-\label{obsvbl_init}
+\label{O_init}
 \end{equation}
 Notice that we take an observation function $\vO$ that depends only on
 the state but not the observable itself, which is consistent with the
@@ -689,6 +690,7 @@ the Lagrangian reads
   \cdot \bigl[ \vz_i - \vz_{i-1} - \vI_{i-1}(\vz_{i-1}, \vtheta) \bigr] \nonumber\\
 &- \sum_{i=1}^{n} \vmu_i
   \cdot \bigl[ \vo_i - \vo_{i-1} - \vO_i(\vz_i, \vtheta) \bigr],
+\label{IO_Lagrangian}
 \end{align}
 where the multipliers $\vlambda$ and $\vmu$ are the adjoint variables of
 $\vz$ and $\vo$ respectively.
@@ -699,18 +701,20 @@ the adjoint equations arise as
 \vmu_{i-1} &= \vmu_i, \\
 \vlambda_{i-1} &= \vlambda_i
   + \vlambda_i\cdot\frac{\p\vI_{i-1}}{\p\vz_{i-1}}
-  + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vz_{i-1}}, \label{state_adj}
+  + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vz_{i-1}},
+\label{IO_adj}
 \end{align}
 for $i = n, \cdots, 1$ and the initial conditions of the adjoint
 variables are
 \begin{align}
 \vmu_n &= \frac{\p\cJ}{\p\vo_n}, \\
 \vlambda_n &= \vmu_n\cdot\frac{\p\vO_n}{\p\vz_n}.
+\label{IO_adj_init}
 \end{align}
 The simple constant backpropagation of $\vmu$ results from the form of
 the forward modeling, where neither the integration nor the observation
 function depends on the observable.
-The initial condition of the observable \eqref{obsvbl_init} gives
+The initial condition of the observable \eqref{O_init} gives
 \begin{equation}
 \frac{\p\vo_0}{\p\vtheta} = \frac{\p\vO_0}{\p\vtheta}
 + \frac{\p\vO_0}{\p\vz_0}\cdot\frac{\p\vz_0}{\p\vtheta},
@@ -724,6 +728,7 @@ Finally, the objective gradients could be accumulated through
 + \sum_{i=1}^{n} \left[\vlambda_i\cdot\frac{\p\vI_{i-1}}{\p\vtheta}
 + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vtheta}\right]
 + \vmu_{n}\cdot\frac{\p\vO_{n}}{\p\vtheta},
+\label{IO_grad}
 \end{align}
 where the terms are organized to be consistent with the adjoint
 equations.
@@ -751,8 +756,37 @@ integrator follows
 \tilde{\vpi}_{i-1} &= \vpi_i - \vxi_{i-\half} D(t_{i-\half}, t_i, t_{i-1}), \nonumber\\
 \tilde{\vxi}_{i-1} &= \vxi_{i-\half} + \tilde{\vpi}_{i-1} \cdot \frac{\p\va_{i-1}}{\p\vx_{i-1}} K(t_{i-1}, t_{i-\half}, t_{i-1}), \nonumber\\
 \vxi_{i-1} &= \tilde{\vxi}_{i-1} + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vx_{i-1}}, \nonumber\\
-\vpi_{i-1} &= \tilde{\vpi}_{i-1} + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vp_{i-1}}.
+\vpi_{i-1} &= \tilde{\vpi}_{i-1} + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vp_{i-1}},
+\label{KDKO_adj}
 \end{align}
+with initial conditions
+\begin{equation}
+\vmu_n = \frac{\p\cJ}{\p\vo_n},\
+\vxi_n = \vmu_n \cdot \frac{\p\vO_n}{\p\vx_n},\
+\vpi_n = \vmu_n \cdot \frac{\p\vO_n}{\p\vp_n}.
+\label{KDKO_adj_init}
+\end{equation}
+The objective gradients now reads
+\begin{align}
+\frac{\d\cJ}{\d\vtheta} =\
+& \vxi_0 \cdot \frac{\p\vx_0}{\p\vtheta}
++ \vpi_0 \cdot \frac{\p\vp_0}{\p\vtheta}
++ \vmu_{n}\cdot\frac{\p\vO_{n}}{\p\vtheta} \nonumber\\
+& - \sum_{i=1}^n \Bigl[
+  \vpi_i\cdot\bigl(\va_i \frac\p{\p\vtheta} + \frac{\p\va_i}{\p\vtheta}
+    \bigr) K(t_i, t_i, t_{i-\half}) \nonumber\\
+  &\qquad + \vxi_{i-\half} \cdot \vp_{i-\half}
+    \frac{\p D(t_{i-\half}, t_i, t_{i-1})}{\p\vtheta} \nonumber\\
+  &\qquad + \tilde{\vpi}_{i-1}\cdot\bigl(\va_{i-1} \frac\p{\p\vtheta}
+    + \frac{\p\va_{i-1}}{\p\vtheta} \bigr) K(t_{i-1}, t_{i-\half}, t_{i-1}) \nonumber\\
+  &\qquad + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vtheta}
+\Bigr].
+\label{KDKO_grad}
+\end{align}
+The backward evolution of the adjoint variables is carried out along
+with the reverse-time integration of the particles' state following
+exactly the same path of the forward integration, which is necessary to
+get the primals for the evaluation of the Jacobians.
 
 
 \vspace{1em}
@@ -786,7 +820,7 @@ The particle velocities are then given by the derivative $\vv(a) =
 Notice that the cubic Hermite interpolation is a linear combination of
 the particles' states at two consecutive time steps and each state
 contributes independently to the interpolated snapshot, which is
-consistent with our formulation in \eqref{obsvbl_fwd} where the
+consistent with our formulation in \eqref{IO_fwd} where the
 observation function does not depend on the observable from the previous
 step.
 The coefficients are the only difference between the first and second
