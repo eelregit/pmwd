@@ -615,13 +615,13 @@ transformation in JAX.
         edge [from] (o_left);
   \node (z_01) [minimum height=3.5em, right=of z_0]
         {$\begin{pmatrix} \vx_{i-1} \\ \vp_{i-\half} \end{pmatrix}$}
-        edge [integ] (z_0);
+        edge [integ] node[below] {Kick} (z_0);
   \node (z_02) [minimum height=3.5em, right=of z_01]
         {$\begin{pmatrix} \vx_i \\ \vp_{i-\half} \end{pmatrix}$}
-        edge [integ] (z_01);
+        edge [integ] node[below] {Drift} (z_01);
   \node (z_1) [minimum height=3.5em, right=of z_02]
         {$\begin{pmatrix} \vx_i \\ \vp_i \end{pmatrix}$}
-        edge [integ] (z_02);
+        edge [integ] node[below] {Kick} (z_02);
   \node (o_1) [below=of z_1] {$\vo_i$}
         edge [obs] (z_1)
         edge [from] (o_0);
@@ -661,12 +661,12 @@ For the forward simulation (\autoref{fig:loop}), we consider the
 evolution of the observable $\vo$ along with the state $\vz$ following
 \begin{align}
 \vz_i &= \vz_{i-1} + \vI_{i-1}(\vz_{i-1}, \vtheta), \\
-\vo_i &= \vo_{i-1} + \vO_i(\vz_i, \vtheta),
+\vo_i &= \vo_{i-1} + \vO_i(\vz_i, \vtheta), \qquad i=1,\cdots,n
 \label{IO_fwd}
 \end{align}
 where $\vI$ and $\vO$ are the integration and observation functions
-respectively, $i=1, \cdots, n$, and we observe the new state every
-step after it is updated from the integration function.
+respectively, and we observe the new state every step after it is
+updated from the integration function.
 The observable is initialized by observing the initial state
 \begin{equation}
 \vo_0 = \vO_0(\vz_0, \vtheta).
@@ -701,16 +701,15 @@ the adjoint equations arise as
 \vmu_{i-1} &= \vmu_i, \\
 \vlambda_{i-1} &= \vlambda_i
   + \vlambda_i\cdot\frac{\p\vI_{i-1}}{\p\vz_{i-1}}
-  + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vz_{i-1}},
+  + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vz_{i-1}}, \qquad i=n,\cdots,1
 \label{IO_adj}
 \end{align}
-for $i = n, \cdots, 1$ and the initial conditions of the adjoint
-variables are
-\begin{align}
-\vmu_n &= \frac{\p\cJ}{\p\vo_n}, \\
-\vlambda_n &= \vmu_n\cdot\frac{\p\vO_n}{\p\vz_n}.
+with the initial conditions
+\begin{equation}
+\vmu_n = \frac{\p\cJ}{\p\vo_n},\
+\vlambda_n = \vmu_n\cdot\frac{\p\vO_n}{\p\vz_n}.
 \label{IO_adj_init}
-\end{align}
+\end{equation}
 The simple constant backpropagation of $\vmu$ results from the form of
 the forward modeling, where neither the integration nor the observation
 function depends on the observable.
@@ -734,8 +733,8 @@ where the terms are organized to be consistent with the adjoint
 equations.
 
 With the particles' state $\vz = (\vx, \vp)^\intercal$ updated with the
-leapfrog integrator, each integration-observation step could be
-explicitly expanded as
+leapfrog integrator (\autoref{fig:step}), each integration-observation
+step could be explicitly expanded as
 \begin{align}
 \vp_{i-\half} &= \vp_{i-1} + \va_{i-1} K(t_{i-1}, t_{i-1}, t_{i-\half}), \nonumber\\
 \vx_i &= \vx_{i-1} + \vp_{i-\half} D(t_{i-\half}, t_{i-1}, t_i), \nonumber\\
