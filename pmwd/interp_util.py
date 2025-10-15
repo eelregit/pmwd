@@ -46,7 +46,7 @@ def coefs_next(a0, a1, a, cosmo):
     return dd, dv, vd, vv
 
 
-@partial(custom_vjp, nondiff_argnums=(0,))
+# @partial(custom_vjp, nondiff_argnums=(0,))
 def itp_snap(order, disp, vel, a0, a1, a, cosmo):
     if order == 'prev':
         dd, dv, vd, vv = coefs_prev(a0, a1, a, cosmo)
@@ -82,7 +82,7 @@ def itp_snap_bwd(order, res, cots):
 
     return (disp_cot, vel_cot, a0_cot, a1_cot, a_cot, cosmo_cot)
 
-itp_snap.defvjp(itp_snap_fwd, itp_snap_bwd)
+# itp_snap.defvjp(itp_snap_fwd, itp_snap_bwd)
 
 
 
