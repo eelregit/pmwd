@@ -1203,6 +1203,25 @@ hosted by a gitlab server at the Max-Planck Computing and Data Facility
 
 \vspace{1em}
 \section{Tests on Differentiable Simulation with Observables}
+
+\begin{figure*}
+  \centering
+  \includegraphics[width=.48\textwidth]{ptcl_grad_cmp.pdf}
+  \includegraphics[width=.48\textwidth]{ptcl_grad_diff.pdf}
+  \caption{Objective gradients of the initial particles' displacement of
+    $N$-body integration-observation loop, i.e. $\vxi_0 = d\cJ/d\vx_0$.}
+  \label{fig:ptcl_grad}
+\end{figure*}
+
+\begin{figure*}
+  \centering
+  \includegraphics[width=.48\textwidth]{sonn_grad_cmp.pdf}
+  \includegraphics[width=.48\textwidth]{sonn_grad_diff.pdf}
+  \caption{Objective gradients of the SO neural network parameters, i.e.
+  $d\cJ/d\vtheta$.}
+  \label{fig:sonn_grad}
+\end{figure*}
+
 In \autoref{sec:diffsim_obs} we derived the adjoint equations and
 objective gradients in the framework of the adjoint method for the
 differentiable simulation with observables.
@@ -1210,11 +1229,11 @@ Here we perform tests on our implementation.
 Gradient results of the adjoint method are compared against those of the
 AD by turning off the custom VJP of the $N$-body integration-observation
 loop.
-The tests run simulations of $128^3$ particles, with a $128^3$ mesh and
+The tests run simulations of $128^3$ particles, with a $256^3$ mesh and
 15 time steps.
 The size and time steps of the tests are mainly limited by the memory
 cost of the AD.
-The objective loss function consists of snapshots at $a=(0.6, 0.8, 1)$.
+The objective loss function consists of snapshots at $a=(0.7, 0.8, 0.9)$.
 
 In the adjoint method, the adjoint variables evolve following the
 adjoint equations \eqref{KDKO_adj}.
@@ -1224,23 +1243,6 @@ particles' state of $N$-body, i.e. $\vxi_0$ and $\vpi_0$.
 We further check the objective gradients of the SO neural network
 parameters, which are accumulated following \eqref{KDKO_grad} in the
 adjoint method.
-
-
-\begin{figure*}
-  \centering
-  \includegraphics[width=0.5\linewidth]{nn_grads_cmp.pdf}
-  \caption{A comparison of adjoint gradients of all parameters in the
-  $f$ and $g$ NNs to those by AD.
-  This test runs a \pmwd\ simulation of $128^3$ particles, with a
-  $128^3$ mesh and 15 time steps.
-  The size and time steps of this test case is mainly limited by the
-  memory cost of the AD method.
-  The two NNs $f$ and $g$ both have two hidden layers of size $[n, n]$,
-  where $n$ is the size of the input layer.
-  The loss function involves 3 snapshots at $a=(0.6, 0.8, 1)$.
-  }
-  \label{fig:nn_grads_cmp}
-\end{figure*}
 
 
 %\listofchanges
