@@ -555,7 +555,7 @@ transformation in JAX.
 
 \vspace{1em}
 \subsection{Differentiable Simulation with Observables}
-\label{sec:pmwd}
+\label{sec:diffsim_obs}
 
 \begin{figure*}[t]
 \centering
@@ -1166,10 +1166,11 @@ function.}
 \textit{\large Acknowledgements:}
 We thank Qiufan Lin, Paulo Montero-Camacho, and Yang Wang for helpful
 discussions.
-YZ and YL were supported by The Major Key Project of PCL.
-YZ was supported by the National Natural Science Foundation of China
-under Grant No. 12503006, and the China Postdoctoral Science Foundation
-under Grant No. 2023M731831.
+YZ and YL are supported by The Major Key Project of PCL.
+YZ is supported by the National Natural Science Foundation of China
+under Grant No. 12503006.
+YZ was also supported by the China Postdoctoral Science Foundation under
+Grant No. 2023M731831.
 The Flatiron Institute is supported by the Simons Foundation.
 
 
@@ -1201,17 +1202,29 @@ hosted by a gitlab server at the Max-Planck Computing and Data Facility
 
 
 \vspace{1em}
-\section{Tests of Snapshots Observation in Adjoint Method}
-As discussed in the main text, our objective loss function is defined on
-multiple snapshots at given times, which are constructed through
-interpolation during the observation operation.
-Here we perform tests on the gradients of NN parameters to check our
-implementation of the snapshots observation inside the adjoint method of
-the $N$-body time integration.
-The gradients given by the adjoint method are compared against those
-given by the AD where we disable the custom VJP of the $N$-body
-function, see
-\autoref{fig:nn_grads_cmp}.
+\section{Tests on Differentiable Simulation with Observables}
+In \autoref{sec:diffsim_obs} we derived the adjoint equations and
+objective gradients in the framework of the adjoint method for the
+differentiable simulation with observables.
+Here we perform tests on our implementation.
+Gradient results of the adjoint method are compared against those of the
+AD by turning off the custom VJP of the $N$-body integration-observation
+loop.
+The tests run simulations of $128^3$ particles, with a $128^3$ mesh and
+15 time steps.
+The size and time steps of the tests are mainly limited by the memory
+cost of the AD.
+The objective loss function consists of snapshots at $a=(0.6, 0.8, 1)$.
+
+In the adjoint method, the adjoint variables evolve following the
+adjoint equations \eqref{KDKO_adj}.
+We check this by comparing the adjoint variables of the initial
+particles' state of $N$-body, i.e. $\vxi_0$ and $\vpi_0$.
+
+We further check the objective gradients of the SO neural network
+parameters, which are accumulated following \eqref{KDKO_grad} in the
+adjoint method.
+
 
 \begin{figure*}
   \centering
