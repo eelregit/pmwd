@@ -10,6 +10,18 @@ from matplotlib.colors import FuncNorm
 #    pass  # if not plotting in Jupyter
 
 
+# TODO Underdense cmap with bone_r, or the first half of twilight
+#      Where to join the two depends on visual
+#      Alternatives replacing bone_r + inferno with twilight, which is cyclic, but need to
+
+# TODO the "dna" cmap, because of double helix
+#      Use CAM16-UCS to make inferno like and its partner strand
+#      https://colour.readthedocs.io/en/latest/colour.html
+#      colour.CAM16UCS_to_XYZ, colour.XYZ_to_RGB  # which RGB?
+#      https://en.wikipedia.org/wiki/Color_appearance_model#CAM16
+#      or OKLab https://en.wikipedia.org/wiki/Oklab_color_space
+
+
 def simshow(x, figsize=(6.3, 4.9), dpi=96, cmap='inferno', norm=None, colorbar=True,
             interpolation='lanczos', interpolation_stage='rgba', **kwargs):
     """Plot a 2D view of simulation with ``imshow``.
@@ -33,7 +45,7 @@ def simshow(x, figsize=(6.3, 4.9), dpi=96, cmap='inferno', norm=None, colorbar=T
     interpolation_stage : {'data', 'rgba'}, optional
         For ``matplotlib.axes.Axes.imshow``. Unlike in ``imshow``, the default is
         'rgba'.
-    **kwargs :
+    **kwargs
         Other keyword arguments to be passed to ``matplotlib.axes.Axes.imshow``.
 
     Returns
@@ -76,7 +88,7 @@ def simshow(x, figsize=(6.3, 4.9), dpi=96, cmap='inferno', norm=None, colorbar=T
 class CosmicWebNorm(FuncNorm):
     """Colormap normalization for cosmic web (relative) density fields.
 
-    Use ``plot()`` to look at the normalization transformations.
+    Call `plot` to look at the normalization transformations.
 
     Parameters
     ----------
@@ -111,9 +123,9 @@ class CosmicWebNorm(FuncNorm):
     """
     def __init__(self, x, q=0.1, gamma=0.5, fit_min=1e-2, fit_num=64, clip=False):
         if not 0 < q < 1:
-            raise ValueError(f'q = {q} not in (0, 1)')
+            raise ValueError(f'{q = } not in (0, 1)')
         if gamma <= 0:
-            raise ValueError(f'gamma = {gamma} <= 0')
+            raise ValueError(f'{gamma = } <= 0')
 
         x = np.asarray(x)
 
