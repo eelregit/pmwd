@@ -113,6 +113,20 @@ def reshape_to(shape=None, field=None):
     return fun
 
 
+def wrap_around(modulus):
+    """Return a validator function that wraps the children of its input pytree around
+    the specified modulus.
+
+    Parameters
+    ----------
+    modulus : int or float ArrayLike
+
+    """
+    def fun(value):
+        return tree_map(lambda x: x % modulus, value)
+    return fun
+
+
 # TODO get inspirations from attrs, cattrs, pydantic, traitlets, marshmallow, schematics
 
 
