@@ -356,7 +356,7 @@ def field(*, mandatory=True, default=None, default_function=None, cache=None,
              validate=None, transform=None, **kwargs):
     """Descriptor dataclass field.
 
-    See `Data` and `dataclasses.field` documentations. For JAX pytrees, use `dyn_field`,
+    See `Data` and `dataclasses.field` documentation. For JAX pytrees, use `dyn_field`,
     `fxd_field`, and `aux_field` instead.
 
     Parameters
@@ -414,7 +414,7 @@ def dyn_field(*, mandatory=True, default=None, default_function=None, cache=None
     `break_on_jax_placeholder` is prepended to `validate` and `transform` to skip on JAX
     transformation placeholders whose `type` is `object`. `dataclasses.Field.metadata`
     is updated with ``'ftype'``. See `Data`, `dataclasses.field`, and JAX pytree
-    documentations.
+    documentation.
 
     Parameters
     ----------
@@ -445,7 +445,7 @@ def fxd_field(*, mandatory=True, default=None, default_function=None, cache=None
     transformation placeholders whose `type` is `object`. `lax.stop_gradient` is
     appended to `transform` if not already in it. `dataclasses.Field.metadata` is
     updated with ``'ftype'``. `repr` is supppressed by default. See `Data`,
-    `dataclasses.field`, and JAX pytree documentations.
+    `dataclasses.field`, and JAX pytree documentation.
 
     Parameters
     ----------
@@ -475,7 +475,7 @@ def aux_field(*, mandatory=True, default=None, default_function=None, cache=None
     """Descriptor dataclass field for pytree auxiliary data, which must be hashable.
 
     `dataclasses.Field.metadata` is updated with ``'ftype'``. `repr` is supppressed by
-    default. See `Data`, `dataclasses.field`, and JAX pytree documentations.
+    default. See `Data`, `dataclasses.field`, and JAX pytree documentation.
 
     Parameters
     ----------
@@ -639,7 +639,7 @@ class TanMixin:
         return tree_map(partial(scalar_div, scalar), self)
 
 
-def pytree_dataclass(cls, *, frozen=True, **kwargs):
+def pytree_dataclass(cls, *, frozen=True, kw_only=True, **kwargs):
     """Register classes as dataclasses and pytree nodes.
 
     `iter_fields` is implemented to iterate over fields of selected pytree dataclass
@@ -653,8 +653,10 @@ def pytree_dataclass(cls, *, frozen=True, **kwargs):
     frozen : bool, optional
         Whether to return a frozen dataclass that emulates read-only behavior, frozen by
         default which one shouldn't need to change.
+    kw_only : bool, optional
+        Whether to mark all fields as keyword-only, flipped to true by default.
     **kwargs
-        Other parameters besides `frozen` for the `dataclasses.dataclass`.
+        Other parameters besides `frozen` and `kw_only` for the `dataclasses.dataclass`.
 
     Returns
     -------
@@ -699,16 +701,16 @@ def pytree_dataclass(cls, *, frozen=True, **kwargs):
     ...                                  repr=True)
     ...     theta: ArrayLike = dyn_field(default=jnp.array([0, 1, 1j]),
     ...                                  validate=asarray_of(field='dtype'))
-    ...     const: ArrayLike = fxd_field(default=jnp.array([2.7182818, 3.1415926]),
+    ...     const: ArrayLike = fxd_field(default=jnp.array([2.71828, 3.14159]),
     ...                                  validate=jnp.float32,
     ...                                  repr=True)
     >>> print(Parameters())
     Parameters(dtype=<class 'jax.numpy.complex64'>,
                theta=Array([0.+0.j, 1.+0.j, 0.+1.j], dtype=complex64),
-               const=Array([2.7182817, 3.1415925], dtype=float32))
+               const=Array([2.71828, 3.14159], dtype=float32))
 
     """
-    cls = dataclasses.dataclass(cls, frozen=frozen, **kwargs)
+    cls = dataclasses.dataclass(cls, frozen=frozen, kw_only=kw_only, **kwargs)
 
     for field in dataclasses.fields(cls):
         if field.metadata.get('ftype', FType.DYNAMIC) not in FType:
