@@ -76,6 +76,8 @@ class Cosmology(TanMixin, Tree):
         Time unit :math:`T` defined in s/:math:`h`. Default is Hubble time :math:`1/H_0
         \sim 10^{10}` years/:math:`h \sim` age of the Universe. So the default velocity
         unit is :math:`L/T =` 100 km/s.
+    A : float ArrayLike, optional
+        Angular unit defined in radians. Default is arcsec.
     distance_lga_min : float, optional
         Minimum distance scale factor in log10.
     distance_lga_max : float, optional
@@ -121,8 +123,6 @@ class Cosmology(TanMixin, Tree):
 
     """
 
-    # TODO keyword-only for python>=3.10
-
     dtype: DTypeLike = aux_field(default=float,
                                  validate=(jnp.dtype, issubdtype_of(jnp.floating)))
 
@@ -149,6 +149,7 @@ class Cosmology(TanMixin, Tree):
     M: ArrayLike = fxd_field(default_function=lambda self: 1e10 * self.M_sun_SI)
     L: ArrayLike = fxd_field(default_function=lambda self: self.Mpc_SI)
     T: ArrayLike = fxd_field(default_function=lambda self: 1 / self.H_0_SI)
+    A: ArrayLike = fxd_field(default=jnp.pi/(180*3600))
 
     distance_lga_min: float = aux_field(default=-3)
     distance_lga_max: float = aux_field(default=1)
