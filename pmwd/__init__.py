@@ -1,18 +1,13 @@
 """pmwd: particle mesh with derivatives"""
 
 
-import jax
-import jax.numpy as jnp
-
-
-
 # TODO pmwd.cosmology.{background,perturbation,cosmology} ?
+from pmwd.cosmology import Cosmology, SimpleLCDM, Planck18
 from pmwd.background import E2, H_deriv, Omega_m_a, distance_cache, distance
 from pmwd.perturbation import (transfer_cache, transfer_fit, transfer,
                                growth_cache, growth,
                                varlin_cache, varlin,
                                linear_power)
-from pmwd.cosmology import Cosmology, SimpleLCDM, Planck18
 from pmwd.solver import Solver
 from pmwd.modes import white_noise, linear_modes
 #from pmwd.particles import (Particles, ptcl_mass, ptcl_enmesh,  #FIXME conf problem
