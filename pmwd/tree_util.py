@@ -144,23 +144,29 @@ def _canonicalize_callables(fun):
 def _call_dual_arity(fun, value, obj):
     """Call as a binary function first and then as a unary function.
 
-    ``fun(value, obj)``, ``fun(value)``, or fail.
+    ``fun(value)``, ``fun(value, obj)``, or fail.
 
     """
-    try:
-        return fun(value, obj)
-    except TypeError as err:
-        err_binary = err
-
     try:
         return fun(value)
     except TypeError as err:
         err_unary = err
 
+    #FIXME encountered a strange bug:
+    # when I put dtype as the first field, and use jnp.dtype to validate, running this
+    # block first results in errors like "Foo objects has no attribute '_bar'", because
+    # in that case fun(value, obj) somehow triggers obj.__len__ which returns
+    # len(self.bar)
+    # so I swapped these 2 blocks, but not sure if the problem still remains
+    try:
+        return fun(value, obj)
+    except TypeError as err:
+        err_binary = err
+
     err = TypeError(f'calling {fun.__qualname__} fails on both binary and unary forms '
                     f'for {value=!r} and {obj=!r}')
-    err.add_note(f'    binary: {err_binary}')
     err.add_note(f'    unary:  {err_unary!r}')
+    err.add_note(f'    binary: {err_binary}')
     raise err
 
 
