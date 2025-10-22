@@ -20,15 +20,18 @@ def tree_unstack(tree):
     return [treedef.unflatten(leaf) for leaf in zip(*leaves, strict=True)]
 
 
+def arr_global_mean(x):
+    """Global average of array across multi processes, using pmap and pmean."""
+    # add leading in_axes for pmap over local device within current process
+    x = jnp.expand_dims(x, axis=0)
+    x = jax.pmap(lambda x: jax.lax.pmean(x, axis_name='device'),
+                 axis_name='device')(x)
+    return x[0]  # rm leading axis, i.e. pmap out_axes
+
+
 def tree_global_mean(tree):
-    """Global average of a pytree x, i.e. for all leaves."""
-    def global_mean_arr(x):
-        x = jnp.expand_dims(x, axis=0)  # leading axis for pmap
-        x = jax.pmap(lambda x: jax.lax.pmean(x, axis_name='device'),
-                     axis_name='device')(x)
-        return x[0]  # rm leading axis
-    tree = tree_map(global_mean_arr, tree)
-    return tree
+    """Global average of a pytree, i.e. for all leaves."""
+    return tree_map(arr_global_mean, tree)
 
 
 def pv2ptcl(pos, vel, pmid, conf):
