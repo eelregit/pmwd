@@ -99,7 +99,7 @@ def distance_cache(cosmo):
 
     Returns
     -------
-    cT : jax.Array of cosmo.dtype and shape (4, cosmo.distance_a_num,)
+    cT : jax.Array of cosmo.dtype and shape (4, cosmo.distance_a_num)
         Distance table.
 
     Notes
@@ -113,13 +113,13 @@ def distance_cache(cosmo):
     cdTda = cosmo.d_H / (a**(n+1) * jnp.sqrt(E2(a, cosmo)))
     # NOTE approximate c dT/da for n=1
     cdTda = jnp.concatenate(
-        (jnp.array([[0], [0], [jnp.inf], [jnp.inf]], dtype=cosmo.dtype), cdTda))
+        (jnp.array([[0], [0], [jnp.inf], [jnp.inf]], dtype=cosmo.dtype), cdTda), axis=1)
 
     da = jnp.diff(cosmo.distance_a)
-    cdT = (cdTda[:-1] + cdTda[1:]) / 2 * da
-    cdT = jnp.concatenate((cdT, jnp.zero_like(n)))
+    cdT = (cdTda[:, :-1] + cdTda[:, 1:]) / 2 * da
+    cdT = jnp.concatenate((cdT, jnp.zeros_like(n)), axis=1)
 
-    cT = jnp.cumsum(cdT[::-1])[::-1]
+    cT = jnp.cumsum(cdT[:, ::-1], axis=1)[:, ::-1]
 
     return cT
 
