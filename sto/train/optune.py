@@ -6,8 +6,8 @@ import numpy as np
 import joblib
 
 from run_train import prep_train, run_train, slurm_job_id, procid
-from pmwd.sto.so import soft_len
-from pmwd.sto.mlp import init_mlp_params
+from pmwd.sto.so.so import soft_len
+from pmwd.sto.so.mlp import init_mlp_params
 
 
 def objective(trial, sobol_ids, gsdata, snap_ids):

@@ -5,8 +5,8 @@ from pmwd.nbody import nbody
 from pmwd.particles import Particles
 from pmwd.vis_util import simshow, CosmicWebNorm
 from pmwd.pm_util import rfftnfreq
-from pmwd.sto.so import sotheta, sonn_k, sonn_kvec
-from pmwd.sto.train import init_pmwd, pmodel
+from pmwd.sto.so.so import sotheta, sonn_k, sonn_kvec
+from pmwd.sto.train.train import init_pmwd, pmodel
 from pmwd.sto.util import scatter_dens, power_tfcc
 
 

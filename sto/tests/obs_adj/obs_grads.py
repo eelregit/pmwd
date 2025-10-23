@@ -15,8 +15,8 @@ from pmwd import (
     nbody,
     scatter,
 )
-from pmwd.sto.so import soft_len
-from pmwd.sto.mlp import init_mlp_params
+from pmwd.sto.so.so import soft_len
+from pmwd.sto.so.mlp import init_mlp_params
 
 
 def gen_ic(modes, cosmo, conf):

@@ -3,10 +3,10 @@ import pickle
 import matplotlib.pyplot as plt
 
 from pmwd.nbody import nbody
-from pmwd.sto.train import pmodel, init_pmwd
-from pmwd.sto.data import G4snapDataset
-from pmwd.sto.ccic import gen_cc, gen_ic
-from pmwd.sto.mlp import mlp_size
+from pmwd.sto.train.train import pmodel, init_pmwd
+from pmwd.sto.data.g4data import G4snapDataset
+from pmwd.sto.data.ccic import gen_cc, gen_ic
+from pmwd.sto.so.mlp import mlp_size
 from pmwd.sto.util import power_tfcc, scatter_dens, pv2ptcl, load_soparams, tree_unstack
 
 

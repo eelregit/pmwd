@@ -23,9 +23,9 @@ from datetime import datetime
 import time
 import pickle
 
-from pmwd.sto.train import train_epoch, loss_epoch
+from pmwd.sto.train.train import train_epoch, loss_epoch
 from pmwd.sto.vis import track_figs
-from pmwd.sto.data import read_gsdata
+from pmwd.sto.data.g4data import read_gsdata
 from pmwd.sto.post import pmwd_fwd
 from pmwd.sto.util import pv2ptcl, tree_global_mean
 
@@ -188,7 +188,7 @@ def run_train(n_epochs, sobol_ids, gsdata, snap_ids, shuffle_epoch, learning_rat
 
 if __name__ == "__main__":
 
-    from pmwd.sto.hypars import (
+    from pmwd.sto.train.hypars import (
         n_epochs, sobol_ids_global, snap_ids, shuffle_epoch, learning_rate,
         optimizer, opt_state, so_type, so_nodes, soft_i, so_params,
         loss_pars)

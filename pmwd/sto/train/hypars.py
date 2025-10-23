@@ -1,8 +1,8 @@
 import numpy as np
 import optax
 
-from pmwd.sto.so import soft_len
-from pmwd.sto.mlp import init_mlp_params
+from pmwd.sto.so.so import soft_len
+from pmwd.sto.so.mlp import init_mlp_params
 
 n_epochs = 5000
 

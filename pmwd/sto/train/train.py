@@ -5,8 +5,8 @@ from functools import partial
 import time
 
 from pmwd.nbody import nbody
-from pmwd.sto.ccic import gen_cc, gen_ic
-from pmwd.sto.loss import loss_func
+from pmwd.sto.data.ccic import gen_cc, gen_ic
+from pmwd.sto.train.loss import loss_func
 from pmwd.sto.util import tree_global_mean
 
 

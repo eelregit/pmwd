@@ -6,7 +6,7 @@ from joblib import Parallel, delayed
 import h5py
 
 from pmwd.io_util import read_gadget_hdf5
-from pmwd.sto.sample import scale_Sobol
+from pmwd.sto.data.sample import scale_Sobol
 
 
 def read_g4snap(sims_dir, sobol_ids, snap_ids, fn_sobol):

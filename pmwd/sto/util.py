@@ -6,7 +6,7 @@ import pickle
 from pmwd.scatter import scatter
 from pmwd.spec_util import powspec
 from pmwd.particles import Particles
-from pmwd.sto.mlp import mlp_size
+from pmwd.sto.so.mlp import mlp_size
 
 
 def tree_stack(trees):

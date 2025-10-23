@@ -4,7 +4,7 @@ import os
 import pickle
 import numpy as np
 from pysr import PySRRegressor
-from pmwd.sto.so import soft_names_tex
+from pmwd.sto.so.so import soft_names_tex
 
 
 def make_pdf(tex_str, eq_path, eq_file):

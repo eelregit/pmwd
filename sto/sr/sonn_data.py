@@ -6,10 +6,10 @@ from tqdm import tqdm
 from scipy.stats.qmc import Sobol
 
 from pmwd.sto.util import load_soparams
-from pmwd.sto.sample import scale_Sobol
-from pmwd.sto.ccic import gen_cc
-from pmwd.sto.mlp import MLP
-from pmwd.sto.so import sotheta, soft_k, soft_kvec, soft_names, soft_names_tex
+from pmwd.sto.data.sample import scale_Sobol
+from pmwd.sto.data.ccic import gen_cc
+from pmwd.sto.so.mlp import MLP
+from pmwd.sto.so.so import sotheta, soft_k, soft_kvec, soft_names, soft_names_tex
 
 
 def sample_sonn_data(sidx, so_params, nnv, nnv_o, mesh_shape, m=8, n_steps=61,

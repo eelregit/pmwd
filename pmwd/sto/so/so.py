@@ -3,12 +3,8 @@ import jax.numpy as jnp
 from jax import jit, vmap, checkpoint
 from functools import partial
 
-from pmwd.sto.mlp import MLP
-from pmwd.sto import (
-    soft_v1,
-    soft_v2, soft_v2_1, soft_v2_2,
-    soft_v3,
-    soft_v4)
+from pmwd.sto.so.mlp import MLP
+from pmwd.sto.so import soft_v1, soft_v2, soft_v2_1, soft_v2_2, soft_v3, soft_v4
 
 
 def mod_soft_i(soft_i):
