@@ -13,9 +13,6 @@
 
 module purge
 
-# local packages
-export PYTHONPATH="./pymods"
-
 source /mnt/home/llu/miniforge3/bin/activate sto
 
 srun python run_train.py
