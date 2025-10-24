@@ -9,14 +9,14 @@ from pmwd.lpt import lpt
 
 def gen_cc(sobol, mesh_shape=1, a_snapshots=(1,), a_nbody_num=61,
            so_type=None, so_nodes=None, soft_i=None, a_start=1/16, a_stop=1+1/128,
-           cal_boltz=True):
+           float_dtype=jnp.float32, cal_boltz=True):
     """Setup conf and cosmo given a sobol."""
     conf = Configuration(
         ptcl_spacing = sobol[0] / 128,
         ptcl_grid_shape = (128,) * 3,
         a_start = a_start,
         a_stop = a_stop,
-        float_dtype = jnp.float64,
+        float_dtype = float_dtype,
         mesh_shape = mesh_shape,
         a_snapshots = a_snapshots,
         a_nbody_num = a_nbody_num,

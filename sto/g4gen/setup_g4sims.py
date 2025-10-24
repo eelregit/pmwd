@@ -2,6 +2,7 @@
 import os
 import sys
 import jax
+import jax.numpy as jnp
 
 import numpy as np
 
@@ -27,11 +28,13 @@ def gen_g4files(sim_dir, sidx, fn_sobol='sobol.txt',
     tpl_job : str
         The template for generating the job.sh file.
     """
-    # generate initial condition on GPU, to be consistent with training
+    # generate initial condition
     with jax.default_device(jax.devices('gpu')[0]):
         sobol = scale_Sobol(fn=fn_sobol, ind=sidx)
-        conf, cosmo = gen_cc(sobol)
-        ptcl = gen_ic(sidx, conf, cosmo)  # the seed for ic is simply the sobol index
+        # float64 is used in Gadget simulation, so we also generate ic with float64
+        conf, cosmo = gen_cc(sobol, float_dtype=jnp.float64)
+        # the seed for ic is simply the sobol index
+        ptcl = gen_ic(sidx, conf, cosmo)
     write_gadget_hdf5(os.path.join(sim_dir, 'ic'), conf.a_start, ptcl, cosmo, conf)
 
     with (open(tpl_config, 'r') as f,
