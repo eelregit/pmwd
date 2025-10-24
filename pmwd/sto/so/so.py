@@ -22,7 +22,8 @@ def sotheta(cosmo, conf, a, soft_i=None):
     if soft_i is None:
         soft_i = conf.soft_i
     soft_i = mod_soft_i(soft_i)
-    return soft_i.sotheta(cosmo, conf, a)
+    theta = soft_i.sotheta(cosmo, conf, a)
+    return theta.astype(conf.float_dtype)
 
 
 def soft_names(soft_i, net):
