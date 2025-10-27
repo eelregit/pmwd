@@ -1,12 +1,38 @@
 import os
 import numpy as np
-import jax.numpy as jnp
 from torch.utils.data import Dataset
 from joblib import Parallel, delayed
 import h5py
 
 from pmwd.io_util import read_gadget_hdf5
 from pmwd.sto.data.sample import scale_Sobol
+
+
+def read_gsdata(sims_dir, sobol_ids, snap_ids, fn_sobol):
+    """Load training data from GS512 dataset."""
+    data = {}
+
+    def load_sim(sidx):
+        sobol = scale_Sobol(fn=fn_sobol, ind=sidx)
+        data[sidx] = {
+            'sidx': sidx,
+            'sobol': sobol,
+            'snap_ids': snap_ids,
+        }
+        with h5py.File(os.path.join(sims_dir, f'{sidx:03}.hdf5'), 'r') as f:
+            data[sidx]['a_ic'] = f['a_ic'][()]
+            pos_ic = f['pos_ic'][:]
+            vel_ic = f['vel_ic'][:]
+            data[sidx]['a_snaps'] = tuple(f['a'][snap_ids])
+            pos = f['pos'][snap_ids]
+            vel = np.full(len(snap_ids), 0.)  # not using vel in loss now, saving mem
+        data[sidx]['ic'] = (pos_ic, vel_ic)
+        data[sidx]['pv'] = (pos, vel)
+
+    for sidx in sobol_ids:
+        load_sim(sidx)
+
+    return data
 
 
 def read_g4snap(sims_dir, sobol_ids, snap_ids, fn_sobol):
@@ -71,26 +97,6 @@ def read_g4sobol(sims_dir, sobol_ids, snap_ids, fn_sobol):
             data[sidx]['snapshots'].append((pos, vel))
     Parallel(n_jobs=min(8, len(sobol_ids)), prefer='threads', require='sharedmem')(
         delayed(load_sobol)(sidx) for sidx in sobol_ids)
-    return data
-
-
-def read_gsdata(sims_dir, sobol_ids, snap_ids, fn_sobol):
-    data = {}
-    def load_sobol(sidx):
-        sobol = scale_Sobol(fn=fn_sobol, ind=sidx)
-        data[sidx] = {
-            'sidx': sidx,
-            'sobol': sobol,
-            'snap_ids': snap_ids,
-        }
-        with h5py.File(os.path.join(sims_dir, f'{sidx:03}.hdf5'), 'r') as f:
-            data[sidx]['a_snaps'] = tuple(f['a'][snap_ids])
-            pos = f['pos'][snap_ids]
-            # vel = f['vel'][snap_ids]
-            vel = np.full(len(snap_ids), 0.)  # not using vel in loss now, saving mem
-        data[sidx]['pv'] = (pos, vel)
-    for sidx in sobol_ids:
-        load_sobol(sidx)
     return data
 
 

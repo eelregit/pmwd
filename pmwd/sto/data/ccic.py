@@ -7,10 +7,18 @@ from pmwd.modes import white_noise, linear_modes
 from pmwd.lpt import lpt
 
 
-def gen_cc(sobol, mesh_shape=1, a_snapshots=(1,), a_nbody_num=61,
-           so_type=None, so_nodes=None, soft_i=None, a_start=1/16, a_stop=1+1/128,
-           float_dtype=jnp.float32, cal_boltz=True):
-    """Setup conf and cosmo given a sobol."""
+def gen_cc(sobol,
+           mesh_shape=1,
+           a_snapshots=(1,),
+           a_nbody_num=61,
+           so_type=None,
+           so_nodes=None,
+           soft_i=None,
+           a_start=1/16,
+           a_stop=1+1/128,
+           float_dtype=jnp.float32,
+           cal_boltz=True):
+    """Setup conf and cosmo given a scaled Sobol and configurations."""
     conf = Configuration(
         ptcl_spacing = sobol[0] / 128,
         ptcl_grid_shape = (128,) * 3,
@@ -44,8 +52,6 @@ def gen_cc(sobol, mesh_shape=1, a_snapshots=(1,), a_nbody_num=61,
 def gen_ic(seed, conf, cosmo):
     """Generate the initial condition with lpt for nbody."""
     modes = white_noise(seed, conf)
-
     modes = linear_modes(modes, cosmo, conf)
     ptcl, obsvbl = lpt(modes, cosmo, conf)
-
     return ptcl

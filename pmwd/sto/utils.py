@@ -1,4 +1,3 @@
-import jax
 import jax.numpy as jnp
 from jax.tree_util import tree_map, tree_flatten
 import pickle
@@ -20,35 +19,23 @@ def tree_unstack(tree):
     return [treedef.unflatten(leaf) for leaf in zip(*leaves, strict=True)]
 
 
-def arr_global_mean(x):
-    """Global average of array across multi processes, using pmap and pmean."""
-    # add leading in_axes for pmap over local device within current process
-    x = jnp.expand_dims(x, axis=0)
-    x = jax.pmap(lambda x: jax.lax.pmean(x, axis_name='device'),
-                 axis_name='device')(x)
-    return x[0]  # rm leading axis, i.e. pmap out_axes
-
-
-def tree_global_mean(tree):
-    """Global average of a pytree, i.e. for all leaves."""
-    return tree_map(arr_global_mean, tree)
-
-
 def pv2ptcl(pos, vel, pmid, conf):
     """Get ptcl given (pos, vel) and (pmid, conf)."""
     disp = pos - pmid * conf.cell_size
     return Particles(conf, pmid, disp, vel)
 
 
-def scatter_dens(ptcls, conf, mesh_shape, offset=0):
-    """A wrapper to scatter particles onto a given mesh shape for dens."""
+def scatter_dens(ptcl_list, conf, mesh_shape, offset=0):
+    """A wrapper to scatter a list of particles onto a given mesh shape for a
+    list of dens."""
     # mesh_shape should be int or float
     cell_size = conf.ptcl_spacing / mesh_shape
     val = mesh_shape**conf.dim
     mesh_shape = tuple(round(mesh_shape * s) for s in conf.ptcl_grid_shape)
-    denss = (scatter(p, conf, mesh=jnp.zeros(mesh_shape, dtype=conf.float_dtype),
-                     val=val, cell_size=cell_size, offset=offset) for p in ptcls)
-    return denss, cell_size
+    dens_list = [scatter(p, conf, mesh=jnp.zeros(mesh_shape, dtype=conf.float_dtype),
+                         val=val, cell_size=cell_size, offset=offset)
+                         for p in ptcl_list]
+    return dens_list, cell_size
 
 
 def power_tfcc(f, g, spacing, cut_nyq=False):

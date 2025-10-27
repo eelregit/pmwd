@@ -7,7 +7,7 @@ from pmwd.vis_util import simshow, CosmicWebNorm
 from pmwd.pm_util import rfftnfreq
 from pmwd.sto.so.so import sotheta, sonn_k, sonn_kvec
 from pmwd.sto.train.train import init_pmwd, pmodel
-from pmwd.sto.util import scatter_dens, power_tfcc
+from pmwd.sto.utils import scatter_dens, power_tfcc
 
 
 def plt_tf(k, tf, ylim=(-1.1, 1.1)):

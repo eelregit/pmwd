@@ -5,7 +5,7 @@ from functools import partial
 
 from pmwd.particles import Particles, ptcl_rpos
 from pmwd.spec_util import powspec
-from pmwd.sto.util import scatter_dens, pv2ptcl
+from pmwd.sto.utils import scatter_dens
 
 
 def loss_mse(f, g, log=True, norm=True, weights=None):
@@ -45,7 +45,7 @@ def loss_power_ln(f, g, eps, spacing=1, cut_nyq=False):
     return loss
 
 
-def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_pars):
+def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_hypars):
     # get the disp from particles' grid Lagrangian positions
     # may be necessary since we have it divided in the mse
     disp, disp_t = (ptcl_rpos(p, Particles.gen_grid(p.conf), p.conf)
@@ -56,41 +56,46 @@ def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_pars):
     disp_t = disp_t.T.reshape(shape_)
 
     # loss = loss_mse(disp, disp_t)
-    loss = loss_power_ln(disp, disp_t, loss_pars['log_eps'])
+    loss = loss_power_ln(disp, disp_t, loss_hypars['log_eps'])
     return loss
 
 
-def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_pars, loss_mesh_shape):
+def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_hypars):
     # get the density fields
-    (dens, dens_t), cell_size = scatter_dens((ptcl, ptcl_t), conf, loss_mesh_shape,
-                                             offset=loss_pars['grid_offset'])
+    (dens, dens_t), cell_size = scatter_dens((ptcl, ptcl_t), conf,
+                                             loss_hypars['loss_mesh_shape'],
+                                             offset=loss_hypars['grid_offset'])
 
     # loss = loss_power_w(dens, dens_t)
-    loss = loss_power_ln(dens, dens_t, loss_pars['log_eps'])
+    loss = loss_power_ln(dens, dens_t, loss_hypars['log_eps'])
     return loss
 
 
-def loss_snap(snap, snap_t, a_snap, conf, loss_pars, loss_mesh_shape):
+def loss_snap(snap, snap_t, a_snap, conf, loss_hypars):
     loss = 0.
     # displacement
-    loss += loss_ptcl_disp(snap, snap_t, conf, loss_pars)
+    loss += loss_ptcl_disp(snap, snap_t, conf, loss_hypars)
     # density field
-    loss += loss_ptcl_dens(snap, snap_t, conf, loss_pars, loss_mesh_shape)
+    loss += loss_ptcl_dens(snap, snap_t, conf, loss_hypars)
     # divided by the number of nbody steps to this snap
     # loss /= (a - conf.a_start) // conf.a_nbody_step + 1
     return loss
 
 
-@partial(jit, static_argnums=4)
-def loss_func(obsvbl, tgts, conf, loss_pars, loss_mesh_shape):
+def loss_func(obsvbl, tgts, conf, loss_hypars):
     loss = 0.
 
     @checkpoint  # checkpoint for saving memory in backward AD
     def f_loss(carry, x):
         loss = carry
         tgt, a_snap, snap = x
-        snap_t = pv2ptcl(*tgt, snap.pmid, snap.conf)
-        loss += loss_snap(snap, snap_t, a_snap, conf, loss_pars, loss_mesh_shape)
+
+        # make target snapshot
+        disp_t = (tgt[0] - snap.pmid * conf.cell_size).astype(conf.float_dtype)
+        snap_t = Particles(conf, snap.pmid, disp_t, vel=tgt[1].astype(conf.float_dtype))
+
+        # accumulate loss of this snapshot
+        loss += loss_snap(snap, snap_t, a_snap, conf, loss_hypars)
         return loss, None
 
     loss = scan(f_loss, loss, (tgts, obsvbl['a_snaps'], obsvbl['snaps']))[0]

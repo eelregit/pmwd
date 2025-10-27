@@ -5,7 +5,7 @@ from jax.tree_util import tree_map
 from tqdm import tqdm
 from scipy.stats.qmc import Sobol
 
-from pmwd.sto.util import load_soparams
+from pmwd.sto.utils import load_soparams
 from pmwd.sto.data.sample import scale_Sobol
 from pmwd.sto.data.ccic import gen_cc
 from pmwd.sto.so.mlp import MLP

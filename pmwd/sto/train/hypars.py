@@ -12,7 +12,7 @@ snap_ids = np.arange(0, 121, 2)
 shuffle_epoch = True  # shuffle the order of sobols across epochs
 
 ###  loss  ###
-loss_pars = {
+loss_hypars = {
     'log_eps': 0,
 }
 

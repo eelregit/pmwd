@@ -7,7 +7,7 @@ from pmwd.sto.train.train import pmodel, init_pmwd
 from pmwd.sto.data.g4data import G4snapDataset
 from pmwd.sto.data.ccic import gen_cc, gen_ic
 from pmwd.sto.so.mlp import mlp_size
-from pmwd.sto.util import power_tfcc, scatter_dens, pv2ptcl, load_soparams, tree_unstack
+from pmwd.sto.utils import power_tfcc, scatter_dens, pv2ptcl, load_soparams, tree_unstack
 
 
 def pmwd_fwd(so_params, sidx, sobol, a_snaps, mesh_shape, n_steps, so_type,
