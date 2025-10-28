@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from collections.abc import Callable
 import dataclasses
 from enum import Flag, auto
@@ -498,7 +497,7 @@ def aux_field(*, mandatory=True, default=None, default_function=None, cache=None
     )
 
 
-class Tree(ABC):
+class Tree:
     """Base class for combining `Data`, `dataclasses.dataclass`, and optionally JAX
     pytree.
 
@@ -511,7 +510,7 @@ class Tree(ABC):
     Raises
     ------
     TypeError
-        If not a `dataclasses.dataclass` at instance creation.
+        If directly instantiated, or not a `dataclasses.dataclass` at instance creation.
 
     Examples
     --------
@@ -532,13 +531,11 @@ class Tree(ABC):
     """
 
     def __new__(cls, *args, **kwargs):
+        if cls is Tree:
+            raise TypeError(f'subclass, do not instantiate, the base {cls.__name__}')
         if not dataclasses.is_dataclass(cls):
             raise TypeError(f'{cls.__qualname__} must be a dataclasses.dataclass')
         return super().__new__(cls)
-
-    @abstractmethod
-    def __init__(self, *args, **kwargs):
-        pass
 
     def __str__(self):
         return pformat(self)  # python >= 3.10
