@@ -45,7 +45,7 @@ def loss_power_ln(f, g, eps, spacing=1, cut_nyq=False):
     return loss
 
 
-def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_hypars):
+def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_conf):
     # get the disp from particles' grid Lagrangian positions
     # may be necessary since we have it divided in the mse
     disp, disp_t = (ptcl_rpos(p, Particles.gen_grid(p.conf), p.conf)
@@ -56,33 +56,33 @@ def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_hypars):
     disp_t = disp_t.T.reshape(shape_)
 
     # loss = loss_mse(disp, disp_t)
-    loss = loss_power_ln(disp, disp_t, loss_hypars['log_eps'])
+    loss = loss_power_ln(disp, disp_t, loss_conf['log_eps'])
     return loss
 
 
-def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_hypars):
+def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_conf):
     # get the density fields
     (dens, dens_t), cell_size = scatter_dens((ptcl, ptcl_t), conf,
-                                             loss_hypars['loss_mesh_shape'],
-                                             offset=loss_hypars['grid_offset'])
+                                             loss_conf['loss_mesh_shape'],
+                                             offset=loss_conf['grid_offset'])
 
     # loss = loss_power_w(dens, dens_t)
-    loss = loss_power_ln(dens, dens_t, loss_hypars['log_eps'])
+    loss = loss_power_ln(dens, dens_t, loss_conf['log_eps'])
     return loss
 
 
-def loss_snap(snap, snap_t, a_snap, conf, loss_hypars):
+def loss_snap(snap, snap_t, a_snap, conf, loss_conf):
     loss = 0.
     # displacement
-    loss += loss_ptcl_disp(snap, snap_t, conf, loss_hypars)
+    loss += loss_ptcl_disp(snap, snap_t, conf, loss_conf)
     # density field
-    loss += loss_ptcl_dens(snap, snap_t, conf, loss_hypars)
+    loss += loss_ptcl_dens(snap, snap_t, conf, loss_conf)
     # divided by the number of nbody steps to this snap
     # loss /= (a - conf.a_start) // conf.a_nbody_step + 1
     return loss
 
 
-def loss_func(obsvbl, tgts, conf, loss_hypars):
+def loss_func(obsvbl, tgts, conf, loss_conf):
     loss = 0.
 
     @checkpoint  # checkpoint for saving memory in backward AD
@@ -95,7 +95,7 @@ def loss_func(obsvbl, tgts, conf, loss_hypars):
         snap_t = Particles(conf, snap.pmid, disp_t, vel=tgt[1].astype(conf.float_dtype))
 
         # accumulate loss of this snapshot
-        loss += loss_snap(snap, snap_t, a_snap, conf, loss_hypars)
+        loss += loss_snap(snap, snap_t, a_snap, conf, loss_conf)
         return loss, None
 
     loss = scan(f_loss, loss, (tgts, obsvbl['a_snaps'], obsvbl['snaps']))[0]

@@ -7,7 +7,7 @@ from scipy.stats.qmc import Sobol
 
 from pmwd.sto.utils import load_soparams
 from pmwd.sto.data.sample import scale_Sobol
-from pmwd.sto.data.ccic import gen_cc
+from pmwd.sto.data.initial import gen_cc
 from pmwd.sto.so.mlp import MLP
 from pmwd.sto.so.so import sotheta, soft_k, soft_kvec, soft_names, soft_names_tex
 
