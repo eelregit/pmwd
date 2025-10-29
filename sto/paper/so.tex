@@ -877,9 +877,9 @@ parameters.
 
 Small numerical differences in initial conditions (ICs) could become
 more significant with the $N$-body evolution.
-We verified that the IC generation on GPUs is deterministic though
-different from those on CPUs, therefore we generate ICs for both the
-training data and the \pmwd\ model on GPUs.
+Therefore, besides the output snapthos, the ICs used in the \GADGET\
+simulations are also loaded from file during training to make sure the
+ICs are consistent for both the training data and the \pmwd\ model.
 
 
 \vspace{1em}
