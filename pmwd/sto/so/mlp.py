@@ -55,7 +55,7 @@ def init_mlp_params(n_input_list, nodes_list, seed=42,
 
     # for the last layer: set bias to the given value & weights to zero
     if scheme == 'last_w0':
-        for i, p, nodes in enumerate(zip(params, nodes_list)):
+        for i, (p, nodes) in enumerate(zip(params, nodes_list)):
             p = unfreeze(p)
             p['params'][f'Dense_{len(nodes)-1}']['kernel'] = (
                 jnp.zeros((nodes[-2], nodes[-1]), dtype=param_dtype))
@@ -66,7 +66,7 @@ def init_mlp_params(n_input_list, nodes_list, seed=42,
     # for the last layer: set bias to the given value & weights to small random values
     if scheme == 'last_ws':
         keys = random.split(random.PRNGKey(seed+1), len(params))
-        for i, p, nodes in enumerate(zip(params, nodes_list)):
+        for i, (p, nodes) in enumerate(zip(params, nodes_list)):
             p = unfreeze(p)
             p['params'][f'Dense_{len(nodes)-1}']['kernel'] = (
                 random.normal(keys[i], (nodes[-2], nodes[-1]), dtype=param_dtype)
