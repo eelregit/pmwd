@@ -179,9 +179,9 @@ class Data:
 
     Parameters
     ----------
-    mandatory : bool, optional
-        Whether the value must be initialized to something other than `None`, if none of
-        `default`, `default_function`, or `cache` is specified.
+    optional : bool, optional
+        Whether the initialized value can be `None`, if none of `default`,
+        `default_function`, or `cache` is specified.
     default : pytree, optional
         Default value.
     default_function : callable or None, optional
@@ -205,7 +205,7 @@ class Data:
     ------
     ValueError
         If more than one is specified among `default`, `default_function`, and `cache`,
-        or if mandatory data is missing when none of the three is specified.
+        or if mandatory (``optional=False``) but none of them is specified.
     TypeError
         If trying to set or delete descriptor attributes.
 
@@ -235,7 +235,7 @@ class Data:
     """
 
     __slots__ = (
-        'mandatory',
+        'optional',
         'default',
         'default_function',
         'cache',
@@ -246,7 +246,7 @@ class Data:
         '_name',
     )
 
-    def __init__(self, mandatory=True, default=None, default_function=None, cache=None,
+    def __init__(self, optional=False, default=None, default_function=None, cache=None,
                  validate=None, transform=None):
         if sum(x is not None for x in (default, default_function, cache)) > 1:
             raise ValueError(f'{default=}, {default_function=}, and {cache=} are '
@@ -255,7 +255,7 @@ class Data:
         validate = _canonicalize_callables(validate)
         transform = _canonicalize_callables(transform)
 
-        object.__setattr__(self, 'mandatory', mandatory)
+        object.__setattr__(self, 'optional', optional)
         object.__setattr__(self, 'default', default)
         object.__setattr__(self, 'default_function', default_function)
         object.__setattr__(self, 'cache', cache)
@@ -265,7 +265,7 @@ class Data:
     def __repr__(self):
         return (
             f'{type(self).__qualname__}(\n'
-            f'    mandatory={self.mandatory!r},\n'
+            f'    optional={self.optional!r},\n'
             f'    default={self.default!r},\n'
             f'    default_function={self.default_function!r},\n'
             f'    cache={self.cache!r},\n'
@@ -315,7 +315,7 @@ class Data:
 
     def raise_missing(self, obj):
         """Raise if mandatory but missing."""
-        if self.mandatory and all(x is None for x in (
+        if not self.optional and all(x is None for x in (
                 self.default, self.default_function, self.cache, self.__get__(obj))):
             raise ValueError(f'mandatory data {self.name} missing for '
                              f'{self.objtype.__qualname__}')
@@ -357,7 +357,7 @@ class Data:
         return value
 
 
-def field(*, mandatory=True, default=None, default_function=None, cache=None,
+def field(*, optional=False, default=None, default_function=None, cache=None,
              validate=None, transform=None, **kwargs):
     """Descriptor dataclass field.
 
@@ -372,7 +372,7 @@ def field(*, mandatory=True, default=None, default_function=None, cache=None,
 
     """
     return dataclasses.field(
-        default=Data(mandatory, default, default_function, cache, validate, transform),
+        default=Data(optional, default, default_function, cache, validate, transform),
         **kwargs,
     )
 
@@ -412,7 +412,7 @@ def _update_metadata(kwargs, ftype):
     return kwargs
 
 
-def dyn_field(*, mandatory=True, default=None, default_function=None, cache=None,
+def dyn_field(*, optional=False, default=None, default_function=None, cache=None,
               validate=None, transform=None, **kwargs):
     """Descriptor dataclass field for dynamic pytree children.
 
@@ -437,12 +437,12 @@ def dyn_field(*, mandatory=True, default=None, default_function=None, cache=None
     kwargs = _update_metadata(kwargs, FType.DYNAMIC)
 
     return dataclasses.field(
-        default=Data(mandatory, default, default_function, cache, validate, transform),
+        default=Data(optional, default, default_function, cache, validate, transform),
         **kwargs,
     )
 
 
-def fxd_field(*, mandatory=True, default=None, default_function=None, cache=None,
+def fxd_field(*, optional=False, default=None, default_function=None, cache=None,
               validate=None, transform=lax.stop_gradient, repr=False, **kwargs):
     """Descriptor dataclass field for fixed pytree children.
 
@@ -470,12 +470,12 @@ def fxd_field(*, mandatory=True, default=None, default_function=None, cache=None
     kwargs = _update_metadata(kwargs, FType.FIXED)
 
     return dataclasses.field(
-        default=Data(mandatory, default, default_function, cache, validate, transform),
+        default=Data(optional, default, default_function, cache, validate, transform),
         repr=repr, **kwargs,
     )
 
 
-def aux_field(*, mandatory=True, default=None, default_function=None, cache=None,
+def aux_field(*, optional=False, default=None, default_function=None, cache=None,
               validate=None, transform=None, repr=False, **kwargs):
     """Descriptor dataclass field for pytree auxiliary data, which must be hashable.
 
@@ -492,7 +492,7 @@ def aux_field(*, mandatory=True, default=None, default_function=None, cache=None
     kwargs = _update_metadata(kwargs, FType.AUXILIARY)
 
     return dataclasses.field(
-        default=Data(mandatory, default, default_function, cache, validate, transform),
+        default=Data(optional, default, default_function, cache, validate, transform),
         repr=repr, **kwargs,
     )
 
