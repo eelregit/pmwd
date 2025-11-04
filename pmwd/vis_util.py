@@ -22,18 +22,22 @@ from matplotlib.colors import FuncNorm
 #      or OKLab https://en.wikipedia.org/wiki/Oklab_color_space
 
 
-def simshow(x, figsize=(6.3, 4.9), dpi=96, cmap='inferno', norm=None, colorbar=True,
-            interpolation='lanczos', interpolation_stage='rgba', **kwargs):
-    """Plot a 2D view of simulation with ``imshow``.
+def simshow(x, figsize=(6.3, 4.9), dpi=96, figax=None, cmap='inferno', norm=None,
+            colorbar=True, interpolation='lanczos', interpolation_stage='rgba',
+            **kwargs):
+    """Plot a 2D view of simulation with matplotlib ``imshow``.
 
     Parameters
     ----------
     x : ArrayLike
         2D field.
     figsize : 2-tuple of float, optional
-        Width and height in inches.
+        Width and height in inches for a new figure if `figax` is `None`.
     dpi : float, optional
-        Figure resolution in dots-per-inch.
+        Dots-per-inch resolution for a new figure if `figax` is `None`.
+    figax : 2-tuple or None, optional
+        Existing ``Figure`` and ``Axes`` instances. Useful for more customization, e.g.,
+        when this is one of multiple subplots.
     cmap : str or ``matplotlib.colors.Colormap``, optional
         For ``matplotlib.axes.Axes.imshow``.
     norm : 'CosmicWebNorm' or ``matplotlib.colors.Normalize``, optional
@@ -52,6 +56,7 @@ def simshow(x, figsize=(6.3, 4.9), dpi=96, cmap='inferno', norm=None, colorbar=T
     -------
     fig : ``matplotlib.figure.Figure``
     ax : ``matplotlib.axes.Axes``
+    im : ``matplotlib.image.AxesImage``
 
     """
     x = np.asarray(x)
@@ -59,7 +64,7 @@ def simshow(x, figsize=(6.3, 4.9), dpi=96, cmap='inferno', norm=None, colorbar=T
     if norm == 'CosmicWebNorm':
         norm = CosmicWebNorm(x)
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi) if figax is None else figax
 
     im = ax.imshow(
         x,
@@ -82,7 +87,7 @@ def simshow(x, figsize=(6.3, 4.9), dpi=96, cmap='inferno', norm=None, colorbar=T
                           bottom=False, top=False, left=False, right=False)
         cb.outline.set_visible(False)
 
-    return fig, ax
+    return fig, ax, im
 
 
 class CosmicWebNorm(FuncNorm):

@@ -33,6 +33,6 @@ modes = white_noise(seed, conf)
 
 dens = model(modes, cosmo, conf)
 
-fig, _ = simshow(dens[:16].mean(axis=0), norm='CosmicWebNorm')
+fig, _, _ = simshow(dens[:16].mean(axis=0), norm='CosmicWebNorm')
 fig.savefig('slab.pdf')
 plt.close(fig)

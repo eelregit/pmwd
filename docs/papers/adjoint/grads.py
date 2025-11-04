@@ -85,9 +85,9 @@ else:  # making plots
     from matplotlib.colors import SymLogNorm, LogNorm
     plt.style.use('adjoint.mplstyle')
 
-    fig, _ = simshow(gam[0, 32], figsize=(3.5, 2.7), cmap='RdBu_r',
-                     norm=SymLogNorm(0.01, vmin=-0.1, vmax=0.1), colorbar=True,
-                     interpolation='none')
+    fig, _, _ = simshow(gam[0, 32], figsize=(3.5, 2.7), cmap='RdBu_r',
+                        norm=SymLogNorm(0.01, vmin=-0.1, vmax=0.1), colorbar=True,
+                        interpolation='none')
     fig.savefig('grads.pdf')
     plt.close(fig)
 
