@@ -29,8 +29,12 @@ def setup_model(pv_ic, model_conf):
                          a_start=model_conf['a_ic'])
     # initialize ptcl given input (pos, vel) data
     ptcl = Particles.gen_grid(conf)
-    disp = (pv_ic[0] - ptcl.pmid * conf.cell_size).astype(conf.float_dtype)
-    ptcl = ptcl.replace(disp=disp, vel=pv_ic[1].astype(conf.float_dtype))
+    disp = pv_ic[0] - ptcl.pmid * conf.cell_size
+    # wrap around the periodic boundaries, disp: [-L/2, L/2]
+    box_size = jnp.array(conf.box_size)
+    disp -= jnp.rint(disp / box_size) * box_size
+    ptcl = ptcl.replace(disp=disp.astype(conf.float_dtype),
+                        vel=pv_ic[1].astype(conf.float_dtype))
 
     return ptcl, cosmo, conf
 
