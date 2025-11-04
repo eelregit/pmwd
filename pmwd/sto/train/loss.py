@@ -45,60 +45,69 @@ def loss_power_ln(f, g, eps, spacing=1, cut_nyq=False):
     return loss
 
 
-def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_conf):
-    # get the disp from particles' grid Lagrangian positions
-    # may be necessary since we have it divided in the mse
-    disp, disp_t = (ptcl_rpos(p, Particles.gen_grid(p.conf), p.conf)
-                    for p in (ptcl, ptcl_t))
-    # reshape -> make last 3 axes spatial dims
-    shape_ = (-1,) + conf.ptcl_grid_shape
-    disp = disp.T.reshape(shape_)
-    disp_t = disp_t.T.reshape(shape_)
-
-    # loss = loss_mse(disp, disp_t)
-    loss = loss_power_ln(disp, disp_t, loss_conf['log_eps'])
-    return loss
-
-
 def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_conf):
     # get the density fields
     (dens, dens_t), cell_size = scatter_dens((ptcl, ptcl_t), conf,
                                              loss_conf['loss_mesh_shape'],
                                              offset=loss_conf['grid_offset'])
 
-    # loss = loss_power_w(dens, dens_t)
     loss = loss_power_ln(dens, dens_t, loss_conf['log_eps'])
     return loss
 
 
-def loss_snap(snap, snap_t, a_snap, conf, loss_conf):
+def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_conf):
+    # get the disp from particles' grid Lagrangian positions
+    disp, disp_t = (ptcl_rpos(p, Particles.gen_grid(conf), conf) for p in (ptcl, ptcl_t))
+
+    # get the relative disp
+    disp_d = disp - disp_t
+    # wrap to [-L/2, L/2] for the shorter disp
+    # in case e.g. disp = L/2 - d (a small number), disp_t = -L/2 + d
+    # -> disp_d = L - 2d, which should be wrapped to 2d
+    box_size = jnp.array(conf.box_size, dtype=conf.float_dtype)
+    disp_d -= jnp.rint(disp_d / box_size) * box_size
+
+    # mse loss
+    loss = jnp.log(jnp.sum(disp_d**2) / jnp.sum(disp_t**2))
+
+    return loss
+
+
+def loss_ptcl(snap, snap_t, conf, loss_conf):
     loss = 0.
+
     # displacement
-    loss += loss_ptcl_disp(snap, snap_t, conf, loss_conf)
+    if 'disp' in loss_conf['loss_fields']:
+        loss += loss_ptcl_disp(snap, snap_t, conf, loss_conf)
+
     # density field
-    loss += loss_ptcl_dens(snap, snap_t, conf, loss_conf)
-    # divided by the number of nbody steps to this snap
-    # loss /= (a - conf.a_start) // conf.a_nbody_step + 1
+    if 'dens' in loss_conf['loss_fields']:
+        loss += loss_ptcl_dens(snap, snap_t, conf, loss_conf)
+
     return loss
 
 
 def loss_func(obsvbl, tgts, conf, loss_conf):
+    """Loss function of the simulated snapshots and target snapshots."""
     loss = 0.
 
     @checkpoint  # checkpoint for saving memory in backward AD
-    def f_loss(carry, x):
+    def _loss_snap(carry, x):
         loss = carry
-        tgt, a_snap, snap = x
+        tgt, snap = x
 
-        # make target snapshot
+        # make target ptcl from pos and vel
         disp_t = (tgt[0] - snap.pmid * conf.cell_size).astype(conf.float_dtype)
         snap_t = Particles(conf, snap.pmid, disp_t, vel=tgt[1].astype(conf.float_dtype))
 
         # accumulate loss of this snapshot
-        loss += loss_snap(snap, snap_t, a_snap, conf, loss_conf)
+        loss += loss_ptcl(snap, snap_t, conf, loss_conf)
         return loss, None
 
-    loss = scan(f_loss, loss, (tgts, obsvbl['a_snaps'], obsvbl['snaps']))[0]
-    loss /= len(tgts[0])  # mean loss per snapshot
+    # scan over snapshots to accumulate loss
+    loss, _ = scan(_loss_snap, loss, (tgts, obsvbl['snaps']))
+
+    # mean loss per snapshot
+    loss /= len(tgts[0])
 
     return loss
