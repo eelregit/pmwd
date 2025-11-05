@@ -8,50 +8,17 @@ from pmwd.spec_util import powspec
 from pmwd.sto.utils import scatter_dens
 
 
-def loss_mse(f, g, log=True, norm=True, weights=None):
-    """MSE between two arrays, with optional modifications."""
-    loss = jnp.abs(f - g)**2
-
-    if weights is not None:
-        loss *= weights
-
-    loss = jnp.sum(loss)
-
-    if norm:
-        loss /= jnp.sum(jnp.abs(g)**2)
-    else:
-        loss /= len(f)  # simple mean
-
-    if log:
-        loss = jnp.log(loss)
-
-    return loss
-
-
-def loss_power_w(f, g, spacing=1, log=True, w=None, cut_nyq=False):
-    # f (model) & g (target) are fields of the same shape in configuration space
-    k, P_d, N, bins = powspec(f - g, spacing, w=w, cut_nyq=cut_nyq)
-    k, P_g, N, bins = powspec(g, spacing, cut_nyq=cut_nyq)
-    loss = (P_d / P_g).sum() / len(k)
-    if log:
-        loss = jnp.log(loss)
-    return loss
-
-
-def loss_power_ln(f, g, eps, spacing=1, cut_nyq=False):
-    k, P_d, N, bins = powspec(f - g, spacing, cut_nyq=cut_nyq)
-    k, P_g, N, bins = powspec(g, spacing, cut_nyq=cut_nyq)
-    loss = jnp.log(P_d / P_g + eps).sum() / len(k)
-    return loss
-
-
 def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_conf):
     # get the density fields
-    (dens, dens_t), cell_size = scatter_dens((ptcl, ptcl_t), conf,
-                                             loss_conf['loss_mesh_shape'],
-                                             offset=loss_conf['grid_offset'])
+    (dens, dens_t), _ = scatter_dens((ptcl, ptcl_t), conf,
+                                     loss_conf['loss_mesh_shape'],
+                                     offset=loss_conf['grid_offset'])
 
-    loss = loss_power_ln(dens, dens_t, loss_conf['log_eps'])
+    # loss on power spec
+    k, P_d, _, _ = powspec(dens - dens_t, 1.)
+    k, P_t, _, _ = powspec(dens_t, 1.)
+    loss = jnp.sum(jnp.log(P_d / P_t + loss_conf['log_eps'])) / len(k)
+
     return loss
 
 

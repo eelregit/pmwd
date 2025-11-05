@@ -21,7 +21,7 @@ loss_conf = {
     'log_eps': 0,
     'loss_mesh_shape': 3,
     'grid_offset': 0,
-    'loss_fields': ['disp'],
+    'loss_fields': ['disp', 'dens'],
 }
 
 ###  optimizer  ###

@@ -1042,6 +1042,7 @@ field power in logarithmic bins:
 where $N_K$ is the number of $k$-bins, and $\epsilon$ sets the relative
 threshold tolerance, below which we consider $\hat f$ in each $K$
 accurate enough and the gradients from that bin less important.
+
 % Under the mild assumptions that $T$ \eqref{T} and $r$ \eqref{r} are smooth
 % and isotropic, we can show
 % %
@@ -1068,8 +1069,6 @@ accurate enough and the gradients from that bin less important.
 % that the neural network does not focus too much on either high or low
 % $k$'s.
 
-\YZ{In this work, we use the loss function in \eqref{loss_power_ln} for
-both $\vs(\vq)$ and $\delta(\vx)$.}
 We combine the two fields to form the total loss for a single snapshot,
 and further sum over all snapshots in a single forward simulation
 %
@@ -1238,11 +1237,22 @@ The objective loss function consists of snapshots at $a=(0.7, 0.8, 0.9)$.
 In the adjoint method, the adjoint variables evolve following the
 adjoint equations \eqref{KDKO_adj}.
 We check this by comparing the adjoint variables of the initial
-particles' state of $N$-body, i.e. $\vxi_0$ and $\vpi_0$.
+particles' state of $N$-body, i.e. $\vxi_0$ and $\vpi_0$, as shown in
+\autoref{fig:ptcl_grad}.
 
 We further check the objective gradients of the SO neural network
 parameters, which are accumulated following \eqref{KDKO_grad} in the
-adjoint method.
+adjoint methods.
+The results are shown in \autoref{fig:sonn_grad}.
+
+
+\section{The raw model without optimization}
+Here we check the raw \pmwd\ model without spatial optimization by
+comparing to the target data from \GADGET.
+
+% check the accumulative loss as function of a for a few configurations
+
+% show the density fields and the difference
 
 
 %\listofchanges
