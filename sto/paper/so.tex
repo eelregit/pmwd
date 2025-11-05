@@ -286,10 +286,9 @@ space.
 We take the absolute value of the wavevectors for the evenness, and sort
 the 3 wavevector compontents to achieve the permutation equivariance.
 
-For both the $f$ and $g$ spatial optimization NNs (SONNs), their input
-features consist of tabular data, therefore we adopt multilayer
-perceptrons (MLPs, i.e. NNs with fully connected layers) to learn the
-nonlinear functions.
+For both the $f$ and $g$, their input features consist of tabular data,
+therefore we adopt neural networks with fully connected layers, aka
+multilayer perceptrons (MLPs) to learn the nonlinear functions.
 Both $f$ and $g$ networks have $XXX$ hidden layers with $XXX\times
 n_{\rm input}$ nodes for each layer, where $n_{\rm input}$ is the size
 of the input layer, which is [...] and [...] for $f$ and $g$
@@ -304,8 +303,9 @@ deep learning tasks.
 The parameters of the NNs, which enter the force evaluation in every
 time integration step, can be treated just the same as other
 cosmological parameters.
-The objective gradients are accumulated, based on which the parameters
-are then optimized.
+The objective gradients are accumulated as discussed in
+\autoref{sec:diffsim_obs}, based on which the parameters are then
+optimized.
 
 
 \subsection{Target Simulation and Data}

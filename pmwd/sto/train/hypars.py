@@ -26,7 +26,7 @@ loss_conf = {
 
 ###  optimizer  ###
 opt_conf = {
-    'learning_rate': 1e-5,
+    'learning_rate': 1e-3,
 }
 opt_conf['optimizer'] = optax.adam(opt_conf['learning_rate'])
 
@@ -39,7 +39,7 @@ model_conf = {
 }
 model_conf['n_input'] = [soft_len(model_conf['soft_i'], 'g'),
                          soft_len(model_conf['soft_i'], 'f')]
-model_conf['so_nodes'] = [[3*n] * 5 + [1] for n in model_conf['n_input']]
+model_conf['so_nodes'] = [[2 * n, n, n // 2, 1] for n in model_conf['n_input']]
 
 ###  start a new training  ###
 so_params = init_mlp_params(model_conf['n_input'], model_conf['so_nodes'],

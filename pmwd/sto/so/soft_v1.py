@@ -2,9 +2,8 @@
 import jax
 import jax.numpy as jnp
 
-from pmwd.configuration import Configuration
-from pmwd.cosmology import Cosmology, H_deriv, Omega_m_a, SimpleLCDM
-from pmwd.boltzmann import boltzmann, growth, linear_power
+from pmwd.cosmology import H_deriv, Omega_m_a
+from pmwd.boltzmann import growth, linear_power
 
 
 def nonlinear_scales(cosmo, conf, a):
