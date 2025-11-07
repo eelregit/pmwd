@@ -141,14 +141,14 @@ class Cosmology(TanMixin, Tree):
     # constants in SI units
     M_sun_SI: ArrayLike = fxd_field(default=1.98847e30)
     Mpc_SI: ArrayLike = fxd_field(default=3.0856775815e22)
-    H_0_SI: ArrayLike = fxd_field(default_function=lambda self: 1e5 / self.Mpc_SI)
+    H_0_SI: ArrayLike = fxd_field(depend=lambda self: 1e5 / self.Mpc_SI)
     c_SI: ArrayLike = fxd_field(default=299792458)
     G_SI: ArrayLike = fxd_field(default=6.67430e-11)
 
     # units in SI units
-    M: ArrayLike = fxd_field(default_function=lambda self: 1e10 * self.M_sun_SI)
-    L: ArrayLike = fxd_field(default_function=lambda self: self.Mpc_SI)
-    T: ArrayLike = fxd_field(default_function=lambda self: 1 / self.H_0_SI)
+    M: ArrayLike = fxd_field(depend=lambda self: 1e10 * self.M_sun_SI)
+    L: ArrayLike = fxd_field(depend=lambda self: self.Mpc_SI)
+    T: ArrayLike = fxd_field(depend=lambda self: 1 / self.H_0_SI)
     A: ArrayLike = fxd_field(default=jnp.pi/(180*3600))
 
     distance_lga_min: float = aux_field(default=-3)
@@ -165,8 +165,8 @@ class Cosmology(TanMixin, Tree):
     transfer: Array | None = cosmo_dyn_field(cache=perturbation.transfer_cache,
                                              compare=False)
 
-    growth_rtol: float = aux_field(default_function=lambda self: _eps2tol(self.dtype))
-    growth_atol: float = aux_field(default_function=lambda self: _eps2tol(self.dtype))
+    growth_rtol: float = aux_field(depend=lambda self: _eps2tol(self.dtype))
+    growth_atol: float = aux_field(depend=lambda self: _eps2tol(self.dtype))
     growth_inistep: (float | None
                      | tuple[float|None, float|None]) = aux_field(default=(1, 1))  # FIXME (1, None) used to work? but now also causes nan in sigma_8 gradients
     growth_lga_min: float = aux_field(default=-3)
@@ -179,7 +179,7 @@ class Cosmology(TanMixin, Tree):
                                            compare=False)
 
     #FIXME although mcfit.mcfit is hashable but maybe this can be more functional
-    _var_tophat: mcfit = aux_field(default_function=_init_var_tophat)
+    _var_tophat: mcfit = aux_field(depend=_init_var_tophat)
 
     @classmethod
     def from_sigma_8(cls, sigma_8, *args, **kwargs):

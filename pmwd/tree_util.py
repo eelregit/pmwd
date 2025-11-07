@@ -25,7 +25,7 @@ from pmwd.util import add, sub, neg, scalar_mul, scalar_div
 
 # TODO add serialization to zarr https://docs.xarray.dev/en/latest/user-guide/io.html#zarr
 # TODO https://docs.python.org/3/library/json.html extend encoder and decoder, as zarr uses json
-# TODO tensorstore is probably better
+# TODO better to use orbax [=> tensorstore [=> zarr]], which supports pytrees
 
 
 def issubdtype_of(stype):
@@ -141,7 +141,7 @@ def _canonicalize_callables(fun):
 
 
 def _call_dual_arity(fun, value, obj):
-    """Call as a binary function first and then as a unary function.
+    """Call as a unary function first and then as a binary function.
 
     ``fun(value)``, ``fun(value, obj)``, or fail.
 
@@ -180,14 +180,14 @@ class Data:
     Parameters
     ----------
     optional : bool, optional
-        Whether the initialized value can be `None`, if none of `default`,
-        `default_function`, or `cache` is specified.
+        Whether the initialized value can be `None`, if none of `default`, `depend`, or
+        `cache` is specified.
     default : pytree, optional
         Default value.
-    default_function : callable or None, optional
-        Default function to compute the value, if not already initialized to anything
-        else but `None`, from the instance of the owner class, ``value =
-        default_function(obj)``, runned by, e.g., `Tree.__post_init__`.
+    depend : callable or None, optional
+        Functional dependency to determine the value, if not already initialized to
+        anything else but `None`, from the instance of the owner class, ``value =
+        depend(obj)``, runned by, e.g., `Tree.__post_init__`.
     cache : callable or None, optional
         Caching function to compute the value from the instance of the owner class,
         ``value = cache(obj)``, runned by, e.g., `Tree.cache`.
@@ -204,8 +204,8 @@ class Data:
     Raises
     ------
     ValueError
-        If more than one is specified among `default`, `default_function`, and `cache`,
-        or if mandatory (``optional=False``) but none of them is specified.
+        If more than one is specified among `default`, `depend`, and `cache`, or if
+        mandatory (``optional=False``) but none of them is specified.
     TypeError
         If trying to set or delete descriptor attributes.
 
@@ -237,7 +237,7 @@ class Data:
     __slots__ = (
         'optional',
         'default',
-        'default_function',
+        'depend',
         'cache',
         'validate',
         'transform',
@@ -246,18 +246,18 @@ class Data:
         '_name',
     )
 
-    def __init__(self, optional=False, default=None, default_function=None, cache=None,
+    def __init__(self, optional=False, default=None, depend=None, cache=None,
                  validate=None, transform=None):
-        if sum(x is not None for x in (default, default_function, cache)) > 1:
-            raise ValueError(f'{default=}, {default_function=}, and {cache=} are '
-                             'mutually exclusive')
+        if sum(x is not None for x in (default, depend, cache)) > 1:
+            raise ValueError(f'{default=}, {depend=}, and {cache=} are mutually'
+                             'exclusive')
 
         validate = _canonicalize_callables(validate)
         transform = _canonicalize_callables(transform)
 
         object.__setattr__(self, 'optional', optional)
         object.__setattr__(self, 'default', default)
-        object.__setattr__(self, 'default_function', default_function)
+        object.__setattr__(self, 'depend', depend)
         object.__setattr__(self, 'cache', cache)
         object.__setattr__(self, 'validate', validate)
         object.__setattr__(self, 'transform', transform)
@@ -267,7 +267,7 @@ class Data:
             f'{type(self).__qualname__}(\n'
             f'    optional={self.optional!r},\n'
             f'    default={self.default!r},\n'
-            f'    default_function={self.default_function!r},\n'
+            f'    depend={self.depend!r},\n'
             f'    cache={self.cache!r},\n'
             f'    validate={pformat(repr(self.validate))},\n'
             f'    transform={pformat(repr(self.transform))},\n'
@@ -316,15 +316,15 @@ class Data:
     def raise_missing(self, obj):
         """Raise if mandatory but missing."""
         if not self.optional and all(x is None for x in (
-                self.default, self.default_function, self.cache, self.__get__(obj))):
+                self.default, self.depend, self.cache, self.__get__(obj))):
             raise ValueError(f'mandatory data {self.name} missing for '
                              f'{self.objtype.__qualname__}')
 
-    def run_default_function(self, obj):
-        """Run default function."""
-        if self.default_function is None or self.__get__(obj) is not None:
+    def run_depend(self, obj):
+        """Run functional dependency."""
+        if self.depend is None or self.__get__(obj) is not None:
             return obj
-        value = self.default_function(obj)
+        value = self.depend(obj)
         return value
 
     def run_cache(self, obj):
@@ -357,8 +357,8 @@ class Data:
         return value
 
 
-def field(*, optional=False, default=None, default_function=None, cache=None,
-             validate=None, transform=None, **kwargs):
+def field(*, optional=False, default=None, depend=None, cache=None, validate=None,
+          transform=None, **kwargs):
     """Descriptor dataclass field.
 
     See `Data` and `dataclasses.field` documentation. For JAX pytrees, use `dyn_field`,
@@ -372,7 +372,7 @@ def field(*, optional=False, default=None, default_function=None, cache=None,
 
     """
     return dataclasses.field(
-        default=Data(optional, default, default_function, cache, validate, transform),
+        default=Data(optional, default, depend, cache, validate, transform),
         **kwargs,
     )
 
@@ -412,8 +412,8 @@ def _update_metadata(kwargs, ftype):
     return kwargs
 
 
-def dyn_field(*, optional=False, default=None, default_function=None, cache=None,
-              validate=None, transform=None, **kwargs):
+def dyn_field(*, optional=False, default=None, depend=None, cache=None, validate=None,
+              transform=None, **kwargs):
     """Descriptor dataclass field for dynamic pytree children.
 
     `break_on_jax_placeholder` is prepended to `validate` and `transform` to skip on JAX
@@ -437,13 +437,13 @@ def dyn_field(*, optional=False, default=None, default_function=None, cache=None
     kwargs = _update_metadata(kwargs, FType.DYNAMIC)
 
     return dataclasses.field(
-        default=Data(optional, default, default_function, cache, validate, transform),
+        default=Data(optional, default, depend, cache, validate, transform),
         **kwargs,
     )
 
 
-def fxd_field(*, optional=False, default=None, default_function=None, cache=None,
-              validate=None, transform=lax.stop_gradient, repr=False, **kwargs):
+def fxd_field(*, optional=False, default=None, depend=None, cache=None, validate=None,
+              transform=lax.stop_gradient, repr=False, **kwargs):
     """Descriptor dataclass field for fixed pytree children.
 
     `break_on_jax_placeholder` is prepended to `validate` and `transform` to skip on JAX
@@ -470,13 +470,13 @@ def fxd_field(*, optional=False, default=None, default_function=None, cache=None
     kwargs = _update_metadata(kwargs, FType.FIXED)
 
     return dataclasses.field(
-        default=Data(optional, default, default_function, cache, validate, transform),
+        default=Data(optional, default, depend, cache, validate, transform),
         repr=repr, **kwargs,
     )
 
 
-def aux_field(*, optional=False, default=None, default_function=None, cache=None,
-              validate=None, transform=None, repr=False, **kwargs):
+def aux_field(*, optional=False, default=None, depend=None, cache=None, validate=None,
+              transform=None, repr=False, **kwargs):
     """Descriptor dataclass field for pytree auxiliary data, which must be hashable.
 
     `dataclasses.Field.metadata` is updated with ``'ftype'``. `repr` is supppressed by
@@ -492,7 +492,7 @@ def aux_field(*, optional=False, default=None, default_function=None, cache=None
     kwargs = _update_metadata(kwargs, FType.AUXILIARY)
 
     return dataclasses.field(
-        default=Data(optional, default, default_function, cache, validate, transform),
+        default=Data(optional, default, depend, cache, validate, transform),
         repr=repr, **kwargs,
     )
 
@@ -503,9 +503,9 @@ class Tree:
 
     Use it together with either `dataclasses.dataclass` or `pytree_dataclass`.
     `dataclasses.__post_init__` is implemented to check missing mandatory arguments, and
-    to compute and fill values using `Data.default_function`. Also added are pretty
-    string by `pprint.pformat`, a method that `replace` fields with changes, and methods
-    to `cache` and `purge` fields.
+    to compute and fill values using `Data.depend`. Also added are pretty string by
+    `pprint.pformat`, a method that `replace` fields with changes, and methods to
+    `cache` and `purge` fields.
 
     Raises
     ------
@@ -521,8 +521,9 @@ class Tree:
     ...     i: complex = Data(default=1j, validate=complex)
     ...     one: complex = Data(default=1, validate=complex)
     ...     zero: complex = Data(
-    ...         default_function=lambda self: self.e ** (self.i * self.pi) + self.one,
-    ...         validate=(abs, float, lambda value: round(value, ndigits=5), complex))
+    ...         depend=lambda self: self.e ** (self.i * self.pi) + self.one,
+    ...         validate=(abs, float, lambda value: round(value, ndigits=5), complex),
+    ...     )
     >>> print(Euler())
     Euler(e=2.7182818, pi=3.1415926, i=1j, one==(1+0j), zero=0j)
 
@@ -552,7 +553,7 @@ class Tree:
 
                 descr.raise_missing(self)
 
-                value = descr.run_default_function(self)
+                value = descr.run_depend(self)
                 if value is not self:
                     descr.__set__(self, value)
 
@@ -633,12 +634,18 @@ class TanMixin:
         return tree_map(neg, self)
 
     def __mul__(self, scalar):
+        #commented out as maybe one will want to broadcast here one day
+        #if not jnp.isscalar(scalar):
+        #    raise TypeError(f'{scalar} not a scalar for scalar multiplication')
         return tree_map(partial(scalar_mul, scalar), self)
 
     def __rmul__(self, scalar):
         return self.__mul__(scalar)
 
     def __truediv__(self, scalar):
+        #commented out as maybe one will want to broadcast here one day
+        #if not jnp.isscalar(scalar):
+        #    raise TypeError(f'{scalar} not a scalar for scalar division')
         return tree_map(partial(scalar_div, scalar), self)
 
 
@@ -675,8 +682,8 @@ def pytree_dataclass(cls, *, frozen=True, kw_only=True, **kwargs):
     -----
     The pytree nomenclature differs from that of the ordinary tree in its definition of
     "node": pytree leaves are not pytree nodes in the JAX documentation. The leaves
-    contain data to be traced by JAX transformations, while the nodes are Python
-    (including None) and extended containers to be mapped over.
+    contain data to be traced by JAX transformations, while the nodes are standard
+    (including None as empty node) and custom containers to be mapped over.
 
     References
     ----------
