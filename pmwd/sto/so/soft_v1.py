@@ -42,19 +42,19 @@ def nonlinear_scales(cosmo, conf, a):
 def sotheta(cosmo, conf, a):
     """Physical quantities to be used in SO input features along with k."""
     # quantities of dim L
-    theta_l = jnp.asarray([
+    theta_l = jnp.array([
         *nonlinear_scales(cosmo, conf, a),
         conf.ptcl_spacing,
         conf.cell_size,
         conf.softening_length,
-    ])
+    ], dtype=conf.float_dtype)
 
     # dimensionless quantities
     D1 = growth(a, cosmo, conf, order=1)
     dlnD1 = growth(a, cosmo, conf, order=1, deriv=1) / D1
     D2 = growth(a, cosmo, conf, order=2)
     dlnD2 = growth(a, cosmo, conf, order=2, deriv=1) / D2
-    theta_o = jnp.asarray([
+    theta_o = jnp.array([
         D1 / a,     # G1
         D2 / a**2,  # G2
         dlnD1 - 1,  # dlnG1 / dlna
@@ -62,7 +62,7 @@ def sotheta(cosmo, conf, a):
         Omega_m_a(a, cosmo),
         H_deriv(a, cosmo),
         # conf.a_nbody_step / a,  # time step size dlna ~ da/a
-    ])
+    ], dtype=conf.float_dtype)
 
     return (theta_l, theta_o)
 
@@ -72,6 +72,32 @@ def soft(k, theta):
     theta_l, theta_o = theta
     k_theta_l = k * theta_l
     return jnp.concatenate((k_theta_l, theta_o))
+
+
+def soft_k(k, theta):
+    """Get SO input features (k * l, o)."""
+    theta_l, theta_o = theta  # e.g. (8,), (6,)
+    k_shape = k.shape  # e.g. (128, 1, 1)
+    k = k.reshape(k_shape + (1,))  # (128, 1, 1, 1)
+    theta_l = theta_l.reshape((1,) * len(k_shape) + theta_l.shape)  # (1, 1, 1, 8)
+    ft = k * theta_l  # (128, 1, 1, 8)
+    theta_o = jnp.broadcast_to(theta_o, k_shape+theta_o.shape)  # (128, 1, 1, 6)
+    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 1, 1, 8+6)
+    return ft
+
+
+def soft_kvec(kv, theta):
+    """Get SO input features (k1 * l, k2 * l, k3 * l, o)."""
+    kv_shape = kv.shape  # e.g. (128, 128, 65, 3)
+    kv = kv.reshape(kv_shape + (1,))  # (128, 128, 65, 3, 1)
+
+    theta_l, theta_o = theta  # e.g. (8,), (6,)
+    theta_l = theta_l.reshape((1,) * len(kv_shape) + theta_l.shape)  # (1, 1, 1, 1, 8)
+    ft = kv * theta_l  # (128, 128, 65, 3, 8)
+    ft = ft.reshape(kv_shape[:-1] + (-1,))  # (128, 128, 65, 3*8)
+    theta_o = jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)  # (128, 128, 65, 6)
+    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 128, 65, 3*8+6)
+    return ft
 
 
 def soft_names(net):
@@ -118,28 +144,3 @@ def soft_len(net):
     # get the length of SO input features
     return len(soft_names(net))
 
-
-def soft_k(k, theta):
-    """Get SO input features (k * l, o)."""
-    theta_l, theta_o = theta  # e.g. (8,), (6,)
-    k_shape = k.shape  # e.g. (128, 1, 1)
-    k = k.reshape(k_shape + (1,))  # (128, 1, 1, 1)
-    theta_l = theta_l.reshape((1,) * len(k_shape) + theta_l.shape)  # (1, 1, 1, 8)
-    ft = k * theta_l  # (128, 1, 1, 8)
-    theta_o = jnp.broadcast_to(theta_o, k_shape+theta_o.shape)  # (128, 1, 1, 6)
-    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 1, 1, 8+6)
-    return ft
-
-
-def soft_kvec(kv, theta):
-    """Get SO input features (k1 * l, k2 * l, k3 * l, o)."""
-    kv_shape = kv.shape  # e.g. (128, 128, 65, 3)
-    kv = kv.reshape(kv_shape + (1,))  # (128, 128, 65, 3, 1)
-
-    theta_l, theta_o = theta  # e.g. (8,), (6,)
-    theta_l = theta_l.reshape((1,) * len(kv_shape) + theta_l.shape)  # (1, 1, 1, 1, 8)
-    ft = kv * theta_l  # (128, 128, 65, 3, 8)
-    ft = ft.reshape(kv_shape[:-1] + (-1,))  # (128, 128, 65, 3*8)
-    theta_o = jnp.broadcast_to(theta_o, kv_shape[:-1]+theta_o.shape)  # (128, 128, 65, 6)
-    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (128, 128, 65, 3*8+6)
-    return ft

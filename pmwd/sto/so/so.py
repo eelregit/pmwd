@@ -1,7 +1,6 @@
 import jax
 import jax.numpy as jnp
-from jax import jit, vmap, checkpoint
-from functools import partial
+from jax import vmap, checkpoint
 
 from pmwd.sto.so.mlp import MLP
 from pmwd.sto.so import soft_v1, soft_v2, soft_v2_1, soft_v2_2, soft_v3, soft_v4
@@ -23,7 +22,7 @@ def sotheta(cosmo, conf, a, soft_i=None):
         soft_i = conf.soft_i
     soft_i = mod_soft_i(soft_i)
     theta = soft_i.sotheta(cosmo, conf, a)
-    return theta.astype(conf.float_dtype)
+    return theta
 
 
 def soft_names(soft_i, net):

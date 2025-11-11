@@ -4,7 +4,7 @@ import jax.numpy as jnp
 
 def sotheta(cosmo, conf, a):
     """Physical quantities to be used in SO input features along with k."""
-    theta = jnp.asarray([
+    theta = jnp.array([
         conf.cell_size,
         a,
         cosmo.A_s_1e9,
@@ -14,8 +14,27 @@ def sotheta(cosmo, conf, a):
         cosmo.Omega_k,
         cosmo.h,
         conf.softening_length,
-    ])
+    ], dtype=conf.float_dtype)
     return theta
+
+
+def soft(k, theta):
+    """SO features for neural nets input, with k being a scalar."""
+    return jnp.concatenate((jnp.atleast_1d(k), theta))
+
+
+def soft_k(k, theta):
+    """Get SO input features (k, theta)."""
+    theta = jnp.broadcast_to(theta, k.shape+theta.shape)
+    ft = jnp.concatenate((k.reshape(k.shape + (1,)), theta), axis=-1)
+    return ft
+
+
+def soft_kvec(kv, theta):
+    """Get SO input features (k1, k2, k3, theta)."""
+    theta = jnp.broadcast_to(theta, kv.shape[:-1]+theta.shape)
+    ft = jnp.concatenate((kv, theta), axis=-1)
+    return ft
 
 
 def soft_names(net):
@@ -46,22 +65,3 @@ def soft_names_tex(net):
 def soft_len(net):
     # get the length of SO input features
     return len(soft_names(net))
-
-
-def soft(k, theta):
-    """SO features for neural nets input, with k being a scalar."""
-    return jnp.concatenate((jnp.atleast_1d(k), theta))
-
-
-def soft_k(k, theta):
-    """Get SO input features (k, theta)."""
-    theta = jnp.broadcast_to(theta, k.shape+theta.shape)
-    ft = jnp.concatenate((k.reshape(k.shape + (1,)), theta), axis=-1)
-    return ft
-
-
-def soft_kvec(kv, theta):
-    """Get SO input features (k1, k2, k3, theta)."""
-    theta = jnp.broadcast_to(theta, kv.shape[:-1]+theta.shape)
-    ft = jnp.concatenate((kv, theta), axis=-1)
-    return ft
