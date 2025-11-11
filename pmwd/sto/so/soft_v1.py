@@ -10,7 +10,7 @@ def nonlinear_scales(cosmo, conf, a):
     """Some nonlinear scales and their time derivatives."""
     k = conf.transfer_k[1:]
     D = growth(a, cosmo, conf)
-    dD = growth(a, cosmo, conf, deriv=1)
+    dD = growth(a, cosmo, conf, deriv=1)  # dD / dlna
     dD2i = -2 * D**(-3) * dD  # d(1/D^2) / dlna
     interp_valgrad = jax.value_and_grad(jnp.interp, argnums=0)
 
@@ -19,7 +19,7 @@ def nonlinear_scales(cosmo, conf, a):
     k_P, dk_P = interp_valgrad(1 / D**2, k**3 * Plin / (2 * jnp.pi**2), k)
     dk_P *= dD2i
     R_P = 1 / k_P
-    dR_P = -dk_P/k_P**2
+    dR_P = - dk_P / k_P**2
 
     # TopHat variance, var is decreasing with R
     # but for jnp.interp, xp must be increasing, thus the reverse [::-1]
@@ -31,7 +31,7 @@ def nonlinear_scales(cosmo, conf, a):
     dR_G *= dD2i
 
     # rms linear theory displacement
-    R_d = (jnp.trapz(k * Plin, x=jnp.log(k)) + k[0] * Plin[0] / 2) / (6 * jnp.pi**2)
+    R_d = (jnp.trapezoid(k * Plin, x=jnp.log(k)) + k[0] * Plin[0] / 2) / (6 * jnp.pi**2)
     R_d = jnp.sqrt(R_d)
     dR_d = R_d * dD
     R_d *= D
@@ -55,13 +55,13 @@ def sotheta(cosmo, conf, a):
     D2 = growth(a, cosmo, conf, order=2)
     dlnD2 = growth(a, cosmo, conf, order=2, deriv=1) / D2
     theta_o = jnp.asarray([
-        D1 / a,
-        D2 / a**2,
-        dlnD1 - 1,
-        dlnD2 - 2,
+        D1 / a,     # G1
+        D2 / a**2,  # G2
+        dlnD1 - 1,  # dlnG1 / dlna
+        dlnD2 - 2,  # dlnG2 / dlna
         Omega_m_a(a, cosmo),
         H_deriv(a, cosmo),
-        conf.a_nbody_step / a,  # time step size dlna ~ da/a
+        # conf.a_nbody_step / a,  # time step size dlna ~ da/a
     ])
 
     return (theta_l, theta_o)
