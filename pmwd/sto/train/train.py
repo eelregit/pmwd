@@ -75,6 +75,9 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, model_conf,
         data_step = jax.device_put((pv_ic, tgts))
 
         # setup and training for one step
+        # notice that the final output times of Gadget4 are not exactly the same
+        # as the desired times as specified in outtimes.txt, therefore here we
+        # use the final output times from Gadget4 snapshot data
         model_conf.update({'a_snaps': a_snaps, 'a_ic': a_ic, 'sobol': sobol})
         so_params, loss, opt_state = train_step(
             data_step, so_params, model_conf, opt_conf, opt_state, loss_conf)

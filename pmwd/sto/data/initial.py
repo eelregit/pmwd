@@ -53,5 +53,5 @@ def gen_ic(seed, conf, cosmo):
     """Generate the initial condition with lpt for nbody."""
     modes = white_noise(seed, conf)
     modes = linear_modes(modes, cosmo, conf)
-    ptcl, obsvbl = lpt(modes, cosmo, conf)
+    ptcl, _ = lpt(modes, cosmo, conf)
     return ptcl
