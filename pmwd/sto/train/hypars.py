@@ -5,7 +5,7 @@ import pickle
 from pmwd.sto.so.so import soft_len
 from pmwd.sto.so.mlp import init_mlp_params
 
-n_epochs = 5000
+n_epochs = 1000
 
 ###  data  ###
 data_conf = {
@@ -31,11 +31,18 @@ opt_conf = {
 opt_conf['optimizer'] = optax.adam(opt_conf['learning_rate'])
 
 ###  model  ###
+if len(data_conf['snap_ids']) == 121:
+    n_steps = 121
+    a_stop = 1 + 1/128
+if len(data_conf['snap_ids']) == 61:
+    n_steps = 61
+    a_stop = 1 + 1/64
 model_conf = {
+    'n_steps': n_steps,
+    'a_stop': a_stop,
     'mesh_shape': 1,
-    'n_steps': 61,
     'so_type': 'NN',
-    'soft_i': 'soft_v1',
+    'soft_i': 'soft_v1',  # the input features
 }
 model_conf['n_input'] = [soft_len(model_conf['soft_i'], 'g'),
                          soft_len(model_conf['soft_i'], 'f')]

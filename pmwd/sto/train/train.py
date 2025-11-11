@@ -26,7 +26,8 @@ def setup_model(pv_ic, model_conf):
                          so_type=model_conf['so_type'],
                          so_nodes=model_conf['so_nodes'],
                          soft_i=model_conf['soft_i'],
-                         a_start=model_conf['a_ic'])
+                         a_start=model_conf['a_ic'],
+                         a_stop=model_conf['a_stop'])
     # initialize ptcl given input (pos, vel) data
     ptcl = Particles.gen_grid(conf)
     disp = pv_ic[0] - ptcl.pmid * conf.cell_size
