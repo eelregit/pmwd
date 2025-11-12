@@ -67,13 +67,6 @@ def sotheta(cosmo, conf, a):
     return (theta_l, theta_o)
 
 
-def soft(k, theta):
-    """SO features for neural nets input, with k being a scalar."""
-    theta_l, theta_o = theta
-    k_theta_l = k * theta_l
-    return jnp.concatenate((k_theta_l, theta_o))
-
-
 def soft_k(k, theta):
     """Get SO input features (k * l, o) with k of shape (...,)."""
     theta_l, theta_o = theta  # e.g. (8,), (6,)

@@ -156,7 +156,6 @@ class Configuration:
     so_type: Optional[str] = None
     # list of the number of nodes (no input layer) of so nn
     so_nodes: Optional[list] = None
-    soft_i: Optional[str] = None
     softening_length: Optional[float] = None
 
     def __post_init__(self):

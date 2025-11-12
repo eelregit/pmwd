@@ -2,7 +2,7 @@ import numpy as np
 import optax
 import pickle
 
-from pmwd.sto.so.so import soft_len
+from pmwd.sto.so.soft import soft_len
 from pmwd.sto.so.mlp import init_mlp_params
 
 n_epochs = 1000
@@ -42,10 +42,8 @@ model_conf = {
     'a_stop': a_stop,
     'mesh_shape': 1,
     'so_type': 'NN',
-    'soft_i': 'soft_v1',  # the input features
 }
-model_conf['n_input'] = [soft_len(model_conf['soft_i'], 'g'),
-                         soft_len(model_conf['soft_i'], 'f')]
+model_conf['n_input'] = [soft_len('g'), soft_len('f')]
 model_conf['so_nodes'] = [[2 * n, n, n // 2, 1] for n in model_conf['n_input']]
 
 ###  start a new training  ###

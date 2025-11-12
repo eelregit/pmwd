@@ -11,11 +11,10 @@ from pmwd.sto.utils import power_tfcc, scatter_dens, pv2ptcl, load_soparams, tre
 
 
 def pmwd_fwd(so_params, sidx, sobol, a_snaps, mesh_shape, n_steps, so_type,
-             so_nodes, soft_i):
+             so_nodes):
     """End-to-end forward run of pmwd with SO."""
     conf, cosmo = gen_cc(sobol, mesh_shape=mesh_shape, a_snapshots=a_snaps,
-                         a_nbody_num=n_steps, so_type=so_type, so_nodes=so_nodes,
-                         soft_i=soft_i)
+                         a_nbody_num=n_steps, so_type=so_type, so_nodes=so_nodes)
     ptcl_ic = gen_ic(sidx, conf, cosmo)
     cosmo = cosmo.replace(so_params=so_params)
     _, obsvbl = nbody(ptcl_ic, None, cosmo, conf)

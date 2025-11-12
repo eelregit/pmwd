@@ -15,7 +15,7 @@ from pmwd import (
     nbody,
     scatter,
 )
-from pmwd.sto.so.so import soft_len
+from pmwd.sto.so.soft_v2 import soft_len
 from pmwd.sto.so.mlp import init_mlp_params
 
 
@@ -46,14 +46,13 @@ ptcl_spacing = 1.
 ptcl_grid_shape = (16,) * 3
 # SO neural net parameters
 so_type = 'NN'
-soft_i = 'soft_v2'
-n_input = [soft_len(soft_i, 'g'), soft_len(soft_i, 'f')]
+n_input = [soft_len('g'), soft_len('f')]
 so_nodes = [[8, 1], [8, 1]]
 so_params = init_mlp_params(n_input, so_nodes, scheme='last_ws')
 
 conf = Configuration(ptcl_spacing, ptcl_grid_shape, mesh_shape=2,
                      a_start=1/16, a_stop=1, a_nbody_num=15, a_snapshots=(0.7, 0.8, 0.9),
-                     so_type=so_type, so_nodes=so_nodes, soft_i=soft_i, softening_length=0.01)
+                     so_type=so_type, so_nodes=so_nodes, softening_length=0.01)
 
 cosmo = Cosmology(conf, A_s_1e9=2.0, n_s=0.96, Omega_m=0.3, Omega_b=0.05, h=0.7,
                   so_params=so_params)

@@ -4,7 +4,8 @@ from jax import custom_vjp
 from pmwd.scatter import scatter
 from pmwd.gather import gather
 from pmwd.pm_util import fftfreq, fftfwd, fftinv
-from pmwd.sto.so.so import sotheta, pot_sharp, grad_sharp
+from pmwd.sto.so.soft import sotheta
+from pmwd.sto.so.sharp import pot_sharp, grad_sharp
 
 
 @custom_vjp
