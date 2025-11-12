@@ -70,19 +70,25 @@ def sotheta(cosmo, conf, a):
 def soft_k(k, theta):
     """Get SO input features (k * l, o) with k of shape (...,)."""
     theta_l, theta_o = theta  # e.g. (8,), (6,)
+
     ft = k[..., None] * theta_l  # (..., 8)
+
     theta_o = jnp.broadcast_to(theta_o, k.shape + theta_o.shape)  # (..., 6)
     ft = jnp.concatenate((ft, theta_o), axis=-1)  # (..., 8+6)
+
     return ft
 
 
-def soft_kvec(kv, theta):
+def soft_kv(kv, theta):
     """Get SO input features (k1 * l, k2 * l, k3 * l, o) with kv of shape (..., 3)."""
     theta_l, theta_o = theta  # e.g. (8,), (6,)
+
     ft = kv[..., None] * theta_l  # (..., 3, 8)
     ft = ft.reshape(kv.shape[:-1] + (-1,))  # (..., 3 * 8)
+
     theta_o = jnp.broadcast_to(theta_o, kv.shape[:-1] + theta_o.shape)  # (..., 6)
     ft = jnp.concatenate((ft, theta_o), axis=-1)  # (..., 3 * 8 + 6)
+
     return ft
 
 
@@ -129,4 +135,3 @@ def soft_names_tex(net):
 def soft_len(net):
     # get the length of SO input features
     return len(soft_names(net))
-

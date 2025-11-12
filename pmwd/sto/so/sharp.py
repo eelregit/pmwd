@@ -3,7 +3,7 @@ import jax.numpy as jnp
 from jax import vmap, checkpoint
 
 from pmwd.sto.so.mlp import MLP
-from pmwd.sto.so.soft import soft_k, soft_kvec
+from pmwd.sto.so.soft import soft_k, soft_kv
 
 
 def pot_sharp(pot, kvec, theta, cosmo, conf, a):
@@ -20,7 +20,7 @@ def pot_sharp(pot, kvec, theta, cosmo, conf, a):
 
         @checkpoint  # checkpoint for saving memory in backward AD
         def sonn_kvec_slice(kv_):
-            ft = soft_kvec(kv_, theta)  # input features
+            ft = soft_kv(kv_, theta)  # input features
             mlp = MLP(features=conf.so_nodes[0])
             g = mlp.apply(cosmo.so_params[0], ft)[..., 0]  # rm the trailing axis of dim one
             return g
