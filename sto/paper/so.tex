@@ -935,12 +935,12 @@ sharpening.
 A list of these features is summarized in \autoref{tab:feat}, and here
 we present relevant definitions and more details.
 
-Below are some definitions related to the typical scales.
+Below are some definitions related to the typical spatial scales.
 \begin{itemize}
 \item The root-mean-square (RMS) linear displacement is given by
 %
 \begin{equation}
-R_\mathrm{d} = \int \frac{k P_\linear(k)}{6\pi^2} \d\lnk,
+R_\mathrm{d}^2 = \int \frac{k P_\linear(k)}{6\pi^2} \d\lnk,
 \end{equation}
 %
 where $P_\linear(k)$ is the linear power spectrum.
@@ -974,6 +974,12 @@ Other relevant scales include the particle spacing $l_p$ in Lagrangian
 space, the cell size $l_c$ of the chosen mesh grid for force evaluation,
 and the softening length $l_s$ in the target \GADGET\ simulations.
 
+Scales could be multiplied with the wavenumber $k$ to form dimensionless
+quantities.
+For example, the product of $k$ with the mesh cell size $l_c$ results in
+a quantity $kl_c = \pi k/k_{\rm Nyquist}$ that is invariant to different
+box sizes, which should be an important feature.
+
 Relevant scale-independent dimensionless factors are
 \begin{itemize}
 \item $G_m(a) \triangleq D_m(a) / a^m$: linear growth given in
@@ -985,11 +991,6 @@ Relevant scale-independent dimensionless factors are
 \item $\Delta\lna$: time step size in $\lna$.
 \end{itemize}
 
-Scales could be multiplied with the wavenumber $k$ to form dimensionless
-quantities.
-For example, the product of $k$ with the mesh cell size $l_c$ results in
-a quantity $kl_c = \pi k/k_{\rm Nyquist}$ that is invariant to different
-box sizes, which should be an important feature.
 
 \vspace{1em}
 \subsection{Loss Function}
@@ -1022,8 +1023,8 @@ So normalizations inside the logarithm is added above and below.
 % Say that only s loss is not enough even though in principle it is,
 % and cite DrewEtAl x2 too
 
-However, in the Eulerian space, an MSE loss is dominated by the small
-scale modes.
+However, for the density field in the Eulerian space, an MSE loss is
+dominated by the small scale modes.
 In this work we choose uniform weights in the scale space on the
 relative MSE.
 We bin the modes logarithmically by \nicefrac13 octave in scale, with
@@ -1033,14 +1034,14 @@ We introduce a loss function that sums up its MSE relative to the target
 field power in logarithmic bins:
 %
 \begin{equation}
-  \cL_f = \frac1{N_K} \sum_i \ln \biggl[
-  \frac{\sum_{\vk \in K_i} \bigl| \hat f(\vk) - f(\vk) \bigr|^2}
-       {\sum_{\vk' \in K_i} | f(\vk')|^2} + \epsilon \biggr],
+  \cL_\delta = \frac1{N_K} \sum_i \ln \biggl[
+  \frac{\sum_{\vk \in K_i} \bigl| \hat \delta(\vk) - \delta(\vk) \bigr|^2}
+       {\sum_{\vk' \in K_i} | \delta(\vk')|^2} + \epsilon \biggr],
 \label{loss_power_ln}
 \end{equation}
 %
 where $N_K$ is the number of $k$-bins, and $\epsilon$ sets the relative
-threshold tolerance, below which we consider $\hat f$ in each $K$
+threshold tolerance, below which we consider $\hat \delta$ in each $K$
 accurate enough and the gradients from that bin less important.
 
 % Under the mild assumptions that $T$ \eqref{T} and $r$ \eqref{r} are smooth
@@ -1081,13 +1082,22 @@ and further sum over all snapshots in a single forward simulation
 \vspace{1em}
 \subsection{Training of Neural Networks}
 
+We initialize the parameters of NNs in a way such that the output is
+around one with slight deviations, i.e. roughly the original PM without
+SO.
+This is achieved by setting the kernel of the output layer to be very
+small random values and the bias to be zero, whose return is then around
+one after the exponential function.
+The parameters are initialized to be the same for all devices, and hence
+remain the same during training given the same averaged gradients.
+
 We perform distributed data-parallel training using GPU devices hosted
-on multiple computing nodes.
+across multiple computing nodes.
 With data parallelism, the training data samples are uniformly
-distributed to the processes, and each process is binded to a single GPU
+distributed to the processes with each process binded to a single GPU
 device.
-In total, we use XXX \GPU\ GPUs, each accompanied with XXX CPU cores
-and XXX GB CPU memory mainly for preloading the training data.
+In total, we use 16 \GPU\ GPUs, each accompanied with 8 CPU cores
+and 125 GB CPU memory mainly for preloading the training data.
 The order of data samples within each process is shuffled across
 training epochs.
 In each training step, a data sample is fed into the GPU from the CPU
@@ -1099,21 +1109,12 @@ initial coniditions, cosmological parameters and other common
 configurations as the training data sample.
 As discussed in \autoref{sec:loss}, the loss in a single simulation sums
 over all snapshots.
-Our batch size is XXX, i.e. the number of GPU devices, since one
+Our batch size is 16, i.e. the number of GPU devices, since one
 simulation is run on a single GPU and compared to the corresponding
 training data sample for loss.
-Then the loss and gradients are collected and averaged across all GPU
+The loss and gradients are collected and averaged across all GPU
 devices, with which the optimizer is updated.
 We use the Adam \citep{Adam} optimizer.
-
-We initialize the parameters of NNs in a way such that the output is
-around one with slight deviations, i.e. roughly the original PM without
-SO.
-This is achieved by setting the kernel of the output layer to be very
-small random values and the bias to be zero, whose return is then around
-one after the exponential function.
-The parameters are initialized to be the same for all devices, and hence
-remain the same during training given the same averaged gradients.
 
 % We use Optuna \citep{optuna_2019} to search for the optimal
 % hyperparameters.
