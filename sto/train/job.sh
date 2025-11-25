@@ -13,6 +13,9 @@
 
 module purge
 
+# use local version of pmwd for tuning
+export PYTHONPATH="./pmwd/pmwd"
+
 source /mnt/home/llu/miniforge3/bin/activate sto
 
 srun python run_train.py
