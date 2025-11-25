@@ -61,7 +61,7 @@ def sotheta(cosmo, conf, a):
         dlnD2 - 2,  # dlnG2 / dlna
         Omega_m_a(a, cosmo),
         H_deriv(a, cosmo),
-        # conf.a_nbody_step / a,  # time step size dlna ~ da/a
+        conf.a_nbody_step / a,  # time step size dlna ~ da/a
     ], dtype=conf.float_dtype)
 
     return (theta_l, theta_o)
