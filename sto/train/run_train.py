@@ -48,7 +48,7 @@ def track(writer, epoch, scalars):
     """Track the training with tensorboard."""
     if scalars is not None:
         for k, v in scalars.items():
-            writer.add_scalar(k, v, epoch)
+            writer.add_scalar(k, np.array(v), epoch)
 
 
 def setup_train(data_conf):
