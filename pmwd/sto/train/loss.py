@@ -44,7 +44,7 @@ def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_conf):
 
 
 def loss_ptcl(snap, snap_t, conf, loss_conf):
-    loss = jnp.array(0., dtype=conf.float_dtype)
+    loss = 0.
 
     # displacement
     if 'disp' in loss_conf['loss_fields']:
@@ -59,7 +59,7 @@ def loss_ptcl(snap, snap_t, conf, loss_conf):
 
 def loss_func(obsvbl, tgts, conf, loss_conf):
     """Loss function of the simulated snapshots and target snapshots."""
-    loss = jnp.array(0., dtype=conf.float_dtype)
+    loss = 0.
 
     @checkpoint  # checkpoint for saving memory in backward AD
     def _loss_snap(carry, x):
