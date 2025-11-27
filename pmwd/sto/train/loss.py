@@ -15,18 +15,16 @@ def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_conf):
                                      offset=loss_conf['grid_offset'])
 
     # loss on power spec
-    k, P_d, _, _ = powspec(dens - dens_t, 1., dtype=conf.float_dtype)
-    k, P_t, _, _ = powspec(dens_t, 1., dtype=conf.float_dtype)
-    loss = jnp.sum(jnp.log(P_d / P_t + loss_conf['log_eps']),
-                   dtype=conf.float_dtype) / len(k)
+    k, P_d, _, _ = powspec(dens - dens_t, 1.)
+    k, P_t, _, _ = powspec(dens_t, 1.)
+    loss = jnp.sum(jnp.log(P_d / P_t + loss_conf['log_eps'])) / len(k)
 
     return loss
 
 
 def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_conf):
     # get the disp from particles' grid Lagrangian positions
-    disp = ptcl_rpos(ptcl, Particles.gen_grid(conf), conf)
-    disp_t = ptcl_rpos(ptcl_t, Particles.gen_grid(conf), conf)
+    disp, disp_t = (ptcl_rpos(p, Particles.gen_grid(conf), conf) for p in (ptcl, ptcl_t))
 
     # get the relative disp
     disp_d = disp - disp_t
@@ -37,8 +35,7 @@ def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_conf):
     disp_d -= jnp.rint(disp_d / box_size) * box_size
 
     # mse loss
-    loss = jnp.log(jnp.sum(disp_d**2, dtype=conf.float_dtype) /
-                   jnp.sum(disp_t**2, dtype=conf.float_dtype))
+    loss = jnp.log(jnp.sum(disp_d**2) / jnp.sum(disp_t**2))
 
     return loss
 
