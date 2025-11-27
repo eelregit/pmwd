@@ -281,7 +281,7 @@ def ptcl_rpos(ptcl, ref, conf, wrap=True):
 
     rpos = ptcl.pmid - ref.pmid
     rpos = rpos.astype(conf.float_dtype)
-    rpos *= jnp.array(conf.cell_size, dtype=conf.float_dtype)
+    rpos *= conf.cell_size
     rpos += ptcl.disp - ref.disp
 
     if wrap:

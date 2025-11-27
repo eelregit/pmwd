@@ -19,7 +19,7 @@ def gen_cc(sobol,
            cal_boltz=True):
     """Setup conf and cosmo given a scaled Sobol and configurations."""
     conf = Configuration(
-        ptcl_spacing = sobol[0] / 128,
+        ptcl_spacing = float(sobol[0] / 128),  # np.array -> float
         ptcl_grid_shape = (128,) * 3,
         a_start = a_start,
         a_stop = a_stop,
@@ -29,7 +29,7 @@ def gen_cc(sobol,
         a_nbody_num = a_nbody_num,
         so_type = so_type,
         so_nodes = so_nodes,
-        softening_length = sobol[8],
+        softening_length = float(sobol[8]),  # np.array -> float
     )
 
     cosmo = Cosmology(
