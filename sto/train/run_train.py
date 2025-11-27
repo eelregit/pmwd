@@ -139,3 +139,5 @@ if __name__ == "__main__":
 
     run_train(n_epochs, gsdata, data_conf, loss_conf, opt_conf, model_conf,
               so_params, opt_state)
+
+    print('\n>>> run_train finished <<<\n')

@@ -40,7 +40,7 @@ def setup_model(pv_ic, model_conf):
 
 
 def train_step(data_step, so_params, model_conf, opt_conf, opt_state, loss_conf):
-    tgts, pv_ic = data_step
+    pv_ic, tgts = data_step
 
     # setup input for model
     ptcl, cosmo, conf = setup_model(pv_ic, model_conf)
