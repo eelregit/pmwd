@@ -30,5 +30,5 @@ def device_sync(procid, n_procs, verbose=False):
     x = tree_global_mean(jnp.array(procid))
     assert round(2 * x + 1) == n_procs, 'something wrong with global mean'
     if verbose:
-        procinfo(f'# global devices: {len(jax.devices())}, sync successful',
-                  flush=True)
+        procinfo(f'# global devices: {len(jax.devices())}, sync successful', procid,
+                 flush=True)
