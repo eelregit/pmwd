@@ -24,7 +24,8 @@ def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_conf):
 
 def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_conf):
     # get the disp from particles' grid Lagrangian positions
-    disp, disp_t = (ptcl_rpos(p, Particles.gen_grid(conf), conf) for p in (ptcl, ptcl_t))
+    disp = ptcl_rpos(ptcl, Particles.gen_grid(conf), conf)
+    disp_t = ptcl_rpos(ptcl_t, Particles.gen_grid(conf), conf)
 
     # get the relative disp
     disp_d = disp - disp_t
