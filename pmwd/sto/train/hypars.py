@@ -26,7 +26,7 @@ loss_conf = {
 
 ###  optimizer  ###
 opt_conf = {
-    'learning_rate': 1e-3,
+    'learning_rate': 1e-5,
 }
 opt_conf['optimizer'] = optax.adam(opt_conf['learning_rate'])
 
@@ -44,17 +44,18 @@ model_conf = {
     'so_type': 'NN',
 }
 model_conf['n_input'] = [soft_len('g'), soft_len('f')]
-model_conf['so_nodes'] = [[2 * n, n, n // 2, 1] for n in model_conf['n_input']]
+model_conf['so_nodes'] = [[128, 128, 128, 1], [64, 64, 64, 1]]
 
 ###  start a new training  ###
 so_params = init_mlp_params(model_conf['n_input'], model_conf['so_nodes'],
                             scheme='last_ws')
 opt_state = opt_conf['optimizer'].init(so_params)
 
-# ###  load and continue a training  ##
-# param_fn = 'params/3031768/e2000.pickle'
+###  load and continue a training  ###
+# job_id, epoch_id = 3031768, 2000
+# param_fn = f'params/{job_id}/e{epoch_id}.pickle'
 # with open(param_fn, 'rb') as f:
 #     dic = pickle.load(f)
 #     so_params = dic['so_params']
-#     # opt_state = dic['opt_state']
-#     opt_state = optimizer.init(so_params)
+#     opt_state = dic['opt_state']
+#     # opt_state = optimizer.init(so_params)
