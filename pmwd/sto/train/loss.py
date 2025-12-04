@@ -59,7 +59,7 @@ def loss_func(obsvbl, tgts, conf, loss_conf):
     """Loss function of the simulated snapshots and target snapshots."""
     loss = 0.
 
-    @checkpoint  # checkpoint for saving memory in backward AD
+    # @checkpoint  # checkpoint for saving memory in backward AD
     def _loss_snap(carry, x):
         loss = carry
         tgt, snap = x
