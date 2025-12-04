@@ -21,7 +21,7 @@ class MLP(nn.Module):
     kernel_init: Callable = he_normal()
     bias_init: Callable = zeros_init()
     activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
-    regulator: Callable[[jnp.ndarray], jnp.ndarray] = jnp.exp
+    regulator: Callable[[jnp.ndarray], jnp.ndarray] = None
 
     @nn.compact
     def __call__(self, x):
@@ -43,7 +43,7 @@ class MLP(nn.Module):
 def init_mlp_params(n_input_list, nodes_list, seed=42,
                     dtype=jnp.float32, param_dtype=jnp.float64,
                     kernel_init=he_normal(), bias_init=zeros_init(),
-                    scheme=None, last_ws=1e-8, last_b=0):
+                    scheme=None, last_ws=1e-8, last_b=0.):
     """Initialize parameters for a list of MLPs."""
     nets = [MLP(features=nodes, kernel_init=kernel_init, bias_init=bias_init,
                 dtype=dtype, param_dtype=param_dtype) for nodes in nodes_list]

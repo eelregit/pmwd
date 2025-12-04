@@ -48,7 +48,7 @@ model_conf['so_nodes'] = [[128, 128, 128, 1], [64, 64, 64, 1]]
 
 ###  start a new training  ###
 so_params = init_mlp_params(model_conf['n_input'], model_conf['so_nodes'],
-                            scheme='last_ws')
+                            scheme='last_w0', last_b=1.)
 opt_state = opt_conf['optimizer'].init(so_params)
 
 ###  load and continue a training  ###
