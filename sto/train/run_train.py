@@ -26,7 +26,7 @@ import time
 import pickle
 
 from pmwd.sto.data.g4data import G4Dataset
-from pmwd.sto.train.train import train_epoch, loss_epoch
+from pmwd.sto.train.train import train_epoch, evaluate_loss_epoch
 from pmwd.sto.train.utils import procinfo, device_sync
 
 
@@ -45,13 +45,6 @@ def checkpoint(epoch, so_params, opt_state, lr, log_id=None, verbose=True):
         procinfo(f'epoch {epoch} done, params saved: {fn}', procid, flush=True)
 
 
-def track(writer, epoch, scalars):
-    """Track the training with tensorboard."""
-    if scalars is not None:
-        for k, v in scalars.items():
-            writer.add_scalar(k, np.array(v), epoch)
-
-
 def setup_train(data_conf):
     """Prepare for training, incl. data loading on host etc."""
     # check global devices
@@ -63,20 +56,26 @@ def setup_train(data_conf):
     data_conf['sobol_ids'] = sobol_ids
 
     # initialize data loader
-    procinfo(f'initializing data loader', procid, flush=True)
+    procinfo(f'loading gadget-4 data, {len(sobol_ids)} sobol ids: {sobol_ids}',
+             procid, flush=True)
+    tic = time.perf_counter()
     torch.manual_seed(42+procid)
     g4dataset = G4Dataset(data_conf['data_dir'], sobol_ids, data_conf['snap_ids'],
                           data_conf['sobol_file'])
     data_loader = DataLoader(g4dataset, shuffle=data_conf['shuffle'],
                              collate_fn=lambda x: x[0],
                              num_workers=0)
+    toc = time.perf_counter()
+    procinfo(f'loading {len(sobol_ids)} sobols' +
+             f' each with {len(data_conf['snap_ids'])} snapshots' +
+             f' takes {(toc - tic)/60:.1f} mins', procid, flush=True)
     # conflict with JAX when num_workers > 0, see
     # https://github.com/jax-ml/jax/issues/9190
 
     return data_loader, data_conf
 
 
-def run_train(n_epochs, data_loader, data_conf, loss_conf, opt_conf, model_conf,
+def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
               so_params, opt_state, log_id=None, verbose=True):
 
     # sync and setup log file directory
@@ -84,7 +83,7 @@ def run_train(n_epochs, data_loader, data_conf, loss_conf, opt_conf, model_conf,
     if procid == 0:
         if verbose:
             print('>>> devices synced, start training <<<')
-            print('time, epoch, sidx, mesh_shape, n_steps, loss', flush=True)
+            print('time, step, sobol, loss', flush=True)
         log_dir = f'runs/{slurm_job_id}'
         if log_id is not None:
             log_dir += f'_{log_id}'
@@ -95,23 +94,21 @@ def run_train(n_epochs, data_loader, data_conf, loss_conf, opt_conf, model_conf,
 
         # evaluate the loss before training, with init so_params
         if epoch == 0:
-            loss_epoch_mean = loss_epoch(
-                procid, epoch, data_loader, model_conf, so_params, loss_conf, verbose)
+            loss_epoch = evaluate_loss_epoch(
+                procid, epoch, data_loader, model_conf, so_params, loss_conf,
+                verbose, writer)
         # training for one epoch
         else:
-            loss_epoch_mean, so_params, opt_state = train_epoch(
+            loss_epoch, so_params, opt_state = train_epoch(
                 procid, epoch, data_loader, model_conf,
-                so_params, opt_conf, opt_state, loss_conf, verbose)
+                so_params, opt_conf, opt_state, loss_conf,
+                verbose, writer)
 
-        # checkpoint and track
+        # checkpoint
         if procid == 0:
+            print(f'epoch mean loss: {loss_epoch:12.3e}', flush=True)
             checkpoint(epoch, so_params, opt_state, opt_conf['learning_rate'],
                        log_id=log_id, verbose=verbose)
-            scalars = {
-                'loss': loss_epoch_mean,
-                'learning rate': opt_conf['learning_rate'],
-            }
-            track(writer, epoch, scalars)
 
     if procid == 0:
         writer.close()
@@ -125,7 +122,7 @@ if __name__ == "__main__":
 
     data_loader, data_conf = setup_train(data_conf)
 
-    run_train(n_epochs, data_loader, data_conf, loss_conf, opt_conf, model_conf,
+    run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
               so_params, opt_state)
 
     print('\n>>> run_train finished <<<\n')

@@ -1,5 +1,6 @@
 import jax
 import jax.numpy as jnp
+import numpy as np
 import optax
 import time
 
@@ -60,14 +61,16 @@ def train_step(data_step, so_params, model_conf, opt_conf, opt_state, loss_conf)
 
 
 def train_epoch(procid, epoch, data_loader, model_conf,
-                so_params, opt_conf, opt_state, loss_conf, verbose):
+                so_params, opt_conf, opt_state, loss_conf,
+                verbose, writer):
     loss_epoch = 0.
+    epoch_size = len(data_loader)
 
-    for _, gsdata in enumerate(data_loader):
+    for step, data in enumerate(data_loader):
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
-        sidx, pv_ic, a_ic, tgts, a_snaps, sobol = (gsdata[k] for k in
+        sidx, pv_ic, a_ic, tgts, a_snaps, sobol = (data[k] for k in
                                ('sidx', 'ic', 'a_ic', 'pv', 'a_snaps', 'sobol'))
 
         # put ic and loss data of this step to device, could be asynchronous
@@ -82,25 +85,31 @@ def train_epoch(procid, epoch, data_loader, model_conf,
             data_step, so_params, model_conf, opt_conf, opt_state, loss_conf)
         loss_epoch += loss
 
-        if procid == 0 and verbose:
-            toc = time.perf_counter()
-            print((f'{toc - tic:.0f} s, {epoch}, {sidx:>3d}, {model_conf['mesh_shape']:>3d},' +
-                   f' {model_conf['n_steps']:>4d}, {loss:12.3e}'), flush=True)
+        if procid == 0:
+            global_step = epoch * epoch_size + step
+            writer.add_scalar('loss', np.array(loss), global_step)
+            if verbose:
+                toc = time.perf_counter()
+                print((f'{toc - tic:.0f} s, {step:>2d}, {sidx:>3d}, ' +
+                       f'{loss:12.3e}'), flush=True)
 
-    loss_epoch = loss_epoch / len(data_loader)  # mean loss per step of epoch
+
+    loss_epoch = loss_epoch / epoch_size  # mean loss per step of epoch
 
     return loss_epoch, so_params, opt_state
 
 
-def loss_epoch(procid, epoch, data_loader, model_conf, so_params, loss_conf, verbose):
+def evaluate_loss_epoch(procid, epoch, data_loader, model_conf, so_params, loss_conf,
+               verbose, writer):
     """Simply evaluate the loss w/o grad."""
     loss_epoch = 0.
+    epoch_size = len(data_loader)
 
-    for _, gsdata in enumerate(data_loader):
+    for step, data in enumerate(data_loader):
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
-        sidx, pv_ic, a_ic, tgts, a_snaps, sobol = (gsdata[k] for k in
+        sidx, pv_ic, a_ic, tgts, a_snaps, sobol = (data[k] for k in
                                ('sidx', 'ic', 'a_ic', 'pv', 'a_snaps', 'sobol'))
 
         # put ic and loss data of this step to device, could be asynchronous
@@ -112,10 +121,14 @@ def loss_epoch(procid, epoch, data_loader, model_conf, so_params, loss_conf, ver
         loss = tree_global_mean(loss)
         loss_epoch += loss
 
-        if procid == 0 and verbose:
-            toc = time.perf_counter()
-            print((f'{toc - tic:.0f} s, {epoch}, {sidx:>3d}, {model_conf['mesh_shape']:>3d},' +
-                   f' {model_conf['n_steps']:>4d}, {loss:12.3e}'), flush=True)
+        if procid == 0:
+            global_step = epoch * epoch_size + step
+            writer.add_scalar('loss', np.array(loss), global_step)
+            if verbose:
+                toc = time.perf_counter()
+                print((f'{toc - tic:.0f} s, {step:>2d}, {sidx:>3d}, ' +
+                       f'{loss:12.3e}'), flush=True)
 
-    loss_epoch = loss_epoch / len(data_loader)
+    loss_epoch = loss_epoch / epoch_size  # mean loss per step of epoch
+
     return loss_epoch
