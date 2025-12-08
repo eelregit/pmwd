@@ -63,7 +63,7 @@ def setup_train(data_conf):
     data_conf['sobol_ids'] = sobol_ids
 
     # initialize data loader
-    procinfo(f'initializing data loader')
+    procinfo(f'initializing data loader', procid, flush=True)
     torch.manual_seed(42+procid)
     g4dataset = G4Dataset(data_conf['data_dir'], sobol_ids, data_conf['snap_ids'],
                           data_conf['sobol_file'])
