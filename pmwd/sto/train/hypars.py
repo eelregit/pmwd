@@ -29,15 +29,15 @@ loss_conf = {
 opt_conf = {
     'learning_rate': 1e-5,
 }
-
+# customize batch size with grad accumulation
 batch_size = 32
-n_procs = int(os.getenv('SLURM_NTASKS'))
+n_procs = int(os.getenv('SLURM_NTASKS')) # total num devices, i.e. sims per step
 if not n_procs:
     n_procs = 1
 grad_accu_steps = batch_size // n_procs
 
 opt_conf['optimizer'] = optax.MultiSteps(
-    optax.adam(opt_conf['learning_rate']),
+    optax.adamw(opt_conf['learning_rate'], weight_decay=0.01),
     grad_accu_steps,
     use_grad_mean=True,
 )
