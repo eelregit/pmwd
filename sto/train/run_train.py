@@ -80,6 +80,7 @@ def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
 
     # sync and setup log file directory
     device_sync(procid, n_procs)
+    writer = None
     if procid == 0:
         if verbose:
             print('>>> devices synced, start training <<<')
