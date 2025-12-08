@@ -69,9 +69,9 @@ def setup_train(data_conf):
                           data_conf['sobol_file'])
     data_loader = DataLoader(g4dataset, shuffle=data_conf['shuffle'],
                              collate_fn=lambda x: x[0],
-                             num_workers=1, prefetch_factor=4)
-    # conflict with JAX when num_workers > 1, see
-    # https://github.com/Delgan/loguru/issues/1125#issuecomment-2817193047
+                             num_workers=0)
+    # conflict with JAX when num_workers > 0, see
+    # https://github.com/jax-ml/jax/issues/9190
 
     return data_loader, data_conf
 

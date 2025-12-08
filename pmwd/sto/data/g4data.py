@@ -28,22 +28,6 @@ def read_g4sim(sims_dir, sidx, snap_ids, fn_sobol):
     return data
 
 
-class G4Dataset(Dataset):
-
-    def __init__(self, sims_dir, sobol_ids, snap_ids, fn_sobol):
-        self.sims_dir = sims_dir
-        self.sobol_ids = sobol_ids
-        self.snap_ids = snap_ids
-        self.fn_sobol = fn_sobol
-
-    def __len__(self):
-        return len(self.sobol_ids)
-
-    def __getitem__(self, idx):
-        sidx = self.sobol_ids[idx]
-        return read_g4sim(self.sims_dir, sidx, self.snap_ids, self.fn_sobol)
-
-
 def read_gsdata(sims_dir, sobol_ids, snap_ids, fn_sobol):
     """Load training data from GS512 dataset."""
     data = {}
@@ -52,3 +36,22 @@ def read_gsdata(sims_dir, sobol_ids, snap_ids, fn_sobol):
         data[sidx] = read_g4sim(sims_dir, sidx, snap_ids, fn_sobol)
 
     return data
+
+
+class G4Dataset(Dataset):
+
+    def __init__(self, sims_dir, sobol_ids, snap_ids, fn_sobol):
+        self.sims_dir = sims_dir
+        self.sobol_ids = sobol_ids
+        self.snap_ids = snap_ids
+        self.fn_sobol = fn_sobol
+
+        # load all data to cpu mem
+        self.gsdata = read_gsdata(sims_dir, sobol_ids, snap_ids, fn_sobol)
+
+    def __len__(self):
+        return len(self.sobol_ids)
+
+    def __getitem__(self, idx):
+        sidx = self.sobol_ids[idx]
+        return self.gsdata[sidx]
