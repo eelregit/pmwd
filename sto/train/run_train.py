@@ -18,13 +18,14 @@ import jax
 # explicitly set local device, the only visible one
 jax.distributed.initialize(local_device_ids=[0])
 
-import jax.numpy as jnp
 import numpy as np
+import torch
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import DataLoader
 import time
 import pickle
 
-from pmwd.sto.data.g4data import read_gsdata
+from pmwd.sto.data.g4data import G4Dataset
 from pmwd.sto.train.train import train_epoch, loss_epoch
 from pmwd.sto.train.utils import procinfo, device_sync
 
@@ -61,28 +62,19 @@ def setup_train(data_conf):
     sobol_ids = np.split(data_conf['sobol_ids_global'], n_procs)[procid]
     data_conf['sobol_ids'] = sobol_ids
 
-    # load training data to host memory
-    procinfo(f'loading gadget-4 data, {len(sobol_ids)} sobol ids: {sobol_ids}',
-             procid, flush=True)
-    tic = time.perf_counter()
-    gsdata = read_gsdata(data_conf['data_dir'], sobol_ids, data_conf['snap_ids'],
-                         data_conf['sobol_file'])
-    toc = time.perf_counter()
-    procinfo(f'loading {len(sobol_ids)} sobols' +
-             f' each with {len(data_conf['snap_ids'])} snapshots' +
-             f' takes {(toc - tic)/60:.1f} mins', procid, flush=True)
+    # initialize data loader
+    procinfo(f'initializing data loader')
+    torch.manual_seed(42+procid)
+    g4dataset = G4Dataset(data_conf['data_dir'], sobol_ids, data_conf['snap_ids'],
+                          data_conf['sobol_file'])
+    data_loader = DataLoader(g4dataset, shuffle=data_conf['shuffle'],
+                             num_workers=4, prefetch_factor=2)
 
-    return gsdata, data_conf
+    return data_loader, data_conf
 
 
-def run_train(n_epochs, gsdata, data_conf, loss_conf, opt_conf, model_conf,
+def run_train(n_epochs, data_loader, data_conf, loss_conf, opt_conf, model_conf,
               so_params, opt_state, log_id=None, verbose=True):
-
-    # RNGs with fixed seeds
-    # rng for pmwd MC sampling
-    np_rng = np.random.default_rng(42)
-    # rng for shuffling data samples across epoch
-    np_rng_shuffle = np.random.default_rng(42+procid)
 
     # sync and setup log file directory
     device_sync(procid, n_procs)
@@ -95,24 +87,17 @@ def run_train(n_epochs, gsdata, data_conf, loss_conf, opt_conf, model_conf,
             log_dir += f'_{log_id}'
         writer = SummaryWriter(log_dir=log_dir)
 
-    sobol_ids_epoch = data_conf['sobol_ids'].copy()
-
     # training loop over epochs
     for epoch in range(0, n_epochs+1):
-
-        # shuffle the data samples across epoch
-        if data_conf['shuffle_epoch']:
-            np_rng_shuffle.shuffle(sobol_ids_epoch)
 
         # evaluate the loss before training, with init so_params
         if epoch == 0:
             loss_epoch_mean = loss_epoch(
-                procid, epoch, gsdata, sobol_ids_epoch, model_conf,
-                so_params, loss_conf, verbose)
+                procid, epoch, data_loader, model_conf, so_params, loss_conf, verbose)
         # training for one epoch
         else:
             loss_epoch_mean, so_params, opt_state = train_epoch(
-                procid, epoch, gsdata, sobol_ids_epoch, model_conf,
+                procid, epoch, data_loader, model_conf,
                 so_params, opt_conf, opt_state, loss_conf, verbose)
 
         # checkpoint and track
@@ -135,9 +120,9 @@ if __name__ == "__main__":
         n_epochs, data_conf, loss_conf, opt_conf, model_conf,
         so_params, opt_state)
 
-    gsdata, data_conf = setup_train(data_conf)
+    data_loader, data_conf = setup_train(data_conf)
 
-    run_train(n_epochs, gsdata, data_conf, loss_conf, opt_conf, model_conf,
+    run_train(n_epochs, data_loader, data_conf, loss_conf, opt_conf, model_conf,
               so_params, opt_state)
 
     print('\n>>> run_train finished <<<\n')

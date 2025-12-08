@@ -59,16 +59,16 @@ def train_step(data_step, so_params, model_conf, opt_conf, opt_state, loss_conf)
     return so_params, loss, opt_state
 
 
-def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, model_conf,
+def train_epoch(procid, epoch, data_loader, model_conf,
                 so_params, opt_conf, opt_state, loss_conf, verbose):
     loss_epoch = 0.
 
-    for _, sidx in enumerate(sobol_ids_epoch):
+    for _, gsdata in enumerate(data_loader):
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
-        pv_ic, a_ic, tgts, a_snaps, sobol = (gsdata[sidx][k] for k in
-                                       ('ic', 'a_ic', 'pv', 'a_snaps', 'sobol'))
+        sidx, pv_ic, a_ic, tgts, a_snaps, sobol = (gsdata[k] for k in
+                               ('sidx', 'ic', 'a_ic', 'pv', 'a_snaps', 'sobol'))
 
         # put ic and loss data of this step to device, could be asynchronous
         data_step = jax.device_put((pv_ic, tgts))
@@ -87,22 +87,21 @@ def train_epoch(procid, epoch, gsdata, sobol_ids_epoch, model_conf,
             print((f'{toc - tic:.0f} s, {epoch}, {sidx:>3d}, {model_conf['mesh_shape']:>3d},' +
                    f' {model_conf['n_steps']:>4d}, {loss:12.3e}'), flush=True)
 
-    loss_epoch = loss_epoch / len(gsdata)  # mean loss per step of epoch
+    loss_epoch = loss_epoch / len(data_loader)  # mean loss per step of epoch
 
     return loss_epoch, so_params, opt_state
 
 
-def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, model_conf,
-               so_params, loss_conf, verbose):
+def loss_epoch(procid, epoch, data_loader, model_conf, so_params, loss_conf, verbose):
     """Simply evaluate the loss w/o grad."""
     loss_epoch = 0.
 
-    for _, sidx in enumerate(sobol_ids_epoch):
+    for _, gsdata in enumerate(data_loader):
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
-        pv_ic, a_ic, tgts, a_snaps, sobol = (gsdata[sidx][k] for k in
-                                       ('ic', 'a_ic', 'pv', 'a_snaps', 'sobol'))
+        sidx, pv_ic, a_ic, tgts, a_snaps, sobol = (gsdata[k] for k in
+                               ('sidx', 'ic', 'a_ic', 'pv', 'a_snaps', 'sobol'))
 
         # put ic and loss data of this step to device, could be asynchronous
         pv_ic, tgts = jax.device_put((pv_ic, tgts))
@@ -118,5 +117,5 @@ def loss_epoch(procid, epoch, gsdata, sobol_ids_epoch, model_conf,
             print((f'{toc - tic:.0f} s, {epoch}, {sidx:>3d}, {model_conf['mesh_shape']:>3d},' +
                    f' {model_conf['n_steps']:>4d}, {loss:12.3e}'), flush=True)
 
-    loss_epoch = loss_epoch / len(gsdata)
+    loss_epoch = loss_epoch / len(data_loader)
     return loss_epoch

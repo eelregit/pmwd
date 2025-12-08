@@ -14,7 +14,7 @@ data_conf = {
     'sobol_file': '/mnt/home/llu/ceph/sto/pmwd/sto/g4gen/sobol.txt',
     'sobol_ids_global': np.arange(0, 512),
     'snap_ids': np.arange(0, 121, 2),
-    'shuffle_epoch': True,  # shuffle the order of sobols across epochs
+    'shuffle': True,  # shuffle the order of sobols across epochs
 }
 
 ###  loss  ###
