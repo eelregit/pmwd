@@ -56,7 +56,7 @@ model_conf = {
     'so_type': 'NN',
 }
 model_conf['n_input'] = [soft_len('g'), soft_len('f')]
-model_conf['so_nodes'] = [[128, 128, 128, 1], [64, 64, 64, 1]]
+model_conf['so_nodes'] = [[128] * 5 + [1], [64] * 5 + [1]]
 
 ###  start a new training  ###
 so_params = init_mlp_params(model_conf['n_input'], model_conf['so_nodes'],
