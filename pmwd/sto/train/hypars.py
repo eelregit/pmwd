@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import optax
 import pickle
@@ -11,7 +12,7 @@ n_epochs = 1000
 data_conf = {
     'data_dir': '/mnt/home/llu/ceph/sto/g4run/gs512',
     'sobol_file': '/mnt/home/llu/ceph/sto/pmwd/sto/g4gen/sobol.txt',
-    'sobol_ids_global': np.arange(0, 64),
+    'sobol_ids_global': np.arange(0, 512),
     'snap_ids': np.arange(0, 121, 2),
     'shuffle_epoch': True,  # shuffle the order of sobols across epochs
 }
@@ -28,7 +29,18 @@ loss_conf = {
 opt_conf = {
     'learning_rate': 1e-5,
 }
-opt_conf['optimizer'] = optax.adam(opt_conf['learning_rate'])
+
+batch_size = 32
+n_procs = int(os.getenv('SLURM_NTASKS'))
+if not n_procs:
+    n_procs = 1
+grad_accu_steps = batch_size // n_procs
+
+opt_conf['optimizer'] = optax.MultiSteps(
+    optax.adam(opt_conf['learning_rate']),
+    grad_accu_steps,
+    use_grad_mean=True,
+)
 
 ###  model  ###
 if len(data_conf['snap_ids']) == 121:

@@ -4,12 +4,12 @@ import os
 # process and job information
 n_procs = int(os.getenv('SLURM_NTASKS'))
 procid = int(os.getenv('SLURM_PROCID'))
-n_tasks_per_node = int(os.getenv('SLURM_NTASKS_PER_NODE'))
+n_procs_per_node = int(os.getenv('SLURM_NTASKS_PER_NODE'))
 slurm_job_id = os.getenv('SLURM_JOB_ID')
 
 # setup the CUDA device binded to the current proc
 os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES'] = str(procid % n_tasks_per_node)
+os.environ['CUDA_VISIBLE_DEVICES'] = str(procid % n_procs_per_node)
 
 os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = '.95'
 
