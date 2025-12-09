@@ -1007,13 +1007,16 @@ proved effective in many previous works
 \citep[e.g.,][]{HeEtAl2019, LiEtAl2021}:
 %
 \begin{equation}
-\cL_\vs = \ln \frac{\sum_\vq \bigl[ \hat\vs(\vq) - \vs(\vq) \bigr]^2}
+\cL_\vs = \ln \frac{\sum_\vq \bigl\lfloor \hat\vs(\vq) - \vs(\vq) \bigr\rceil^2}
                    {\sum_{\vq'} s(\vq')^2},
 \end{equation}
 %
 in which a particle originating from its Lagrangian position $\vq$ is
 displaced by $\vs$ in the \GADGET\ snapshot and by $\hat\vs$ in the
 prediction of \pmwd\ model in training.
+$\lfloor\rceil$ rounds the residual displacements to the range between
+negative to positive half box size, accounting for the periodic
+boundaries important for the smallest boxes in \autoref{tab:param}.
 Note that we have further taken the logarithm to combine it with the
 other loss(es).
 Even though the logarithm should be enough for adaptive optimizer and
