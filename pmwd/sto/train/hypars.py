@@ -43,12 +43,18 @@ opt_conf['optimizer'] = optax.MultiSteps(
 )
 
 ###  model  ###
-if len(data_conf['snap_ids']) == 121:
+if len(data_conf['snap_ids']) == 121:  # np.arange(0, 121, 1)
     n_steps = 121
     a_stop = 1 + 1/128
-if len(data_conf['snap_ids']) == 61:
+if len(data_conf['snap_ids']) == 61:  # np.arange(0, 121, 2)
     n_steps = 61
     a_stop = 1 + 1/64
+if len(data_conf['snap_ids']) == 31:  # np.arange(0, 121, 4)
+    n_steps = 31
+    a_stop = 1 + 1/32
+if len(data_conf['snap_ids']) == 16:  # np.arange(0, 121, 8)
+    n_steps = 16
+    a_stop = 1 + 1/16
 model_conf = {
     'n_steps': n_steps,
     'a_stop': a_stop,
