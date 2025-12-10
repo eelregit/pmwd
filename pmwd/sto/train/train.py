@@ -28,7 +28,6 @@ def setup_model(ic, model_conf):
                          so_nodes=model_conf['so_nodes'],
                          a_start=model_conf['a_ic'],
                          a_stop=model_conf['a_stop'])
-    # initialize ptcl given input (pos, vel) data
     ptcl = Particles.gen_grid(conf)
     ptcl = ptcl.replace(disp=ic[0].astype(conf.float_dtype),
                         vel=ic[1].astype(conf.float_dtype))
