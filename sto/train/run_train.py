@@ -96,7 +96,8 @@ def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
         # evaluate the loss before training, with init so_params
         if epoch == 0:
             loss_epoch = evaluate_loss_epoch(
-                procid, epoch, data_loader, model_conf, so_params, loss_conf,
+                procid, epoch, data_loader, model_conf,
+                so_params, loss_conf,
                 verbose, writer)
         # training for one epoch
         else:

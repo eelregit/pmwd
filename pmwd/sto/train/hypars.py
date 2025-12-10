@@ -31,8 +31,10 @@ opt_conf = {
 }
 # customize batch size with grad accumulation
 batch_size = 32
-n_procs = int(os.getenv('SLURM_NTASKS')) # total num devices, i.e. sims per step
-if not n_procs:
+n_procs = os.getenv('SLURM_NTASKS') # total num devices, i.e. sims per step
+if n_procs:
+    n_procs = int(n_procs)
+else:
     n_procs = 1
 grad_accu_steps = batch_size // n_procs
 

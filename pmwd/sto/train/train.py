@@ -19,7 +19,7 @@ def obj(tgts, ptcl, so_params, cosmo, conf, loss_conf):
     return loss
 
 
-def setup_model(pv_ic, model_conf):
+def setup_model(ic, model_conf):
     conf, cosmo = gen_cc(model_conf['sobol'],
                          mesh_shape=model_conf['mesh_shape'],
                          a_snapshots=model_conf['a_snaps'],
@@ -30,21 +30,17 @@ def setup_model(pv_ic, model_conf):
                          a_stop=model_conf['a_stop'])
     # initialize ptcl given input (pos, vel) data
     ptcl = Particles.gen_grid(conf)
-    disp = pv_ic[0] - ptcl.pmid * conf.cell_size
-    # wrap around the periodic boundaries, disp: [-L/2, L/2]
-    box_size = jnp.array(conf.box_size)
-    disp -= jnp.rint(disp / box_size) * box_size
-    ptcl = ptcl.replace(disp=disp.astype(conf.float_dtype),
-                        vel=pv_ic[1].astype(conf.float_dtype))
+    ptcl = ptcl.replace(disp=ic[0].astype(conf.float_dtype),
+                        vel=ic[1].astype(conf.float_dtype))
 
     return ptcl, cosmo, conf
 
 
 def train_step(data_step, so_params, model_conf, opt_conf, opt_state, loss_conf):
-    pv_ic, tgts = data_step
+    ic, tgts = data_step
 
     # setup input for model
-    ptcl, cosmo, conf = setup_model(pv_ic, model_conf)
+    ptcl, cosmo, conf = setup_model(ic, model_conf)
 
     # get loss and grad
     obj_valgrad = jax.value_and_grad(obj, argnums=2)
@@ -70,11 +66,9 @@ def train_epoch(procid, epoch, data_loader, model_conf,
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
-        sidx, pv_ic, a_ic, tgts, a_snaps, sobol = (data[k] for k in
-                               ('sidx', 'ic', 'a_ic', 'pv', 'a_snaps', 'sobol'))
-
-        # put ic and loss data of this step to device, could be asynchronous
-        data_step = jax.device_put((pv_ic, tgts))
+        sidx, a_ic, a_snaps, sobol = (data[k] for k in
+                                        ('sidx', 'a_ic', 'a_snaps', 'sobol'))
+        ic, tgts = data['ic'], data['tgts']
 
         # setup and training for one step
         # notice that the final output times of Gadget4 are not exactly the same
@@ -82,7 +76,7 @@ def train_epoch(procid, epoch, data_loader, model_conf,
         # use the final output times from Gadget4 snapshot data
         model_conf.update({'a_snaps': a_snaps, 'a_ic': a_ic, 'sobol': sobol})
         so_params, loss, opt_state = train_step(
-            data_step, so_params, model_conf, opt_conf, opt_state, loss_conf)
+            ic, tgts, so_params, model_conf, opt_conf, opt_state, loss_conf)
         loss_epoch += loss
 
         if procid == 0:
@@ -99,8 +93,9 @@ def train_epoch(procid, epoch, data_loader, model_conf,
     return loss_epoch, so_params, opt_state
 
 
-def evaluate_loss_epoch(procid, epoch, data_loader, model_conf, so_params, loss_conf,
-               verbose, writer):
+def evaluate_loss_epoch(procid, epoch, data_loader, model_conf,
+                        so_params, loss_conf,
+                        verbose, writer):
     """Simply evaluate the loss w/o grad."""
     loss_epoch = 0.
     epoch_size = len(data_loader)
@@ -109,14 +104,12 @@ def evaluate_loss_epoch(procid, epoch, data_loader, model_conf, so_params, loss_
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
-        sidx, pv_ic, a_ic, tgts, a_snaps, sobol = (data[k] for k in
-                               ('sidx', 'ic', 'a_ic', 'pv', 'a_snaps', 'sobol'))
-
-        # put ic and loss data of this step to device, could be asynchronous
-        pv_ic, tgts = jax.device_put((pv_ic, tgts))
+        sidx, a_ic, a_snaps, sobol = (data[k] for k in
+                                        ('sidx', 'a_ic', 'a_snaps', 'sobol'))
+        ic, tgts = data['ic'], data['tgts']
 
         model_conf.update({'a_snaps': a_snaps, 'a_ic': a_ic, 'sobol': sobol})
-        ptcl, cosmo, conf = setup_model(pv_ic, model_conf)
+        ptcl, cosmo, conf = setup_model(ic, model_conf)
         loss = obj(tgts, ptcl, so_params, cosmo, conf, loss_conf)
         loss = tree_global_mean(loss)
         loss_epoch += loss
