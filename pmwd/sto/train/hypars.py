@@ -12,8 +12,8 @@ n_epochs = 1000
 data_conf = {
     'data_dir': '/mnt/home/llu/ceph/sto/g4run/gs512',
     'sobol_file': '/mnt/home/llu/ceph/sto/pmwd/sto/g4gen/sobol.txt',
-    'sobol_ids_global': np.arange(0, 512),
-    'snap_ids': np.arange(0, 121, 2),
+    'sobol_ids_global': np.arange(0, 8),
+    'snap_ids': np.arange(0, 121, 4),
     'shuffle': True,  # shuffle the order of sobols across epochs
 }
 
@@ -30,7 +30,7 @@ opt_conf = {
     'learning_rate': 1e-5,
 }
 # customize batch size with grad accumulation
-batch_size = 32
+batch_size = 8
 n_procs = os.getenv('SLURM_NTASKS') # total num devices, i.e. sims per step
 if n_procs:
     n_procs = int(n_procs)
