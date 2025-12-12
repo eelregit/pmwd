@@ -61,7 +61,6 @@ def sotheta(cosmo, conf, a):
         dlnD2 - 2,  # dlnG2 / dlna
         Omega_m_a(a, cosmo),
         H_deriv(a, cosmo),
-        conf.a_nbody_step / a,  # time step size dlna ~ da/a
     ], dtype=conf.float_dtype)
 
     return (theta_l, theta_o)
@@ -107,7 +106,7 @@ def soft_names(net):
             for v in theta_l:
                 theta_l_k.append(f'k_{n}{v}')
 
-    theta_o = ['G1', 'G2', 'dlnG1', 'dlnG2', 'Omega_m_a', 'dlnH', 'Dlna']
+    theta_o = ['G1', 'G2', 'dlnG1', 'dlnG2', 'Omega_m_a', 'dlnH']
 
     return theta_l_k + theta_o
 
@@ -127,7 +126,7 @@ def soft_names_tex(net):
                 theta_l_k.append(f'k_{n} {v}')
 
     theta_o = ['G_1', 'G_2', 'G_1\'', 'G_2\'', '\\Omega_m(a)',
-               '\\ln H\'', '\\Delta\\ln a']
+               '\\ln H\'']
 
     return theta_l_k + theta_o
 
