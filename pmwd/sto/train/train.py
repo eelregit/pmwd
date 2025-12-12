@@ -35,8 +35,7 @@ def setup_model(ic, model_conf):
     return ptcl, cosmo, conf
 
 
-def train_step(data_step, so_params, model_conf, opt_conf, opt_state, loss_conf):
-    ic, tgts = data_step
+def train_step(ic, tgts, so_params, model_conf, opt_conf, opt_state, loss_conf):
 
     # setup input for model
     ptcl, cosmo, conf = setup_model(ic, model_conf)
