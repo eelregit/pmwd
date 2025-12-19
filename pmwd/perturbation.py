@@ -1,3 +1,5 @@
+import math
+
 from jax import jit, custom_vjp, ensure_compile_time_eval
 import jax.numpy as jnp
 
@@ -171,10 +173,9 @@ def growth_cache(cosmo):
     TODO: ODE math
 
     """
-    with ensure_compile_time_eval():  # FIXME math.cbrt for python >= 3.11
-        eps = jnp.finfo(cosmo.dtype).eps
-        a_ic = 0.5 * jnp.cbrt(eps).item()  # ~ 3e-6 for float64, 2e-3 for float32
-        a_ic = min(a_ic, 0.5 * 10**cosmo.growth_lga_min)
+    eps = jnp.finfo(cosmo.dtype).eps
+    a_ic = 0.5 * math.cbrt(eps)  # ~ 3e-6 for float64, 2e-3 for float32
+    a_ic = min(a_ic, 0.5 * 10**cosmo.growth_lga_min)
 
     a = cosmo.growth_a
     lna = jnp.log(a.at[0].set(a_ic))
