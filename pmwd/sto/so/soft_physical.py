@@ -95,7 +95,7 @@ def soft_names(net):
     # currently hardcoded, should be updated along with functions above
     theta_l = ['R_P', 'R_TH', 'R_G', 'R_d',
                'dR_P', 'dR_TH', 'dR_G', 'dR_d']
-    theta_l += ['l_p', 'l_c', 'l_s']
+    theta_l += ['l_p', 'l_s']
     theta_l_k = []
     if net == 'f':
         for v in theta_l:
@@ -114,7 +114,7 @@ def soft_names_tex(net):
     # soft_names in latex math expressions
     theta_l = ['R_P', 'R_{\\rm TH}', 'R_{\\rm G}', 'R_d',
                'R_P\'', 'R_{\\rm TH}\'', 'R_{\\rm G}\'', 'R_d\'']
-    theta_l += ['l_p', 'l_c', 'l_s']
+    theta_l += ['l_p', 'l_s']
     theta_l_k = []
     if net == 'f':
         for v in theta_l:

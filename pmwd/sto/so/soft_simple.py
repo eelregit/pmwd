@@ -65,7 +65,7 @@ def soft_kv(kv, theta):
 def soft_names(net):
     # str names of input features of the SO neural nets
     # currently hardcoded, should be updated along with functions above
-    theta_l = ['l_p', 'l_c', 'R_TH', 'l_s']
+    theta_l = ['l_p', 'R_TH', 'l_s']
     theta_l_k = []
     if net == 'f':
         for v in theta_l:
@@ -82,7 +82,7 @@ def soft_names(net):
 
 def soft_names_tex(net):
     # soft_names in latex math expressions
-    theta_l = ['l_p', 'l_c', 'R_{\\rm TH}', 'l_s']
+    theta_l = ['l_p', 'R_{\\rm TH}', 'l_s']
     theta_l_k = []
     if net == 'f':
         for v in theta_l:
