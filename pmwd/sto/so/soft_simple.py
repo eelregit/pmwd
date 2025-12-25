@@ -19,7 +19,6 @@ def sotheta(cosmo, conf, a):
     # quantities to be multiplied with k
     theta_l = jnp.array([
         conf.ptcl_spacing,
-        conf.cell_size,
         R_TH,
         conf.softening_length,
     ], dtype=conf.float_dtype)
