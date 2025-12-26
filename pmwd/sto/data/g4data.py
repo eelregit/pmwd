@@ -80,8 +80,11 @@ class G4Dataset(Dataset):
 
     def __getitem__(self, idx):
         sidx = self.sobol_ids[idx]  # get sobol index
-        data = self.gsdata[sidx]
 
+        # fetch a sobol data sample
+        # the shallow copy below avoids the overwrite of the original
+        # CPU numpy array with JAX GPU Array after the device_put
+        data = self.gsdata[sidx].copy()
         data['ic'] = jax.device_put(data['ic'])
         data['tgts'] = jax.device_put(data['tgts'])
 
