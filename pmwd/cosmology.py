@@ -2,6 +2,7 @@ from dataclasses import field
 from functools import partial
 from operator import add, sub
 from typing import ClassVar, Optional
+import math
 
 from jax import Array, value_and_grad
 from jax.typing import ArrayLike
@@ -75,12 +76,14 @@ class Cosmology:
 
     varlin_g: Optional[Array] = field(default=None, compare=False)
 
-    # observables
-    a_snapshots: Optional[ArrayLike] = None
+    a_lpt_maxstep: float = 1/128
 
     # N-body time integration
     a_start: float = 1/64
     a_stop: float = 1
+
+    # observables
+    a_snapshots: Optional[ArrayLike] = None
 
     # SO related
     # list of parameters of SO neural nets
@@ -177,6 +180,16 @@ class Cosmology:
         return self.conf.rho_crit * self.Omega_m * self.conf.ptcl_cell_vol
 
     @property
+    def a_lpt_num(self):
+        """Number of LPT light cone scale factor steps, excluding ``a_start``."""
+        return math.ceil(self.a_start / self.a_lpt_maxstep)
+
+    @property
+    def a_lpt_step(self):
+        """LPT light cone scale factor step size."""
+        return self.a_start / self.a_lpt_num
+
+    @property
     def a_nbody(self):
         """N-body time integration scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
         return jnp.linspace(self.a_start, self.a_stop, num=1+self.conf.a_nbody_num,
@@ -186,6 +199,17 @@ class Cosmology:
     def a_nbody_step(self):
         """N-body time integration scale factor step size."""
         return (self.a_stop - self.a_start) / self.conf.a_nbody_num
+
+    @property
+    def a_lpt(self):
+        """LPT light cone scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
+        return jnp.linspace(0, self.a_start, num=self.a_lpt_num+1,
+                            dtype=self.conf.cosmo_dtype)
+
+    @property
+    def growth_a(self):
+        """Growth function scale factors, for both LPT and N-body, of ``cosmo_dtype``."""
+        return jnp.concatenate((self.a_lpt, self.a_nbody[1:]))
 
 
 SimpleLCDM = partial(
