@@ -35,7 +35,7 @@ def gen_g4files(sim_dir, sidx, fn_sobol='sobol.txt',
         conf, cosmo = gen_cc(sobol, float_dtype=jnp.float64)
         # the seed for ic is simply the sobol index
         ptcl = gen_ic(sidx, conf, cosmo)
-    write_gadget_hdf5(os.path.join(sim_dir, 'ic'), cosmo.a_start, ptcl, cosmo, conf)
+    write_gadget_hdf5(os.path.join(sim_dir, 'ic'), conf.a_start, ptcl, cosmo, conf)
 
     with (open(tpl_config, 'r') as f,
           open(os.path.join(sim_dir, 'Config.sh'), 'w') as fo):
@@ -46,7 +46,7 @@ def gen_g4files(sim_dir, sidx, fn_sobol='sobol.txt',
           open(os.path.join(sim_dir, 'param.txt'), 'w') as fo):
         param = f.read()
         param = param.format(
-            a_start=cosmo.a_start,
+            a_start=conf.a_start,
             a_stop=1 + sobol[1],
             box_size=conf.box_size[0],
             M_g=conf.M * 1e3,

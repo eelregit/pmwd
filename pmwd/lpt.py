@@ -184,7 +184,7 @@ def lpt(modes, cosmo, conf):
     if conf.lpt_order > 2:
         raise NotImplementedError('TODO')
 
-    a = cosmo.a_start
+    a = conf.a_start
     ptcl = Particles.gen_grid(conf, vel=True)
 
     for order in range(1, 1+conf.lpt_order):

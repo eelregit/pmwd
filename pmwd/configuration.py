@@ -80,9 +80,10 @@ class Configuration:
     a_lpt_maxstep : float, optional
         Maximum LPT light cone scale factor step size. It determines the number of steps
         ``a_lpt_num``, the actual step size ``a_lpt_step``, and the steps ``a_lpt``.
-    a_nbody_num : int, optional
-        Number of N-body time integration steps. It determines the steps a_nbody
-        together with ``a_start`` and ``a_stop``.
+    a_nbody_maxstep : float, optional
+        Maximum N-body time integration scale factor step size. It determines the number
+        of steps ``a_nbody_num``, the actual step size ``a_nbody_step``, and the steps
+        ``a_nbody``.
     symp_splits : tuple of float 2-tuples, optional
         Symplectic splitting method composition, with each 2-tuples being drift and then
         kick coefficients. Its adjoint has the same splits in reverse nested orders,
@@ -309,9 +310,20 @@ class Configuration:
         return self.a_start / self.a_lpt_num
 
     @property
+    def a_nbody_step(self):
+        """N-body time integration scale factor step size."""
+        return (self.a_stop - self.a_start) / self.a_nbody_num
+
+    @property
     def a_lpt(self):
         """LPT light cone scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
         return jnp.linspace(0, self.a_start, num=self.a_lpt_num+1,
+                            dtype=self.cosmo_dtype)
+
+    @property
+    def a_nbody(self):
+        """N-body time integration scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
+        return jnp.linspace(self.a_start, self.a_stop, num=1+self.a_nbody_num,
                             dtype=self.cosmo_dtype)
 
     @property
