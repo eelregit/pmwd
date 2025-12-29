@@ -116,12 +116,13 @@ class PrefetchToDevice:
     """
     Iterator that prefetches data from a Grain loader and pushes it to the GPU.
     """
-    def __init__(self, iterator, size=2):
+    def __init__(self, iterator, size=2, length=None):
         self.iterator = iterator
         self.size = size
+        self.length = length
 
     def __len__(self):
-        return len(self.iterator)
+        return self.length
 
     def __iter__(self):
         iterator = iter(self.iterator)

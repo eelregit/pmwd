@@ -68,7 +68,7 @@ def setup_train(data_conf):
              f' takes {(toc - tic)/60:.1f} mins', procid, flush=True)
 
     # wrap with GPU prefetcher
-    data_loader = PrefetchToDevice(data_loader, size=2)
+    data_loader = PrefetchToDevice(data_loader, size=2, length=len(sobol_ids))
 
     return data_loader, data_conf
 
