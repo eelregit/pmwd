@@ -1,18 +1,16 @@
 from jax import jit, checkpoint
 import jax.numpy as jnp
 from jax.lax import scan
-from functools import partial
 
-from pmwd.particles import Particles, ptcl_rpos
+from pmwd.particles import Particles
 from pmwd.spec_util import powspec
-from pmwd.sto.utils import scatter_dens
+from pmwd.scatter import scatter
 
 
 def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_conf):
     # get the density fields
-    (dens, dens_t), _ = scatter_dens((ptcl, ptcl_t), conf,
-                                     loss_conf['loss_mesh_shape'],
-                                     offset=loss_conf['grid_offset'])
+    dens = scatter(ptcl, conf, offset=loss_conf['grid_offset'])
+    dens_t = scatter(ptcl_t, conf, offset=loss_conf['grid_offset'])
 
     # loss on power spec
     k, P_d, _, _ = powspec(dens - dens_t, 1.)
