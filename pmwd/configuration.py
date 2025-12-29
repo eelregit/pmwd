@@ -73,6 +73,10 @@ class Configuration:
         respectively.
     lpt_order : int, optional
         LPT order, with 1 for Zel'dovich approximation, 2 for 2LPT, and 3 for 3LPT.
+    a_start : float, optional
+        LPT scale factor and N-body starting time.
+    a_stop : float, optional
+        N-body stopping time (scale factor).
     a_lpt_maxstep : float, optional
         Maximum LPT light cone scale factor step size. It determines the number of steps
         ``a_lpt_num``, the actual step size ``a_lpt_step``, and the steps ``a_lpt``.
@@ -131,6 +135,9 @@ class Configuration:
 
     lpt_order: int = 2
 
+    a_start: float = 1/64
+    a_stop: float = 1
+    a_lpt_maxstep: float = 1/128
     a_nbody_num: int = 63
 
     symp_splits: Tuple[Tuple[float, float], ...] = ((0, 0.5), (1, 0.5))
@@ -290,6 +297,27 @@ class Configuration:
         k = jnp.logspace(self.transfer_lgk_min, self.transfer_lgk_max,
                          num=self.transfer_k_num - 1, dtype=self.cosmo_dtype)
         return jnp.concatenate((jnp.array([0]), k))
+
+    @property
+    def a_lpt_num(self):
+        """Number of LPT light cone scale factor steps, excluding ``a_start``."""
+        return math.ceil(self.a_start / self.a_lpt_maxstep)
+
+    @property
+    def a_lpt_step(self):
+        """LPT light cone scale factor step size."""
+        return self.a_start / self.a_lpt_num
+
+    @property
+    def a_lpt(self):
+        """LPT light cone scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
+        return jnp.linspace(0, self.a_start, num=self.a_lpt_num+1,
+                            dtype=self.cosmo_dtype)
+
+    @property
+    def growth_a(self):
+        """Growth function scale factors, for both LPT and N-body, of ``cosmo_dtype``."""
+        return jnp.concatenate((self.a_lpt, self.a_nbody[1:]))
 
     @property
     def varlin_R(self):
