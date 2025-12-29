@@ -35,10 +35,7 @@ def setup_model(ic, model_conf):
     return ptcl, cosmo, conf
 
 
-def train_step(ic, tgts, so_params, model_conf, opt_conf, opt_state, loss_conf):
-
-    # setup input for model
-    ptcl, cosmo, conf = setup_model(ic, model_conf)
+def train_step(tgts, ptcl, cosmo, conf, so_params, opt_state, opt_conf, loss_conf):
 
     # get loss and grad
     obj_valgrad = jax.value_and_grad(obj, argnums=2)
@@ -51,7 +48,7 @@ def train_step(ic, tgts, so_params, model_conf, opt_conf, opt_state, loss_conf):
     updates, opt_state = opt_conf['optimizer'].update(grad, opt_state, so_params)
     so_params = optax.apply_updates(so_params, updates)
 
-    return so_params, loss, opt_state
+    return so_params, opt_state, loss
 
 
 def train_epoch(procid, epoch, data_loader, model_conf,
@@ -64,27 +61,30 @@ def train_epoch(procid, epoch, data_loader, model_conf,
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
+        # data for this step
         sidx, a_ic, a_snaps, sobol = (data[k] for k in
                                         ('sidx', 'a_ic', 'a_snaps', 'sobol'))
         ic, tgts = data['ic'], data['tgts']
 
-        # setup and training for one step
-        # notice that the final output times of Gadget4 are not exactly the same
-        # as the desired times as specified in outtimes.txt, therefore here we
-        # use the final output times from Gadget4 snapshot data
+        # setup model for this step
         model_conf.update({'a_snaps': a_snaps, 'a_ic': a_ic, 'sobol': sobol})
-        so_params, loss, opt_state = train_step(
-            ic, tgts, so_params, model_conf, opt_conf, opt_state, loss_conf)
-        loss_epoch += loss
+        ptcl, cosmo, conf = setup_model(ic, model_conf)
 
+        # train for this step
+        so_params, opt_state, loss = train_step(
+            tgts, ptcl, cosmo, conf, so_params, opt_state, opt_conf, loss_conf)
+
+        # print and record step loss
         if procid == 0:
             global_step = epoch * epoch_size + step
-            writer.add_scalar('loss', np.array(loss), global_step)
+            loss = np.array(loss)  # move loss back to CPU memory
+            writer.add_scalar('loss', loss, global_step)
             if verbose:
                 toc = time.perf_counter()
                 print((f'{toc - tic:.0f} s, {step:>2d}, {sidx:>3d}, ' +
                        f'{loss:12.3e}'), flush=True)
 
+        loss_epoch += loss
 
     loss_epoch = loss_epoch / epoch_size  # mean loss per step of epoch
 
@@ -102,23 +102,30 @@ def evaluate_loss_epoch(procid, epoch, data_loader, model_conf,
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
+        # data for this step
         sidx, a_ic, a_snaps, sobol = (data[k] for k in
                                         ('sidx', 'a_ic', 'a_snaps', 'sobol'))
         ic, tgts = data['ic'], data['tgts']
 
+        # setup model for this step
         model_conf.update({'a_snaps': a_snaps, 'a_ic': a_ic, 'sobol': sobol})
         ptcl, cosmo, conf = setup_model(ic, model_conf)
+
+        # evaluate loss for this step
         loss = obj(tgts, ptcl, so_params, cosmo, conf, loss_conf)
         loss = tree_global_mean(loss)
-        loss_epoch += loss
 
+        # print and record step loss
         if procid == 0:
             global_step = epoch * epoch_size + step
-            writer.add_scalar('loss', np.array(loss), global_step)
+            loss = np.array(loss)  # move loss back to CPU memory
+            writer.add_scalar('loss', loss, global_step)
             if verbose:
                 toc = time.perf_counter()
                 print((f'{toc - tic:.0f} s, {step:>2d}, {sidx:>3d}, ' +
                        f'{loss:12.3e}'), flush=True)
+
+        loss_epoch += loss
 
     loss_epoch = loss_epoch / epoch_size  # mean loss per step of epoch
 
