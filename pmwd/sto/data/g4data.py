@@ -120,6 +120,9 @@ class PrefetchToDevice:
         self.iterator = iterator
         self.size = size
 
+    def __len__(self):
+        return len(self.iterator)
+
     def __iter__(self):
         iterator = iter(self.iterator)
         queue = collections.deque()
