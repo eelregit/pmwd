@@ -20,7 +20,7 @@ def sotheta(cosmo, conf, a):
     theta_l = jnp.array([
         conf.ptcl_spacing,
         R_TH,
-        conf.softening_length,
+        cosmo.softening_length,
     ], dtype=conf.float_dtype)
 
     # other quantities

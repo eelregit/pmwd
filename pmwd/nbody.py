@@ -168,7 +168,7 @@ def integrate_adj(a_prev, a_next, ptcl, ptcl_cot, cosmo, cosmo_cot, conf):
 def nbody_init(a, ptcl, obsvbl, cosmo, conf):
     ptcl = force(a, ptcl, cosmo, conf)
 
-    obsvbl = init_obsvbl(ptcl, conf)
+    obsvbl = init_obsvbl(ptcl, cosmo, conf)
     obsvbl = observe(a, ptcl, obsvbl, cosmo, conf)
 
     return ptcl, obsvbl

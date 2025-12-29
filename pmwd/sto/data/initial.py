@@ -25,11 +25,10 @@ def gen_cc(sobol,
         a_stop = a_stop,
         float_dtype = float_dtype,
         mesh_shape = mesh_shape,
-        a_snapshots = a_snapshots,
+        observe_snapshots = True,
         a_nbody_num = a_nbody_num,
         so_type = so_type,
         so_nodes = so_nodes,
-        softening_length = float(sobol[8]),  # np.array -> float
     )
 
     cosmo = Cosmology(
@@ -40,6 +39,8 @@ def gen_cc(sobol,
         Omega_b = sobol[5],
         Omega_k_ = sobol[6],
         h = sobol[7],
+        a_snapshots = a_snapshots,
+        softening_length = sobol[8],
     )
     if cal_boltz:
         cosmo = boltzmann(cosmo, conf)

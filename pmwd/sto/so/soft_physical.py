@@ -45,7 +45,7 @@ def sotheta(cosmo, conf, a):
     theta_l = jnp.array([
         *nonlinear_scales(cosmo, conf, a),
         conf.ptcl_spacing,
-        conf.softening_length,
+        cosmo.softening_length,
     ], dtype=conf.float_dtype)
 
     # dimensionless quantities

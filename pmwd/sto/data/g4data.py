@@ -20,7 +20,7 @@ def read_g4sim(sims_dir, sidx, snap_ids, fn_sobol, float_dtype=np.float32):
         # notice that the final output times of Gadget4 are not exactly the same
         # as the desired times as specified in the input outtimes.txt file,
         # therefore here we read the true output times from the output snapshots
-        a_snaps = tuple(f['a'][snap_ids])
+        a_snaps = f['a'][snap_ids]
         pos = f['pos'][snap_ids]
         # not using vel in loss now, scalar placeholder for saving mem
         vel = np.full(len(snap_ids), 0., dtype=float_dtype)

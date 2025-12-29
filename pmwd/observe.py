@@ -12,24 +12,24 @@ def _isclose(a1, a2, rtol=0, atol=1e-6):
     return jnp.isclose(a1, a2, rtol=rtol, atol=atol)
 
 
-def init_obsvbl(ptcl, conf):
+def init_obsvbl(ptcl, cosmo, conf):
     # a dict to carry all observables and related useful information
     obsvbl = {}
 
-    if conf.a_snapshots is not None:
-        obsvbl['a_snaps'] = jnp.array(conf.a_snapshots)
-        # all output snapshots, at times given by conf.a_snapshots
+    if conf.observe_snapshots:
+        obsvbl['a_snaps'] = cosmo.a_snapshots
+        # all output snapshots, at times given by cosmo.a_snapshots
         obsvbl['snaps'] = [Particles(ptcl.conf,
                                      ptcl.pmid,
                                      jnp.zeros_like(ptcl.disp),
                                      vel=jnp.zeros_like(ptcl.vel))
-                           ] * len(conf.a_snapshots)
+                           ] * len(cosmo.a_snapshots)
         # transposed pytree with leading axis for scan
         obsvbl['snaps'] = tree_map(lambda *xs: jnp.stack(xs), *obsvbl['snaps'])
 
         # the nbody (a_prev, a_next] step for each interpolated snapshot
         # used in observe to determine the time for interpolation
-        idx = jnp.searchsorted(conf.a_nbody, jnp.array(conf.a_snapshots), side='left')
+        idx = jnp.searchsorted(conf.a_nbody, cosmo.a_snapshots, side='left')
         obsvbl['itp_a_step'] = jnp.array((conf.a_nbody[idx-1], conf.a_nbody[idx])).T
 
     return obsvbl
@@ -56,8 +56,8 @@ def observe(a, ptcl, obsvbl, cosmo, conf):
 
         return obsvbl, None
 
-    if conf.a_snapshots is not None:
-        obsvbl, _ = scan(obs_interp, obsvbl, (jnp.arange(len(conf.a_snapshots)),
+    if conf.observe_snapshots:
+        obsvbl, _ = scan(obs_interp, obsvbl, (jnp.arange(len(cosmo.a_snapshots)),
                                               obsvbl['a_snaps'], obsvbl['itp_a_step']))
 
     return obsvbl

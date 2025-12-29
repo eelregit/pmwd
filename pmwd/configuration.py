@@ -146,7 +146,7 @@ class Configuration:
     chunk_size: int = 2**24
 
     # observables
-    a_snapshots: Optional[Tuple[float]] = None
+    observe_snapshots: bool = False
 
     # SO related
     # type of SO method
@@ -156,7 +156,6 @@ class Configuration:
     so_type: Optional[str] = None
     # list of the number of nodes (no input layer) of so nn
     so_nodes: Optional[list] = None
-    softening_length: Optional[float] = None
 
     def __post_init__(self):
         if self._is_transforming():

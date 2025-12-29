@@ -75,8 +75,13 @@ class Cosmology:
 
     varlin_g: Optional[Array] = field(default=None, compare=False)
 
+    # observables
+    a_snapshots: Optional[ArrayLike] = None
+
+    # SO related
     # list of parameters of SO neural nets
     so_params: Optional[list[FrozenDict]] = None
+    softening_length: Optional[float] = None
 
     def __post_init__(self):
         if self._is_transforming():
