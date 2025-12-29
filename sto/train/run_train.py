@@ -19,13 +19,11 @@ import jax
 jax.distributed.initialize(local_device_ids=[0])
 
 import numpy as np
-import torch
 from torch.utils.tensorboard import SummaryWriter
-from torch.utils.data import DataLoader
 import time
 import pickle
 
-from pmwd.sto.data.g4data import G4Dataset
+from pmwd.sto.data.g4data import create_g4data_loader, PrefetchToDevice
 from pmwd.sto.train.train import train_epoch, evaluate_loss_epoch
 from pmwd.sto.train.utils import procinfo, device_sync
 
@@ -59,18 +57,18 @@ def setup_train(data_conf):
     procinfo(f'loading gadget-4 data, {len(sobol_ids)} sobol ids: {sobol_ids}',
              procid, flush=True)
     tic = time.perf_counter()
-    torch.manual_seed(42+procid)
-    g4dataset = G4Dataset(data_conf['data_dir'], sobol_ids, data_conf['snap_ids'],
-                          data_conf['sobol_file'])
-    data_loader = DataLoader(g4dataset, shuffle=data_conf['shuffle'],
-                             collate_fn=lambda x: x[0],
-                             num_workers=0)
+    data_loader = create_g4data_loader(data_conf['data_dir'],
+                                       sobol_ids,
+                                       data_conf['snap_ids'],
+                                       data_conf['sobol_file'],
+                                       seed=42+procid)
     toc = time.perf_counter()
     procinfo(f'loading {len(sobol_ids)} sobols' +
              f' each with {len(data_conf['snap_ids'])} snapshots' +
              f' takes {(toc - tic)/60:.1f} mins', procid, flush=True)
-    # conflict with JAX when num_workers > 0, see
-    # https://github.com/jax-ml/jax/issues/9190
+
+    # wrap with GPU prefetcher
+    data_loader = PrefetchToDevice(data_loader, size=2)
 
     return data_loader, data_conf
 

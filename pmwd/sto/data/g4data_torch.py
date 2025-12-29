@@ -3,8 +3,7 @@ import h5py
 import numpy as np
 import jax
 import jax.numpy as jnp
-import grain.python as grain
-import collections
+from torch.utils.data import Dataset
 
 from pmwd.sto.data.sample import scale_Sobol
 
@@ -69,7 +68,8 @@ def read_gsdata(sims_dir, sobol_ids, snap_ids, fn_sobol, float_dtype=np.float32)
     return gsdata
 
 
-class G4DataSource(grain.RandomAccessDataSource):
+class G4Dataset(Dataset):
+
     def __init__(self, sims_dir, sobol_ids, snap_ids, fn_sobol):
         self.sims_dir = sims_dir
         self.sobol_ids = sobol_ids
@@ -86,59 +86,10 @@ class G4DataSource(grain.RandomAccessDataSource):
         sidx = self.sobol_ids[idx]  # get sobol index
 
         # fetch a sobol data sample
-        # NOTE: We do NOT call jax.device_put here.
-        # Grain workers run in separate processes (multiprocessing).
-        # Sending GPU arrays across processes is inefficient/error-prone.
-        # We return CPU numpy arrays.
-        data = self.gsdata[sidx]
+        # the shallow copy below avoids the overwrite of the original
+        # CPU numpy array with JAX GPU Array after the device_put
+        data = self.gsdata[sidx].copy()
+        data['ic'] = jax.device_put(data['ic'])
+        data['tgts'] = jax.device_put(data['tgts'])
 
         return data
-
-
-def create_g4data_loader(sims_dir, sobol_ids, snap_ids, fn_sobol, seed=42):
-    source = G4DataSource(sims_dir, sobol_ids, snap_ids, fn_sobol)
-
-    sampler = grain.IndexSampler(
-        num_records=len(source),
-        shuffle=True,
-        seed=seed,
-    )
-
-    loader = grain.DataLoader(
-        data_source=source,
-        sampler=sampler,
-    )
-
-    return loader
-
-
-class PrefetchToDevice:
-    """
-    Iterator that prefetches data from a Grain loader and pushes it to the GPU.
-    """
-    def __init__(self, iterator, size=2):
-        self.iterator = iterator
-        self.size = size
-
-    def __iter__(self):
-        iterator = iter(self.iterator)
-        queue = collections.deque()
-
-        def _push(item):
-            # Async transfer to GPU
-            return jax.device_put(item)
-
-        # Prefill the queue
-        for _ in range(self.size):
-            try:
-                queue.append(_push(next(iterator)))
-            except StopIteration:
-                break
-
-        # Yield and replenish
-        while queue:
-            yield queue.popleft()
-            try:
-                queue.append(_push(next(iterator)))
-            except StopIteration:
-                pass
