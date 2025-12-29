@@ -1,6 +1,7 @@
 from functools import partial
 
 from jax import value_and_grad, jit, vjp, custom_vjp
+from jax.lax import scan
 import jax.numpy as jnp
 from jax.tree_util import tree_map
 
@@ -186,11 +187,19 @@ def nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf):
 @partial(custom_vjp, nondiff_argnums=(4,))
 def nbody(ptcl, obsvbl, cosmo, conf, reverse=False):
     """N-body time integration."""
-    a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
+    a_nbody = cosmo.a_nbody[::-1] if reverse else cosmo.a_nbody
 
     ptcl, obsvbl = nbody_init(a_nbody[0], ptcl, obsvbl, cosmo, conf)
-    for a_prev, a_next in zip(a_nbody[:-1], a_nbody[1:]):
+
+    def _nbody_step(carry, a_step):
+        ptcl, obsvbl = carry
+        a_prev, a_next = a_step
         ptcl, obsvbl = nbody_step(a_prev, a_next, ptcl, obsvbl, cosmo, conf)
+        return (ptcl, obsvbl), None
+
+    a_steps = jnp.stack([a_nbody[:-1], a_nbody[1:]], axis=1)
+    ptcl, obsvbl = scan(_nbody_step, (ptcl, obsvbl), a_steps)
+
     return ptcl, obsvbl
 
 
@@ -219,14 +228,20 @@ def nbody_adj_step(a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot,
 
 def nbody_adj(ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, conf, reverse=False):
     """N-body time integration with adjoint equation."""
-    a_nbody = conf.a_nbody[::-1] if reverse else conf.a_nbody
+    a_nbody = cosmo.a_nbody[::-1] if reverse else cosmo.a_nbody
 
     ptcl, ptcl_cot, cosmo_cot = nbody_adj_init(
         a_nbody[-1], ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, conf)
 
-    for a_prev, a_next in zip(a_nbody[:0:-1], a_nbody[-2::-1]):
-        ptcl, ptcl_cot, cosmo_cot= nbody_adj_step(
+    def _nbody_adj_step(carry, a_step):
+        ptcl, ptcl_cot, cosmo_cot = carry
+        a_prev, a_next = a_step
+        ptcl, ptcl_cot, cosmo_cot = nbody_adj_step(
             a_prev, a_next, ptcl, ptcl_cot, obsvbl, obsvbl_cot, cosmo, cosmo_cot, conf)
+        return (ptcl, ptcl_cot, cosmo_cot), None
+
+    a_steps = jnp.stack([a_nbody[:0:-1], a_nbody[-2::-1]], axis=1)
+    ptcl, ptcl_cot, cosmo_cot = scan(_nbody_adj_step, (ptcl, ptcl_cot, cosmo_cot), a_steps)
 
     return ptcl, ptcl_cot, cosmo_cot
 

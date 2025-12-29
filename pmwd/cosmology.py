@@ -78,6 +78,10 @@ class Cosmology:
     # observables
     a_snapshots: Optional[ArrayLike] = None
 
+    # N-body time integration
+    a_start: float = 1/64
+    a_stop: float = 1
+
     # SO related
     # list of parameters of SO neural nets
     so_params: Optional[list[FrozenDict]] = None
@@ -171,6 +175,17 @@ class Cosmology:
     def ptcl_mass(self):
         """Particle mass in [M]."""
         return self.conf.rho_crit * self.Omega_m * self.conf.ptcl_cell_vol
+
+    @property
+    def a_nbody(self):
+        """N-body time integration scale factor steps, including ``a_start``, of ``cosmo_dtype``."""
+        return jnp.linspace(self.a_start, self.a_stop, num=1+self.conf.a_nbody_num,
+                            dtype=self.conf.cosmo_dtype)
+
+    @property
+    def a_nbody_step(self):
+        """N-body time integration scale factor step size."""
+        return (self.a_stop - self.a_start) / self.conf.a_nbody_num
 
 
 SimpleLCDM = partial(

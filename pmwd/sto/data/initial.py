@@ -21,8 +21,6 @@ def gen_cc(sobol,
     conf = Configuration(
         ptcl_spacing = float(sobol[0] / 128),  # np.array -> float
         ptcl_grid_shape = (128,) * 3,
-        a_start = a_start,
-        a_stop = a_stop,
         float_dtype = float_dtype,
         mesh_shape = mesh_shape,
         observe_snapshots = True,
@@ -39,6 +37,8 @@ def gen_cc(sobol,
         Omega_b = sobol[5],
         Omega_k_ = sobol[6],
         h = sobol[7],
+        a_start = a_start,
+        a_stop = a_stop,
         a_snapshots = a_snapshots,
         softening_length = sobol[8],
     )
