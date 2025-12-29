@@ -21,26 +21,10 @@ jax.distributed.initialize(local_device_ids=[0])
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 import time
-import pickle
 
 from pmwd.sto.data.g4data import create_g4data_loader, PrefetchToDevice
-from pmwd.sto.train.train import train_epoch, evaluate_loss_epoch
+from pmwd.sto.train.train import train_epochs, evaluate_loss_epoch
 from pmwd.sto.train.utils import procinfo, device_sync
-
-
-def checkpoint(epoch, so_params, opt_state, lr, log_id=None, verbose=True):
-    """Checkpoint the model parameters and optimizer state."""
-    dic = {'so_params': so_params,
-           'opt_state': opt_state,
-           'lr': lr,}
-    dir = f'params/{slurm_job_id}'
-    if log_id is not None:
-        dir += f'_{log_id}'
-    os.makedirs(dir, exist_ok=True)
-    with open(fn := f'{dir}/e{epoch:0>3d}.pickle', 'wb') as f:
-        pickle.dump(dic, f)
-    if verbose:
-        procinfo(f'epoch {epoch} done, params saved: {fn}', procid, flush=True)
 
 
 def setup_train(data_conf):
@@ -74,7 +58,7 @@ def setup_train(data_conf):
 
 
 def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
-              so_params, opt_state, log_id=None, verbose=True):
+              so_params, opt_state, verbose=True, epoch_start=0):
 
     # sync and setup log file directory
     device_sync(procid, n_procs)
@@ -84,31 +68,17 @@ def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
             print('>>> devices synced, start training <<<')
             print('time, step, sobol, loss', flush=True)
         log_dir = f'runs/{slurm_job_id}'
-        if log_id is not None:
-            log_dir += f'_{log_id}'
         writer = SummaryWriter(log_dir=log_dir)
 
-    # training loop over epochs
-    for epoch in range(0, n_epochs+1):
-
+    if epoch_start == 0:
         # evaluate the loss before training, with init so_params
-        if epoch == 0:
-            loss_epoch = evaluate_loss_epoch(
-                procid, epoch, data_loader, model_conf,
-                so_params, loss_conf,
-                verbose, writer)
-        # training for one epoch
-        else:
-            loss_epoch, so_params, opt_state = train_epoch(
-                procid, epoch, data_loader, model_conf,
-                so_params, opt_conf, opt_state, loss_conf,
-                verbose, writer)
+        evaluate_loss_epoch(procid, data_loader, model_conf,
+                            so_params, loss_conf, verbose, writer)
+        epoch_start += 1
 
-        # checkpoint
-        if procid == 0:
-            print(f'epoch mean loss: {loss_epoch:12.3e}', flush=True)
-            checkpoint(epoch, so_params, opt_state, opt_conf['learning_rate'],
-                       log_id=log_id, verbose=verbose)
+    train_epochs(procid, n_epochs, data_loader, model_conf,
+                 so_params, opt_conf, opt_state, loss_conf,
+                 verbose, writer, epoch_start=epoch_start)
 
     if procid == 0:
         writer.close()
