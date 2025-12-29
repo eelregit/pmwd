@@ -125,8 +125,11 @@ class PrefetchToDevice:
         queue = collections.deque()
 
         def _push(item):
+            item = item.copy()  # shallow copy of dictionary
             # Async transfer to GPU
-            return jax.device_put(item)
+            item['ic'] = jax.device_put(item['ic'])
+            item['tgts'] = jax.device_put(item['tgts'])
+            return item
 
         # Prefill the queue
         for _ in range(self.size):
