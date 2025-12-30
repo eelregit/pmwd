@@ -7,44 +7,30 @@ from pmwd.spec_util import powspec
 from pmwd.scatter import scatter
 
 
-def loss_ptcl_dens(ptcl, ptcl_t, conf, loss_conf):
+def eval_dens_loss(ptcl, ptcl_t, conf, offset, log_eps):
     # get the density fields
-    dens = scatter(ptcl, conf, offset=loss_conf['grid_offset'])
-    dens_t = scatter(ptcl_t, conf, offset=loss_conf['grid_offset'])
+    dens = scatter(ptcl, conf, offset=offset)
+    dens_t = scatter(ptcl_t, conf, offset=offset)
 
     # loss on power spec
     k, P_d, _, _ = powspec(dens - dens_t, 1.)
     k, P_t, _, _ = powspec(dens_t, 1.)
-    loss = jnp.sum(jnp.log(P_d / P_t + loss_conf['log_eps'])) / len(k)
+    loss = jnp.sum(jnp.log(P_d / P_t + log_eps)) / len(k)
 
     return loss
 
 
-def loss_ptcl_disp(ptcl, ptcl_t, conf, loss_conf):
+@jit
+def eval_disp_loss(disp, disp_t, box_size):
     # get the relative disp
-    disp_d = ptcl.disp - ptcl_t.disp
+    disp_d = disp - disp_t
     # wrap to [-L/2, L/2] for the shorter disp
     # in case e.g. disp = L/2 - d (a small number), disp_t = -L/2 + d
     # -> disp_d = L - 2d, which should be wrapped to 2d
-    box_size = jnp.array(conf.box_size, dtype=conf.float_dtype)
     disp_d -= jnp.rint(disp_d / box_size) * box_size
 
     # mse loss
-    loss = jnp.log(jnp.sum(disp_d**2) / jnp.sum(ptcl_t.disp**2))
-
-    return loss
-
-
-def loss_ptcl(snap, snap_t, conf, loss_conf):
-    loss = 0.
-
-    # displacement
-    if 'disp' in loss_conf['loss_fields']:
-        loss += loss_ptcl_disp(snap, snap_t, conf, loss_conf)
-
-    # density field
-    if 'dens' in loss_conf['loss_fields']:
-        loss += loss_ptcl_dens(snap, snap_t, conf, loss_conf)
+    loss = jnp.log(jnp.sum(disp_d**2) / jnp.sum(disp_t**2))
 
     return loss
 
@@ -54,21 +40,31 @@ def loss_func(obsvbl, tgts, conf, loss_conf):
     loss = 0.
     n_snaps = len(tgts[0])
 
-    # @checkpoint  # checkpoint for saving memory in backward AD
-    def _loss_snap(carry, x):
-        loss = carry
-        tgt, snap = x
+    if 'disp' in loss_conf['loss_fields']:
+        box_size = jnp.array(conf.box_size, dtype=conf.float_dtype)
+        disp = obsvbl['snaps'].disp
+        disp_t = tgts[0].astype(conf.float_dtype)
+        loss += eval_disp_loss(disp, disp_t, box_size)
 
-        # make target ptcl from pos and vel
-        snap_t = Particles(conf, snap.pmid, tgt[0].astype(conf.float_dtype),
-                           vel=tgt[1].astype(conf.float_dtype))
+    if 'dens' in loss_conf['loss_fields']:
 
-        # accumulate loss of this snapshot
-        loss += loss_ptcl(snap, snap_t, conf, loss_conf)
-        return loss, None
+        offset = loss_conf['grid_offset']
+        log_eps = loss_conf['log_eps']
 
-    # scan over snapshots to accumulate loss
-    loss, _ = scan(_loss_snap, loss, (tgts, obsvbl['snaps']))
+        def _snap_dens_loss(carry, x):
+            loss = carry
+            tgt, snap = x
+
+            # make target ptcl from pos and vel
+            snap_t = Particles(conf, snap.pmid, tgt[0].astype(conf.float_dtype),
+                               vel=tgt[1].astype(conf.float_dtype))
+
+            # accumulate loss of this snapshot
+            loss += eval_dens_loss(snap, snap_t, conf, offset, log_eps)
+            return loss, None
+
+        # scan over snapshots to accumulate loss
+        loss, _ = scan(_snap_dens_loss, loss, (tgts, obsvbl['snaps']))
 
     # mean loss per snapshot
     loss /= n_snaps
