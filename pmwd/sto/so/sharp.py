@@ -18,14 +18,19 @@ def pot_sharp(pot, kvec, theta, cosmo, conf, a):
         # sort for permutation symmetry of the spatial dimensions
         kv = jnp.sort(kv, axis=-1)
 
-        @checkpoint  # checkpoint for saving memory in backward AD
-        def sonn_kvec_slice(kv_):
-            ft = soft_kv(kv_, theta)  # input features
-            mlp = MLP(features=conf.so_nodes[0])
-            g = mlp.apply(cosmo.so_params[0], ft)[..., 0]  # rm the trailing axis of dim one
-            return g
-        # map for reduced memory usage in the forward run
-        g = jax.lax.map(sonn_kvec_slice, kv)
+        ft = soft_kv(kv, theta)  # input features
+        mlp = MLP(features=conf.so_nodes[0])
+        g = mlp.apply(cosmo.so_params[0], ft)[..., 0]
+
+        # use the code below if GPU memory is not sufficient
+        # @checkpoint  # checkpoint for saving memory in backward AD
+        # def sonn_kvec_slice(kv_):
+        #     ft = soft_kv(kv_, theta)  # input features
+        #     mlp = MLP(features=conf.so_nodes[0])
+        #     g = mlp.apply(cosmo.so_params[0], ft)[..., 0]  # rm the trailing axis of dim one
+        #     return g
+        # # map for reduced memory usage in the forward run
+        # g = jax.lax.map(sonn_kvec_slice, kv)
 
         pot *= g
 
