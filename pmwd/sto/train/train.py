@@ -95,7 +95,7 @@ def train_epochs(procid, n_epochs, data_loader, model_conf,
             writer.add_scalar('loss', loss, step)
             if verbose:
                 toc = time.perf_counter()
-                print((f'{toc - tic:.0f} s, {step:>6d}, {data['sidx']:>3d}, ' +
+                print((f'{toc - tic:>3.0f} s, {step:>6d}, {data['sidx']:>3d}, ' +
                        f'{loss:16.5e}'), flush=True)
 
         # epoch output
@@ -135,7 +135,7 @@ def evaluate_loss_epoch(procid, data_loader, model_conf,
             writer.add_scalar('loss', loss, step)
             if verbose:
                 toc = time.perf_counter()
-                print((f'{toc - tic:.0f} s, {step:>6d}, {data['sidx']:>3d}, ' +
+                print((f'{toc - tic:>3.0f} s, {step:>6d}, {data['sidx']:>3d}, ' +
                        f'{loss:16.5e}'), flush=True)
 
     loss_epoch = loss_epoch / epoch_size  # mean loss per step of epoch
