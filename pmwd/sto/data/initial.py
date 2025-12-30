@@ -8,7 +8,7 @@ from pmwd.lpt import lpt
 
 
 def gen_cosmo(conf, sobol, a_snapshots, cal_boltz=True):
-    Cosmology(
+    cosmo = Cosmology(
         conf = conf,
         A_s_1e9 = sobol[2],
         n_s = sobol[3],

@@ -1,4 +1,4 @@
-from jax import jit, checkpoint
+from jax import jit, checkpoint, vmap
 import jax.numpy as jnp
 from jax.lax import scan
 
@@ -17,7 +17,7 @@ def eval_dens_loss(ptcl, ptcl_t, conf, offset, log_eps):
     k, P_t, _, _ = powspec(dens_t, 1.)
     loss = jnp.sum(jnp.log(P_d / P_t + log_eps)) / len(k)
 
-    return loss
+    return loss.astype(conf.float_dtype)
 
 
 @jit
@@ -29,8 +29,12 @@ def eval_disp_loss(disp, disp_t, box_size):
     # -> disp_d = L - 2d, which should be wrapped to 2d
     disp_d -= jnp.rint(disp_d / box_size) * box_size
 
-    # mse loss
-    loss = jnp.log(jnp.sum(disp_d**2) / jnp.sum(disp_t**2))
+    # log mse over all particles in snapshot
+    def _disp_loss_snap(_disp_d, _disp_t):
+        return jnp.log(jnp.sum(_disp_d**2) / jnp.sum(_disp_t**2))
+
+    # sum over all snapshots
+    loss = jnp.sum(vmap(_disp_loss_snap)(disp_d, disp_t))
 
     return loss
 
