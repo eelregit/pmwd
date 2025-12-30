@@ -14,7 +14,6 @@ def read_g4sim(sims_dir, sidx, snap_ids, fn_sobol, float_dtype=np.float32):
     sobol = scale_Sobol(fn=fn_sobol, ind=sidx)
 
     with h5py.File(os.path.join(sims_dir, f'{sidx:03}.hdf5'), 'r') as f:
-        a_ic = f['a_ic'][()]
         pos_ic = f['pos_ic'][:]
         vel_ic = f['vel_ic'][:].astype(float_dtype)
         # notice that the final output times of Gadget4 are not exactly the same
@@ -46,14 +45,17 @@ def read_g4sim(sims_dir, sidx, snap_ids, fn_sobol, float_dtype=np.float32):
     disp_ic = get_disp(pos_ic)
     disp = get_disp(pos)
 
+    # avoid recompute (could trigger recompilation) during training loop
+    ptcl_spacing = float(sobol[0] / 128)
+
     data = {
         'sidx': sidx,
         'sobol': sobol,
         'snap_ids': snap_ids,
         'a_snaps': a_snaps,
-        'a_ic': a_ic,
         'ic': (disp_ic, vel_ic),
         'tgts': (disp, vel),
+        'ptcl_spacing': ptcl_spacing,
     }
 
     return data

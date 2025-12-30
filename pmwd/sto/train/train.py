@@ -11,7 +11,7 @@ import pickle
 from pmwd.nbody import nbody
 from pmwd.particles import Particles
 
-from pmwd.sto.data.initial import gen_cc
+from pmwd.sto.data.initial import gen_cosmo
 from pmwd.sto.train.loss import loss_func
 from pmwd.sto.train.utils import tree_global_mean, procinfo
 
@@ -23,18 +23,14 @@ def obj(tgts, ptcl, so_params, cosmo, conf, loss_conf):
     return loss
 
 
-def setup_model(ic, model_conf):
-    conf, cosmo = gen_cc(model_conf['sobol'],
-                         mesh_shape=model_conf['mesh_shape'],
-                         a_snapshots=model_conf['a_snaps'],
-                         a_nbody_num=model_conf['n_steps'],
-                         so_type=model_conf['so_type'],
-                         so_nodes=model_conf['so_nodes'],
-                         a_start=model_conf['a_ic'],
-                         a_stop=model_conf['a_stop'])
+def setup_model(data, model_conf):
+    conf = model_conf.replace(ptcl_spacing=data['ptcl_spacing'])
+
+    cosmo = gen_cosmo(conf, data['sobol'], data['a_snaps'])
+
     ptcl = Particles.gen_grid(conf)
-    ptcl = ptcl.replace(disp=ic[0].astype(conf.float_dtype),
-                        vel=ic[1].astype(conf.float_dtype))
+    ptcl = ptcl.replace(disp=data['ic'][0].astype(conf.float_dtype),
+                        vel=data['ic'][1].astype(conf.float_dtype))
 
     return ptcl, cosmo, conf
 
@@ -84,18 +80,12 @@ def train_epochs(procid, n_epochs, data_loader, model_conf,
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
-        # data for this step
-        sidx, a_ic, a_snaps, sobol = (data[k] for k in
-                                        ('sidx', 'a_ic', 'a_snaps', 'sobol'))
-        ic, tgts = data['ic'], data['tgts']
-
         # setup model for this step
-        model_conf.update({'a_snaps': a_snaps, 'a_ic': a_ic, 'sobol': sobol})
-        ptcl, cosmo, conf = setup_model(ic, model_conf)
+        ptcl, cosmo, conf = setup_model(data, model_conf)
 
         # train for this step
         so_params, opt_state, loss = train_step(
-            tgts, ptcl, cosmo, conf, so_params, opt_state, opt_conf, loss_conf)
+            data['tgts'], ptcl, cosmo, conf, so_params, opt_state, opt_conf, loss_conf)
 
         loss = np.array(loss)  # move loss back to CPU memory
         loss_epoch += loss
@@ -105,7 +95,7 @@ def train_epochs(procid, n_epochs, data_loader, model_conf,
             writer.add_scalar('loss', loss, step)
             if verbose:
                 toc = time.perf_counter()
-                print((f'{toc - tic:.0f} s, {step:>2d}, {sidx:>3d}, ' +
+                print((f'{toc - tic:.0f} s, {step:>2d}, {data['sidx']:>3d}, ' +
                        f'{loss:12.3e}'), flush=True)
 
         # epoch output
@@ -130,17 +120,11 @@ def evaluate_loss_epoch(procid, data_loader, model_conf,
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
-        # data for this step
-        sidx, a_ic, a_snaps, sobol = (data[k] for k in
-                                        ('sidx', 'a_ic', 'a_snaps', 'sobol'))
-        ic, tgts = data['ic'], data['tgts']
-
         # setup model for this step
-        model_conf.update({'a_snaps': a_snaps, 'a_ic': a_ic, 'sobol': sobol})
-        ptcl, cosmo, conf = setup_model(ic, model_conf)
+        ptcl, cosmo, conf = setup_model(data, model_conf)
 
         # evaluate loss for this step
-        loss = obj(tgts, ptcl, so_params, cosmo, conf, loss_conf)
+        loss = obj(data['tgts'], ptcl, so_params, cosmo, conf, loss_conf)
         loss = tree_global_mean(loss)
 
         loss = np.array(loss)  # move loss back to CPU memory
@@ -151,7 +135,7 @@ def evaluate_loss_epoch(procid, data_loader, model_conf,
             writer.add_scalar('loss', loss, step)
             if verbose:
                 toc = time.perf_counter()
-                print((f'{toc - tic:.0f} s, {step:>2d}, {sidx:>3d}, ' +
+                print((f'{toc - tic:.0f} s, {step:>2d}, {data['sidx']:>3d}, ' +
                        f'{loss:12.3e}'), flush=True)
 
     loss_epoch = loss_epoch / epoch_size  # mean loss per step of epoch

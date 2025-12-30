@@ -7,6 +7,24 @@ from pmwd.modes import white_noise, linear_modes
 from pmwd.lpt import lpt
 
 
+def gen_cosmo(conf, sobol, a_snapshots, cal_boltz=True):
+    Cosmology(
+        conf = conf,
+        A_s_1e9 = sobol[2],
+        n_s = sobol[3],
+        Omega_m = sobol[4],
+        Omega_b = sobol[5],
+        Omega_k_ = sobol[6],
+        h = sobol[7],
+        a_snapshots = a_snapshots,
+        softening_length = sobol[8],
+    )
+    if cal_boltz:
+        cosmo = boltzmann(cosmo, conf)
+
+    return cosmo
+
+
 def gen_cc(sobol,
            mesh_shape=1,
            a_snapshots=(1,),
@@ -31,19 +49,7 @@ def gen_cc(sobol,
         so_nodes = so_nodes,
     )
 
-    cosmo = Cosmology(
-        conf = conf,
-        A_s_1e9 = sobol[2],
-        n_s = sobol[3],
-        Omega_m = sobol[4],
-        Omega_b = sobol[5],
-        Omega_k_ = sobol[6],
-        h = sobol[7],
-        a_snapshots = a_snapshots,
-        softening_length = sobol[8],
-    )
-    if cal_boltz:
-        cosmo = boltzmann(cosmo, conf)
+    cosmo = gen_cosmo(conf, sobol, a_snapshots, cal_boltz=cal_boltz)
 
     return conf, cosmo
 

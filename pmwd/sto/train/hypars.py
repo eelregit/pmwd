@@ -2,9 +2,11 @@ import os
 import numpy as np
 import optax
 import pickle
+import jax.numpy as jnp
 
 from pmwd.sto.so.soft import soft_len
 from pmwd.sto.so.mlp import init_mlp_params
+from pmwd.configuration import Configuration
 
 n_epochs = 1000
 
@@ -45,29 +47,34 @@ opt_conf['optimizer'] = optax.MultiSteps(
 
 ###  model  ###
 if len(data_conf['snap_ids']) == 121:  # np.arange(0, 121, 1)
-    n_steps = 121
+    a_nbody_num = 121
     a_stop = 1 + 1/128
 if len(data_conf['snap_ids']) == 61:  # np.arange(0, 121, 2)
-    n_steps = 61
+    a_nbody_num = 61
     a_stop = 1 + 1/64
 if len(data_conf['snap_ids']) == 31:  # np.arange(0, 121, 4)
-    n_steps = 31
+    a_nbody_num = 31
     a_stop = 1 + 1/32
 if len(data_conf['snap_ids']) == 16:  # np.arange(0, 121, 8)
-    n_steps = 16
+    a_nbody_num = 16
     a_stop = 1 + 1/16
-model_conf = {
-    'n_steps': n_steps,
-    'a_stop': a_stop,
-    'mesh_shape': 1,
-    'so_type': 'NN',
-}
-model_conf['n_input'] = [soft_len('g'), soft_len('f')]
-model_conf['so_nodes'] = [[128] * 5 + [1], [64] * 5 + [1]]
+
+model_conf = Configuration(
+    ptcl_spacing = 1.,  # placeholder
+    ptcl_grid_shape = (128,) * 3,
+    mesh_shape = 1,
+    a_start = 1 / 16,
+    a_stop = a_stop,
+    float_dtype = jnp.float32,
+    observe_snapshots = True,
+    a_nbody_num = a_nbody_num,
+    so_type = 'NN',
+    so_nodes = [[128] * 5 + [1], [64] * 5 + [1]],
+)
+n_input = [soft_len('g'), soft_len('f')]
 
 ###  start a new training  ###
-so_params = init_mlp_params(model_conf['n_input'], model_conf['so_nodes'],
-                            scheme='last_w0', last_b=1.)
+so_params = init_mlp_params(n_input, model_conf.so_nodes, scheme='last_w0', last_b=1.)
 opt_state = opt_conf['optimizer'].init(so_params)
 
 ###  load and continue a training  ###
