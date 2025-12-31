@@ -41,7 +41,7 @@ def snap_dens_loss(ptcl, ptcl_t, conf, offset, log_eps):
     return loss.astype(conf.float_dtype)
 
 
-@partial(jit, static_argnums=(0,))
+@jit
 def eval_dens_loss(conf, offset, log_eps, loss, x):
     tgt, snap = x
 
