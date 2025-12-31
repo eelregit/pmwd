@@ -7,11 +7,16 @@ import jax.numpy as jnp
 from datetime import datetime
 
 
+@pmap(axis_name='device')
+def _global_mean(x):
+    return pmean(x, axis_name='device')
+
+
 def arr_global_mean(x):
     """Global average of array across multi processes, using pmap and pmean."""
     # add leading in_axes for pmap over local device within current process
     x = jnp.expand_dims(x, axis=0)
-    x = pmap(lambda x: pmean(x, axis_name='device'), axis_name='device')(x)
+    x = _global_mean(x)
     return x[0]  # rm leading axis, i.e. pmap out_axes
 
 
