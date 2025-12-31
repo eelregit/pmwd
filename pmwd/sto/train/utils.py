@@ -3,11 +3,12 @@ from jax import pmap
 from jax.lax import pmean
 from jax.tree_util import tree_map
 import jax.numpy as jnp
+from functools import partial
 
 from datetime import datetime
 
 
-@pmap(axis_name='device')
+@partial(pmap, axis_name='device')
 def _global_mean(x):
     return pmean(x, axis_name='device')
 
