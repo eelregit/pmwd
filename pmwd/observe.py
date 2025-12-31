@@ -35,30 +35,35 @@ def init_obsvbl(ptcl, cosmo, conf):
     return obsvbl
 
 
+def _obs_itp_update(order, ptcl, cosmo, a_step, a_snap, i, obsvbl):
+    disp_itp, vel_itp = itp_snap(order, ptcl.disp, ptcl.vel,
+                                 a_step[0], a_step[1], a_snap, cosmo)
+    obsvbl['snaps'] = obsvbl['snaps'].replace(
+        disp=obsvbl['snaps'].disp.at[i].add(disp_itp),
+        vel=obsvbl['snaps'].vel.at[i].add(vel_itp))
+    return obsvbl
+
+
+def _obs_itp_snap(a, ptcl, cosmo, obsvbl, x):
+    i, a_snap, a_step = x
+
+    obsvbl = cond(_isclose(a_step[0], a),
+                  partial(_obs_itp_update, 'prev', ptcl, cosmo, a_step, a_snap, i),
+                  lambda _: _,
+                  obsvbl)
+
+    obsvbl = cond(_isclose(a_step[1], a),
+                  partial(_obs_itp_update, 'next', ptcl, cosmo, a_step, a_snap, i),
+                  lambda _: _,
+                  obsvbl)
+
+    return obsvbl, None
+
+
 def observe(a, ptcl, obsvbl, cosmo, conf):
-
-    def obs_interp(obsvbl, x):
-        i, a_snap, a_step = x
-
-        def obs_snap(obsvbl, order):
-            disp_itp, vel_itp = itp_snap(order, ptcl.disp, ptcl.vel,
-                                         a_step[0], a_step[1], a_snap, cosmo)
-            obsvbl['snaps'] = obsvbl['snaps'].replace(
-                disp=obsvbl['snaps'].disp.at[i].add(disp_itp),
-                vel=obsvbl['snaps'].vel.at[i].add(vel_itp))
-            return obsvbl
-
-        obsvbl = cond(_isclose(a_step[0], a), partial(obs_snap, order='prev'),
-                      lambda _: _, obsvbl)
-
-        obsvbl = cond(_isclose(a_step[1], a), partial(obs_snap, order='next'),
-                      lambda _: _, obsvbl)
-
-        return obsvbl, None
-
     if conf.observe_snapshots:
-        obsvbl, _ = scan(obs_interp, obsvbl, (jnp.arange(len(cosmo.a_snapshots)),
-                                              obsvbl['a_snaps'], obsvbl['itp_a_step']))
+        obsvbl, _ = scan(partial(_obs_itp_snap, a, ptcl, cosmo), obsvbl,
+                         (jnp.arange(len(cosmo.a_snapshots)), obsvbl['a_snaps'], obsvbl['itp_a_step']))
 
     return obsvbl
 

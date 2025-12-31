@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 from jax import vmap, checkpoint
+from functools import partial
 
 from pmwd.sto.so.mlp import MLP
 from pmwd.sto.so.soft import soft_k, soft_kv
@@ -23,14 +24,8 @@ def pot_sharp(pot, kvec, theta, cosmo, conf, a):
         g = mlp.apply(cosmo.so_params[0], ft)[..., 0]
 
         # use the code below if GPU memory is not sufficient
-        # @checkpoint  # checkpoint for saving memory in backward AD
-        # def sonn_kvec_slice(kv_):
-        #     ft = soft_kv(kv_, theta)  # input features
-        #     mlp = MLP(features=conf.so_nodes[0])
-        #     g = mlp.apply(cosmo.so_params[0], ft)[..., 0]  # rm the trailing axis of dim one
-        #     return g
         # # map for reduced memory usage in the forward run
-        # g = jax.lax.map(sonn_kvec_slice, kv)
+        # g = jax.lax.map(partial(_sonn_kvec_slice, theta, conf, cosmo), kv)
 
         pot *= g
 
@@ -50,3 +45,11 @@ def grad_sharp(grad, k, theta, cosmo, conf, a):
         grad *= f
 
     return grad
+
+
+# @checkpoint  # checkpoint for saving memory in backward AD
+def _sonn_kvec_slice(theta, conf, cosmo, kv_):
+    ft = soft_kv(kv_, theta)  # input features
+    mlp = MLP(features=conf.so_nodes[0])
+    g = mlp.apply(cosmo.so_params[0], ft)[..., 0]
+    return g
