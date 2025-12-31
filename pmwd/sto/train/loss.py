@@ -5,7 +5,7 @@ from jax.lax import scan
 
 from pmwd.particles import Particles
 from pmwd.spec_util import powspec
-from pmwd.scatter import scatter
+from pmwd.scatter import _scatter
 
 
 def snap_disp_loss(disp_d, disp_t):
@@ -28,10 +28,10 @@ def eval_disp_loss(disp, disp_t, box_size):
     return loss
 
 
-def snap_dens_loss(ptcl, ptcl_t, conf, offset, log_eps):
+def snap_dens_loss(snap, tgt, conf, offset, log_eps):
     # get the density fields
-    dens = scatter(ptcl, conf, offset=offset)
-    dens_t = scatter(ptcl_t, conf, offset=offset)
+    dens = _scatter(snap.pmid, snap.disp, conf, None, None, offset, None)
+    dens_t = _scatter(snap.pmid, tgt[0], conf, None, None, offset, None)
 
     # loss on power spec
     k, P_d, _, _ = powspec(dens - dens_t, 1.)
@@ -45,12 +45,8 @@ def snap_dens_loss(ptcl, ptcl_t, conf, offset, log_eps):
 def eval_dens_loss(conf, offset, log_eps, loss, x):
     tgt, snap = x
 
-    # make target ptcl from pos and vel
-    snap_t = Particles(conf, snap.pmid, tgt[0].astype(conf.float_dtype),
-                       vel=tgt[1].astype(conf.float_dtype))
-
     # accumulate loss of this snapshot
-    loss += snap_dens_loss(snap, snap_t, conf, offset, log_eps)
+    loss += snap_dens_loss(snap, tgt, conf, offset, log_eps)
 
     return loss, None
 
