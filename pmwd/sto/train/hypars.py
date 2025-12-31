@@ -69,9 +69,9 @@ model_conf = Configuration(
     observe_snapshots = True,
     a_nbody_num = a_nbody_num,
     so_type = 'NN',
-    so_nodes = [[128] * 5 + [1], [64] * 5 + [1]],
+    so_nodes = ((128,) * 5 + (1,), (64,) * 5 + (1,)),
 )
-n_input = [soft_len('g'), soft_len('f')]
+n_input = (soft_len('g'), soft_len('f'))
 
 ###  start a new training  ###
 so_params = init_mlp_params(n_input, model_conf.so_nodes, scheme='last_w0', last_b=1.)

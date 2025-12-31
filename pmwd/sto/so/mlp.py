@@ -86,4 +86,4 @@ def mlp_size(params_list):
         n_input.append(dic['Dense_0']['kernel'].shape[0])
         n_nodes.append([dic[f'Dense_{i}']['kernel'].shape[1] for i in range(len(dic))])
 
-    return n_input, n_nodes
+    return tuple(n_input), tuple(n_nodes)
