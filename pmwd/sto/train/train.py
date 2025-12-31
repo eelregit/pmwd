@@ -3,10 +3,12 @@ procid = int(os.getenv('SLURM_PROCID'))
 slurm_job_id = os.getenv('SLURM_JOB_ID')
 
 import jax
+from jax import jit
 import numpy as np
 import optax
 import time
 import pickle
+from functools import partial
 
 from pmwd.nbody import nbody
 from pmwd.particles import Particles
@@ -35,6 +37,13 @@ def setup_model(data, model_conf):
     return ptcl, cosmo, conf
 
 
+@partial(jit, static_argnums=(0,))
+def optim_step(optimizer, opt_state, grad, params):
+    updates, opt_state = optimizer.update(grad, opt_state, params)
+    params = optax.apply_updates(params, updates)
+    return params, opt_state
+
+
 def train_step(tgts, ptcl, cosmo, conf, so_params, opt_state, opt_conf, loss_conf):
 
     # get loss and grad
@@ -45,8 +54,7 @@ def train_step(tgts, ptcl, cosmo, conf, so_params, opt_state, opt_conf, loss_con
     loss, grad = tree_global_mean((loss, grad))
 
     # optimize
-    updates, opt_state = opt_conf['optimizer'].update(grad, opt_state, so_params)
-    so_params = optax.apply_updates(so_params, updates)
+    so_params, opt_state = optim_step(opt_conf['optimizer'], opt_state, grad, so_params)
 
     return so_params, opt_state, loss
 
