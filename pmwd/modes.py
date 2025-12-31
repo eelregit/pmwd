@@ -87,7 +87,7 @@ def _linear_modes(modes, cosmo, conf, a, real):
 
 
 def linear_modes(modes, cosmo, conf, a=None, real=False):
-    """Linear matter overdensity Fourier or real modes.
+    r"""Linear matter overdensity Fourier or real modes.
 
     Parameters
     ----------

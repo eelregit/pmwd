@@ -231,7 +231,7 @@ def growth_integ(cosmo, conf):
 
 # TODO 3rd order has two factors, so `order` probably need to support str
 def growth(a, cosmo, conf, order=1, deriv=0):
-    """Evaluate interpolation of (LPT) growth function or derivative, the n-th
+    r"""Evaluate interpolation of (LPT) growth function or derivative, the n-th
     derivatives of the m-th order growth function :math:`\mathrm{d}^n D_m /
     \mathrm{d}\ln^n a`, at given scale factors. Growth functions are normalized at the
     matter dominated era instead of today.
