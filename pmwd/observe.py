@@ -41,7 +41,12 @@ def _obs_itp_update(order, ptcl, cosmo, a_step, a_snap, i, obsvbl):
     obsvbl['snaps'] = obsvbl['snaps'].replace(
         disp=obsvbl['snaps'].disp.at[i].add(disp_itp),
         vel=obsvbl['snaps'].vel.at[i].add(vel_itp))
+        # NOTE i is traced instead of static
+        # JAX's in-place update syntax supports dynamic indexing (Tracers)
     return obsvbl
+
+
+def _identity(_): return _
 
 
 def _obs_itp_snap(a, ptcl, cosmo, obsvbl, x):
@@ -49,13 +54,11 @@ def _obs_itp_snap(a, ptcl, cosmo, obsvbl, x):
 
     obsvbl = cond(_isclose(a_step[0], a),
                   partial(_obs_itp_update, 'prev', ptcl, cosmo, a_step, a_snap, i),
-                  lambda _: _,
-                  obsvbl)
+                  _identity, obsvbl)
 
     obsvbl = cond(_isclose(a_step[1], a),
                   partial(_obs_itp_update, 'next', ptcl, cosmo, a_step, a_snap, i),
-                  lambda _: _,
-                  obsvbl)
+                  _identity, obsvbl)
 
     return obsvbl, None
 
