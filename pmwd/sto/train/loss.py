@@ -44,19 +44,27 @@ def snap_dens_loss(disp, disp_t, pmid, conf, offset, log_eps):
     return loss
 
 
-def _eval_dens_loss(conf, offset, log_eps, loss, x):
+def _eval_dens_loss_scan(conf, offset, log_eps, loss, x):
     snap, disp_t = x
     # accumulate loss of this snapshot
     loss += snap_dens_loss(snap.disp, disp_t, snap.pmid, conf, offset, log_eps)
     return loss, None
 
 
+def _eval_dens_loss_vmap(conf, offset, log_eps, snap, disp_t):
+    return snap_dens_loss(snap.disp, disp_t, snap.pmid, conf, offset, log_eps)
+
+
 @jit
 def eval_dens_loss(obsvbl, tgts, conf, offset, log_eps):
-    loss = 0.
-    # scan over snapshots to accumulate loss
-    loss, _ = scan(partial(_eval_dens_loss, conf, offset, log_eps),
-                   loss, (obsvbl['snaps'], tgts[0]))
+    # vmap and sum over all snapshots
+    loss = jnp.sum(vmap(partial(_eval_dens_loss_vmap, conf, offset, log_eps)
+                        )(obsvbl['snaps'], tgts[0]))
+
+    # scan over snapshots to accumulate loss, use this if GPU out-of-mem
+    # loss, _ = scan(partial(_eval_dens_loss, conf, offset, log_eps),
+    #                0., (obsvbl['snaps'], tgts[0]))
+
     return loss
 
 
