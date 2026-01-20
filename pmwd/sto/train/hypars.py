@@ -2,6 +2,7 @@ import os
 import numpy as np
 import optax
 import pickle
+import jax
 import jax.numpy as jnp
 
 from pmwd.sto.so.soft import soft_len
@@ -22,7 +23,6 @@ data_conf = {
 ###  loss  ###
 loss_conf = {
     'log_eps': 0.,
-    'grid_offset': 0.,
     'loss_fields': ['disp', 'dens'],
 }
 

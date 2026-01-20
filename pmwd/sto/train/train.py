@@ -76,7 +76,7 @@ def checkpoint(epoch, so_params, opt_state, lr, log_id=None, verbose=True):
 
 def train_epochs(procid, n_epochs, data_loader, model_conf,
                  so_params, opt_conf, opt_state, loss_conf,
-                 verbose, writer, epoch_init):
+                 verbose, writer, epoch_init, rng_key):
     epoch_size = len(data_loader)
     step_start = (epoch_init + 1) * epoch_size
     total_steps = n_epochs * epoch_size
@@ -91,6 +91,8 @@ def train_epochs(procid, n_epochs, data_loader, model_conf,
 
         # setup model for this step
         ptcl, cosmo, conf = setup_model(data, model_conf)
+        rng_key, subkey = jax.random.split(rng_key)
+        loss_conf['key'] = subkey
 
         # train for this step
         so_params, opt_state, loss = train_step(
@@ -119,7 +121,7 @@ def train_epochs(procid, n_epochs, data_loader, model_conf,
 
 
 def evaluate_loss_epoch(procid, data_loader, model_conf,
-                        so_params, loss_conf, verbose, writer):
+                        so_params, loss_conf, verbose, writer, rng_key):
     """Simply evaluate the loss w/o grad."""
     loss_epoch = 0.
     epoch_size = len(data_loader)
@@ -131,6 +133,8 @@ def evaluate_loss_epoch(procid, data_loader, model_conf,
 
         # setup model for this step
         ptcl, cosmo, conf = setup_model(data, model_conf)
+        rng_key, subkey = jax.random.split(rng_key)
+        loss_conf['key'] = subkey
 
         # evaluate loss for this step
         loss = obj(data['tgts'], ptcl, so_params, cosmo, conf, loss_conf)

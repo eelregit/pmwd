@@ -58,7 +58,7 @@ def setup_train(data_conf):
 
 
 def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
-              so_params, opt_state, epoch_init, verbose=True):
+              so_params, opt_state, epoch_init, rng_seed=42, verbose=True):
 
     # sync and setup log file directory
     device_sync(procid, n_procs)
@@ -70,14 +70,16 @@ def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
         log_dir = f'runs/{slurm_job_id}'
         writer = SummaryWriter(log_dir=log_dir)
 
+    rng_key = jax.random.key(rng_seed)
+
     if epoch_init == 0:
         # evaluate the loss before training, with init so_params
         evaluate_loss_epoch(procid, data_loader, model_conf,
-                            so_params, loss_conf, verbose, writer)
+                            so_params, loss_conf, verbose, writer, rng_key)
 
     train_epochs(procid, n_epochs, data_loader, model_conf,
                  so_params, opt_conf, opt_state, loss_conf,
-                 verbose, writer, epoch_init)
+                 verbose, writer, epoch_init, rng_key)
 
     if procid == 0:
         writer.close()

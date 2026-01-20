@@ -1,4 +1,5 @@
 from functools import partial
+import jax
 from jax import jit, checkpoint, vmap
 import jax.numpy as jnp
 from jax.lax import scan
@@ -78,7 +79,9 @@ def loss_func(obsvbl, tgts, conf, loss_conf):
         loss += eval_disp_loss(obsvbl, tgts, box_size).astype(conf.float_dtype)
 
     if 'dens' in loss_conf['loss_fields']:
-        offset = jnp.array(loss_conf['grid_offset'], dtype=conf.float_dtype)
+        # offset = jnp.array(0., dtype=conf.float_dtype)
+        offset = jnp.array(jax.random.uniform(loss_conf['key']) * conf['ptcl_spacing'],
+                           dtype=conf.float_dtype)
         log_eps = jnp.array(loss_conf['log_eps'], dtype=conf.float_dtype)
         loss += eval_dens_loss(obsvbl, tgts, conf, offset, log_eps).astype(conf.float_dtype)
 
