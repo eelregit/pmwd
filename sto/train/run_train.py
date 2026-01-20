@@ -58,7 +58,7 @@ def setup_train(data_conf):
 
 
 def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
-              so_params, opt_state, verbose=True, epoch_start=0):
+              so_params, opt_state, epoch_init, verbose=True):
 
     # sync and setup log file directory
     device_sync(procid, n_procs)
@@ -70,15 +70,14 @@ def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
         log_dir = f'runs/{slurm_job_id}'
         writer = SummaryWriter(log_dir=log_dir)
 
-    if epoch_start == 0:
+    if epoch_init == 0:
         # evaluate the loss before training, with init so_params
         evaluate_loss_epoch(procid, data_loader, model_conf,
                             so_params, loss_conf, verbose, writer)
-        epoch_start += 1
 
     train_epochs(procid, n_epochs, data_loader, model_conf,
                  so_params, opt_conf, opt_state, loss_conf,
-                 verbose, writer, epoch_start=epoch_start)
+                 verbose, writer, epoch_init)
 
     if procid == 0:
         writer.close()
@@ -88,11 +87,11 @@ if __name__ == "__main__":
 
     from pmwd.sto.train.hypars import (
         n_epochs, data_conf, loss_conf, opt_conf, model_conf,
-        so_params, opt_state)
+        so_params, opt_state, epoch_init)
 
     data_loader, data_conf = setup_train(data_conf)
 
     run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
-              so_params, opt_state)
+              so_params, opt_state, epoch_init)
 
     print('\n>>> run_train finished <<<\n')

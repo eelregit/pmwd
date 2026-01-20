@@ -76,15 +76,16 @@ def checkpoint(epoch, so_params, opt_state, lr, log_id=None, verbose=True):
 
 def train_epochs(procid, n_epochs, data_loader, model_conf,
                  so_params, opt_conf, opt_state, loss_conf,
-                 verbose, writer, epoch_start=1):
+                 verbose, writer, epoch_init):
     epoch_size = len(data_loader)
-    step_start = epoch_start * epoch_size
+    step_start = (epoch_init + 1) * epoch_size
     total_steps = n_epochs * epoch_size
 
     # loop for n_epochs
     loss_epoch = 0.
-    epoch = epoch_start
+    epoch = epoch_init
     for step, data in zip(range(step_start, step_start + total_steps), data_loader):
+        epoch += 1  # current epoch of training
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
@@ -110,11 +111,11 @@ def train_epochs(procid, n_epochs, data_loader, model_conf,
         if (step + 1) % epoch_size == 0:
             loss_epoch = loss_epoch / epoch_size  # mean loss per step of epoch
             if procid == 0:
+                writer.add_scalar('epoch_mean_loss', loss_epoch, epoch)
                 print(f'epoch mean loss: {loss_epoch:16.5e}', flush=True)
                 checkpoint(epoch, so_params, opt_state, opt_conf['learning_rate'],
                            verbose=verbose)
             loss_epoch = 0.
-            epoch += 1
 
 
 def evaluate_loss_epoch(procid, data_loader, model_conf,
@@ -146,6 +147,8 @@ def evaluate_loss_epoch(procid, data_loader, model_conf,
                 print((f'{toc - tic:>3.0f} s, {step:>6d}, {data['sidx']:>3d}, ' +
                        f'{loss:16.5e}'), flush=True)
 
+    # epoch output
     loss_epoch = loss_epoch / epoch_size  # mean loss per step of epoch
     if procid == 0:
+        writer.add_scalar('epoch_mean_loss', loss_epoch, 0)
         print(f'epoch mean loss: {loss_epoch:16.5e}', flush=True)

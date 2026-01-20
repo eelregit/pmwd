@@ -74,14 +74,15 @@ model_conf = Configuration(
 n_input = (soft_len('g'), soft_len('f'))
 
 ###  start a new training  ###
+epoch_init = 0  # epoch 0: the evaluation of loss w/o training
 so_params = init_mlp_params(n_input, model_conf.so_nodes, scheme='last_w0', last_b=1.)
 opt_state = opt_conf['optimizer'].init(so_params)
 
 ###  load and continue a training  ###
-# job_id, epoch_id = 3031768, 2000
-# param_fn = f'params/{job_id}/e{epoch_id}.pickle'
+# job_id, epoch_init = 3031768, 2000
+# param_fn = f'params/{job_id}/e{epoch_init}.pickle'
 # with open(param_fn, 'rb') as f:
 #     dic = pickle.load(f)
 #     so_params = dic['so_params']
 #     opt_state = dic['opt_state']
-#     # opt_state = optimizer.init(so_params)
+#     # opt_state = opt_conf['optimizer'].init(so_params)
