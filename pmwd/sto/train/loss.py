@@ -80,7 +80,7 @@ def loss_func(obsvbl, tgts, conf, loss_conf):
 
     if 'dens' in loss_conf['loss_fields']:
         # offset = jnp.array(0., dtype=conf.float_dtype)
-        offset = jnp.array(jax.random.uniform(loss_conf['key']) * conf['ptcl_spacing'],
+        offset = jnp.array(jax.random.uniform(loss_conf['key']) * conf.ptcl_spacing,
                            dtype=conf.float_dtype)
         log_eps = jnp.array(loss_conf['log_eps'], dtype=conf.float_dtype)
         loss += eval_dens_loss(obsvbl, tgts, conf, offset, log_eps).astype(conf.float_dtype)

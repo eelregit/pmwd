@@ -78,14 +78,13 @@ def train_epochs(procid, n_epochs, data_loader, model_conf,
                  so_params, opt_conf, opt_state, loss_conf,
                  verbose, writer, epoch_init, rng_key):
     epoch_size = len(data_loader)
-    step_start = (epoch_init + 1) * epoch_size
-    total_steps = n_epochs * epoch_size
 
     # loop for n_epochs
     loss_epoch = 0.
-    epoch = epoch_init
+    epoch = epoch_init + 1
+    step_start = epoch * epoch_size
+    total_steps = n_epochs * epoch_size
     for step, data in zip(range(step_start, step_start + total_steps), data_loader):
-        epoch += 1  # current epoch of training
         if procid == 0 and verbose:
             tic = time.perf_counter()
 
@@ -118,6 +117,7 @@ def train_epochs(procid, n_epochs, data_loader, model_conf,
                 checkpoint(epoch, so_params, opt_state, opt_conf['learning_rate'],
                            verbose=verbose)
             loss_epoch = 0.
+            epoch += 1
 
 
 def evaluate_loss_epoch(procid, data_loader, model_conf,
