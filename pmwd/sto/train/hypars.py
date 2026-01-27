@@ -9,13 +9,13 @@ from pmwd.sto.so.soft import soft_len
 from pmwd.sto.so.mlp import init_mlp_params
 from pmwd.configuration import Configuration
 
-n_epochs = 1000
+n_epochs = 300
 
 ###  data  ###
 data_conf = {
     'data_dir': '/mnt/home/llu/ceph/sto/g4run/gs512',
     'sobol_file': '/mnt/home/llu/ceph/sto/pmwd/sto/g4gen/sobol.txt',
-    'sobol_ids_global': np.arange(0, 8),
+    'sobol_ids_global': np.arange(0, 512),
     'snap_ids': np.arange(0, 121, 4),
     'shuffle': True,  # shuffle the order of sobols across epochs
 }
@@ -28,10 +28,10 @@ loss_conf = {
 
 ###  optimizer  ###
 opt_conf = {
-    'learning_rate': 1e-5,
+    'learning_rate': 1e-4,
 }
 # customize batch size with grad accumulation
-batch_size = 8
+batch_size = 64
 n_procs = os.getenv('SLURM_NTASKS') # total num devices, i.e. sims per step
 if n_procs:
     n_procs = int(n_procs)
