@@ -21,14 +21,16 @@ jax.distributed.initialize(local_device_ids=[0])
 import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 import time
+import pickle
 
 from pmwd.sto.data.g4data import create_g4data_loader, PrefetchToDevice
 from pmwd.sto.train.train import train_epochs, evaluate_loss_epoch
 from pmwd.sto.train.utils import procinfo, device_sync
+from pmwd.sto.so.mlp import init_mlp_params
 
 
-def setup_train(data_conf):
-    """Prepare for training, incl. data loading on host etc."""
+def setup_data(data_conf):
+    """Prepare data for training, incl. data loading on host etc."""
     # check global devices
     device_sync(procid, n_procs, verbose=True)
 
@@ -55,6 +57,24 @@ def setup_train(data_conf):
     data_loader = PrefetchToDevice(data_loader, size=2, length=len(sobol_ids))
 
     return data_loader, data_conf
+
+
+def setup_state(job_id, epoch_init, n_input, opt_reset=False):
+    """Prepare model and opt state for training, init or continue."""
+    if job_id is None:  # training from scratch
+        so_params = init_mlp_params(n_input, model_conf.so_nodes, scheme='last_w0', last_b=1.)
+        opt_state = opt_conf['optimizer'].init(so_params)
+    else:  # continue training
+        param_fn = f'params/{job_id}/e{epoch_init}.pickle'
+        with open(param_fn, 'rb') as f:
+            dic = pickle.load(f)
+            so_params = dic['so_params']
+            if opt_reset:
+                opt_state = opt_conf['optimizer'].init(so_params)
+            else:
+                opt_state = dic['opt_state']
+
+    return so_params, opt_state
 
 
 def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
@@ -87,12 +107,15 @@ def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
 
 if __name__ == "__main__":
 
-    from pmwd.sto.train.hypars import (
-        n_epochs, data_conf, loss_conf, opt_conf, model_conf,
-        so_params, opt_state, epoch_init)
+    from pmwd.sto.train.hypars import data_conf, loss_conf, opt_conf, model_conf, n_input
 
-    data_loader, data_conf = setup_train(data_conf)
+    data_loader, data_conf = setup_data(data_conf)
 
+    # setup model param and opt state
+    job_id, epoch_init = None, 0
+    so_params, opt_state = setup_state(job_id, epoch_init, n_input)
+
+    n_epochs = 300
     run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
               so_params, opt_state, epoch_init)
 

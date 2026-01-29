@@ -1,15 +1,10 @@
 import os
 import numpy as np
 import optax
-import pickle
-import jax
 import jax.numpy as jnp
 
 from pmwd.sto.so.soft import soft_len
-from pmwd.sto.so.mlp import init_mlp_params
 from pmwd.configuration import Configuration
-
-n_epochs = 300
 
 ###  data  ###
 data_conf = {
@@ -19,31 +14,6 @@ data_conf = {
     'snap_ids': np.arange(0, 121, 4),
     'shuffle': True,  # shuffle the order of sobols across epochs
 }
-
-###  loss  ###
-loss_conf = {
-    'log_eps': 0.,
-    'loss_fields': ['disp', 'dens'],
-}
-
-###  optimizer  ###
-opt_conf = {
-    'learning_rate': 1e-4,
-}
-# customize batch size with grad accumulation
-batch_size = 64
-n_procs = os.getenv('SLURM_NTASKS') # total num devices, i.e. sims per step
-if n_procs:
-    n_procs = int(n_procs)
-else:
-    n_procs = 1
-grad_accu_steps = batch_size // n_procs
-
-opt_conf['optimizer'] = optax.MultiSteps(
-    optax.adamw(opt_conf['learning_rate'], weight_decay=0.01),
-    grad_accu_steps,
-    use_grad_mean=True,
-)
 
 ###  model  ###
 if len(data_conf['snap_ids']) == 121:  # np.arange(0, 121, 1)
@@ -73,16 +43,27 @@ model_conf = Configuration(
 )
 n_input = (soft_len('g'), soft_len('f'))
 
-###  start a new training  ###
-epoch_init = 0  # epoch 0: the evaluation of loss w/o training
-so_params = init_mlp_params(n_input, model_conf.so_nodes, scheme='last_w0', last_b=1.)
-opt_state = opt_conf['optimizer'].init(so_params)
+###  loss  ###
+loss_conf = {
+    'log_eps': 0.,
+    'loss_fields': ['disp', 'dens'],
+}
 
-###  load and continue a training  ###
-# job_id, epoch_init = 3031768, 2000
-# param_fn = f'params/{job_id}/e{epoch_init}.pickle'
-# with open(param_fn, 'rb') as f:
-#     dic = pickle.load(f)
-#     so_params = dic['so_params']
-#     opt_state = dic['opt_state']
-#     # opt_state = opt_conf['optimizer'].init(so_params)
+###  optimizer  ###
+opt_conf = {
+    'learning_rate': 1e-4,
+}
+# customize batch size with grad accumulation
+batch_size = 64
+n_procs = os.getenv('SLURM_NTASKS') # total num devices, i.e. sims per step
+if n_procs:
+    n_procs = int(n_procs)
+else:
+    n_procs = 1
+grad_accu_steps = batch_size // n_procs
+
+opt_conf['optimizer'] = optax.MultiSteps(
+    optax.adamw(opt_conf['learning_rate'], weight_decay=0.01),
+    grad_accu_steps,
+    use_grad_mean=True,
+)
