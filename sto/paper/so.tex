@@ -68,6 +68,7 @@
 \bmdefine{\vpi}{\pi}  % p adjoint
 \bmdefine{\valpha}{\alpha}  % force vjp x gradient
 \bmdefine{\vzeta}{\zeta}  % force vjp theta gradient
+\bmdefine{\vsigma}{\sigma}
 \newcommand{\lna}{\ln\!a}
 \newcommand{\lnk}{\ln\!k}
 \newcommand{\half}{\nicefrac12}
@@ -1133,6 +1134,26 @@ We implement the NNs with \texttt{Flax} \citep{flax2020github}, and use
 the optimizers provided in \texttt{Optax}, part of the DeepMind JAX
 Ecosystem \citep{deepmind2020jax}.
 
+
+\vspace{1em}
+\subsection{Sensitivity Analysis}
+\label{sec:sensitivity}
+For the trained $f(k_i; \vvartheta)$ and $g(\vk; \vvartheta)$ neural
+networks, we perform the derivative-based global sensitivity measure
+(DGSM) to analyze their dependence on the configuration and cosmological
+parameters $\vvartheta$ sampled with the Sobol sequence as shown in
+\autoref{tab:param}.
+
+For each sample $\vvartheta^{(i)}$, we compute the gradient of the neural
+network, $\partial f / \partial \vvartheta^{(i)}$.
+We normalize the gradients by the standard deviation of each parameter
+across all samples of $\vvartheta^{(i)}$, and get $\vsigma \cdot
+\partial f / \partial \vvartheta^{(i)}$.
+The final sensitivity is given by
+\begin{equation}
+\frac{1}{N} \sum_{i=1}^{N} \Bigl(\vsigma \cdot \frac{\partial f}{
+                                 \partial \vvartheta^{(i)}}\Bigr)^2 .
+\end{equation}
 
 
 \vspace{1em}
