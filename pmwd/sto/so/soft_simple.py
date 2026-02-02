@@ -37,6 +37,19 @@ def sotheta(cosmo, conf, a):
     return (theta_l, theta_o)
 
 
+def sotheta_names():
+    theta_l = ['l_p', 'R_TH', 'l_s']
+    theta_o = ['a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b', 'Omega_k', 'h']
+    return (theta_l, theta_o)
+
+
+def sotheta_names_tex():
+    # sotheta_names in latex math expressions
+    theta_l = ['l_p', 'R_{\\rm TH}', 'l_s']
+    theta_o = ['a', 'A_s', 'n_s', '\\Omega_m', '\\Omega_b', '\\Omega_k', 'h']
+    return (theta_l, theta_o)
+
+
 def soft_k(k, theta):
     """Get SO input features (k * l, o) with k of shape (...,)."""
     theta_l, theta_o = theta  # e.g. (8,), (6,)
@@ -63,9 +76,8 @@ def soft_kv(kv, theta):
 
 
 def soft_names(net):
-    # str names of input features of the SO neural nets
-    # currently hardcoded, should be updated along with functions above
-    theta_l = ['l_p', 'R_TH', 'l_s']
+    theta_l, theta_o = sotheta_names()
+
     theta_l_k = []
     if net == 'f':
         for v in theta_l:
@@ -75,14 +87,13 @@ def soft_names(net):
             for v in theta_l:
                 theta_l_k.append(f'k_{n}{v}')
 
-    theta_o = ['a', 'A_s_1e9', 'n_s', 'Omega_m', 'Omega_b', 'Omega_k', 'h']
-
     return theta_l_k + theta_o
 
 
 def soft_names_tex(net):
     # soft_names in latex math expressions
-    theta_l = ['l_p', 'R_{\\rm TH}', 'l_s']
+    theta_l, theta_o = sotheta_names_tex()
+
     theta_l_k = []
     if net == 'f':
         for v in theta_l:
@@ -91,8 +102,6 @@ def soft_names_tex(net):
         for n in range(3):
             for v in theta_l:
                 theta_l_k.append(f'k_{n} {v}')
-
-    theta_o = ['a', 'A_s', 'n_s', '\\Omega_m', '\\Omega_b', '\\Omega_k', 'h']
 
     return theta_l_k + theta_o
 
