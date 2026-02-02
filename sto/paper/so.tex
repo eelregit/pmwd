@@ -68,7 +68,7 @@
 \bmdefine{\vpi}{\pi}  % p adjoint
 \bmdefine{\valpha}{\alpha}  % force vjp x gradient
 \bmdefine{\vzeta}{\zeta}  % force vjp theta gradient
-\bmdefine{\vsigma}{\sigma}
+\bmdefine{\vnu}{\nu}  % sensitivity
 \newcommand{\lna}{\ln\!a}
 \newcommand{\lnk}{\ln\!k}
 \newcommand{\half}{\nicefrac12}
@@ -1146,14 +1146,16 @@ parameters $\vvartheta$ sampled with the Sobol sequence as shown in
 
 For each sample $\vvartheta^{(i)}$, we compute the gradient of the neural
 network, $\partial f / \partial \vvartheta^{(i)}$.
-We normalize the gradients by the standard deviation of each parameter
-across all samples of $\vvartheta^{(i)}$, and get $\vsigma \cdot
-\partial f / \partial \vvartheta^{(i)}$.
-The final sensitivity is given by
+The importance sensitivity index $\vnu$ is then computed as the mean
+squared gradient, normalized by both the input and output variances to
+account for different parameter scales and to enable comparison across
+outputs:
 \begin{equation}
-\frac{1}{N} \sum_{i=1}^{N} \Bigl(\vsigma \cdot \frac{\partial f}{
-                                 \partial \vvartheta^{(i)}}\Bigr)^2 .
+\vnu = \frac{\mathrm{Var}(\vvartheta)}{\mathrm{Var}(f)} \frac{1}{N} \sum_{i=1}^{N}
+  \left(\frac{\partial f}{\partial \vvartheta^{(i)}}\right)^2,
 \end{equation}
+where $\vnu$ and $\mathrm{Var}(\vvartheta)$ are of the same shape as $\vvartheta$,
+and $\mathrm{Var}(f)$ is a scalar.
 
 
 \vspace{1em}
