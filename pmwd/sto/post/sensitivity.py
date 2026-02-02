@@ -65,11 +65,10 @@ def dgsm(
     # Normalize by output variance
     if normalize_output:
         output_var = jnp.var(outputs)
-        if output_var > 1e-10:
-            v = tree_map(lambda x: x / output_var, v)
-            v_abs = tree_map(lambda x: x / jnp.sqrt(output_var), v_abs)
-            sigma = tree_map(lambda x: x / jnp.sqrt(output_var), sigma)
-            mean_grad = tree_map(lambda x: x / jnp.sqrt(output_var), mean_grad)
+        v = tree_map(lambda x: x / output_var, v)
+        v_abs = tree_map(lambda x: x / jnp.sqrt(output_var), v_abs)
+        sigma = tree_map(lambda x: x / jnp.sqrt(output_var), sigma)
+        mean_grad = tree_map(lambda x: x / jnp.sqrt(output_var), mean_grad)
 
     return {
         'v': v,
