@@ -78,3 +78,68 @@ def dgsm(
         'gradients': gradients,
         'outputs': outputs,
     }
+
+
+def dgsm_elasticity(
+    func: Callable,
+    inputs: Any,
+) -> dict:
+    """Compute elasticity-based Derivative Global Sensitivity Measures.
+
+    This variant uses the elasticity formulation where normalization by x²/y²
+    happens inside the expectation, giving the mean squared elasticity:
+        E[(∂f/∂x)² * x² / y²]
+
+    The elasticity ε = (∂f/∂x) * (x/y) measures the percentage change in output
+    per percentage change in input, making this a scale-invariant sensitivity
+    measure.
+
+    Args
+    ----
+    func : Callable
+        A JAX-compatible function: f(inputs) -> scalar, where inputs is a PyTree.
+        Each leaf of the PyTree should have shape (n_inputs_i, ...).
+    inputs : PyTree
+        Input samples as a PyTree. The leading axis of each leaf corresponds
+        to the sample dimension, shape (n_samples, ...) for each leaf.
+
+    Returns
+    -------
+    dict
+        Dictionary with keys:
+        - 'v': Mean squared elasticity E[ε²], same PyTree structure as inputs
+        - 'v_abs': Mean absolute elasticity E[|ε|]
+        - 'sigma': Std of elasticity
+        - 'mean_elasticity': Mean elasticity E[ε]
+        - 'elasticities': Raw elasticities, PyTree with shape (n_samples, ...) per leaf
+        - 'gradients': Raw gradients
+        - 'outputs': Function outputs
+    """
+    func_valgrad = jax.value_and_grad(func)
+    outputs, gradients = jax.vmap(func_valgrad)(inputs)
+
+    # Compute elasticity per sample: ε = (∂f/∂x) × (x / y)
+    # For each leaf, we broadcast x (shape: n_samples, ...) and y (shape: n_samples,)
+    def compute_elasticity(grad, x):
+        # grad shape: (n_samples, ...), x shape: (n_samples, ...), outputs shape: (n_samples,)
+        # Need to broadcast outputs to match grad/x shape
+        y_broadcast = outputs.reshape((-1,) + (1,) * (grad.ndim - 1))
+        return grad * x / y_broadcast
+
+    elasticities = tree_map(compute_elasticity, gradients, inputs)
+
+    # Elasticity-based DGSM indices
+    v = tree_map(lambda e: jnp.mean(e**2, axis=0), elasticities)
+    v_abs = tree_map(lambda e: jnp.mean(jnp.abs(e), axis=0), elasticities)
+    sigma = tree_map(lambda e: jnp.std(e, axis=0), elasticities)
+    mean_elasticity = tree_map(lambda e: jnp.mean(e, axis=0), elasticities)
+
+    return {
+        'v': v,
+        'v_abs': v_abs,
+        'sigma': sigma,
+        'mean_elasticity': mean_elasticity,
+        'elasticities': elasticities,
+        'gradients': gradients,
+        'outputs': outputs,
+    }
