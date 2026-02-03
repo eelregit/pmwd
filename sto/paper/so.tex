@@ -1157,6 +1157,22 @@ outputs:
 where $\vnu$ and $\mathrm{Var}(\vvartheta)$ are of the same shape as $\vvartheta$,
 and $\mathrm{Var}(f)$ is a scalar.
 
+An alternative formulation uses the elasticity, defined as
+\begin{equation}
+\varepsilon \triangleq \frac{\partial f}{\partial \vvartheta} \cdot \frac{\vvartheta}{f}
+= \frac{\partial \ln f}{\partial \ln \vvartheta},
+\end{equation}
+which measures the percentage change in output per percentage change in input.
+The elasticity-based sensitivity index is then computed as the mean squared
+elasticity
+\begin{equation}
+\vnu_\varepsilon = \frac{1}{N} \sum_{i=1}^{N} \varepsilon^{(i)2},
+\end{equation}
+where the normalization by $\vvartheta^2/f^2$ is applied per sample before
+averaging. This provides a scale-invariant measure that is particularly useful
+when comparing sensitivities across parameters with different units or orders
+of magnitude.
+
 
 \vspace{1em}
 \subsection{Symbolic Regression Fitting}
