@@ -1303,20 +1303,6 @@ comparing to the target data from \GADGET.
 
 \section*{TODO}
 \begin{itemize}
-\item (data; YL) Incorporate 3lpt branch; testing; find a\_start for
-  different mass resolutions; probably replace linear snapshot spacing
-  according to the nonlinearity (estimate (with PM till convergence) the
-  std acc over the std vel) of each realization.
-\item (train, test) 3 sets of grid for ptcl, force mesh, and loss. Add
-  random offset in loss grid (see \autoref{tab:param}) to remove the
-  position dependence in loss; likewise for force mesh? how about only
-  training (for lower loss), only ``inference'' (for higher accuracy),
-  or both? the random force mesh offset can also be replaced by a
-  structured scheme, e.g., alternating between 2 interlocking grids
-\item (train, test) Non-integer multiple mesh shapes: for uniform
-  particle grid, test (with double precision on CPUs) whether they start
-  moving by artifact forces on cell scales, in 3 cases: no
-  deconvolution, with CIC deconvolution, with SO.
 \item (test) Interpolation test: compare SO DM and halo fields and
   summary stats with those of raw pmwd, deconvolved pmwd, and \GADGET,
   on the last 9 test cases and noncubic box.
