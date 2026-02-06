@@ -52,25 +52,25 @@ def sotheta_names_tex():
 
 def soft_k(k, theta):
     """Get SO input features (k * l, o) with k of shape (...,)."""
-    theta_l, theta_o = theta  # e.g. (8,), (6,)
+    theta_l, theta_o = theta  # e.g. (3,), (7,)
 
-    ft = k[..., None] * theta_l  # (..., 8)
+    ft = k[..., None] * theta_l  # (..., 3)
 
-    theta_o = jnp.broadcast_to(theta_o, k.shape + theta_o.shape)  # (..., 6)
-    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (..., 8+6)
+    theta_o = jnp.broadcast_to(theta_o, k.shape + theta_o.shape)  # (..., 7)
+    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (..., 3+7)
 
     return ft
 
 
 def soft_kv(kv, theta):
     """Get SO input features (k1 * l, k2 * l, k3 * l, o) with kv of shape (..., 3)."""
-    theta_l, theta_o = theta  # e.g. (8,), (6,)
+    theta_l, theta_o = theta  # e.g. (3,), (7,)
 
-    ft = kv[..., None] * theta_l  # (..., 3, 8)
-    ft = ft.reshape(kv.shape[:-1] + (-1,))  # (..., 3 * 8)
+    ft = kv[..., None] * theta_l  # (..., 3, 3)
+    ft = ft.reshape(kv.shape[:-1] + (-1,))  # (..., 3 * 3)
 
-    theta_o = jnp.broadcast_to(theta_o, kv.shape[:-1] + theta_o.shape)  # (..., 6)
-    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (..., 3 * 8 + 6)
+    theta_o = jnp.broadcast_to(theta_o, kv.shape[:-1] + theta_o.shape)  # (..., 7)
+    ft = jnp.concatenate((ft, theta_o), axis=-1)  # (..., 3 * 3 + 7)
 
     return ft
 
