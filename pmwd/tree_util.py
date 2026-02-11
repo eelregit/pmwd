@@ -398,6 +398,7 @@ class FType(Flag):
     FIXED = auto()
     AUXILIARY = auto()
     CHILD = DYNAMIC | FIXED
+
 FType.DYNAMIC.__doc__ = 'Dynamic pytree children with gradients.'
 FType.FIXED.__doc__ = 'Fixed pytree children without gradients.'
 FType.CHILD.__doc__ = 'Pytree children, dynamic or fixed.'
@@ -735,7 +736,7 @@ def pytree_dataclass(cls, *, frozen=True, kw_only=True, **kwargs):
         self : Tree, optional
             Pytree dataclass object, `None` by default, so that we can get names and/or
             keys (but not values) without an object.
-        ftype : FType or its members, optional
+        ftype : FType, its members, or case-insensitive str, optional
             Pytree dataclass field type to select.
         name : bool, optional
             Whether to select field name. It's also possible to get names from keys by
@@ -757,6 +758,9 @@ def pytree_dataclass(cls, *, frozen=True, kw_only=True, **kwargs):
             raise ValueError('must select at least one among name, key, and value')
         if value and self is None:
             raise ValueError('values unavailable without a pytree dataclass object')
+
+        if isinstance(ftype, str):
+            ftype = FType[ftype.upper()]
 
         for field in dataclasses.fields(cls):
             if field.metadata.get('ftype', FType.DYNAMIC) in ftype:
