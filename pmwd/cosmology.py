@@ -6,8 +6,11 @@ from jax.typing import ArrayLike, DTypeLike
 import jax.numpy as jnp
 from mcfit import mcfit, TophatVar
 
-from pmwd import background, perturbation
-from pmwd.tree_util import Tree, TanMixin, pytree_dataclass, dyn_field, fxd_field, aux_field, issubdtype_of, asarray_of
+from pmwd.constants import Constants
+from pmwd.background import distance_cache
+from pmwd.perturbation import transfer_cache, growth_cache, varlin_cache, varlin
+from pmwd.tree_util import (Tree, TanMixin, pytree_dataclass, dyn_field, fxd_field,
+                            aux_field, field, issubdtype_of, asarray_of)
 
 
 cosmo_dyn_field = partial(dyn_field, validate=asarray_of(field='dtype'))
@@ -57,16 +60,8 @@ class Cosmology(TanMixin, Tree):
         Dark energy equation of state linear parameter :math:`w_a`.
     k_pivot_Mpc : float ArrayLike, optional
         Primordial scalar power spectrum pivot scale :math:`k_\mathrm{pivot}` in 1/Mpc.
-    M_sun_SI : float ArrayLike, optional
-        Solar mass :math:`M_\odot` in kg.
-    Mpc_SI : float ArrayLike, optional
-        Mpc in m.
-    H_0_SI : float ArrayLike, optional
-        Hubble constant :math:`H_0` in :math:`h`/s.
-    c_SI : float ArrayLike, optional
-        Speed of light :math:`c` in m/s.
-    G_SI : float ArrayLike, optional
-        Gravitational constant :math:`G` in m:math:`^3`/kg/s:math:`^2`
+    const : Constants, optional
+        Physical constants in SI units.
     M : float ArrayLike, optional
         Mass unit :math:`M` defined in kg/:math:`h`. Default is :math:`10^{10}
         M_\odot/h`.
@@ -133,37 +128,30 @@ class Cosmology(TanMixin, Tree):
     h: ArrayLike = cosmo_dyn_field()
 
     T_cmb: ArrayLike = fxd_field(default=2.7255)  # Fixsen 2009, arXiv:0911.1955
-    Omega_K: ArrayLike = fxd_field(default=0)
-    w_0: ArrayLike = fxd_field(default=-1)
-    w_a: ArrayLike = fxd_field(default=0)
+    Omega_K: ArrayLike = fxd_field(default=0.)
+    w_0: ArrayLike = fxd_field(default=-1.)
+    w_a: ArrayLike = fxd_field(default=0.)
     k_pivot_Mpc: ArrayLike = fxd_field(default=0.05)
 
-    # constants in SI units
-    M_sun_SI: ArrayLike = fxd_field(default=1.98847e30)
-    Mpc_SI: ArrayLike = fxd_field(default=3.0856775815e22)
-    H_0_SI: ArrayLike = fxd_field(depend=lambda self: 1e5 / self.Mpc_SI)
-    c_SI: ArrayLike = fxd_field(default=299792458)
-    G_SI: ArrayLike = fxd_field(default=6.67430e-11)
+    const: Constants = field(depend=lambda self: Constants(), repr=False)
 
     # units in SI units
-    M: ArrayLike = fxd_field(depend=lambda self: 1e10 * self.M_sun_SI)
-    L: ArrayLike = fxd_field(depend=lambda self: self.Mpc_SI)
-    T: ArrayLike = fxd_field(depend=lambda self: 1 / self.H_0_SI)
+    M: ArrayLike = fxd_field(depend=lambda self: 1e10 * self.const.M_sun)
+    L: ArrayLike = fxd_field(depend=lambda self: self.const.Mpc)
+    T: ArrayLike = fxd_field(depend=lambda self: 1 / self.const.H_0)
     A: ArrayLike = fxd_field(default=jnp.pi/(180*3600))
 
     distance_lga_min: float = aux_field(default=-3)
     distance_lga_max: float = aux_field(default=1)
     distance_lga_maxstep: float = aux_field(default=1/128)
-    distance: Array | None = cosmo_dyn_field(cache=background.distance_cache,
-                                             compare=False)
+    distance: Array | None = cosmo_dyn_field(cache=distance_cache, compare=False)
 
     transfer_fit: bool = aux_field(default=True)
     transfer_fit_nowiggle: bool = aux_field(default=False)
     transfer_lgk_min: float = aux_field(default=-4)
     transfer_lgk_max: float = aux_field(default=3)
     transfer_lgk_maxstep: float = aux_field(default=1/128)
-    transfer: Array | None = cosmo_dyn_field(cache=perturbation.transfer_cache,
-                                             compare=False)
+    transfer: Array | None = cosmo_dyn_field(cache=transfer_cache, compare=False)
 
     growth_rtol: float = aux_field(depend=lambda self: _eps2tol(self.dtype))
     growth_atol: float = aux_field(depend=lambda self: _eps2tol(self.dtype))
@@ -172,11 +160,9 @@ class Cosmology(TanMixin, Tree):
     growth_lga_min: float = aux_field(default=-3)
     growth_lga_max: float = aux_field(default=1)
     growth_lga_maxstep: float = aux_field(default=1/128)
-    growth: Array | None = cosmo_dyn_field(cache=perturbation.growth_cache,
-                                           compare=False)
+    growth: Array | None = cosmo_dyn_field(cache=growth_cache, compare=False)
 
-    varlin: Array | None = cosmo_dyn_field(cache=perturbation.varlin_cache,
-                                           compare=False)
+    varlin: Array | None = cosmo_dyn_field(cache=varlin_cache, compare=False)
 
     #FIXME although mcfit.mcfit is hashable but maybe this can be more functional
     _var_tophat: mcfit = aux_field(depend=_init_var_tophat)
@@ -198,17 +184,17 @@ class Cosmology(TanMixin, Tree):
     @property
     def H_0(self):
         """Hubble constant :math:`H_0` in :math:`1/T`."""
-        return self.H_0_SI * self.T
+        return self.const.H_0 * self.T
 
     @property
     def c(self):
         """Speed of light :math:`c` in :math:`L/T`."""
-        return self.c_SI * self.T / self.L
+        return self.const.c * self.T / self.L
 
     @property
     def G(self):
         """Gravitational constant :math:`G` in :math:`L^3 / M / T^2`."""
-        return self.G_SI * self.M * self.T**2 / self.L**3
+        return self.const.G * self.M * self.T**2 / self.L**3
 
     @property
     def d_H(self):
@@ -223,7 +209,7 @@ class Cosmology(TanMixin, Tree):
     @property
     def k_pivot(self):
         r"""Primordial scalar power spectrum pivot scale :math:`k_\mathrm{pivot}` in :math:`1/L`."""
-        return self.k_pivot_Mpc / (self.h * self.Mpc_SI) * self.L
+        return self.k_pivot_Mpc / (self.h * self.const.Mpc) * self.L
 
     @property
     def A_s(self):
@@ -247,9 +233,10 @@ class Cosmology(TanMixin, Tree):
 
     @property
     def sigma_8(self):
-        r"""Linear matter rms overdensity within a tophat sphere of 8 Mpc/:math:`h` radius today :math:`\sigma_8`."""
-        R = 8 * self.Mpc_SI / self.L
-        return jnp.sqrt(perturbation.varlin(R, 1, self))
+        r"""Linear matter rms overdensity within a tophat sphere of 8 Mpc/:math:`h`
+        radius today :math:`\sigma_8`."""
+        R = 8 * self.const.Mpc / self.L
+        return jnp.sqrt(varlin(R, 1, self))
 
     @property
     def distance_a_num(self):
