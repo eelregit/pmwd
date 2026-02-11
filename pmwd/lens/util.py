@@ -3,7 +3,7 @@ from functools import partial
 import jax.numpy as jnp
 
 from pmwd.background import distance
-from pmwd.tree_util import dyn_field, fxd_field, asarray_of, wrap_around
+from pmwd.tree_util import dyn_field, fxd_field, asarray_of
 
 
 lens_dyn_field = partial(dyn_field, validate=(asarray_of(field='dtype'),
@@ -12,10 +12,6 @@ lens_dyn_field.__doc__ = '`tree_util.dyn_field` for strong gravitational lensing
 lens_dyn_2d_field = partial(dyn_field, validate=(asarray_of(field='dtype'),
                                                  jnp.atleast_2d))
 lens_dyn_2d_field.__doc__ = '`tree_util.dyn_field` for 2D angular positions in strong gravitational lensing.'
-lens_dyn_pa_field = partial(dyn_field, validate=(asarray_of(field='dtype'),
-                                                 wrap_around(jnp.pi),
-                                                 jnp.atleast_1d))
-lens_dyn_pa_field.__doc__ = '`tree_util.dyn_field` for position angles in radians in strong gravitational lensing.'
 
 lens_fxd_field = partial(fxd_field, validate=(asarray_of(field='dtype'),
                                               jnp.atleast_1d))

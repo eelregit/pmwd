@@ -9,8 +9,8 @@ from jax.tree_util import tree_map
 
 from pmwd.tree_util import (Tree, TanMixin, pytree_dataclass, aux_field, issubdtype_of,
                             asarray_of)
-from pmwd.lens.util import (lens_dyn_field, lens_dyn_2d_field, lens_dyn_pa_field,
-                            lens_fxd_field, _canonicalize_ang_pos, _canonicalize_array)
+from pmwd.lens.util import (lens_dyn_field, lens_dyn_2d_field, lens_fxd_field,
+                            _canonicalize_ang_pos, _canonicalize_array)
 
 
 @pytree_dataclass
@@ -162,7 +162,7 @@ class dPIELenses(Lenses):
     c: ArrayLike = lens_dyn_field()
     s: ArrayLike = lens_dyn_field()
     q: ArrayLike = lens_dyn_field()
-    theta: ArrayLike = lens_dyn_pa_field()
+    theta: ArrayLike = lens_dyn_field()
 
     @property
     def eps(self):
