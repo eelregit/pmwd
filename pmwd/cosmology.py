@@ -1,5 +1,6 @@
 from functools import partial
 import math
+from types import MappingProxyType
 
 from jax import Array, ensure_compile_time_eval
 from jax.typing import ArrayLike, DTypeLike
@@ -302,22 +303,20 @@ class Cosmology(TanMixin, Tree):
         return self._var_tophat.y
 
 
-SimpleLCDM = partial(
-    Cosmology,
+# Simple ΛCDM cosmology, for convenience and subject to change
+simple_LCDM = MappingProxyType(dict(
     A_s_1e9=2.0,
     n_s=0.96,
     Omega_m=0.3,
     Omega_b=0.05,
     h=0.7,
-)
-SimpleLCDM.__doc__ = 'Simple ΛCDM cosmology, for convenience and subject to change.'
+))
 
-Planck18 = partial(
-    Cosmology,
+# Planck 2018 cosmology, arXiv:1807.06209 Table 2 last column
+Planck_18 = MappingProxyType(dict(
     A_s_1e9=2.105,
     n_s=0.9665,
     Omega_m=0.3111,
     Omega_b=0.04897,
     h=0.6766,
-)
-Planck18.__doc__ = 'Planck 2018 cosmology, arXiv:1807.06209 Table 2 last column.'
+))

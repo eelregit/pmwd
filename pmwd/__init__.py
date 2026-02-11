@@ -2,7 +2,7 @@
 
 
 # TODO pmwd.cosmology.{background,perturbation,cosmology} ?
-from pmwd.cosmology import Cosmology, SimpleLCDM, Planck18
+from pmwd.cosmology import Cosmology, simple_LCDM, Planck_18
 from pmwd.background import E2, H_deriv, Omega_m_a, distance_cache, distance
 from pmwd.perturbation import (transfer_cache, transfer_fit, transfer,
                                growth_cache, growth,
