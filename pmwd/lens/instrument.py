@@ -51,13 +51,11 @@ class Instrument(Tree):
     #     https://en.wikipedia.org/wiki/Overlap-add_method
     #     only if this is bottleneck (with AMR quadtree)
     @staticmethod
-    def convolve(I, instr, mode='valid', method=None):
+    def convolve(I, instr, method=None):
         """Convolution with PSF. Also see documentation of `convolve`.
 
         Parameters
         ----------
-        mode : 'full', 'same', or 'valid', optional
-            Convolution mode to pass to `jax.scipy.signal.convolve`.
         method : 'direct', 'fft', or None, optional
             Convolution method to pass to `jax.scipy.signal.convolve`. Default is to
             select based on ``instr.fft_conv_thld``.
@@ -67,7 +65,7 @@ class Instrument(Tree):
             raise ValueError(f'only supporting 2D but {I.ndim = }')
 
         if method == 'direct':
-            return jax.scipy.signal.convolve(I, instr.P, mode=mode, method=method)
+            return jax.scipy.signal.convolve(I, instr.P, mode='same', method=method)
 
         # next_fast_len not implemented in jax.scipy.signal.fftconvolve yet:
         # https://github.com/jax-ml/jax/discussions/15200
@@ -83,7 +81,7 @@ class Instrument(Tree):
             pad = tuple((p//2, p - p//2) for p in pad)
             P = jnp.pad(instr.P, pad, mode='constant', constant_values=0)
 
-        I = jax.scipy.signal.convolve(I, P, mode=mode, method=method)
+        I = jax.scipy.signal.convolve(I, P, mode='same', method=method)
 
         return I
 
