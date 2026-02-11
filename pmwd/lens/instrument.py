@@ -23,11 +23,11 @@ class Instrument(Tree):
     sigma : ArrayLike
         Noise level.
     fft_conv_thld : int, optional
-        Threshold PSF size, for using FFT convolution above its square.
+        Threshold PSF size, using FFT for convolution with size above its square.
 
     """
 
-    dtype: DTypeLike = aux_field(default=jnp.float32,
+    dtype: DTypeLike = aux_field(default=jnp.float64,
                                  validate=(jnp.dtype, issubdtype_of(jnp.floating)))
 
     P: ArrayLike = fxd_field(validate=(asarray_of(field='dtype'),
@@ -101,7 +101,7 @@ def convolve(I, instr, *args, **kwargs):
 
     Returns
     -------
-    I : ArrayLike
+    I : jax.Array
         Convolved 2D image.
 
     """

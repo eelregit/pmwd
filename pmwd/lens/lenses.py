@@ -17,7 +17,7 @@ from pmwd.lens.util import (lens_dyn_field, lens_dyn_2d_field, lens_fxd_field,
 class Lenses(TanMixin, Tree, ABC):
     """Lenses for strong gravitational lensing."""
 
-    dtype: DTypeLike = aux_field(default=jnp.float32,
+    dtype: DTypeLike = aux_field(default=jnp.float64,
                                  validate=(jnp.dtype, issubdtype_of(jnp.floating)))
 
     x: ArrayLike = lens_dyn_2d_field()
