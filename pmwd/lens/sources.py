@@ -77,12 +77,12 @@ class SersicSources(Sources):
         Angular positions in :math:`A`.
     a : ArrayLike
         Scale factors.
-    F : ArrayLike
-        Intrinsic fluxes.
-    R_e : ArrayLike
-        Effective Radii in :math:`A`.
-    n : ArrayLike
-        Sérsic indices.
+    lnF : ArrayLike
+        Natural log of fluxes.
+    lnR_e : ArrayLike
+        Natural log of effective Radii in :math:`A`.
+    lnn : ArrayLike
+        Natural log of Sérsic indices.
     q : ArrayLike
         Axis ratios of the minor axes to the major axes.
     theta : ArrayLike
@@ -112,13 +112,28 @@ class SersicSources(Sources):
     """
     #FIXME above & below for changing theta to PA standard
 
-    F: ArrayLike = lens_dyn_field()
-    R_e: ArrayLike = lens_dyn_field()
-    n: ArrayLike = lens_dyn_field()
+    lnF: ArrayLike = lens_dyn_field()
+    lnR_e: ArrayLike = lens_dyn_field()
+    lnn: ArrayLike = lens_dyn_field()
     q: ArrayLike = lens_dyn_field()
     theta: ArrayLike = lens_dyn_field()
 
     soften: ArrayLike = lens_fxd_field(optional=True)
+
+    @property
+    def F(self):
+        """Fluxes."""
+        return jnp.exp(self.lnF)
+
+    @property
+    def R_e(self):
+        """Effective Radii in :math:`A`."""
+        return jnp.exp(self.lnR_e)
+
+    @property
+    def n(self):
+        """Sérsic indices."""
+        return jnp.exp(self.lnn)
 
     @property
     def b_n(self):

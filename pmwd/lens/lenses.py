@@ -128,14 +128,14 @@ class dPIELenses(Lenses):
         Angular positions in :math:`A`.
     a : ArrayLike
         Scale factors.
-    E_0 : ArrayLike
-        Asymptotic Einstein radii for sources at infinity, in :math:`A`. They share the
-        same unit as the lens radii and the ray positions, and thus are better than,
-        e.g., velocity dispersions, as the normalization parameter.
-    c : ArrayLike
-        Core radii in :math:`A`.
-    s : ArrayLike
-        Scale radii in :math:`A`.
+    lnE_0 : ArrayLike
+        Natural log of asymptotic Einstein radii for sources at infinity, in :math:`A`.
+        They share the same unit as the lens radii and the ray positions, and thus are
+        better than, e.g., velocity dispersions, as the normalization parameter.
+    lnc : ArrayLike
+        Natural log of core radii in :math:`A`.
+    lns : ArrayLike
+        Natural log of scale radii in :math:`A`.
     q : ArrayLike
         Axis ratios of the minor axes to the major axes.
     theta : ArrayLike
@@ -158,11 +158,26 @@ class dPIELenses(Lenses):
     """
     #FIXME above & below for changing theta to PA standard
 
-    E_0: ArrayLike = lens_dyn_field()
-    c: ArrayLike = lens_dyn_field()
-    s: ArrayLike = lens_dyn_field()
+    lnE_0: ArrayLike = lens_dyn_field()
+    lnc: ArrayLike = lens_dyn_field()
+    lns: ArrayLike = lens_dyn_field()
     q: ArrayLike = lens_dyn_field()
     theta: ArrayLike = lens_dyn_field()
+
+    @property
+    def E_0(self):
+        """Asymptotic Einstein radii for sources at infinity, in :math:`A`."""
+        return jnp.exp(self.lnE_0)
+
+    @property
+    def c(self):
+        """Core radii in :math:`A`."""
+        return jnp.exp(self.lnc)
+
+    @property
+    def s(self):
+        """Scale radii in :math:`A`."""
+        return jnp.exp(self.lns)
 
     @property
     def eps(self):
