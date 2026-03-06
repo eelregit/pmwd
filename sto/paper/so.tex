@@ -794,14 +794,12 @@ get the primals for the evaluation of the Jacobians.
 \label{sec:snapobs}
 
 The $N$-body time integration is carried out along discrete time steps
-in terms of the scale factor $a$, and the state of particles at any
-given time can be achieved using interpolation.
-Given the particle displacements $\vs$ and velocities\footnote{The
-velocity is related to the canonical momentum $\vp$ through $\vv =
-\vp/(a^3H)$, where $H$ is the Hubble parameter.} $\vv \triangleq
-\d\vs/\d a$ at two consecutive time steps $a_i$ and $a_{i+1}$, we get
-the snapshot of particles in between at $a$ using the cubic Hermite
-interpolation.
+in terms of the scale factor $a$, while the state of particles at any
+intermediate time can be obtained using interpolation.
+Given the particle displacements $\vs$ and velocities $\vv \triangleq
+\d\vs/\d a$ at two consecutive time steps $a_i$ and $a_{i+1}$, we compute
+the snapshot of particles at a target time $a \in [a_i, a_{i+1}]$ using
+cubic Hermite interpolation.
 The interpolated particle displacements are given by
 \begin{align}
   \vs(a) =\ &h_{00}(\alpha)\vs_i + h_{10}(\alpha)(a_{i+1} - a_i)\vv_i + \nonumber\\
@@ -816,23 +814,28 @@ basis functions read
   h_{11}(\alpha) &= \alpha^3 - \alpha^2.
 \end{align}
 The particle velocities are then given by the derivative $\vv(a) =
-\d\vs(a) / \d a$.
+\d\vs(a) / \d a$, which can be converted back to the canonical momenta
+$\vp(a) = a^3 H(a) \vv(a)$.
+The positions of particles are related to their displacements $\vs$
+through $\vx = \vq + \vs$, where $\vq$ are the initial Lagrangian
+positions.
+Thus the full state vector of the interpolated snapshot reads
+$\vz(a) = (\vx(a), \vp(a))^\intercal$.
 Notice that the cubic Hermite interpolation is a linear combination of
-the particles' states at two consecutive time steps and each state
-contributes independently to the interpolated snapshot, which is
-consistent with our formulation in \eqref{IO_fwd} where the
-observation function does not depend on the observable from the previous
-step.
-The coefficients are the only difference between the first and second
-half of the interpolation.
-A series of interpolated snapshots at given times constitute our
+the particles' states at two consecutive time steps, meaning each state
+contributes independently to the interpolated snapshot.
+This additive property is consistent with our formulation in \eqref{IO_fwd},
+where the observation function at a given step does not depend on the
+observable from previous steps.
+Consequently, the contributions from the two bounds of the interpolation
+interval can be naturally evaluated and accumulated at their respective time steps.
+A series of interpolated snapshots at given target times constitutes our
 observable for the objective function.
-Therefore for the observation at each step, we first determine if the
-current particles' state contributes to any of the interpolated
-snapshots in observable.
-If it does, we then perform the interpolation depending on whether it
-is the first or the second half, and finally add this update to the
-corresponding snapshot in observable.
+For the observation at each time step, we first determine if the
+current particles' state contributes to any targeted snapshot.
+If it does, we compute its partial contribution to the interpolation---acting
+as either the lower or upper bound---and add this update to the
+corresponding snapshot in the observable.
 
 
 \vspace{1em}
