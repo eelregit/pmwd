@@ -674,12 +674,12 @@ The observable is initialized by observing the initial state
 \label{O_init}
 \end{equation}
 Notice that we take an observation function $\vO$ that depends only on
-the state but not the observable itself, which is consistent with the
+the state but not on the observable itself, which is consistent with the
 case in this work where the observable includes multiple snapshots at
 different times and therefore the state of particles at each step
 contributes independently to the observable, as discussed in
 \autoref{sec:snapobs}.
-The derivation below remains much the same with minor modifications for
+The derivation below remains largely unchanged with minor modifications for
 a more general observation function.
 
 Now we derive the adjoint equations with observables.
@@ -697,7 +697,7 @@ where the multipliers $\vlambda$ and $\vmu$ are the adjoint variables of
 $\vz$ and $\vo$ respectively.
 Taking the full derivative of $\cL$ with respect to $\vtheta$ and
 collecting the terms with $\p\vz_i/\p\vtheta$ and $\p\vo_i/\p\vtheta$,
-the adjoint equations arise as
+the adjoint equations are given by
 \begin{align}
 \vmu_{i-1} &= \vmu_i, \\
 \vlambda_{i-1} &= \vlambda_i
@@ -749,7 +749,7 @@ the acceleration is computed with force evaluation as
 \va_i \triangleq -\vnabla\varphi(\vx_i).
 \end{equation}
 Now the explicit adjoint equations with observables for the leapfrog
-integrator follows
+integrator follow
 \begin{align}
 \vmu_{i-1} &= \vmu_i, \nonumber\\
 \vxi_{i-\half} &= \vxi_i + \vpi_i \cdot \frac{\p\va_i}{\p\vx_i} K(t_i, t_i, t_{i-\half}), \nonumber\\
@@ -766,7 +766,7 @@ with initial conditions
 \vpi_n = \vmu_n \cdot \frac{\p\vO_n}{\p\vp_n}.
 \label{KDKO_adj_init}
 \end{equation}
-The objective gradients now reads
+The objective gradient now reads
 \begin{align}
 \frac{\d\cJ}{\d\vtheta} =\
 & \vxi_0 \cdot \frac{\p\vx_0}{\p\vtheta}
@@ -779,7 +779,7 @@ The objective gradients now reads
     \frac{\p D(t_{i-\half}, t_i, t_{i-1})}{\p\vtheta} \nonumber\\
   &\qquad + \tilde{\vpi}_{i-1}\cdot\bigl(\va_{i-1} \frac\p{\p\vtheta}
     + \frac{\p\va_{i-1}}{\p\vtheta} \bigr) K(t_{i-1}, t_{i-\half}, t_{i-1}) \nonumber\\
-  &\qquad + \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vtheta}
+  &\qquad - \vmu_{i-1}\cdot\frac{\p\vO_{i-1}}{\p\vtheta}
 \Bigr].
 \label{KDKO_grad}
 \end{align}
