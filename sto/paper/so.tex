@@ -102,13 +102,11 @@ Particle-Mesh Simulation
 
 \author[0000-0002-9300-2632]{\normalsize Yucheng Zhang}
 \affiliation{Pengcheng Laboratory, Shenzhen, Guangdong 518066, China}
-\affiliation{Center for Cosmology and Particle Physics, New York
-University, New York, New York 10003, USA}
 
 \author[0000-0002-0701-1410]{\normalsize Yin Li}
+\affiliation{Pengcheng Laboratory, Shenzhen, Guangdong 518066, China}
 \affiliation{Center for Computational Mathematics, Flatiron Institute,
 New York, New York 10010, USA}
-\affiliation{Pengcheng Laboratory, Shenzhen, Guangdong 518066, China}
 \affiliation{Center for Computational Astrophysics, Flatiron Institute,
 New York, New York 10010, USA}
 
@@ -257,56 +255,45 @@ inference.
 
 \subsection{Optimization of Dynamics}
 
-To improve the accuracy of the PM solver, we introduce SO force
-sharpening by modifying the gravitational force equation \eqref{force}
-to
+To improve the accuracy of the PM solver, we introduce force sharpening for
+spatial optimization (SO) by modifying the gravitational force equation
+\eqref{force} to
 %
 \begin{equation}
-F(\vk)_i = i \frac32 \Omegam H_0^2 \,\frac{k_i}{k^2}\,
+F_i(\vk) = i \frac32 \Omegam H_0^2 \,\frac{k_i}{k^2}\,
                     f(k_i; \vvartheta) g(\vk; \vvartheta) \delta(\vk),
 \label{force_so}
 \end{equation}
 %
-where $f$ and $g$ are nonlinear functions of the wavevector components
-and all possible relevant features $\vvartheta$, which are approximated
-with NNs.
+where $f$ and $g$ are nonlinear functions of the wavevector components and
+relevant features $\vvartheta$ (detailed in \autoref{sec:fsnet}), which are
+approximated with NNs.
 $k_i$ is a component of $\vk$, with $i\in\{1,2,3\}$ denoting the 3
 principal axes of the simulation box.
-Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is however
-broken by the PM solver to the O\textsubscript{h} discrete symmetry with
-48 elements involving permutations and reversals of the 3 principal axes
-of the simulation box.
-The PM evaluation of each force component can further break the symmetry
-along that axis, leaving the remaining 2 permutationally symmetric.
-Therefore, we implement $f$ and $g$ to be even functions of the
-wavevector components, and $g$ to be permutation equivariant in all 3
-components, so that $f g$ is the most general modification to the force
-kernel.
-An even and real kernel in configuration space is also even in Fourier
-space.
+Gravity obeys the $\mathrm{O}(3)$ rotational symmetry, which is reduced by the
+Cartesian mesh of the PM solver to the $\mathrm{O_h}$ discrete symmetry with
+48 elements involving permutations and reversals of the 3 principal axes of the
+simulation box.
+The PM evaluation of a given force component $F_i$ further breaks the
+permutation symmetry along axis $i$, while the remaining two axes remain
+permutationally symmetric.
+Therefore, we implement $f$ as an even function of its wavevector argument
+$k_i$, and $g$ as an even and permutation-equivariant function of all three
+wavevector components.
+Together, $fg$ provides the most general kernel modification consistent with the
+PM solver's symmetries.
+Enforcing $f$ and $g$ to be even functions in Fourier space corresponds to a
+real and symmetric kernel in configuration space, consistent with the physical
+force.
 We take the absolute value of the wavevectors for the evenness, and sort
-the 3 wavevector compontents to achieve the permutation equivariance.
+the 3 wavevector components to achieve the permutation equivariance.
 
-For both the $f$ and $g$, their input features consist of tabular data,
-therefore we adopt neural networks with fully connected layers, aka
-multilayer perceptrons (MLPs) to learn the nonlinear functions.
-Both $f$ and $g$ networks have $XXX$ hidden layers with $XXX\times
-n_{\rm input}$ nodes for each layer, where $n_{\rm input}$ is the size
-of the input layer, which is [...] and [...] for $f$ and $g$
-respectively.
-The rectified linear unit (ReLU) activation function is used for hidden
-layers.
-We further apply the exponential function to the output as a regulator
-for positive output.
-Being embedded in the differentiable simulation library \pmwd, the NNs
-can be trained using gradient-based optimization methods as in usual
-deep learning tasks.
-The parameters of the NNs, which enter the force evaluation in every
-time integration step, can be treated just the same as other
-cosmological parameters.
-The objective gradients are accumulated as discussed in
-\autoref{sec:diffsim_obs}, based on which the parameters are then
-optimized.
+We approximate $f$ and $g$ with multilayer perceptrons (MLPs), with
+the network architecture and training details described in
+\autoref{sec:fsnet}.
+As we will show, these networks learn to sharpen the PM force kernel,
+significantly improving the accuracy of the simulated density fields on small
+scales.
 
 
 \subsection{Target Simulation and Data}
@@ -872,6 +859,31 @@ Therefore, besides the output snapshots, the initial conditions used in the
 \GADGET\ simulations are also loaded from file for \pmwd\ during training to
 make sure the initial conditions are consistent for both the training data and
 the \pmwd\ model.
+
+
+\vspace{1em}
+\subsection{Force Sharpening Networks}
+\label{sec:fsnet}
+
+For both the $f$ and $g$ in the SO force equation \eqref{force_so},
+their input features consist of tabular data, therefore we adopt neural
+networks with fully connected layers, aka multilayer perceptrons (MLPs)
+to learn the nonlinear functions.
+Both $f$ and $g$ networks have $XXX$ hidden layers with $XXX\times
+n_{\rm input}$ nodes for each layer, where $n_{\rm input}$ is the size
+of the input layer, which is [...] and [...] for $f$ and $g$
+respectively.
+The rectified linear unit (ReLU) activation function is used for hidden
+layers.
+Being embedded in the differentiable simulation library \pmwd, the NNs
+can be trained using gradient-based optimization methods as in usual
+deep learning tasks.
+The parameters of the NNs, which enter the force evaluation in every
+time integration step, can be treated just similar to other
+cosmological parameters.
+The objective gradients are accumulated as discussed in
+\autoref{sec:diffsim_obs}, based on which the parameters are then
+optimized.
 
 
 \vspace{1em}
