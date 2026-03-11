@@ -625,7 +625,7 @@ with the adjoint method \citep{Li2022a}.
 Here we extend the original framework with a more detailed
 implementation of observables that is explicitly formulated for this
 work.
-Following \cite{Li2022a}, we denote the particles' state with $\vz =
+Following \citet{Li2022a}, we denote the particles' state with $\vz =
 (\vx, \vp)^\intercal$, where $\vx$ and $\vp$ are the positions and
 momenta of the particles.
 For the forward simulation (\autoref{fig:loop}), we consider the
@@ -809,78 +809,70 @@ corresponding snapshot in the observable.
 
 
 \vspace{1em}
-\subsection{Training Data and Configurations}
+\subsection{Configurations and Data Generation}
+\label{sec:conf_data}
 
 \begin{figure*}
   \centering
   \includegraphics[width=0.9\linewidth]{sobol.pdf}
-  \caption{Randomized Quasi-Monte Carlo (RQMC) configuration with
+  \caption{Randomized Quasi-Monte Carlo (RQMC) configuration with a
     scrambled Sobol sequence of 512 points in 9D.
     Lower triangular panels show the 2D projections and the diagonal
     panels are the 1D cumulative histograms.
     From left to right (top to bottom), we use each dimension of the
     sample to scale the parameters as ordered in \autoref{tab:param}.
-    We use the \texttt{scipy.stats.qmc} package \citep{SciPy} to
-    generate the Sobol sequence \citep{Sobol1967}, which uses the
-    direction number from \citet{JoeKuo2008} and the Owen scrambling
-    \citep{Owen1998}.
-    We search among 65536 scrambling seeds to minimize the mixture
-    discrepancy (a uniformity measure) proposed in \citet{Zhou2013MD}.
   }
   \label{fig:sobol}
 \end{figure*}
 
-We configure \GADGET\ with high force and time integration accuracy
-settings.
-For gravitational force, we use the pure FMM solver with multipole order
-$p=5$, a geometric (Barnes-Hut) opening criterion with opening angle
+To generate our target dataset, we sample 512 data points in the 9D space of
+configurations and cosmological parameters using a randomized quasi-Monte Carlo
+(RQMC) method with a scrambled Sobol sequence (\autoref{fig:sobol}).
+We use the \texttt{scipy.stats.qmc} package \citep{SciPy} to generate
+the Sobol sequence \citep{Sobol1967}, which relies on the direction numbers
+from \citet{JoeKuo2008} and Owen scrambling \citep{Owen1998}.
+To ensure proper coverage, we search among 65,536 scrambling seeds to minimize
+the mixture discrepancy (a uniformity measure) proposed in \citet{Zhou2013MD}.
+In addition to the training set, we sample 9 extra data points to test the
+interpolation accuracy of the trained model on unseen configurations and
+cosmological parameters.
+
+For each sampled configuration, we run the target \GADGET\ \citep{GADGET-4}
+simulations using high force and time integration accuracy settings.
+For the gravitational force, we use the pure FMM solver with a multipole order
+of $p=5$, a geometric (Barnes-Hut) opening criterion with an opening angle of
 $\theta=0.4$, hierarchical time integration, and extra-high Ewald
-summation accuracy for the periodic boundary.
+summation accuracy for the periodic boundaries.
 For time integration, we set the maximum timestep size to 0.001 and the
 error tolerance to 0.005.
-The simulation runs in double precision with randomized domain centers.
+The simulations are run in double precision with randomized domain centers.
 
-We sample 512 data points in the 9D space of configurations and
-cosmological parameters using randomized quasi-Monte Carlo (RQMC) method
-with scrambled Sobol sequence (\autoref{fig:sobol}).
-We use the \texttt{scipy.stats.qmc} package \citep{SciPy} to generate
-the Sobol sequence \citep{Sobol1967}, which uses the direction number
-from \citet{JoeKuo2008} and the Owen scrambling \citep{Owen1998}.
-We search among 65536 scrambling seeds to minimize the mixture
-discrepancy (a uniformity measure) proposed in \citet{Zhou2013MD}.
-
-In addition, we sample 9 extra data points for the interpolation test of
-the trained model to different configurations and cosmological
-parameters.
-
-Small numerical differences in initial conditions could become more significant
-with the $N$-body evolution.
-Therefore, besides the output snapshots, the initial conditions used in the
-\GADGET\ simulations are also loaded from file for \pmwd\ during training to
-make sure the initial conditions are consistent for both the training data and
-the \pmwd\ model.
+Because small numerical differences in initial conditions can accumulate
+over the course of nonlinear $N$-body evolution, we take preventative measures
+to ensure strict consistency between the target data and our model.
+During training, rather than regenerating the initial conditions,
+we load the exact initial conditions used in the \GADGET\ simulations directly
+into \pmwd, alongside the corresponding output snapshots.
 
 
 \vspace{1em}
 \subsection{Force Sharpening Networks}
 \label{sec:fsnet}
 
-For both the $f$ and $g$ in the SO force equation \eqref{force_so},
-their input features consist of tabular data, therefore we adopt neural
-networks with fully connected layers, aka multilayer perceptrons (MLPs)
-to learn the nonlinear functions.
-Both $f$ and $g$ networks have $XXX$ hidden layers with $XXX\times
-n_{\rm input}$ nodes for each layer, where $n_{\rm input}$ is the size
-of the input layer, which is [...] and [...] for $f$ and $g$
-respectively.
+The inputs to both $f$ and $g$ in the SO force equation \eqref{force_so} are
+tabular features, we therefore adopt multilayer perceptrons (MLPs) to learn
+these nonlinear functions.
+Both $f$ and $g$ networks have 5 hidden layers, with 64 and 128 nodes per
+layer respectively.
+The $g$ network is wider given its more complex, higher-dimensional input
+features.
 The rectified linear unit (ReLU) activation function is used for hidden
 layers.
 Being embedded in the differentiable simulation library \pmwd, the NNs
-can be trained using gradient-based optimization methods as in usual
+can be trained using gradient-based optimization methods as in standard
 deep learning tasks.
-The parameters of the NNs, which enter the force evaluation in every
-time integration step, can be treated just similar to other
-cosmological parameters.
+The parameters of the NNs, which enter the force evaluation at every time step,
+can be treated just like any other cosmological parameters.
 The objective gradients are accumulated as discussed in
 \autoref{sec:diffsim_obs}, based on which the parameters are then
 optimized.
