@@ -447,26 +447,9 @@ onto another mesh.
 Compared to orginal PM, optimized PM with SONN is more similar to
 \GADGET\ with sharper big halos and more small-scale structures.
 
-To compare two fields $\hat f$ and $f$, we introduce for each mode the
-transfer function (TF), which is defined as the square root ratio of the
-auto power spectrum:
-%
-\begin{equation}
-T(\vk) \triangleq
-\sqrt{\frac{|\hat f(\vk)|^2}{|f(\vk)|^2}},
-\label{T}
-\end{equation}
-%
-and the correlation coefficient (CC):
-%
-\begin{equation}
-r(\vk) \triangleq
-\frac{\Re \bigl[ \hat f(\vk) f^*(\vk) \bigr]}
-     {\sqrt{|\hat f(\vk)|^2 |f(\vk)|^2}},
-\label{r}
-\end{equation}
-%
-where the numerator is the real part of the cross power spectrum.
+To quantify the agreement between two fields $\hat f$ and $f$, we use
+the per-mode transfer function (TF) $T$ \eqref{T} and correlation
+coefficient (CC) $r$ \eqref{r}, both defined in \autoref{sec:metrics}.
 The two fields are identical when both $T$ and $r$ are unity.
 
 In \autoref{fig:tfcc}, we show the results of TF and CC for both
@@ -862,9 +845,13 @@ corresponding snapshot in the observable.
 
 We configure \GADGET\ with high force and time integration accuracy
 settings.
-For gravitational force, we choose pure FMM with $p=5$ and opening angle
-0.4.
-%FIXME list other from Config.sh and param.txt
+For gravitational force, we use the pure FMM solver with multipole order
+$p=5$, a geometric (Barnes-Hut) opening criterion with opening angle
+$\theta=0.4$, hierarchical time integration, and extra-high Ewald
+summation accuracy for the periodic boundary.
+For time integration, we set the maximum timestep size to 0.001 and the
+error tolerance to 0.005.
+The simulation runs in double precision with randomized domain centers.
 
 We sample 512 data points in the 9D space of configurations and
 cosmological parameters using randomized quasi-Monte Carlo (RQMC) method
@@ -879,11 +866,12 @@ In addition, we sample 9 extra data points for the interpolation test of
 the trained model to different configurations and cosmological
 parameters.
 
-Small numerical differences in initial conditions (ICs) could become
-more significant with the $N$-body evolution.
-Therefore, besides the output snapthos, the ICs used in the \GADGET\
-simulations are also loaded from file during training to make sure the
-ICs are consistent for both the training data and the \pmwd\ model.
+Small numerical differences in initial conditions could become more significant
+with the $N$-body evolution.
+Therefore, besides the output snapshots, the initial conditions used in the
+\GADGET\ simulations are also loaded from file for \pmwd\ during training to
+make sure the initial conditions are consistent for both the training data and
+the \pmwd\ model.
 
 
 \vspace{1em}
@@ -1139,6 +1127,74 @@ Ecosystem \citep{deepmind2020jax}.
 
 
 \vspace{1em}
+\subsection{Evaluation Metrics}
+\label{sec:metrics}
+
+We evaluate the optimized simulation by comparing its output against the
+target \GADGET\ simulation at both the field and halo levels.
+
+For the field-level comparison, we introduce for each Fourier mode two
+quantities.
+The transfer function (TF) is defined as the square root ratio of the
+auto power spectra of two fields $\hat f$ and $f$:
+%
+\begin{equation}
+T(\vk) \triangleq
+\sqrt{\frac{|\hat f(\vk)|^2}{|f(\vk)|^2}},
+\label{T}
+\end{equation}
+%
+and the correlation coefficient (CC):
+%
+\begin{equation}
+r(\vk) \triangleq
+\frac{\Re \bigl[ \hat f(\vk) f^*(\vk) \bigr]}
+     {\sqrt{|\hat f(\vk)|^2 |f(\vk)|^2}},
+\label{r}
+\end{equation}
+%
+where the numerator is the real part of the cross product of two
+corresponding Fourier modes.
+Together, TF and CC provide a complete characterization of the
+per-mode residual between two fields.
+For each mode, the power of the residual field
+$|\hat f(\vk) - f(\vk)|^2$ can be decomposed as
+%
+\begin{equation}
+\frac{|\hat f - f|^2}{|f|^2}
+= \bigl[T(\vk) - 1\bigr]^2 + 2\,T(\vk)\bigl[1 - r(\vk)\bigr],
+\label{residual_decomp}
+\end{equation}
+%
+where the first term captures the amplitude mismatch and the second
+captures the phase or stochastic mismatch.
+The residual vanishes if and only if $T=1$ and $r=1$ simultaneously,
+meaning that the two fields are identical mode by mode.
+Thus TF and CC are sufficient metrics for a field-level comparison:
+any discrepancy in either amplitude or phase will be reflected by a
+deviation in $T$ or $r$ from unity.
+In practice, we average $T$ and $r$ within spherical $k$-shells to
+obtain smooth functions of the wavenumber magnitude $k$.
+
+While TF and CC capture the agreement of the continuous density field,
+cosmological analyses also rely on the properties of collapsed
+structures.
+We therefore additionally assess the accuracy of the optimized
+simulation at the level of dark matter halos.
+Halos are identified using the \textsc{Rockstar} phase-space halo
+finder \citep{Behroozi2013}, which locates overdensities in the
+six-dimensional position--velocity space of particles.
+The same \textsc{Rockstar} configuration is applied to both the target
+\GADGET\ and the optimized PM simulations to ensure a consistent
+comparison.
+We then compare the halo mass function (HMF),
+i.e.\ the comoving number density of halos per logarithmic mass interval
+$\mathrm{d}n / \mathrm{d}\ln M$, between the two catalogs.
+The ratio of the optimized HMF to the target HMF quantifies the
+mass-dependent accuracy of the halo abundance.
+
+
+\vspace{1em}
 \subsection{Sensitivity Analysis}
 \label{sec:sensitivity}
 For the trained $f(k_i; \vvartheta)$ and $g(\vk; \vvartheta)$ neural
@@ -1211,11 +1267,11 @@ function.}
 \textit{\large Acknowledgements:}
 We thank Qiufan Lin, Paulo Montero-Camacho, and Yang Wang for helpful
 discussions.
-YZ and YL are supported by The Major Key Project of PCL.
 YZ is supported by the National Natural Science Foundation of China
 under Grant No. 12503006.
 YZ was also supported by the China Postdoctoral Science Foundation under
 Grant No. 2023M731831.
+YZ and YL are supported by The Major Key Project of PCL.
 The Flatiron Institute is supported by the Simons Foundation.
 
 
