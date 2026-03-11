@@ -298,92 +298,21 @@ scales.
 
 \subsection{Target Simulation and Data}
 
-\begin{table*}
-  \centering
-  \caption{Ranges of \GADGET\ and \pmwd\ configurations and cosmological
-  parameters.
-  Note that the grid ratio need next fast len to determine the mesh shape
-  for fast FFT.
-  Given the box size, the mesh shape determines the cell size.
-  The softening parameter gives the ratio of the comoving softening length
-  to the mean particle spacing.
-  The curvature $\OmegaK$ is related to the separate universe simulation.
-  We sample parameters applicable to \GADGET\ during data generation, and
-  those applicable to \pmwd\ during training.
-  \YL{(I forgot why I wanted to sample mesh shape and mesh cell size...
-  Now it seems more natural to me to have the ptcl spacing sampled
-  uniformly instead...)}
-  }
-  \label{tab:param}
-  \begin{tabular}{lcccr}
-  \toprule
-  applicability & parameter & distribution & range & sampling \\
-  \midrule
-  & $128^3$ white noise & $\mathcal{N}(\vzero, \vI)$ & 512 realizations & MC \\
-  \cmidrule(lr){2-5}
-  & box size in Mpc$/h$ & \YL{log-uniform} & [25.6, 2560) \\
-  \cmidrule(lr){2-4}
-  & snapshot offset & uniform & (0, 1] \\
-  \cmidrule(lr){2-4}
-  \GADGET\ & $\As \times 10^9$ & log-uniform & [1, 4) \\
-  \cmidrule(lr){2-4}
-  \& \pmwd\ & $\ns$ & log-uniform & [0.75, 1.25) & RQMC \\
-  \cmidrule(lr){2-4}
-  & $\Omegam$ & log-uniform & [1/5, 1/2) & see \autoref{fig:sobol} \\
-  \cmidrule(lr){2-4}
-  & $\Omegab / \Omegam$ & log-uniform & [1/8, 1/4) \\
-  \cmidrule(lr){2-4}
-  & $\OmegaK / (1 - \OmegaK)$ & uniform & [-1/3, 1/3) \\
-  \cmidrule(lr){2-4}
-  & $h$ & log-uniform & [0.5, 1) \\
-  \cmidrule(lr){1-4}
-  \GADGET\ & softening ratio & log-uniform & [1/50, 1/20) \\
-  \cmidrule(lr){1-5}
-  \pmwd\ & mesh shape & log-uniform & [128, 512] & MC \\
-  \cmidrule(lr){2-4}
-  \cmidrule(lr){1-4}
-  training & loss grid offset & uniform & $[0, 1)^3$ \\
-  \bottomrule
-  \end{tabular}
-  \end{table*}
-
 Our target data samples are generated with the \GADGET\ simulation code
 \citep{GADGET-4}, configured with high force accuracy settings.
 We run 512 \GADGET\ simulations that cover a wide range of
-configurations and cosmological parameters, as listed in
-\autoref{tab:param}.
-\YL{
-Each simulation evolves $128^3$ particles from the initial time $a_\ic$
-to the final time $a_\f=1$, saving 64 snapshots linearly spaced in scale
-factor from $a_\ic + \gamma \Delta a$ to $1 - (1 - \gamma) \Delta a$.
-We determine $a_\ic$ for each configuration depending on its cosmology
-and mean particle spacing \citep{MichauxEtAl2021}, \YL{(YL elaborate why
-and how here.)} which then sets the snapshot spacing $\Delta a = (1 -
-a_\ic) / 64$.
-To sample different alignment between the snapshots and the start/stop
-times and avoid possible related numerical errors in \pmwd, we introduce
-a fractional random offset $\gamma$ that varies between 0 and 1 for
-different simulations.
-}
-The curvature $\OmegaK$ is related to the separate universe simulation
-\citep{LiEtAl2014, WagnerEtAl2015}.
-We refer to this training dataset of 512 \GADGET\ simulations
-sampled with Sobol sequence as \GSDATA.
+configurations and cosmological parameters.
+Each simulation evolves $128^3$ particles, saving snapshots linearly spaced in
+scale factor.
+We refer to this training dataset as \GSDATA.
 On average each \GADGET\ simulation takes roughly 2K CPU hours to run,
 and the generation of the whole \GSDATA\ dataset consumes 1M CPU hours.
-
-\YL{
-In this work, we train \pmwd\ using $XXX$ time steps from $a_\ic$ to
-$a_\f$, generate snapshots at the same times as in \GADGET, and compare
-them in the loss function.}
-In our \pmwd\ model, the snapshot at an arbitrary given time is
-generated using the cubic Hermite interpolation, with more details in
-\autoref{sec:snapobs}.
-\YL{Although the number of time steps are fixed here, we emphasize that
-our spatial optimization of course also applies for different number of
-time steps, which we will explore, together with the optimal choice of
-time variable, in a follow-up work on the temporal optimization.
-}
+To ensure our spatial optimization is robust across different scenarios, the
+\GSDATA\ dataset encompasses a broad variation in box sizes (from 25.6 to 2560
+Mpc$/h$) and samples a wide range of cosmological parameters and simulation
+configurations (see \autoref{tab:param} for the full list).
+Detailed parameter distributions, configurations, and the generation procedure
+are provided in \autoref{sec:conf_data}.
 
 
 \subsection{Optimized Dark Matter Density Fields}
@@ -519,7 +448,10 @@ transformation in JAX.
 \section{Discussion}
 % Discussion does not contain subheadings
 
-
+Although the number of time steps are fixed in this work, we emphasize that our
+spatial optimization also applies for different numbers of time steps.
+This will be explored, together with the optimal choice of the time variable, in
+a follow-up work on temporal optimization.
 \vspace{1em}
 \section{Methods}
 
@@ -825,14 +757,66 @@ corresponding snapshot in the observable.
   \label{fig:sobol}
 \end{figure*}
 
-To generate our target dataset, we sample 512 data points in the 9D space of
+\begin{table*}
+  \centering
+  \caption{Ranges of \GADGET\ and \pmwd\ configurations and cosmological
+  parameters.
+  Given the box size, the mesh shape determines the cell size.
+  The softening parameter gives the ratio of the comoving softening length
+  to the mean particle spacing.
+  }
+  \label{tab:param}
+  \begin{tabular}{lcccr}
+  \toprule
+  applicability & parameter & distribution & range & sampling \\
+  \midrule
+  & $128^3$ white noise & $\mathcal{N}(\vzero, \vI)$ & 512 realizations & MC \\
+  \cmidrule(lr){2-5}
+  & box size in Mpc$/h$ & log-trapezoidal & [25.6, 2560) \\
+  \cmidrule(lr){2-4}
+  & snapshot offset & uniform & (0, 1] \\
+  \cmidrule(lr){2-4}
+  \GADGET\ & $\As \times 10^9$ & log-uniform & [1, 4) \\
+  \cmidrule(lr){2-4}
+  \& \pmwd\ & $\ns$ & log-uniform & [0.75, 1.25) & RQMC \\
+  \cmidrule(lr){2-4}
+  & $\Omegam$ & log-uniform & [1/5, 1/2) & see \autoref{fig:sobol} \\
+  \cmidrule(lr){2-4}
+  & $\Omegab / \Omegam$ & log-uniform & [1/8, 1/4) \\
+  \cmidrule(lr){2-4}
+  & $\OmegaK / (1 - \OmegaK)$ & uniform & [-1/3, 1/3) \\
+  \cmidrule(lr){2-4}
+  & $h$ & log-uniform & [0.5, 1) \\
+  \cmidrule(lr){1-4}
+  \GADGET\ & softening ratio & log-uniform & [1/50, 1/20) \\
+  \cmidrule(lr){1-5}
+  \cmidrule(lr){1-4}
+  training & loss grid offset & uniform & $[0, 1)^3$ & MC \\
+  \bottomrule
+  \end{tabular}
+\end{table*}
+
+Training the SO model requires a diverse dataset that spans a wide range of
+cosmological parameters and simulation configurations.
+We generate this dataset using the \GADGET\ simulation code \citep{GADGET-4},
+configured as described below.
+
+To generate the \GSDATA\ dataset, we sample 512 data points in the 9D space of
 configurations and cosmological parameters using a randomized quasi-Monte Carlo
-(RQMC) method with a scrambled Sobol sequence (\autoref{fig:sobol}).
+(RQMC) method with a scrambled Sobol sequence (\autoref{fig:sobol} and
+\autoref{tab:param}).
 We use the \texttt{scipy.stats.qmc} package \citep{SciPy} to generate
 the Sobol sequence \citep{Sobol1967}, which relies on the direction numbers
 from \citet{JoeKuo2008} and Owen scrambling \citep{Owen1998}.
 To ensure proper coverage, we search among 65,536 scrambling seeds to minimize
 the mixture discrepancy (a uniformity measure) proposed in \citet{Zhou2013MD}.
+To vary the alignment of snapshot times relative to the integration time
+steps and thereby avoid systematic numerical artifacts in \pmwd, we introduce a
+fractional random offset $\gamma \in (0, 1]$.
+Sampling non-zero spatial curvature $\OmegaK$ enables the model to capture the
+effect of long-wavelength density perturbations, which in the separate universe
+picture are equivalent to a modified background curvature
+\citep{LiEtAl2014, WagnerEtAl2015}.
 In addition to the training set, we sample 9 extra data points to test the
 interpolation accuracy of the trained model on unseen configurations and
 cosmological parameters.
