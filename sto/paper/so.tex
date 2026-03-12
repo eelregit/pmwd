@@ -776,8 +776,8 @@ guarantees both axis-reversal and permutation symmetry.
 
 The NNs are initialized such that the initial output is exactly unity,
 representing a "neutral" PM simulation.
-This is achieved by initializing the last layer's weights to zero and its bias
-to one, while using standard He initialization for the hidden layers.
+This is achieved by specific weight and bias initialization, as detailed
+in \autoref{sec:training}.
 Being embedded in the differentiable \pmwd\ library, the networks are trained
 by backpropagating gradients from the large-scale simulation.
 The NN parameters are optimized alongside any other model parameters using
@@ -979,19 +979,21 @@ and further average over all $n_{\rm snaps}$ snapshots in a single forward simul
 
 \vspace{1em}
 \subsection{Training of Neural Networks}
+\label{sec:training}
 
-We initialize the parameters of NNs such that the initial output is exactly
-unity, corresponding to the original PM simulation without spatial
-optimization.
-This is achieved by setting the weights of the output layer to zero and its
-bias to one, while the hidden layers use standard He initialization.
-The parameters are initialized to be the same for all devices, and hence
-remain the same during training given the same averaged gradients.
+The NNs are initialized to match the original PM simulation.
+Specifically, we set the weights of the output layer to zero and its bias
+to one, while the hidden layers use standard He initialization.
+These settings ensure the initial output is exactly unity, corresponding
+to the original PM simulation without spatial optimization.
+The parameters are initialized to be identical across all devices, ensuring they
+remain synchronized throughout training as they receive the same averaged
+gradients.
 
 We perform distributed data-parallel training using GPU devices hosted
 across multiple computing nodes.
 With data parallelism, the training data samples are uniformly
-distributed to the processes with each process binded to a single GPU
+distributed to the processes with each process bound to a single GPU
 device.
 In total, we use 16 \GPU\ GPUs, each accompanied with 8 CPU cores
 and 125 GB CPU memory mainly for preloading the training data.
@@ -1002,16 +1004,17 @@ memory where the preloading took place to save the repeated reading time
 from the disk.
 
 For each training step, we configure and run \pmwd\ with the same
-initial coniditions, cosmological parameters and other common
-configurations as the training data sample.
-As discussed in \autoref{sec:loss}, the loss in a single simulation sums
+initial conditions, cosmological parameters and other common
+configurations as the target training data.
+As discussed in \autoref{sec:loss}, the loss in a single simulation averages
 over all snapshots.
-Our batch size is 16, i.e. the number of GPU devices, since one
-simulation is run on a single GPU and compared to the corresponding
-training data sample for loss.
-The loss and gradients are collected and averaged across all GPU
-devices, with which the optimizer is updated.
-We use the Adam \citep{Adam} optimizer.
+We use a total batch size of 64 simulations.
+With 16 GPU devices, this is achieved by accumulating gradients over 4 training
+steps per device before each optimizer update.
+The loss and gradients are averaged across all devices and accumulation steps.
+
+We train the model using the AdamW \citep{AdamW} optimizer with a learning rate
+of $10^{-4}$ and a weight decay of $0.01$.
 
 Same as the \pmwd\ library, this work is also implemented using JAX
 \citep{JAX}.
