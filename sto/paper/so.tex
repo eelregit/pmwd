@@ -891,10 +891,11 @@ negative to positive half box size, accounting for the periodic
 boundaries important for the smallest boxes in \autoref{tab:param}.
 Note that we have further taken the logarithm to combine it with the
 other loss(es).
-Even though the logarithm should be enough for adaptive optimizer and
-fixed simulation configuration, this may create problem in our training
-on all configurations at the same time.
-So normalizations inside the logarithm is added above and below.
+While the logarithmic loss is generally suitable for adaptive optimizers in
+fixed simulation settings, training across diverse configurations simultaneously
+can lead to scale imbalances.
+We therefore normalize the residuals within the logarithm using the variance of
+the target field.
 % Say that only s loss is not enough even though in principle it is,
 % and cite DrewEtAl x2 too
 
@@ -946,10 +947,11 @@ accurate enough and the gradients from that bin less important.
 % $k$'s.
 
 We combine the two fields to form the total loss for a single snapshot,
-and further sum over all snapshots in a single forward simulation
+and further average over all $n_{\rm snaps}$ snapshots in a single forward simulation
 %
 \begin{equation}
-\cJ = \sum_{a_i} \left[\cL_{\vs(a_i)} + \cL_{\delta(a_i)}\right].
+\cJ = \frac{1}{n_{\rm snaps}} \sum_{i=1}^{n_{\rm snaps}} \left[
+                      \cL_{\vs(a_i)} + \cL_{\delta(a_i)}\right].
 \end{equation}
 %
 
