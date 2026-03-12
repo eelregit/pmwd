@@ -452,6 +452,8 @@ Although the number of time steps are fixed in this work, we emphasize that our
 spatial optimization also applies for different numbers of time steps.
 This will be explored, together with the optimal choice of the time variable, in
 a follow-up work on temporal optimization.
+
+
 \vspace{1em}
 \section{Methods}
 
@@ -741,6 +743,29 @@ corresponding snapshot in the observable.
 
 
 \vspace{1em}
+\subsection{Force Sharpening Networks}
+\label{sec:fsnet}
+
+The inputs to both $f$ and $g$ in the SO force equation \eqref{force_so} are
+tabular features, we therefore adopt multilayer perceptrons (MLPs) to learn
+these nonlinear functions.
+Both $f$ and $g$ networks have 5 hidden layers, with 64 and 128 nodes per
+layer respectively.
+The $g$ network is wider given its more complex, higher-dimensional input
+features.
+The rectified linear unit (ReLU) activation function is used for hidden
+layers.
+Being embedded in the differentiable simulation library \pmwd, the NNs
+can be trained using gradient-based optimization methods as in standard
+deep learning tasks.
+The parameters of the NNs, which enter the force evaluation at every time step,
+can be treated just like any other cosmological parameters.
+The objective gradients are accumulated as discussed in
+\autoref{sec:diffsim_obs}, based on which the parameters are then
+optimized.
+
+
+\vspace{1em}
 \subsection{Configurations and Data Generation}
 \label{sec:conf_data}
 
@@ -837,139 +862,6 @@ to ensure strict consistency between the target data and our model.
 During training, rather than regenerating the initial conditions,
 we load the exact initial conditions used in the \GADGET\ simulations directly
 into \pmwd, alongside the corresponding output snapshots.
-
-
-\vspace{1em}
-\subsection{Force Sharpening Networks}
-\label{sec:fsnet}
-
-The inputs to both $f$ and $g$ in the SO force equation \eqref{force_so} are
-tabular features, we therefore adopt multilayer perceptrons (MLPs) to learn
-these nonlinear functions.
-Both $f$ and $g$ networks have 5 hidden layers, with 64 and 128 nodes per
-layer respectively.
-The $g$ network is wider given its more complex, higher-dimensional input
-features.
-The rectified linear unit (ReLU) activation function is used for hidden
-layers.
-Being embedded in the differentiable simulation library \pmwd, the NNs
-can be trained using gradient-based optimization methods as in standard
-deep learning tasks.
-The parameters of the NNs, which enter the force evaluation at every time step,
-can be treated just like any other cosmological parameters.
-The objective gradients are accumulated as discussed in
-\autoref{sec:diffsim_obs}, based on which the parameters are then
-optimized.
-
-
-\vspace{1em}
-\subsection{Physical Features}
-\label{sec:features}
-
-\begin{table}
-  \centering
-  \caption{Possible features that can affect force sharpening, detailed
-  in \autoref{sec:features}. Scales could be multiplied by the
-  wavenumber $k$ to form dimensionless factors.}
-  \label{tab:feat}
-  \begin{tabular}{rl}
-  \toprule
-  type & feature \\
-  \midrule
-  & $R_\mathrm{d}$: RMS linear displacement \\
-  \cmidrule(lr){2-2}
-  & $R_P$: $\Delta_\linear^2(R_P^{-1}) \triangleq 1$ \\
-  \cmidrule(lr){2-2}
-  nonlinear scales & $R_\tophat$: $\sigma_\tophat^2(R_\tophat) \triangleq 1$ \\
-  \cmidrule(lr){2-2}
-  & $R_\gauss$: $\sigma_\gauss^2(R_\gauss) \triangleq 1$ \\
-  \cmidrule(lr){2-2}
-  & $\d R / \d\lna$: time derivatives of the above \\
-  \midrule
-  & $l_p$: particle spacing \\
-  \cmidrule(lr){2-2}
-  other scales & $l_c$: PM force mesh cell size \\
-  \cmidrule(lr){2-2}
-  & $l_s$: softening length \\
-  \midrule
-  & $G_m(a) \triangleq D_m(a) / a^m, m \in \{1, 2, \YL{3's?}\}$ \\
-  \cmidrule(lr){2-2}
-  & $\d\ln G_m / \d\lna$ \\
-  \cmidrule(lr){2-2}
-  dimensionless factors & $\Omegam(a), \YL{\OmegaK(a)}$ \\
-  \cmidrule(lr){2-2}
-  & $\d\ln\!H / \d\lna$ \\
-  \cmidrule(lr){2-2}
-  & $\Delta\lna$: time step size in $\lna$ \\
-  & \YL{Now this can be an important feature with varying $a_\ic$} \\
-  \bottomrule
-  \end{tabular}
-  \end{table}
-
-In this section, we introduce a list of physical quantities that could
-be of possible importance in SO.
-These quantities are used in the input features for either the NNs or
-SR.
-Multiple scales and dimensionless factors could possibly affect force
-sharpening.
-A list of these features is summarized in \autoref{tab:feat}, and here
-we present relevant definitions and more details.
-
-Below are some definitions related to the typical spatial scales.
-\begin{itemize}
-\item The root-mean-square (RMS) linear displacement is given by
-%
-\begin{equation}
-R_\mathrm{d}^2 = \int \frac{k P_\linear(k)}{6\pi^2} \d\lnk,
-\end{equation}
-%
-where $P_\linear(k)$ is the linear power spectrum.
-\item The dimensionless linear power spectrum is defined as
-%
-\begin{equation}
-\Delta^2_\linear(k) \triangleq \frac{k^3 P_\linear(k)}{2 \pi^2},
-\end{equation}
-%
-based on which we define a nonlinear scale $R_P$ through
-$\Delta_\linear^2(R_P^{-1}) \triangleq 1$.
-\item The variance of linear matter overdensity in a top-hat window is given by
-%
-\begin{equation}
-\sigma_\tophat^2(R) = \int_0^\infty \frac{\d k}k
-  \Delta_\linear^2(k) W_\tophat^2(kR),
-\end{equation}
-%
-where $W_\tophat(kR) = 3[\sin(kR) - kR\cos(kR)] / (kR)^3$ is the
-Fourier transform of the top-hat window.
-Then we have $R_\tophat$ defined through $\sigma_\tophat^2(R_\tophat)
-\triangleq 1$.
-\item Likewise $\sigma_\gauss^2(R)$ is defined with a Gaussian window
-$W_\gauss(kR) = e^{-(kR)^2/2}$, and $R_\gauss$ with
-$\sigma_\gauss^2(R_\gauss) \triangleq 1$.
-\end{itemize}
-These nonlinear scales are functions of time since the linear power
-spectrum evolves with time through the growth factor $D(a)$, we could
-also take the time derivatives of these scales as possible features.
-Other relevant scales include the particle spacing $l_p$ in Lagrangian
-space, the cell size $l_c$ of the chosen mesh grid for force evaluation,
-and the softening length $l_s$ in the target \GADGET\ simulations.
-
-Scales could be multiplied with the wavenumber $k$ to form dimensionless
-quantities.
-For example, the product of $k$ with the mesh cell size $l_c$ results in
-a quantity $kl_c = \pi k/k_{\rm Nyquist}$ that is invariant to different
-box sizes, which should be an important feature.
-
-Relevant scale-independent dimensionless factors are
-\begin{itemize}
-\item $G_m(a) \triangleq D_m(a) / a^m$: linear growth given in
-  suppression factors for $m \in \{1, 2\}$;
-\item $\d\ln G_m / \d\lna$: with $m=1$ case related to the growth rate
-  $f \triangleq \d\ln D_1 / \d\lna$;
-\item $\Omegam(a)$: matter density parameter at $a$;
-\item $\d\ln\!H / \d\lna$: time derivative of Hubble expansion;
-\item $\Delta\lna$: time step size in $\lna$.
-\end{itemize}
 
 
 \vspace{1em}
@@ -1219,6 +1111,110 @@ where the normalization by $\vvartheta^2/f^2$ is applied per sample before
 averaging. This provides a scale-invariant measure that is particularly useful
 when comparing sensitivities across parameters with different units or orders
 of magnitude.
+
+
+\vspace{1em}
+\subsection{Physical Features}
+\label{sec:features}
+
+\begin{table}
+  \centering
+  \caption{Possible features that can affect force sharpening, detailed
+  in \autoref{sec:features}. Scales could be multiplied by the
+  wavenumber $k$ to form dimensionless factors.}
+  \label{tab:feat}
+  \begin{tabular}{rl}
+  \toprule
+  type & feature \\
+  \midrule
+  & $R_\mathrm{d}$: RMS linear displacement \\
+  \cmidrule(lr){2-2}
+  & $R_P$: $\Delta_\linear^2(R_P^{-1}) \triangleq 1$ \\
+  \cmidrule(lr){2-2}
+  nonlinear scales & $R_\tophat$: $\sigma_\tophat^2(R_\tophat) \triangleq 1$ \\
+  \cmidrule(lr){2-2}
+  & $R_\gauss$: $\sigma_\gauss^2(R_\gauss) \triangleq 1$ \\
+  \cmidrule(lr){2-2}
+  & $\d R / \d\lna$: time derivatives of the above \\
+  \midrule
+  & $l_p$: particle spacing \\
+  \cmidrule(lr){2-2}
+  other scales & $l_c$: PM force mesh cell size \\
+  \cmidrule(lr){2-2}
+  & $l_s$: softening length \\
+  \midrule
+  & $G_m(a) \triangleq D_m(a) / a^m, m \in \{1, 2, \YL{3's?}\}$ \\
+  \cmidrule(lr){2-2}
+  & $\d\ln G_m / \d\lna$ \\
+  \cmidrule(lr){2-2}
+  dimensionless factors & $\Omegam(a), \YL{\OmegaK(a)}$ \\
+  \cmidrule(lr){2-2}
+  & $\d\ln\!H / \d\lna$ \\
+  \bottomrule
+  \end{tabular}
+  \end{table}
+
+In this section, we introduce a list of physical quantities that could
+be of possible importance in SO.
+Multiple scales and dimensionless factors could possibly affect force
+sharpening.
+A list of these features is summarized in \autoref{tab:feat}, and here
+we present relevant definitions and more details.
+
+Below are some definitions related to the typical spatial scales.
+\begin{itemize}
+\item The root-mean-square (RMS) linear displacement is given by
+%
+\begin{equation}
+R_\mathrm{d}^2 = \int \frac{k P_\linear(k)}{6\pi^2} \d\lnk,
+\end{equation}
+%
+where $P_\linear(k)$ is the linear power spectrum.
+\item The dimensionless linear power spectrum is defined as
+%
+\begin{equation}
+\Delta^2_\linear(k) \triangleq \frac{k^3 P_\linear(k)}{2 \pi^2},
+\end{equation}
+%
+based on which we define a nonlinear scale $R_P$ through
+$\Delta_\linear^2(R_P^{-1}) \triangleq 1$.
+\item The variance of linear matter overdensity in a top-hat window is given by
+%
+\begin{equation}
+\sigma_\tophat^2(R) = \int_0^\infty \frac{\d k}k
+  \Delta_\linear^2(k) W_\tophat^2(kR),
+\end{equation}
+%
+where $W_\tophat(kR) = 3[\sin(kR) - kR\cos(kR)] / (kR)^3$ is the
+Fourier transform of the top-hat window.
+Then we have $R_\tophat$ defined through $\sigma_\tophat^2(R_\tophat)
+\triangleq 1$.
+\item Likewise $\sigma_\gauss^2(R)$ is defined with a Gaussian window
+$W_\gauss(kR) = e^{-(kR)^2/2}$, and $R_\gauss$ with
+$\sigma_\gauss^2(R_\gauss) \triangleq 1$.
+\end{itemize}
+These nonlinear scales are functions of time since the linear power
+spectrum evolves with time through the growth factor $D(a)$, we could
+also take the time derivatives of these scales as possible features.
+Other relevant scales include the particle spacing $l_p$ in Lagrangian
+space, the cell size $l_c$ of the chosen mesh grid for force evaluation,
+and the softening length $l_s$ in the target \GADGET\ simulations.
+
+Scales could be multiplied with the wavenumber $k$ to form dimensionless
+quantities.
+For example, the product of $k$ with the mesh cell size $l_c$ results in
+a quantity $kl_c = \pi k/k_{\rm Nyquist}$ that is invariant to different
+box sizes, which should be an important feature.
+
+Relevant scale-independent dimensionless factors are
+\begin{itemize}
+\item $G_m(a) \triangleq D_m(a) / a^m$: linear growth given in
+  suppression factors for $m \in \{1, 2\}$;
+\item $\d\ln G_m / \d\lna$: with $m=1$ case related to the growth rate
+  $f \triangleq \d\ln D_1 / \d\lna$;
+\item $\Omegam(a)$: matter density parameter at $a$;
+\item $\d\ln\!H / \d\lna$: time derivative of Hubble expansion;
+\end{itemize}
 
 
 \vspace{1em}
