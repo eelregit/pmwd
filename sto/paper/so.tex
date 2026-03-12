@@ -746,23 +746,44 @@ corresponding snapshot in the observable.
 \subsection{Force Sharpening Networks}
 \label{sec:fsnet}
 
-The inputs to both $f$ and $g$ in the SO force equation \eqref{force_so} are
-tabular features, we therefore adopt multilayer perceptrons (MLPs) to learn
-these nonlinear functions.
-Both $f$ and $g$ networks have 5 hidden layers, with 64 and 128 nodes per
-layer respectively.
-The $g$ network is wider given its more complex, higher-dimensional input
-features.
-The rectified linear unit (ReLU) activation function is used for hidden
+The functions $f$ and $g$ in the SO force equation \eqref{force_so} are
+approximated with multilayer perceptrons (MLPs).
+The input features for these networks consist of both local wavevector
+components and global cosmological and simulation parameters.
+Specifically, $f(k_i; \vvartheta)$ takes 10 input features, including the
+wavenumber $k_i$ scaled by three physical lengths ($l_p, R_{\rm TH}, l_s$) and
+7 global parameters.
+The $g(\vk; \vvartheta)$ network receives 16 features, representing the full
+3D wavevector $\vk$ scaled by the same physical lengths, along with the global
+parameters.
+
+Both $f$ and $g$ networks have 5 hidden layers, with 64 and 128 nodes per hidden
+layer respectively, totaling approximately $8.5 \times 10^4$ trainable
+parameters.
+The $g$ network is wider to accommodate the higher dimensionality of the 3D
+wavevector inputs and the greater functional complexity of the potential
+correction compared to the single-component corrections of $f$.
+We use the rectified linear unit (ReLU) activation function for the hidden
 layers.
-Being embedded in the differentiable simulation library \pmwd, the NNs
-can be trained using gradient-based optimization methods as in standard
-deep learning tasks.
-The parameters of the NNs, which enter the force evaluation at every time step,
-can be treated just like any other cosmological parameters.
-The objective gradients are accumulated as discussed in
-\autoref{sec:diffsim_obs}, based on which the parameters are then
-optimized.
+To respect the physical symmetries of the gravitational force, we enforce
+the $\mathrm{O_h}$ discrete symmetry of the Cartesian mesh through the network
+inputs.
+The $f$ network is implemented as an even function by using the absolute value
+of the wavevector component, $f(|k_i|; \vvartheta)$.
+For the $g$ network, we take the absolute values of the wavevector components
+and sort them, $g(\mathrm{sort}(|k_1|, |k_2|, |k_3|); \vvartheta)$, which
+guarantees both axis-reversal and permutation symmetry.
+
+The NNs are initialized such that the initial output is exactly unity,
+representing a "neutral" PM simulation.
+This is achieved by initializing the last layer's weights to zero and its bias
+to one, while using standard He initialization for the hidden layers.
+Being embedded in the differentiable \pmwd\ library, the networks are trained
+by backpropagating gradients from the large-scale simulation.
+The NN parameters are optimized alongside any other model parameters using
+gradient-based methods, with objective gradients accumulated as described in
+\autoref{sec:diffsim_obs}.
+
 
 
 \vspace{1em}
@@ -959,12 +980,11 @@ and further average over all $n_{\rm snaps}$ snapshots in a single forward simul
 \vspace{1em}
 \subsection{Training of Neural Networks}
 
-We initialize the parameters of NNs in a way such that the output is
-around one with slight deviations, i.e. roughly the original PM without
-SO.
-This is achieved by setting the kernel of the output layer to be very
-small random values and the bias to be zero, whose return is then around
-one after the exponential function.
+We initialize the parameters of NNs such that the initial output is exactly
+unity, corresponding to the original PM simulation without spatial
+optimization.
+This is achieved by setting the weights of the output layer to zero and its
+bias to one, while the hidden layers use standard He initialization.
 The parameters are initialized to be the same for all devices, and hence
 remain the same during training given the same averaged gradients.
 
@@ -992,14 +1012,6 @@ training data sample for loss.
 The loss and gradients are collected and averaged across all GPU
 devices, with which the optimizer is updated.
 We use the Adam \citep{Adam} optimizer.
-
-% We use Optuna \citep{optuna_2019} to search for the optimal
-% hyperparameters.
-
-% We empoly a learning rate scheduler that reduces the learning rate on
-% plateau where the loss function stops decreasing.
-% The initial learning rate is set at [...] with a reduction factor of
-% [...] after [...] epochs of no decreasing on loss.
 
 Same as the \pmwd\ library, this work is also implemented using JAX
 \citep{JAX}.
