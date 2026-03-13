@@ -513,25 +513,25 @@ a follow-up work on temporal optimization.
 \end{tikzpicture}
 }
 \\
-\subfloat[leapfrog integration-observation step]{
+\subfloat[one integration-observation step with leapfrog integrator]{
 \label{fig:step}
 \begin{tikzpicture}[node style]
   \node (z_left) [minimum height=3.5em] {};
   \node (o_left) [below=of z_left] {};
   \node (z_0) [minimum height=3.5em, right=of z_left]
-        {$\begin{pmatrix} \vx_{i-1} \\ \vp_{i-1} \end{pmatrix}$}
+        {$\begin{pmatrix} \vx_{i-1} \\[1ex] \vp_{i-1} \end{pmatrix}$}
         edge [integ] (z_left);
   \node (o_0) [below=of z_0] {$\vo_{i-1}$}
         edge [obs] (z_0)
         edge [from] (o_left);
   \node (z_01) [minimum height=3.5em, right=of z_0]
-        {$\begin{pmatrix} \vx_{i-1} \\ \vp_{i-\half} \end{pmatrix}$}
+        {$\begin{pmatrix} \vx_{i-1} \\[1ex] \vp_{i-\half} \end{pmatrix}$}
         edge [integ] node[below] {Kick} (z_0);
   \node (z_02) [minimum height=3.5em, right=of z_01]
-        {$\begin{pmatrix} \vx_i \\ \vp_{i-\half} \end{pmatrix}$}
+        {$\begin{pmatrix} \vx_i \\[1ex] \vp_{i-\half} \end{pmatrix}$}
         edge [integ] node[below] {Drift} (z_01);
   \node (z_1) [minimum height=3.5em, right=of z_02]
-        {$\begin{pmatrix} \vx_i \\ \vp_i \end{pmatrix}$}
+        {$\begin{pmatrix} \vx_i \\[1ex] \vp_i \end{pmatrix}$}
         edge [integ] node[below] {Kick} (z_02);
   \node (o_1) [below=of z_1] {$\vo_i$}
         edge [obs] (z_1)
@@ -540,7 +540,7 @@ a follow-up work on temporal optimization.
         edge [integ] (z_1);
   \node (o_right) [right=of o_1] {}
         edge [from] (o_1);
-  \node (box) [box style, dashed, fit=(z_0) (z_1) (o_0) (o_1)] {};
+  \node (box) [box style, dashed, inner xsep=1.5em, fit=(z_0) (z_1) (o_0) (o_1)] {};
   \useasboundingbox ($ (box.south) - (0, 1em) $) --
                     ($ (box.north) + (0, 1em) $);
 \end{tikzpicture}
