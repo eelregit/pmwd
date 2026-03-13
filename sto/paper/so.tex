@@ -479,16 +479,21 @@ a follow-up work on temporal optimization.
   \node (z_0) {$\vz_0$};
   \node (o_0) [below=of z_0] {$\vo_0$}
         edge [obs] (z_0);
-  \node (z_0i) [right=of z_0] {$\cdots$}
+  \node (z_dots1) [right=of z_0] {$\cdots$}
         edge [integ] (z_0);
-  \node (o_1i) [below=of z_0i] {$\cdots$}
-        edge [obs] (z_0i)
+  \node (o_dots1) [below=of z_dots1] {$\cdots$}
+        edge [obs] (z_dots1)
         edge [from] (o_0);
-  \node (z_i) [right=of z_0i] {$\vz_i$}
-        edge [integ] (z_0i);
+  \node (z_im1) [right=of z_dots1] {$\vz_{i-1}$}
+        edge [integ] (z_dots1);
+  \node (o_im1) [below=of z_im1] {$\vo_{i-1}$}
+        edge [obs] (z_im1)
+        edge [from] (o_dots1);
+  \node (z_i) [right=of z_im1] {$\vz_i$}
+        edge [integ] (z_im1);
   \node (o_i) [below=of z_i] {$\vo_i$}
         edge [obs] (z_i)
-        edge [from] (o_1i);
+        edge [from] (o_im1);
   \node (z_in) [right=of z_i] {$\cdots$}
         edge [integ] (z_i);
   \node (o_in) [below=of z_in] {$\cdots$}
@@ -502,6 +507,7 @@ a follow-up work on temporal optimization.
   \node (obj) [right=of o_n] {$\cJ$}
         edge [from] (o_n);
   \node (box) [box style, fit=(z_0) (o_n)] {};
+  \node (step_box) [box style, dashed, inner sep=0.2em, inner xsep=0.8em, fit=(z_im1) (o_i)] {};
   \useasboundingbox ($ (box.south) - (0, 1em) $) --
                     ($ (box.north) + (0, 1em) $);
 \end{tikzpicture}
@@ -534,6 +540,7 @@ a follow-up work on temporal optimization.
         edge [integ] (z_1);
   \node (o_right) [right=of o_1] {}
         edge [from] (o_1);
+  \node (box) [box style, dashed, fit=(z_0) (z_1) (o_0) (o_1)] {};
   \useasboundingbox ($ (box.south) - (0, 1em) $) --
                     ($ (box.north) + (0, 1em) $);
 \end{tikzpicture}
@@ -542,11 +549,11 @@ a follow-up work on temporal optimization.
 \subref{fig:loop} shows the flow of the state $\vz$ and the
 observable $\vo$ in the integration-observation loop of the forward
 simulation.
-\subref{fig:step} shows explicitly one integration-observation step for
-the leapfrog integrator.
-The solid lines denote the integration of the state, the dashed lines
-denote the observation of the state added to the observable, and the
-dotted lines are simply the forward pass of the previous observable.}
+\subref{fig:step} shows explicitly a zoom-in view of one integration-observation
+step for the leapfrog integrator.
+The solid arrows denote the integration of the state, the dashed arrows
+denote the observation of the state accumulated into the observable, and the
+dotted arrows are simply the forward pass of the previous observable.}
 \end{figure*}
 
 The gradient descent optimization of the neural networks embedded in the
