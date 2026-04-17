@@ -6,8 +6,8 @@ import jax.numpy as jnp
 
 import numpy as np
 
-from pmwd.sto.data.sample import scale_Sobol
-from pmwd.sto.data.initial import gen_cc, gen_ic
+from sto.data.sample import scale_Sobol
+from sto.data.initial import gen_cc, gen_ic
 from pmwd.io_util import write_gadget_hdf5
 
 

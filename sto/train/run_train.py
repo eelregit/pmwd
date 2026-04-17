@@ -23,9 +23,9 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 import pickle
 
-from pmwd.sto.data.g4data import create_g4data_loader, PrefetchToDevice
-from pmwd.sto.train.train import train_epochs, evaluate_loss_epoch
-from pmwd.sto.train.utils import procinfo, device_sync
+from sto.data.g4data import create_g4data_loader, PrefetchToDevice
+from sto.train.train import train_epochs, evaluate_loss_epoch
+from sto.train.utils import procinfo, device_sync
 from pmwd.sto.so.mlp import init_mlp_params
 
 
@@ -107,7 +107,7 @@ def run_train(n_epochs, data_loader, loss_conf, opt_conf, model_conf,
 
 if __name__ == "__main__":
 
-    from pmwd.sto.train.hypars import data_conf, loss_conf, opt_conf, model_conf, n_input
+    from sto.train.hypars import data_conf, loss_conf, opt_conf, model_conf, n_input
 
     data_loader, data_conf = setup_data(data_conf)
 

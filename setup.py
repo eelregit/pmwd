@@ -22,7 +22,7 @@ setup(
     author_email='eelregit@gmail.com',
     use_scm_version={'write_to': 'pmwd/_version.py'},
     setup_requires=['setuptools_scm'],
-    packages=find_packages(),
+    packages=find_packages(include=['pmwd', 'pmwd.*', 'sto', 'sto.*']),
     python_requires='>=3.8',  # math.prod
     install_requires=[
         'jax>=0.4.7',

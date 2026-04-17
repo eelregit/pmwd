@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import grain.python as grain
 import collections
 
-from pmwd.sto.data.sample import scale_Sobol
+from sto.data.sample import scale_Sobol
 
 
 def read_g4sim(sims_dir, sidx, snap_ids, fn_sobol, float_dtype=np.float32):

@@ -13,9 +13,9 @@ from functools import partial
 from pmwd.nbody import nbody
 from pmwd.particles import Particles
 
-from pmwd.sto.data.initial import gen_cosmo
-from pmwd.sto.train.loss import loss_func
-from pmwd.sto.train.utils import tree_global_mean, procinfo
+from sto.data.initial import gen_cosmo
+from sto.train.loss import loss_func
+from sto.train.utils import tree_global_mean, procinfo
 
 
 def obj(tgts, ptcl, so_params, cosmo, conf, loss_conf):
