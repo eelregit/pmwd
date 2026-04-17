@@ -1,0 +1,134 @@
+\usetikzlibrary{backgrounds}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    % --- Node styles ---
+    layer/.style={draw=gray!50, densely dashed, rounded corners=8pt,
+                  fill=gray!3, inner sep=16pt},
+    lbl/.style={font=\sffamily\bfseries\small, text=gray!55},
+    box/.style={draw=MidnightBlue!80, semithick, fill=MidnightBlue!5,
+                rounded corners=3pt, align=center, inner sep=7pt,
+                font=\small, minimum height=1.15cm, minimum width=2.6cm},
+    hlbox/.style={draw=Bittersweet!80, semithick, fill=Bittersweet!6,
+                  rounded corners=3pt, align=center, inner sep=7pt,
+                  font=\small, minimum height=1.15cm, minimum width=2.6cm},
+    % --- Arrow styles ---
+    arr/.style={-{Stealth[length=5pt, width=4pt]}, semithick,
+                MidnightBlue!60},
+    harr/.style={-{Stealth[length=5pt, width=4pt]}, semithick,
+                 Bittersweet!60},
+    dasharr/.style={-{Stealth[length=5pt, width=4pt]}, semithick,
+                    gray!45, densely dashed},
+    note/.style={font=\scriptsize, text=gray!70},
+]
+
+% ====================================================================
+%  LAYER 1  ---  Disk / Persistent Storage
+% ====================================================================
+\node[box] (dataset)
+     {GADGET-4 Dataset\\\& \GSDATA\ Sobol Sequences};
+\node[box, right=4.5cm of dataset] (ckpt)
+     {Checkpoints (\texttt{.pickle})\\\& TensorBoard Logs};
+
+\begin{scope}[on background layer]
+  \node[layer, fit=(dataset)(ckpt),
+        label={[lbl]left:Disk}] {};
+\end{scope}
+
+% ====================================================================
+%  LAYER 2  ---  Host / CPU Orchestration
+% ====================================================================
+\node[box, below=1.5cm of dataset] (slurm)
+     {SLURM Orchestration\\($N_\mathrm{procs}$ Distributed Processes)};
+\node[box, right=1.2cm of slurm] (loader)
+     {CPU Data Loader\\(ICs + Snapshots)};
+
+\draw[arr] (dataset) -- (slurm);
+\draw[arr] (slurm)   -- (loader)
+     node[midway, above, note] {Split Sobol IDs};
+
+\begin{scope}[on background layer]
+  \node[layer, fit=(slurm)(loader),
+        label={[lbl]left:Host (CPU)}] {};
+\end{scope}
+
+% ====================================================================
+%  BRIDGE  ---  Asynchronous CPU -> GPU Transfer
+% ====================================================================
+\node[hlbox, below=2.2cm of loader] (prefetch)
+     {\texttt{PrefetchToDevice}\\(Async Queue, depth\,=\,2)};
+\draw[harr] (loader) -- (prefetch);
+
+% ====================================================================
+%  LAYER 3  ---  Device / GPU Execution
+% ====================================================================
+
+% --- Model state (left column) ---
+\node[box, below=4.5cm of slurm] (params)
+     {NN Weights $\vtheta$\\Optimizer State};
+
+% --- JAX-compiled forward--backward block (upper row) ---
+\node[box, right=1.5cm of params] (sim)
+     {Differentiable\\PM Simulation};
+\node[box, right=0.9cm of sim] (loss)
+     {Multi-Snapshot\\Loss $\cJ$};
+\node[box, right=0.9cm of loss] (adj)
+     {Adjoint\\Backpropagation};
+
+%  Forward-pass arrows
+\draw[arr] (sim)  -- (loss) node[midway, above, note] {$\hat{f}$};
+\draw[arr] (loss) -- (adj)  node[midway, above, note] {$\vmu_n$};
+
+%  Reverse-time adjoint (dashed feedback inside compiled block)
+\draw[dasharr] (adj.south) -- ++(0,-0.55) -| (sim.south)
+     node[pos=0.25, below, note] {$\vlambda_0,\; d\cJ/d\vtheta$};
+
+%  JAX compiled-execution boundary
+\begin{scope}[on background layer]
+  \node[draw=Bittersweet!55, densely dashed, rounded corners=5pt,
+        fill=Bittersweet!3, fit=(sim)(loss)(adj), inner sep=12pt,
+        label={[font=\scriptsize\sffamily\itshape,
+                text=Bittersweet!75]%
+               above:\texttt{jax.pmap} Compiled Execution}]
+       (jaxblk) {};
+\end{scope}
+
+% --- Gradient post-processing (lower row, right -> left) ---
+\node[hlbox, below=1.8cm of adj] (accum)
+     {Gradient\\Accumulation\\($\times\!4$ steps)};
+\node[hlbox, left=0.9cm of accum] (sync)
+     {\texttt{lax.pmean}\\Cross-Device $\nabla$ Avg};
+\node[box, left=0.9cm of sync] (opt)
+     {Optax Update\\(AdamW)};
+
+\draw[harr] (adj)   -- (accum)
+     node[midway, right, note] {$\nabla_{\!\vtheta}\cJ$};
+\draw[harr] (accum) -- (sync);
+\draw[arr]  (sync)  -- (opt);
+
+% --- Training-loop closure ---
+%  opt -> params  (route along the left margin)
+\draw[arr] (opt.west) -| (params.south);
+%  params -> sim
+\draw[arr] (params) -- (sim);
+
+% --- Data feed: prefetch -> simulation ---
+\draw[harr] (prefetch.south) -- (sim.north)
+     node[near end, left, note] {Batch};
+
+% --- GPU layer background ---
+\begin{scope}[on background layer]
+  \node[layer, fit=(prefetch)(params)(jaxblk)(accum)(sync)(opt),
+        label={[lbl]left:Device (GPU)}] {};
+\end{scope}
+
+% ====================================================================
+%  Cross-layer: GPU -> Disk  (periodic checkpointing)
+% ====================================================================
+\draw[dasharr, rounded corners=8pt] (params.east) -- ++(0.75, 0)
+    |- ([yshift=-1.2cm]opt.south)
+    -| ([xshift=1.5cm]adj.east)
+    |- (ckpt.east)
+    node[pos=0.75, below, note] {Periodic Save};
+
+\end{tikzpicture}%
+}

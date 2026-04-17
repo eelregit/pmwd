@@ -1364,6 +1364,34 @@ comparing to the target data from \GADGET.
 
 % show the density fields and the difference
 
+\section{Training Pipeline Overview}
+
+\begin{figure*}
+  \centering
+  \input{training_pipeline}
+  \caption{Schematic overview of the distributed training pipeline.
+  The architecture spans persistent storage, host (CPU) orchestration, and
+  distributed device (GPU) execution to maximize throughput for cosmological
+  $N$-body workloads.
+  The \GSDATA\ Sobol sequence targets are distributed across 16 CPU processes,
+  which load initial conditions and target snapshots.
+  An asynchronous queue (\texttt{PrefetchToDevice}) maintains a depth of two
+  batches to prevent GPU idling during disk I/O.
+  The core iteration loop leverages JAX's \texttt{pmap} to compile and execute
+  the forward simulation, multi-snapshot loss evaluation, and adjoint
+  backpropagation concurrently across devices.
+  Local gradients are accumulated over multiple forward--backward passes and
+  averaged globally via \texttt{lax.pmean} prior to an Optax optimizer step.
+  Finally, parameters and optimizer states are checkpointed periodically to
+  ensure fault tolerance.}
+  \label{fig:pipeline}
+\end{figure*}
+
+Our training orchestration is engineered to efficiently handle the heavy
+computational workload of cosmological simulations.
+The full details of the distributed data loading, asynchronous prefetching, and
+multi-device JAX execution are summarized in \autoref{fig:pipeline}.
+
 
 %\listofchanges
 
