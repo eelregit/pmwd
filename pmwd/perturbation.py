@@ -53,7 +53,7 @@ def transfer_fit(k, cosmo):
     """
     k = jnp.asarray(k)
 
-    k = k * cosmo.h / cosmo.L * cosmo.Mpc_SI  # unit conversion to 1/Mpc
+    k = k * cosmo.h / cosmo.L * cosmo.const.Mpc  # unit conversion to 1/Mpc
 
     T2_cmb_norm = (cosmo.T_cmb / 2.7)**2
     h2 = cosmo.h**2
