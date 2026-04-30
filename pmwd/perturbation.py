@@ -56,11 +56,10 @@ def transfer_fit(k, cosmo):
     k = k * cosmo.h / cosmo.L * cosmo.const.Mpc  # unit conversion to 1/Mpc
 
     T2_cmb_norm = (cosmo.T_cmb / 2.7)**2
-    h2 = cosmo.h**2
-    w_m = cosmo.Omega_m * h2
-    w_b = cosmo.Omega_b * h2
-    f_b = cosmo.Omega_b / cosmo.Omega_m
-    f_c = cosmo.Omega_c / cosmo.Omega_m  # TODO neutrinos?
+    w_m = cosmo.omega_m
+    w_b = cosmo.omega_b
+    f_b = cosmo.f_b
+    f_c = cosmo.f_c  # TODO neutrinos?
 
     z_eq = 2.50e4 * w_m / T2_cmb_norm**2
     k_eq = 7.46e-2 * w_m / T2_cmb_norm
@@ -373,7 +372,7 @@ def linear_power(k, a, cosmo):
 
     Plin = (
         0.32 * cosmo.A_s * cosmo.k_pivot * _safe_power(k / cosmo.k_pivot, cosmo.n_s)
-        * (jnp.pi * (cosmo.c / cosmo.H_0)**2 / cosmo.Omega_m * T)**2
+        * (jnp.pi * cosmo.d_H**2 / cosmo.Omega_m * T) ** 2
     )
 
     if a is not None:

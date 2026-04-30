@@ -5,6 +5,7 @@ from types import MappingProxyType
 from jax import Array, ensure_compile_time_eval
 from jax.typing import ArrayLike, DTypeLike
 import jax.numpy as jnp
+import scipy.special
 from mcfit import mcfit, TophatVar
 
 from pmwd.constants import Constants
@@ -51,8 +52,12 @@ class Cosmology(TanMixin, Tree):
         Baryonic matter density parameter today :math:`\Omega_\mathrm{b}`.
     h : float ArrayLike
         Hubble constant in unit of 100 km/s/Mpc :math:`h`.
+    m_nu : float ArrayLike, optional
+        Neutrino masses :math:`m_\nu` in eV/:math:`c^2`, massless by default.
     T_cmb : float ArrayLike, optional
         CMB temperature in Kelvin today :math:`T_\mathrm{CMB}`.
+    N_eff : float ArrayLike, optional
+        Effective number of relativistic neutrino species :math:`N_\mathrm{eff}".
     Omega_K : float ArrayLike, optional
         Spatial curvature density parameter today :math:`Omega_K`
     w_0 : float ArrayLike, optional
@@ -126,8 +131,11 @@ class Cosmology(TanMixin, Tree):
     Omega_m: ArrayLike = cosmo_dyn_field()
     Omega_b: ArrayLike = cosmo_dyn_field()
     h: ArrayLike = cosmo_dyn_field()
+    m_nu: ArrayLike = dyn_field(optional=True, validate=(asarray_of(field='dtype'),
+                                                         jnp.ravel))
 
     T_cmb: ArrayLike = fxd_field(default=2.7255)  # Fixsen 2009, arXiv:0911.1955
+    N_eff: ArrayLike = fxd_field(default=3.044)
     Omega_K: ArrayLike = fxd_field(default=0.)
     w_0: ArrayLike = fxd_field(default=-1.)
     w_a: ArrayLike = fxd_field(default=0.)
@@ -216,9 +224,98 @@ class Cosmology(TanMixin, Tree):
         return self.A_s_1e9 * 1e-9
 
     @property
+    def T_nu(self):
+        r"""Neutrino temperature in Kelvin today :math:`T_\nu \approx
+        \Bigl(\frac{4}{11}\Bigr)^{1/3} \Bigl(\frac{N_\mathrm{eff}}{3}\Bigr)^{1/4}
+        T_\mathrm{CMB}`."""
+        return math.cbrt(4/11) * jnp.sqrt(jnp.sqrt(self.N_eff / 3)) * self.T_cmb
+
+    @property
+    def M_nu(self):
+        r"""Sum of neutrino masses :math:`M_\nu = \sum m_\nu` in eV/:math:`c^2`."""
+        if self.m_nu is None:
+            return 0
+        return self.m_nu.sum()
+
+    @property
+    def Omega_nu(self):
+        r"""Massive neutrino density parameter today :math:`\Omega_\nu`, or 0 if
+        massless."""
+        if self.m_nu is None:
+            return 0
+        return self.omega_nu * self.h**-2
+
+    @property
+    def Omega_cb(self):
+        r"""Cold dark and baryonic matter density parameter today
+        :math:`\Omega_\mathrm{cb}`."""
+        return self.Omega_m - self.Omega_nu
+
+    @property
     def Omega_c(self):
         r"""Cold dark matter density parameter today :math:`\Omega_\mathrm{c}`."""
-        return self.Omega_m - self.Omega_b
+        return self.Omega_cb - self.Omega_b
+
+    @property
+    def omega_m(self):
+        r"""Total matter *physical* density parameter today :math:`\omega_\mathrm{m} =
+        \Omega_\mathrm{m} h^2`."""
+        return self.Omega_m * self.h**2
+
+    @property
+    def omega_nu(self):
+        r"""Massive neutrino *physical* density parameter today :math:`\omega_\nu =
+        \Omega_\nu h^2`, or 0 if massless."""
+        if self.m_nu is None:
+            return 0
+        coeff = (4 / jnp.pi * scipy.special.zeta(3)).item()
+        return (coeff * self.const.G / self.const.H_0**2
+                * (self.const.k * self.T_nu / self.const.hbar / self.const.c) ** 3
+                * self.M_nu * self.const.e / self.const.c**2)
+
+    @property
+    def omega_cb(self):
+        r"""Cold dark and baryonic matter *physical* density parameter today
+        :math:`\omega_\mathrm{cb} = \Omega_mathrm{cb} h^2`."""
+        return self.Omega_cb * self.h**2
+
+    @property
+    def omega_b(self):
+        r"""Baryonic matter *physical* density parameter today :math:`\omega_\mathrm{b}
+        = \Omega_\mathrm{b} h^2`."""
+        return self.Omega_b * self.h**2
+
+    @property
+    def omega_c(self):
+        r"""Cold dark matter *physical* density parameter today :math:`\omega_\mathrm{c}
+        = \Omega_\mathrm{c} h^2`."""
+        return self.Omega_c * self.h**2
+
+    @property
+    def f_nu(self):
+        r"""Massive neutrino density fraction :math:`f_\nu = \Omega_\nu /
+        \Omega_\matherm{m}`, or 0 if massless."""
+        if self.m_nu is None:
+            return 0
+        return self.Omega_nu / self.Omega_m
+
+    @property
+    def f_cb(self):
+        r"""Cold dark and baryonic matter density fraction :math:`f_\mathrm{cb} =
+        \Omega_mathrm{cb} / \Omega_\matherm{m}`."""
+        return self.Omega_cb / self.Omega_m
+
+    @property
+    def f_b(self):
+        r"""Baryonic matter density fraction :math:`f_\mathrm{b} = \Omega_\mathrm{b} /
+        \Omega_\matherm{m}`."""
+        return self.Omega_b / self.Omega_m
+
+    @property
+    def f_c(self):
+        r"""Cold dark matter density fraction :math:`f_\mathrm{c} = \Omega_\mathrm{c} /
+        \Omega_\matherm{m}`."""
+        return self.Omega_c / self.Omega_m
 
     @property
     def K(self):
@@ -317,4 +414,5 @@ Planck_18 = MappingProxyType(dict(
     Omega_m=0.3111,
     Omega_b=0.04897,
     h=0.6766,
+    m_nu=[0.06],
 ))
