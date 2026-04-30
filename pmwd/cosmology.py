@@ -11,7 +11,7 @@ from pmwd.constants import Constants
 from pmwd.background import distance_cache
 from pmwd.perturbation import transfer_cache, growth_cache, varlin_cache, varlin
 from pmwd.tree_util import (Tree, TanMixin, pytree_dataclass, dyn_field, fxd_field,
-                            aux_field, field, issubdtype_of, asarray_of)
+                            aux_field, issubdtype_of, asarray_of)
 
 
 cosmo_dyn_field = partial(dyn_field, validate=asarray_of(field='dtype'))
@@ -64,16 +64,15 @@ class Cosmology(TanMixin, Tree):
     const : Constants, optional
         Physical constants in SI units.
     M : float ArrayLike, optional
-        Mass unit :math:`M` defined in kg/:math:`h`. Default is :math:`10^{10}
-        M_\odot/h`.
+        Mass unit :math:`M` in kg/:math:`h`. Default is :math:`10^{10} M_\odot/h`.
     L : float ArrayLike, optional
-        Length unit :math:`L` defined in m/:math:`h`. Default is Mpc/:math:`h`.
+        Length unit :math:`L` in m/:math:`h`. Default is Mpc/:math:`h`.
     T : float ArrayLike, optional
-        Time unit :math:`T` defined in s/:math:`h`. Default is Hubble time :math:`1/H_0
-        \sim 10^{10}` years/:math:`h \sim` age of the Universe. So the default velocity
-        unit is :math:`L/T =` 100 km/s.
+        Time unit :math:`T` in s/:math:`h`. Default is Hubble time :math:`1/H_0 \sim
+        10^{10}` years/:math:`h \sim` age of the Universe. So the default velocity unit
+        is :math:`L/T =` 100 km/s.
     A : float ArrayLike, optional
-        Angular unit defined in radians. Default is arcsec.
+        Angular unit in radians. Default is arcsec.
     distance_lga_min : float, optional
         Minimum distance scale factor in log10.
     distance_lga_max : float, optional
@@ -134,9 +133,8 @@ class Cosmology(TanMixin, Tree):
     w_a: ArrayLike = fxd_field(default=0.)
     k_pivot_Mpc: ArrayLike = fxd_field(default=0.05)
 
-    const: Constants = field(depend=lambda self: Constants(), repr=False)
+    const: Constants = dyn_field(depend=lambda self: Constants(), repr=False)
 
-    # units in SI units
     M: ArrayLike = fxd_field(depend=lambda self: 1e10 * self.const.M_sun)
     L: ArrayLike = fxd_field(depend=lambda self: self.const.Mpc)
     T: ArrayLike = fxd_field(depend=lambda self: 1 / self.const.H_0)
