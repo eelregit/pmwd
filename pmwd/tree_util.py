@@ -2,6 +2,7 @@ from collections.abc import Callable
 import dataclasses
 from enum import Flag, auto
 from functools import partial
+from operator import itemgetter
 from pprint import pformat
 
 import jax.numpy as jnp
@@ -46,16 +47,59 @@ def issubdtype_of(stype):
     return fun
 
 
-def asarray_of(dtype=None, field=None):
-    """Return a validator function that casts the children of its input pytree to JAX
-    arrays of the specified dtype.
+def asarray_of(dtype=None, field=None, recur=False):
+    """Return a validator function that casts its input to JAX arrays of the specified
+    dtype.
 
     Parameters
     ----------
     dtype : DTypeLike, optional
-        `dtype` can be `None`, `float`, or `int`, while more specific conversions can be
-        done using, e.g., `validate=jnp.float32` instead of the more cumbersome
-        ``validate=asarray_of(dtype=jnp.float32)``.
+        `dtype` can be `None`, `float`, or `int`, while more specific conversions of an
+        `ArrayLike` can be done using, e.g., `validate=jnp.float32` instead of the more
+        cumbersome ``validate=asarray_of(dtype=jnp.float32)``.
+    field : str, optional
+        If not `None`, use dtype inferred from `field` of the owner dataclass, which can
+        be either a `DTypeLike` or an `Array`.
+    recur : bool, optional
+        Whether to operate recursively, taking the input as a pytree instead of an
+        `ArrayLike`.
+
+    Raises
+    ------
+    ValueError
+        If both `dtype` and `field` are not `None`.
+
+    """
+    if field is None:
+        if recur:
+            def fun(value):
+                return tree_map(partial(jnp.asarray, dtype=dtype), value)
+        else:
+            def fun(value):
+                return jnp.asarray(value, dtype=dtype)
+        return fun
+
+    if dtype is not None:
+        raise ValueError('dtype and field are mutually exclusive')
+
+    if recur:
+        def fun(value, obj):
+            dtype = jnp.dtype(getattr(obj, field))
+            return tree_map(partial(jnp.asarray, dtype=dtype), value)
+    else:
+        def fun(value, obj):
+            dtype = jnp.dtype(getattr(obj, field))
+            return jnp.asarray(value, dtype=dtype)
+    return fun
+
+
+def astype_of(dtype=None, field=None):
+    """Return a validator function that calls the `astype` method of its input pytree
+    with the specified dtype.
+
+    Parameters
+    ----------
+    dtype : DTypeLike, optional
     field : str, optional
         If not `None`, use dtype inferred from `field` of the owner dataclass, which can
         be either a `DTypeLike` or an `Array`.
@@ -68,7 +112,7 @@ def asarray_of(dtype=None, field=None):
     """
     if field is None:
         def fun(value):
-            return tree_map(partial(jnp.asarray, dtype=dtype), value)
+            return value.astype(dtype)
         return fun
 
     if dtype is not None:
@@ -76,13 +120,13 @@ def asarray_of(dtype=None, field=None):
 
     def fun(value, obj):
         dtype = jnp.dtype(getattr(obj, field))
-        return tree_map(partial(jnp.asarray, dtype=dtype), value)
+        return value.astype(dtype)
     return fun
 
 
-def reshape_to(shape=None, field=None):
-    """Return a validator function that reshapes the children of its input pytree to the
-    specified shape.
+def reshape_to(shape=None, field=None, recur=False):
+    """Return a validator function that reshapes its input arrays to the specified
+    shape.
 
     Parameters
     ----------
@@ -90,6 +134,9 @@ def reshape_to(shape=None, field=None):
     field : str, optional
         If not `None`, use shape inferred from `field` of the owner dataclass, which can
         be either a `tuple` or an `Array`.
+    recur : bool, optional
+        Whether to operate recursively, taking the input as a pytree instead of an
+        array.
 
     Raises
     ------
@@ -98,31 +145,44 @@ def reshape_to(shape=None, field=None):
 
     """
     if field is None:
-        def fun(value):
-            return tree_map(partial(jnp.reshape, shape=shape), value)
+        if recur:
+            def fun(value):
+                return tree_map(partial(jnp.reshape, shape=shape), value)
+        else:
+            def fun(value):
+                return jnp.reshape(value, shape=shape)
         return fun
 
     if shape is not None:
         raise ValueError('shape and field are mutually exclusive')
 
-    def fun(value, obj):
-        shape = getattr(obj, field)
-        shape = shape.shape if isinstance(shape, Array) else shape
-        return tree_map(partial(jnp.reshape, shape=shape), value)
+    if recur:
+        def fun(value, obj):
+            shape = getattr(obj, field)
+            shape = shape.shape if isinstance(shape, Array) else shape
+            return tree_map(partial(jnp.reshape, shape=shape), value)
+    else:
+        def fun(value, obj):
+            shape = getattr(obj, field)
+            shape = shape.shape if isinstance(shape, Array) else shape
+            return jnp.reshape(value, shape=shape)
     return fun
 
 
 def wrap_around(modulus):
-    """Return a validator function that wraps the children of its input pytree around
-    the specified modulus.
+    """Return a validator function that wraps its input around the specified modulus.
 
     Parameters
     ----------
     modulus : int or float ArrayLike
 
+    Notes
+    -----
+    This can also wrap the gradients and cause problems.
+
     """
     def fun(value):
-        return tree_map(lambda x: x % modulus, value)
+        return value % modulus
     return fun
 
 
@@ -141,11 +201,7 @@ def _canonicalize_callables(fun):
 
 
 def _call_dual_arity(fun, value, obj):
-    """Call as a unary function first and then as a binary function.
-
-    ``fun(value)``, ``fun(value, obj)``, or fail.
-
-    """
+    """Call as a unary function first and then as a binary function, returning ``fun(value)``, ``fun(value, obj)``, or raise."""
     try:
         return fun(value)
     except TypeError as err:
@@ -163,7 +219,7 @@ def _call_dual_arity(fun, value, obj):
         err_binary = err
 
     err = TypeError(f'calling {fun.__qualname__} fails on both binary and unary forms '
-                    f'for {value=!r} and {obj=!r}')
+                    f'for {value=!r} and {type(obj)=}')
     err.add_note(f'    unary:  {err_unary!r}')
     err.add_note(f'    binary: {err_binary}')
     raise err
@@ -319,20 +375,6 @@ class Data:
                 self.default, self.depend, self.cache, self.__get__(obj))):
             raise ValueError(f'mandatory data {self.name} missing for '
                              f'{self.objtype.__qualname__}')
-
-    def run_depend(self, obj):
-        """Run functional dependency."""
-        if self.depend is None or self.__get__(obj) is not None:
-            return obj
-        value = self.depend(obj)
-        return value
-
-    def run_cache(self, obj):
-        """Run caching function."""
-        if self.cache is None:
-            return obj
-        value = self.cache(obj)
-        return value
 
     def run_validate(self, value, obj):
         """Run validator functions."""
@@ -554,8 +596,8 @@ class Tree:
 
                 descr.raise_missing(self)
 
-                value = descr.run_depend(self)
-                if value is not self:
+                if descr.depend is not None and descr.__get__(self) is None:
+                    value = descr.depend(self)
                     descr.__set__(self, value)
 
     #TODO warn reserved member names replace, cache, & purge. How?
@@ -567,15 +609,29 @@ class Tree:
         """
         return dataclasses.replace(self, **changes)
 
-    def cache(self, *args):
-        """Cache specified fields in the order of `args`, ignoring absent or non-caching
-        ones.
+    #TODO: caching multiple fields by one function
+    #    *args  # enhancing args
+    #        ... Each string can include multiple fields separated by commas to cache them
+    #        together by the same function, e.g., ``obj.cache('x, y, z')``. The caching
+    #        functions of the first fields are used, and `Ellipsis` can be used as
+    #        placeholders in those of the other fields.  #TODO allow ... for this usage
+    #        The assignments of the returned values assume the same orders.
+    #    **kwargs  # enhancing kwargs
+    #        Names-arguments pairs also passing and unpacking iterables of other
+    #        arguments after `self` into the cache functions, e.g., ``obj.cache(**{'x, y,
+    #        z': (a, b, c)})``. See also the `args` above.
+    def cache(self, *args, **kwargs):
+        """Cache specified fields in the order of `args` and then `kwargs`, ignoring
+        absent or non-caching ones.
 
         Parameters
         ----------
-        args
+        *args
             Names of the fields to cache. Pass a single `...` to cache all fields in the
             order of `dataclasses.fields`.
+        **kwargs
+            Name-iterable pairs also passing and unpacking iterables of other arguments
+            after `self` into the cache functions.
 
         Returns
         -------
@@ -588,10 +644,14 @@ class Tree:
         obj = self
         for name in args:
             descr = vars(type(self)).get(name, None)
-            if isinstance(descr, Data):
-                value = descr.run_cache(obj)
-                if value is not obj:
-                    obj = obj.replace(**{name: value})
+            if isinstance(descr, Data) and descr.cache is not None:
+                value = descr.cache(obj)
+                obj = obj.replace(**{name: value})
+        for name, objs in kwargs.items():
+            descr = vars(type(self)).get(name, None)
+            if isinstance(descr, Data) and descr.cache is not None:
+                value = descr.cache(obj, *objs)
+                obj = obj.replace(**{name: value})
         return obj
 
     def purge(self, *args):
@@ -599,7 +659,7 @@ class Tree:
 
         Parameters
         ----------
-        args
+        *args
             Names of the fields to purge. Pass a single `...` to purge all fields.
 
         Returns
@@ -618,6 +678,7 @@ class Tree:
         return obj
 
 
+# TODO  DTypeMixin (dtype, astype, asarray_of, astype_of), SeqMixin (getitem), StoreMixin ("serialize"), PhysMixin (M, L, T, const)
 # TODO maybe move this and add, sub, etc to something like tan.py
 class TanMixin:
     """Addition and scalar multiplication operations for tangent and cotangent vector
@@ -793,3 +854,14 @@ def pytree_dataclass(cls, *, frozen=True, kw_only=True, **kwargs):
     register_pytree_with_keys(cls, flatten_with_keys, unflatten_func, flatten_func)
 
     return cls
+
+
+def getitem(pytree, k):
+    """Select or slice all the pytree children."""
+    return tree_map(itemgetter(k), pytree)
+
+
+def concatenate(*pytrees, axis=0):
+    """Concatenate all the corresponding children of all the pytrees. See documentation
+    of `jax.numpy.concatenate` for array concatenation."""
+    return tree_map(lambda *arrays: jnp.concatenate(arrays, axis=axis), *pytrees)
