@@ -124,7 +124,7 @@ def distance_cache(cosmo):
     return cT
 
 
-def distance(a, cosmo, type='radial', a_ref=1):
+def distance(a, cosmo, type='radial', time=False, a_ref=1):
     r"""Interpolate and compute different distance or time measures from some events via
     relativistic messengers to some references, e.g., from light emissions to
     observations.
@@ -136,14 +136,14 @@ def distance(a, cosmo, type='radial', a_ref=1):
     cosmo : Cosmology
     type : {'light' or 0, 'radial' or 1, 'transverse', 'angdiam', 'luminosity', 'super'
             or 2, 'coldens' or 3}, optional
-        Type of distances or times to return, among physical/light-travel distance,
-        radial/line-of-sight comoving distance, transverse comoving / comoving angular
+        Type of distances or times to return, among physical / light-travel distance,
+        radial / line-of-sight comoving distance, transverse comoving / comoving angular
         diameter distance, angular diameter distance, luminosity distance, supercomoving
         / superconformal / dispersion measure distance, and that related to
         non-relativistic particle column density.
     time : bool, optional
         Whether to divide by the speed of light to return time measure instead, e.g.,
-        for physical/lookback time with ``type='light'`` or conformal time with
+        for physical / lookback time with ``type='light'`` or conformal time with
         ``type='radial'``. This has no effect on the transverse distances, i.e.,
         'transverse', 'angdiam', and 'luminosity'.
     a_ref : ArrayLike, optional
@@ -201,6 +201,9 @@ def distance(a, cosmo, type='radial', a_ref=1):
             n = 3
         case _:
             raise ValueError(f'{type=} not supported')
+    #TODO left='extrapolate', right='extrapolate' with power-law extrap
+    #TODO for tranfer, growth, distance
+    #TODO a=0 or k=0 case using asinh?
     d = jnp.interp(a, cosmo.distance_a, cosmo.distance[n])
     d_ref = jnp.interp(a_ref, cosmo.distance_a, cosmo.distance[n])
     d -= d_ref
@@ -259,3 +262,25 @@ def _SK_flat(chi, Ksqrt):
 
 def _SK_open(chi, Ksqrt):
     return jnp.sinh(Ksqrt * chi) / Ksqrt
+
+
+#def ang2diam(cosmo, ang, a, type='angdiam'):
+#    """Convert angles to transverse lengths.
+#
+#    Parameters
+#    ----------
+#    cosmo : Cosmology
+#    ang : ArrayLike
+#        Angles in :math:`A`.
+#    a : ArrayLike
+#        Scale factors.
+#    type : {'transverse', 'angdiam', 'luminosity'}, optional
+#        Type of distances. See `distance`.
+#
+#    Returns
+#    -------
+#    diam : jax.Array
+#        Transverse lengths in :math:`L`.
+#
+#    """
+#    return ang * cosmo.A * distance(a, cosmo, type=type)
