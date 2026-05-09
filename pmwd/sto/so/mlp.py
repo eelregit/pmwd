@@ -20,7 +20,7 @@ class MLP(nn.Module):
     param_dtype: DTypeLike = jnp.float64  # dtype for parameters
     kernel_init: Callable = he_normal()
     bias_init: Callable = zeros_init()
-    activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
+    activator: Callable[[jnp.ndarray], jnp.ndarray] = nn.leaky_relu
     regulator: Callable[[jnp.ndarray], jnp.ndarray] = None
 
     @nn.compact
@@ -29,7 +29,7 @@ class MLP(nn.Module):
         for i, fts in enumerate(self.features[:-1]):
             x = nn.Dense(fts, dtype=self.dtype, param_dtype=self.param_dtype,
                          kernel_init=self.kernel_init, bias_init=self.bias_init)(x)
-            x = self.activator(x)
+            x = self.activator(x, negative_slope=0.01)
 
         # output layer
         x = nn.Dense(self.features[-1], dtype=self.dtype, param_dtype=self.param_dtype,
