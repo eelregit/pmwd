@@ -1,269 +1,320 @@
-from dataclasses import field
 from functools import partial
-from operator import add, sub
-from typing import ClassVar, Optional
+import math
+from types import MappingProxyType
 
-from jax import Array, value_and_grad
-from jax.typing import ArrayLike
+from jax import Array, ensure_compile_time_eval
+from jax.typing import ArrayLike, DTypeLike
 import jax.numpy as jnp
-from jax.tree_util import tree_map
+from mcfit import mcfit, TophatVar
 
-from pmwd.tree_util import pytree_dataclass
-from pmwd.configuration import Configuration
+from pmwd.constants import Constants
+from pmwd.background import distance_cache
+from pmwd.perturbation import transfer_cache, growth_cache, varlin_cache, varlin
+from pmwd.tree_util import (Tree, TanMixin, pytree_dataclass, dyn_field, fxd_field,
+                            aux_field, issubdtype_of, asarray_of)
 
 
-@partial(pytree_dataclass, aux_fields="conf", frozen=True)
-class Cosmology:
-    """Cosmological and configuration parameters, "immutable" as a frozen dataclass.
+cosmo_dyn_field = partial(dyn_field, validate=asarray_of(field='dtype'))
+cosmo_dyn_field.__doc__ = '`tree_util.dyn_field` with `Cosmology.dtype` casting.'
+cosmo_fxd_field = partial(fxd_field, validate=asarray_of(field='dtype'))
+cosmo_fxd_field.__doc__ = '`tree_util.fxd_field` with `Cosmology.dtype` casting.'
 
-    Cosmological parameters with trailing underscores ("foo_") can be set to None, in
-    which case they take some fixed values (set by class variable "foo_fixed") and will
-    not receive gradients. They should be accessed through corresponding properties
-    named without the trailing underscores ("foo").
 
-    Linear operators (addition, subtraction, and scalar multiplication) are defined for
-    Cosmology tangent and cotangent vectors.
+# FIXME is float32 enough for cosmology? especially parameter gradients?
 
-    Float parameters are converted to JAX arrays of conf.cosmo_dtype at instantiation,
-    to avoid possible JAX weak type problems.
+
+def _eps2tol(dtype):
+    return math.sqrt(jnp.finfo(dtype).eps)
+
+
+#FIXME search: can I return within "with"?
+def _init_var_tophat(self):
+    with ensure_compile_time_eval():
+        return TophatVar(self.transfer_k[1:], lowring=True, backend='jax')
+
+
+@pytree_dataclass
+class Cosmology(TanMixin, Tree):
+    r"""Cosmological parameters and configurations.
 
     Parameters
     ----------
-    conf : Configuration
-        Configuration parameters.
+    dtype : DTypeLike, optional
+        Parameter float dtype.
     A_s_1e9 : float ArrayLike
-        Primordial scalar power spectrum amplitude, multiplied by 1e9.
+        Primordial scalar power spectrum amplitude :math:`A_\mathrm{s} \times 10^9`.
     n_s : float ArrayLike
-        Primordial scalar power spectrum spectral index.
+        Primordial scalar power spectrum spectral index :math:`n_\mathrm{s}`.
     Omega_m : float ArrayLike
-        Total matter density parameter today.
+        Total matter density parameter today :math:`\Omega_\mathrm{m}`.
     Omega_b : float ArrayLike
-        Baryonic matter density parameter today.
-    Omega_k_ : None or float ArrayLike, optional
-        Spatial curvature density parameter today. Default is None.
-    w_0_ : None or float ArrayLike, optional
-        Dark energy equation of state constant parameter. Default is None.
-    w_a_ : None or float ArrayLike, optional
-        Dark energy equation of state linear parameter. Default is None.
+        Baryonic matter density parameter today :math:`\Omega_\mathrm{b}`.
     h : float ArrayLike
-        Hubble constant in unit of 100 [km/s/Mpc].
+        Hubble constant in unit of 100 km/s/Mpc :math:`h`.
+    T_cmb : float ArrayLike, optional
+        CMB temperature in Kelvin today :math:`T_\mathrm{CMB}`.
+    Omega_K : float ArrayLike, optional
+        Spatial curvature density parameter today :math:`Omega_K`
+    w_0 : float ArrayLike, optional
+        Dark energy equation of state constant parameter :math:`w_0`.
+    w_a : float ArrayLike, optional
+        Dark energy equation of state linear parameter :math:`w_a`.
+    k_pivot_Mpc : float ArrayLike, optional
+        Primordial scalar power spectrum pivot scale :math:`k_\mathrm{pivot}` in 1/Mpc.
+    const : Constants, optional
+        Physical constants in SI units.
+    M : float ArrayLike, optional
+        Mass unit :math:`M` in kg/:math:`h`. Default is :math:`10^{10} M_\odot/h`.
+    L : float ArrayLike, optional
+        Length unit :math:`L` in m/:math:`h`. Default is Mpc/:math:`h`.
+    T : float ArrayLike, optional
+        Time unit :math:`T` in s/:math:`h`. Default is Hubble time :math:`1/H_0 \sim
+        10^{10}` years/:math:`h \sim` age of the Universe. So the default velocity unit
+        is :math:`L/T =` 100 km/s.
+    A : float ArrayLike, optional
+        Angular unit in radians. Default is arcsec.
+    distance_lga_min : float, optional
+        Minimum distance scale factor in log10.
+    distance_lga_max : float, optional
+        Maximum distance scale factor in log10.
+    distance_lga_maxstep : float, optional
+        Maximum distance scale factor step size in log10. It determines the number of
+        scale factors `distance_a_num`, the actual step size `distance_lga_step`, and
+        the scale factors `distance_a`.
+    #FIXME use transfer_function: Callable = aux_field(...) instead
+    #transfer_fit : bool, optional
+    #    Whether to use Eisenstein & Hu fit to transfer function. Default is True
+    #    (subject to change when False is implemented).
+    #transfer_fit_nowiggle : bool, optional
+    #    Whether to use non-oscillatory transfer function fit.
+    transfer_lgk_min : float, optional
+        Minimum transfer function wavenumber in :math:`1/L` in log10.
+    transfer_lgk_max : float, optional
+        Maximum transfer function wavenumber in :math:`1/L` in log10.
+    transfer_lgk_maxstep : float, optional
+        Maximum transfer function wavenumber step size in :math:`1/L` in log10. It
+        determines the number of wavenumbers `transfer_k_num`, the actual step size
+        `transfer_lgk_step`, and the wavenumbers `transfer_k`.
+    growth_rtol : float, optional
+        Relative tolerance for solving the growth ODEs. Default is sqrt of `dtype`
+        `jax.numpy.finfo.eps`, i.e., :math:`1.5 \times 10^{-8}` for float64 and
+        :math:`3.5 \times 10^{-4}` for float32.
+    growth_atol : float, optional
+        Absolute tolerance for solving the growth ODEs. Default is sqrt of `dtype`
+        `jax.numpy.finfo.eps`, i.e., :math:`1.5 \times 10^{-8}` for float64 and
+        :math:`3.5 \times 10^{-4}` for float32.
+    growth_inistep: float, None, or 2-tuple of them, optional
+        The initial step size for solving the growth ODEs. If None, use estimation. If a
+        tuple, use the two step sizes for forward and reverse integrations,
+        respectively.
+    growth_lga_min : float, optional
+        Minimum growth function scale factor in log10.
+    growth_lga_max : float, optional
+        Maximum growth function scale factor in log10.
+    growth_lga_maxstep : float, optional
+        Maximum growth function scale factor step size in log10. It determines the
+        number of scale factors `growth_a_num`, the actual step size `growth_lga_step`,
+        and the scale factors `growth_a`.
 
     """
 
-    conf: Configuration = field(repr=False)
+    dtype: DTypeLike = aux_field(default=float,
+                                 validate=(jnp.dtype, issubdtype_of(jnp.floating)))
 
-    A_s_1e9: ArrayLike
-    n_s: ArrayLike
-    Omega_m: ArrayLike
-    Omega_b: ArrayLike
-    h: ArrayLike
+    A_s_1e9: ArrayLike = cosmo_dyn_field()
+    n_s: ArrayLike = cosmo_dyn_field()
+    Omega_m: ArrayLike = cosmo_dyn_field()
+    Omega_b: ArrayLike = cosmo_dyn_field()
+    h: ArrayLike = cosmo_dyn_field()
 
-    Omega_k_: Optional[ArrayLike] = None
-    Omega_k_fixed: ClassVar[float] = 0
-    w_0_: Optional[ArrayLike] = None
-    w_0_fixed: ClassVar[float] = -1
-    w_a_: Optional[ArrayLike] = None
-    w_a_fixed: ClassVar[float] = 0
+    T_cmb: ArrayLike = fxd_field(default=2.7255)  # Fixsen 2009, arXiv:0911.1955
+    Omega_K: ArrayLike = fxd_field(default=0.)
+    w_0: ArrayLike = fxd_field(default=-1.)
+    w_a: ArrayLike = fxd_field(default=0.)
+    k_pivot_Mpc: ArrayLike = fxd_field(default=0.05)
 
-    transfer: Optional[Array] = field(default=None, compare=False)
+    const: Constants = dyn_field(depend=lambda self: Constants(), repr=False)
 
-    growth: Optional[Array] = field(default=None, compare=False)
+    M: ArrayLike = fxd_field(depend=lambda self: 1e10 * self.const.M_sun)
+    L: ArrayLike = fxd_field(depend=lambda self: self.const.Mpc)
+    T: ArrayLike = fxd_field(depend=lambda self: 1 / self.const.H_0)
+    A: ArrayLike = fxd_field(default=jnp.pi/(180*3600))
 
-    varlin: Optional[Array] = field(default=None, compare=False)
+    distance_lga_min: float = aux_field(default=-3)
+    distance_lga_max: float = aux_field(default=1)
+    distance_lga_maxstep: float = aux_field(default=1/128)
+    distance: Array | None = cosmo_dyn_field(cache=distance_cache, compare=False)
 
-    def __post_init__(self):
-        if self._is_transforming():
-            return
+    transfer_fit: bool = aux_field(default=True)
+    transfer_fit_nowiggle: bool = aux_field(default=False)
+    transfer_lgk_min: float = aux_field(default=-4)
+    transfer_lgk_max: float = aux_field(default=3)
+    transfer_lgk_maxstep: float = aux_field(default=1/128)
+    transfer: Array | None = cosmo_dyn_field(cache=transfer_cache, compare=False)
 
-        dtype = self.conf.cosmo_dtype
-        for name, value in self.named_children():
-            value = tree_map(lambda x: jnp.asarray(x, dtype=dtype), value)
-            object.__setattr__(self, name, value)
+    growth_rtol: float = aux_field(depend=lambda self: _eps2tol(self.dtype))
+    growth_atol: float = aux_field(depend=lambda self: _eps2tol(self.dtype))
+    growth_inistep: (float | None
+                     | tuple[float|None, float|None]) = aux_field(default=(1, 1))  # FIXME (1, None) used to work? but now also causes nan in sigma_8 gradients
+    growth_lga_min: float = aux_field(default=-3)
+    growth_lga_max: float = aux_field(default=1)
+    growth_lga_maxstep: float = aux_field(default=1/128)
+    growth: Array | None = cosmo_dyn_field(cache=growth_cache, compare=False)
 
-    def __add__(self, other):
-        return tree_map(add, self, other)
+    varlin: Array | None = cosmo_dyn_field(cache=varlin_cache, compare=False)
 
-    def __sub__(self, other):
-        return tree_map(sub, self, other)
-
-    def __mul__(self, other):
-        return tree_map(lambda x: x * other, self)
-
-    def __rmul__(self, other):
-        return self.__mul__(other)
+    #FIXME although mcfit.mcfit is hashable but maybe this can be more functional
+    _var_tophat: mcfit = aux_field(depend=_init_var_tophat)
 
     @classmethod
-    def from_sigma8(cls, conf, sigma8, *args, **kwargs):
-        """Construct cosmology with sigma8 instead of A_s."""
-        from pmwd.boltzmann import boltzmann
+    def from_sigma_8(cls, sigma_8, *args, **kwargs):
+        r"""Construct cosmology with :math:`\sigma_8` instead of :math:`A_s`."""
+        cosmo = cls(1, *args, **kwargs)
+        cosmo = cosmo.cache_purge(transfer=True, growth=True, varlin=True)
 
-        cosmo = cls(conf, 1, *args, **kwargs)
-        cosmo = boltzmann(cosmo, conf)
+        A_s_1e9 = (sigma_8 / cosmo.sigma_8)**2
 
-        A_s_1e9 = (sigma8 / cosmo.sigma8)**2
-
-        return cls(conf, A_s_1e9, *args, **kwargs)
+        return cls(A_s_1e9, *args, **kwargs)
 
     def astype(self, dtype):
-        """Cast parameters to dtype by changing conf.cosmo_dtype."""
-        conf = self.conf.replace(cosmo_dtype=dtype)
-        return self.replace(conf=conf)  # calls __post_init__
+        """Return a new object with pytree children casted to `dtype`."""
+        return self.replace(dtype=dtype)
+
+    @property
+    def H_0(self):
+        """Hubble constant :math:`H_0` in :math:`1/T`."""
+        return self.const.H_0 * self.T
+
+    @property
+    def c(self):
+        """Speed of light :math:`c` in :math:`L/T`."""
+        return self.const.c * self.T / self.L
+
+    @property
+    def G(self):
+        """Gravitational constant :math:`G` in :math:`L^3 / M / T^2`."""
+        return self.const.G * self.M * self.T**2 / self.L**3
+
+    @property
+    def d_H(self):
+        """Hubble distance :math:`d_H = c / H_0` in :math:`L`."""
+        return self.c / self.H_0
+
+    @property
+    def rho_crit(self):
+        r"""Critical density :math:`\rho_\mathrm{crit}` in :math:`M / L^3`."""
+        return 3 * self.H_0**2 / (8 * jnp.pi * self.G)
 
     @property
     def k_pivot(self):
-        """Primordial scalar power spectrum pivot scale in [1/L].
-
-        Pivot scale is defined h-less unit, so needs h to convert its unit to [1/L].
-
-        """
-        return self.conf.k_pivot_Mpc / (self.h * self.conf.Mpc_SI) * self.conf.L
+        r"""Primordial scalar power spectrum pivot scale :math:`k_\mathrm{pivot}` in :math:`1/L`."""
+        return self.k_pivot_Mpc / (self.h * self.const.Mpc) * self.L
 
     @property
     def A_s(self):
-        """Primordial scalar power spectrum amplitude."""
+        r"""Primordial scalar power spectrum amplitude :math:`A_\mathrm{s}`."""
         return self.A_s_1e9 * 1e-9
 
     @property
     def Omega_c(self):
-        """Cold dark matter density parameter today."""
+        r"""Cold dark matter density parameter today :math:`\Omega_\mathrm{c}`."""
         return self.Omega_m - self.Omega_b
 
     @property
-    def Omega_k(self):
-        """Spatial curvature density parameter today."""
-        return self.Omega_k_fixed if self.Omega_k_ is None else self.Omega_k_
+    def K(self):
+        """Spatial Gaussian curvature :math:`K` in :math:`1/L^2`."""
+        return - self.Omega_K / self.d_H**2
 
     @property
     def Omega_de(self):
-        """Dark energy density parameter today."""
-        return 1 - (self.Omega_m + self.Omega_k)
+        r"""Dark energy density parameter today :math:`\Omega_\mathrm{de}`."""
+        return 1 - (self.Omega_m + self.Omega_K)
 
     @property
-    def w_0(self):
-        """Dark energy equation of state constant parameter."""
-        return self.w_0_fixed if self.w_0_ is None else self.w_0_
+    def sigma_8(self):
+        r"""Linear matter rms overdensity within a tophat sphere of 8 Mpc/:math:`h`
+        radius today :math:`\sigma_8`."""
+        R = 8 * self.const.Mpc / self.L
+        return jnp.sqrt(varlin(R, 1, self))
 
     @property
-    def w_a(self):
-        """Dark energy equation of state linear parameter."""
-        return self.w_a_fixed if self.w_a_ is None else self.w_a_
+    def distance_a_num(self):
+        """Number of distance scale factors, including a leading 0."""
+        return 1 + math.ceil((self.distance_lga_max - self.distance_lga_min)
+                             / self.distance_lga_maxstep) + 1
 
     @property
-    def sigma8(self):
-        """Linear matter rms overdensity within a tophat sphere of 8 Mpc/h radius at a=1."""
-        from pmwd.boltzmann import varlin
-        R = 8 * self.conf.Mpc_SI / self.conf.L
-        return jnp.sqrt(varlin(R, 1, self, self.conf))
+    def distance_lga_step(self):
+        """Distance scale factor step size in log10."""
+        return ((self.distance_lga_max - self.distance_lga_min)
+                / (self.distance_a_num - 2))
 
     @property
-    def ptcl_mass(self):
-        """Particle mass in [M]."""
-        return self.conf.rho_crit * self.Omega_m * self.conf.ptcl_cell_vol
+    def distance_a(self):
+        """Distance scale factors, starting from 0."""
+        a = jnp.logspace(self.distance_lga_min, self.distance_lga_max,
+                         num=self.distance_a_num - 1, dtype=self.dtype)
+        return jnp.concatenate((jnp.array([0]), a))
+
+    @property
+    def transfer_k_num(self):
+        """Number of transfer function wavenumbers, including a leading 0."""
+        return 1 + math.ceil((self.transfer_lgk_max - self.transfer_lgk_min)
+                             / self.transfer_lgk_maxstep) + 1
+
+    @property
+    def transfer_lgk_step(self):
+        """Transfer function wavenumber step size in :math:`1/L` in log10."""
+        return ((self.transfer_lgk_max - self.transfer_lgk_min)
+                / (self.transfer_k_num - 2))
+
+    @property
+    def transfer_k(self):
+        """Transfer function wavenumbers in :math:`1/L`, starting from 0."""
+        k = jnp.logspace(self.transfer_lgk_min, self.transfer_lgk_max,
+                         num=self.transfer_k_num - 1, dtype=self.dtype)
+        return jnp.concatenate((jnp.array([0]), k))
+
+    @property
+    def growth_a_num(self):
+        """Number of growth function scale factors, including a leading 0."""
+        return 1 + math.ceil((self.growth_lga_max - self.growth_lga_min)
+                             / self.growth_lga_maxstep) + 1
+
+    @property
+    def growth_lga_step(self):
+        """Growth function scale factor step size in log10."""
+        return ((self.growth_lga_max - self.growth_lga_min)
+                / (self.growth_a_num - 2))
+
+    @property
+    def growth_a(self):
+        """Growth function scale factors."""
+        a = jnp.logspace(self.growth_lga_min, self.growth_lga_max,
+                         num=self.growth_a_num - 1, dtype=self.dtype)
+        return jnp.concatenate((jnp.array([0]), a))
+
+    @property
+    def varlin_R(self):
+        """Radii of tophat spheres in :math:`L` for linear matter overdensity variance,
+        determined by `transfer_k` and the FFTLog algorithm."""
+        return self._var_tophat.y
 
 
-SimpleLCDM = partial(
-    Cosmology,
+# Simple ΛCDM cosmology, for convenience and subject to change
+simple_LCDM = MappingProxyType(dict(
     A_s_1e9=2.0,
     n_s=0.96,
     Omega_m=0.3,
     Omega_b=0.05,
     h=0.7,
-)
-SimpleLCDM.__doc__ = "Simple ΛCDM cosmology, for convenience and subject to change."
+))
 
-Planck18 = partial(
-    Cosmology,
+# Planck 2018 cosmology, arXiv:1807.06209 Table 2 last column
+Planck_18 = MappingProxyType(dict(
     A_s_1e9=2.105,
     n_s=0.9665,
     Omega_m=0.3111,
     Omega_b=0.04897,
     h=0.6766,
-)
-Planck18.__doc__ = "Planck 2018 cosmology, arXiv:1807.06209 Table 2 last column."
-
-
-def E2(a, cosmo):
-    r"""Squared Hubble parameter time scaling factors, :math:`E^2`, at given scale
-    factors.
-
-    Parameters
-    ----------
-    a : ArrayLike
-        Scale factors.
-    cosmo : Cosmology
-
-    Returns
-    -------
-    E2 : jax.Array of cosmo.conf.cosmo_dtype
-        Squared Hubble parameter time scaling factors.
-
-    Notes
-    -----
-    The squared Hubble parameter
-
-    .. math::
-
-        H^2(a) = H_0^2 E^2(a),
-
-    has time scaling
-
-    .. math::
-
-        E^2(a) = \Omega_\mathrm{m} a^{-3} + \Omega_\mathrm{k} a^{-2}
-                 + \Omega_\mathrm{de} a^{-3 (1 + w_0 + w_a)} e^{-3 w_a (1 - a)}.
-
-    """
-    a = jnp.asarray(a, dtype=cosmo.conf.cosmo_dtype)
-
-    de_a = a**(-3 * (1 + cosmo.w_0 + cosmo.w_a)) * jnp.exp(-3 * cosmo.w_a * (1 - a))
-    return cosmo.Omega_m * a**-3 + cosmo.Omega_k * a**-2 + cosmo.Omega_de * de_a
-
-
-@partial(jnp.vectorize, excluded=(1,))
-def H_deriv(a, cosmo):
-    r"""Hubble parameter derivatives, :math:`\mathrm{d}\ln H / \mathrm{d}\ln a`, at
-    given scale factors.
-
-    Parameters
-    ----------
-    a : ArrayLike
-        Scale factors.
-    cosmo : Cosmology
-
-    Returns
-    -------
-    dlnH_dlna : jax.Array of cosmo.conf.cosmo_dtype
-        Hubble parameter derivatives.
-
-    """
-    a = jnp.asarray(a, dtype=cosmo.conf.cosmo_dtype)
-
-    E2_value, E2_grad = value_and_grad(E2)(a, cosmo)
-    return 0.5 * a * E2_grad / E2_value
-
-
-def Omega_m_a(a, cosmo):
-    r"""Matter density parameters, :math:`\Omega_\mathrm{m}(a)`, at given scale factors.
-
-    Parameters
-    ----------
-    a : ArrayLike
-        Scale factors.
-    cosmo : Cosmology
-
-    Returns
-    -------
-    Omega : jax.Array of cosmo.conf.cosmo_dtype
-        Matter density parameters.
-
-    Notes
-    -----
-
-    .. math::
-
-        \Omega_\mathrm{m}(a) = \frac{\Omega_\mathrm{m} a^{-3}}{E^2(a)}
-
-    """
-    a = jnp.asarray(a, dtype=cosmo.conf.cosmo_dtype)
-
-    return cosmo.Omega_m / (a**3 * E2(a, cosmo))
+))

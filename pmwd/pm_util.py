@@ -1,3 +1,8 @@
+from functools import reduce
+import math
+
+import jax
+import jax.extend
 import jax.numpy as jnp
 
 
@@ -342,3 +347,55 @@ def fftinv(f, shape=None, axes=None, norm=None):
         d = len(axes)
 
     return norm**-d * jnp.fft.irfftn(f, s=shape, axes=axes, norm='backward')
+
+
+def fftlen(n, platform=None):
+    """Find the next fast length for FFT on the platform.
+
+    Parameters
+    ----------
+    n : float
+        FFT length to start searching from.
+    platform : str or xla_client.Client, optional
+        Platform supported by XLA. Default is the platform of the default backend.
+
+    .. _ducc0/fft good_size_real:
+        https://gitlab.mpcdf.mpg.de/mtr/ducc/-/blob/ducc0/src/ducc0/fft/fft.h
+    .. _rocFFT:
+        https://rocm.docs.amd.com/projects/rocFFT
+    .. _cuFFT:
+        https://docs.nvidia.com/cuda/cufft/index.html#accuracy-and-performance
+
+    """
+    platform = jax.extend.backend.get_backend(platform=platform).platform
+
+    if platform == 'cpu':
+        radices = [2, 3, 5]
+    elif platform == 'rocm':
+        radices = [2, 3, 5, 7, 11, 13, 17]
+    elif platform in ['cuda', 'gpu']:
+        radices = [2, 3, 5, 7]
+    else:
+        raise NotImprementedError
+
+    return fftlen_(n, radices)
+
+
+def fftlen_(n, radices):
+    """Find the next fast length for FFT given radices.
+
+    Parameters
+    ----------
+    n : float
+        FFT length to start searching from.
+    radices : sequence of (prime) int
+        FFT radices.
+
+    """
+    if n <= max(radices):
+        return n
+
+    with jax.ensure_compile_time_eval():
+        powers = [r ** (jnp.arange(1 + math.floor(math.log(2*n, r)))) for r in radices]
+        products = reduce(jnp.kron, powers)
+        return products[products >= n].min().item()
