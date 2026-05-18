@@ -3,7 +3,7 @@ from operator import itemgetter
 
 from jax.typing import ArrayLike, DTypeLike
 import jax.numpy as jnp
-from jax.scipy.special import gamma
+from jax.scipy.special import expit, gamma
 from jax.tree_util import tree_map
 
 from pmwd.tree_util import (Tree, TanMixin, pytree_dataclass, aux_field, issubdtype_of,
@@ -83,8 +83,9 @@ class SersicSources(Sources):
         Natural log of effective Radii in :math:`A`.
     lnn : ArrayLike
         Natural log of Sérsic indices.
-    q : ArrayLike
-        Axis ratios of the minor axes to the major axes.
+    lgtq : ArrayLike
+        Logit of the axis ratios of minor axes to major axes. Its prior can be the
+        (standard) logistic distribution.
     theta : ArrayLike
         Position angles in radians.
     soften : ArrayLike, optional
@@ -115,7 +116,7 @@ class SersicSources(Sources):
     lnF: ArrayLike = lens_dyn_field()
     lnR_e: ArrayLike = lens_dyn_field()
     lnn: ArrayLike = lens_dyn_field()
-    q: ArrayLike = lens_dyn_field()
+    lgtq: ArrayLike = lens_dyn_field()
     theta: ArrayLike = lens_dyn_field()
 
     soften: ArrayLike = lens_fxd_field(optional=True)
@@ -134,6 +135,11 @@ class SersicSources(Sources):
     def n(self):
         """Sérsic indices."""
         return jnp.exp(self.lnn)
+
+    @property
+    def q(self):
+        """Axis ratios of minor axes to major axes."""
+        return jax.scipy.special.expit(self.lgtq)
 
     @property
     def b_n(self):

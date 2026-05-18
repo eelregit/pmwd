@@ -5,6 +5,7 @@ from functools import partial
 import jax
 from jax.typing import ArrayLike, DTypeLike
 import jax.numpy as jnp
+from jax.scipy.special import expit
 from jax.tree_util import tree_map
 
 from pmwd.tree_util import (Tree, TanMixin, pytree_dataclass, aux_field, issubdtype_of,
@@ -136,8 +137,9 @@ class dPIELenses(Lenses):
         Natural log of core radii in :math:`A`.
     lns : ArrayLike
         Natural log of scale radii in :math:`A`.
-    q : ArrayLike
-        Axis ratios of the minor axes to the major axes.
+    lgtq : ArrayLike
+        Logit of the axis ratios of minor axes to major axes. Its prior can be the
+        (standard) logistic distribution.
     theta : ArrayLike
         Position angles in radians.
 
@@ -161,7 +163,7 @@ class dPIELenses(Lenses):
     lnE_0: ArrayLike = lens_dyn_field()
     lnc: ArrayLike = lens_dyn_field()
     lns: ArrayLike = lens_dyn_field()
-    q: ArrayLike = lens_dyn_field()
+    lgtq: ArrayLike = lens_dyn_field()
     theta: ArrayLike = lens_dyn_field()
 
     @property
@@ -178,6 +180,11 @@ class dPIELenses(Lenses):
     def s(self):
         """Scale radii in :math:`A`."""
         return jnp.exp(self.lns)
+
+    @property
+    def q(self):
+        """Axis ratios of minor axes to major axes."""
+        return expit(self.lgtq)
 
     @property
     def eps(self):
