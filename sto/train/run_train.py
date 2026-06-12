@@ -65,7 +65,7 @@ def setup_state(job_id, epoch_init, n_input, opt_reset=False):
         so_params = init_mlp_params(n_input, model_conf.so_nodes, scheme='last_w0', last_b=1.)
         opt_state = opt_conf['optimizer'].init(so_params)
     else:  # continue training
-        param_fn = f'params/{job_id}/e{epoch_init}.pickle'
+        param_fn = f'params/{job_id}/e{epoch_init:03d}.pickle'
         with open(param_fn, 'rb') as f:
             dic = pickle.load(f)
             so_params = dic['so_params']
