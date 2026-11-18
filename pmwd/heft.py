@@ -1,20 +1,14 @@
-"""In-memory hybrid effective field theory (HEFT) operators.
+"""Hybrid effective field theory (HEFT) operators on periodic cubic grids.
 
-The spectral construction is adapted from Haojie Xu's JAX HEFT research core:
-forward-normalized FFTs, de-aliased quadratic products, and weighted CIC.
-Only periodic cubic three-dimensional grids are supported. Lengths use the
-Configuration units (Mpc/h by default); wavenumbers use their inverse.
-
-Configuration.float_dtype selects float32 or float64 weights, interpolation,
-and mesh accumulation. Low-level inputs must match this precision; displacement
-precision is never silently reduced. Native pmwd uses float64 for geometric
-indexing. Enable JAX x64 in the application before constructing arrays for
-double-precision work. This module does not change JAX settings or select devices.
+Adapted from Haojie Xu's JAX HEFT implementation: forward-normalized FFTs,
+de-aliased quadratic weights, and weighted CIC assignment. Lengths follow
+Configuration units (Mpc/h by default); wavenumbers use inverse lengths.
+Configuration.float_dtype selects float32 or float64 field precision.
 Float32 accumulation can limit weak-signal and cancellation-sensitive statistics.
 
-For JIT, configuration and all keyword options are static. Arrays and cosmology
-parameters remain differentiable. Reverse-mode differentiation is supported;
-native scatter and evolution use custom VJPs, not forward-mode JVPs.
+For JIT, keep configuration and keyword options static. Input fields, particle
+displacements, and cosmological parameters support reverse-mode differentiation.
+Paths using native pmwd custom VJPs do not support general forward-mode JVPs.
 """
 
 from operator import index
@@ -121,22 +115,21 @@ def heft_weights(linear_field, conf, *, smoothing='gaussian', kd=0.75,
                  radius=5., pivot=1.):
     """Return Lagrangian weights ``[d, L, d2, s2]``, shape ``(4, N, N, N)``.
 
-    ``linear_field`` is the UNSMOOTHED complex rFFT of real linear density at
-    the caller's reference epoch, with ``norm='forward'``. It is not a native
-    volume-normalized pmwd mode array; see :func:`linear_field_from_modes`.
-    Its real dtype must equal ``conf.float_dtype``. DC is discarded.
+    ``linear_field`` is the unsmoothed complex rFFT of linear density at the
+    reference epoch, with ``norm='forward'`` and real dtype ``conf.float_dtype``.
+    Convert native pmwd modes with :func:`linear_field_from_modes`. The zero
+    mode is discarded.
 
-    ``smoothing`` selects a FIELD amplitude window: ``'gaussian'`` uses
+    ``smoothing`` selects a field-amplitude window: ``'gaussian'`` uses
     exp(-k**2/(2*kd**2)), ``'csst'`` uses
     exp(-radius**2*max(k-pivot, 0)**2/4), and ``'none'`` uses unity.
-    Defaults are kd=0.75, radius=5, pivot=1 in Configuration length units.
-    CSST is radial, not a product of per-axis windows.
+    Here k is the wavenumber magnitude; kd and pivot are inverse lengths,
+    and radius is a length, in Configuration units.
 
-    L is the physical Laplacian of d. d2 and s2 are the de-aliased products
-    d**2 and sum_ij(K_ij**2), with their Lagrangian means removed before
-    advection. K_ij = (k_i*k_j/k**2 - delta_ij/3)*d(k) is traceless.
-    Even-grid Nyquist modes are symmetrically split before multiplication
-    and conjugately merged on projection. No second trace subtraction occurs.
+    L is the Laplacian of d. d2 and s2 are the de-aliased, mean-subtracted
+    products d**2 and sum_ij(K_ij**2), where
+    K_ij = (k_i*k_j/k**2 - delta_ij/3)*d(k) is the traceless tidal tensor.
+    Spectral padding splits Nyquist modes and merges them on projection.
     """
     linear_field = jnp.asarray(linear_field)
     _check_modes(linear_field, conf)
@@ -179,33 +172,22 @@ def heft_weights(linear_field, conf, *, smoothing='gaussian', kd=0.75,
 def heft_operators(linear_field, particles, conf, *, output_grid=None,
                    smoothing='gaussian', kd=0.75, radius=5., pivot=1.,
                    offset=None):
-    """Advect HEFT weights and return ``[O1, Od, OL, Od2, Os2]``.
+    """Return CIC-advected fields ``[O1, Od, OL, Od2, Os2]``.
 
-    The particle weights are ``[1, d, L, d2, s2]``. Unit weights yield
-    the CIC matter density after global normalization; subtracting its
-    unit mean gives O1 = delta_m = rho_CIC / mean(rho) - 1. The other
-    channels advect their signed weights without a background subtraction.
+    Particle weights ``[1, d, L, d2, s2]`` use :func:`heft_weights` and the
+    global normalization (M/N)**3. Unit weights give O1 = rho/mean(rho) - 1;
+    the other channels deposit their signed weights without further division.
 
-    Input Fourier convention and smoothing are those of :func:`heft_weights`.
-    ``particles`` must contain all N**3 particles in their original C-order
-    Lagrangian grid association (z fastest), as preserved by native LPT/N-body.
-    If rows were reordered, restore that order before calling. Row identity
-    cannot be inferred from evolved positions and is a caller precondition;
-    shapes, configuration and dtypes are checked, not particle provenance.
+    ``particles`` must use the supplied Configuration and contain all N**3
+    particles in their original C-order Lagrangian association (z fastest).
+    Restore this order if rows were rearranged; it cannot be inferred from
+    evolved positions. Displacement dtype must match ``conf.float_dtype``.
+    Positions are ``pmid * conf.cell_size + disp``.
 
-    Positions are native ``pmid * conf.cell_size + disp``, not ``disp`` alone.
-    ``output_grid`` is the cubic output side M, defaulting to the force mesh
-    side. The shape is (5, M, M, M). The physical offset of output node 0
-    relative to the box origin defaults to half an output cell in each axis,
-    aligning with tracer cells bounded by integer multiples of the output
-    cell size. This HEFT default is passed explicitly to pmwd scatter,
-    whose own default offset is zero. Do not also shift particle positions.
-    A scalar or length-3 tuple can be supplied (e.g. 0 for node-centered
-    painting).
-
-    Explicit scatter weights receive exactly one factor (M/N)**3. The first
-    output subtracts 1; signed channels are never divided by their weight sum
-    or local density. Geometry/window options are fixed, not differentiable.
+    ``output_grid`` sets the cubic side M and defaults to the force-mesh side.
+    The result has shape (5, M, M, M). ``offset`` is the physical location of
+    output node 0, as a scalar or length-3 tuple. Its default is half an output
+    cell along each axis; use 0 for nodes at integer cell coordinates.
     """
     _check_conf(conf)
     if not isinstance(particles, Particles) or particles.conf != conf:
@@ -234,19 +216,15 @@ def heft_operators(linear_field, particles, conf, *, output_grid=None,
 
 
 def linear_field_from_modes(modes, cosmo, conf, *, a_ref=1., modes_a=None):
-    """Convert native physical-volume modes to a HEFT forward rFFT.
+    """Convert native pmwd Fourier modes to a HEFT forward-normalized rFFT.
 
-    By default ``modes`` must come from ``linear_modes(..., a=None)``:
+    By default, ``modes`` comes from ``linear_modes(..., a=None)``:
     ``delta_forward(a_ref) = modes * growth(a_ref) / conf.box_vol``.
-    Native fftinv divides the backward inverse by particle-cell volume;
-    the forward-normalized inverse instead multiplies it by N**3. LPT uses
-    the same volume convention and applies its own growth at ``a_start``.
+    For modes already scaled at an epoch, set ``modes_a``; the factor becomes
+    growth(a_ref)/growth(modes_a)/box_vol. Growth at 1 is not assumed to be unity.
 
-    For modes already scaled at an epoch, supply ``modes_a`` explicitly;
-    the factor is then growth(a_ref)/growth(modes_a)/box_vol. Growth at 1
-    is not assumed to be unity. Both epochs must lie in (0, conf.a_stop],
-    the range of the native growth table populated by boltzmann. This is
-    separate from the output epoch. The input complex dtype is preserved.
+    Both epochs must lie in (0, conf.a_stop], within the growth table populated
+    by boltzmann. The input complex dtype is preserved.
     """
     modes = jnp.asarray(modes)
     _check_modes(modes, conf, check_dtype=False)
@@ -264,25 +242,17 @@ def linear_field_from_modes(modes, cosmo, conf, *, a_ref=1., modes_a=None):
 def simulate_heft(white_noise, cosmo, conf, *, a_ref=1., output_grid=None,
                   smoothing='gaussian', kd=0.75, radius=5., pivot=1.,
                   offset=None):
-    """Compose native linear theory, LPT, N-body, and in-memory HEFT painting.
+    """Compute five HEFT fields from white noise and cosmological parameters.
 
-    ``white_noise`` is a continuous real or Fourier white-noise array following
-    pmwd.modes.white_noise, not a seed. Generate it outside differentiated
-    calls and keep it fixed when comparing cosmologies. Native boltzmann
-    transfer/growth tables are recomputed from the continuous cosmology;
-    variance tables are unnecessary. No CLASS files or intermediate I/O enter
-    this path. Evolution ends at conf.a_stop; weights refer to a_ref (default
-    1, requiring conf.a_stop >= 1). See linear_field_from_modes for epoch bounds.
+    ``white_noise`` is a real or Fourier array from pmwd.modes.white_noise.
+    Native linear theory, LPT, and N-body evolution produce particles at
+    ``conf.a_stop``. The linear weights refer to ``a_ref``; its default is 1,
+    and :func:`linear_field_from_modes` requires 0 < a_ref <= conf.a_stop.
 
-    The identical UNSMOOTHED native linear modes feed gravity and the HEFT
-    branch. Only the latter is smoothed. Native modes are explicitly cast to
-    conf.float_dtype's complex counterpart for HEFT, matching the particle
-    precision selected by Configuration. Cosmological and initial-condition
-    derivatives include both changing weights and particle trajectories.
-
-    Execution follows native pmwd's compiled evolution steps; a monolithic
-    JIT is unnecessary. For compiled HEFT stages, close over static keyword
-    options and configuration. The returned array needs no cache or files.
+    Unsmoothed linear modes drive the dynamics. Smoothing applies only to
+    the HEFT weights, whose precision matches ``conf.float_dtype``. Other
+    keyword options and the returned channel order follow :func:`heft_operators`.
+    Derivatives include both changing weights and particle trajectories.
     """
     _check_conf(conf)
     white_noise = jnp.asarray(white_noise)
