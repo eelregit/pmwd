@@ -119,7 +119,7 @@ def _center_project(field, n):
 
 def heft_weights(linear_field, conf, *, smoothing='gaussian', kd=0.75,
                  radius=5., pivot=1.):
-    """Return Lagrangian weights ``[d, L, Q, S]``, shape ``(4, N, N, N)``.
+    """Return Lagrangian weights ``[d, L, d2, s2]``, shape ``(4, N, N, N)``.
 
     ``linear_field`` is the UNSMOOTHED complex rFFT of real linear density at
     the caller's reference epoch, with ``norm='forward'``. It is not a native
@@ -132,7 +132,7 @@ def heft_weights(linear_field, conf, *, smoothing='gaussian', kd=0.75,
     Defaults are kd=0.75, radius=5, pivot=1 in Configuration length units.
     CSST is radial, not a product of per-axis windows.
 
-    L is the physical Laplacian of d. Q and S are the de-aliased products
+    L is the physical Laplacian of d. d2 and s2 are the de-aliased products
     d**2 and sum_ij(K_ij**2), with their Lagrangian means removed before
     advection. K_ij = (k_i*k_j/k**2 - delta_ij/3)*d(k) is traceless.
     Even-grid Nyquist modes are symmetrically split before multiplication
@@ -179,7 +179,12 @@ def heft_weights(linear_field, conf, *, smoothing='gaussian', kd=0.75,
 def heft_operators(linear_field, particles, conf, *, output_grid=None,
                    smoothing='gaussian', kd=0.75, radius=5., pivot=1.,
                    offset=None):
-    """Advect HEFT weights and return ``[A[1]-1, A[d], A[L], A[Q], A[S]]``.
+    """Advect HEFT weights and return ``[O1, Od, OL, Od2, Os2]``.
+
+    The particle weights are ``[1, d, L, d2, s2]``. Unit weights yield
+    the CIC matter density after global normalization; subtracting its
+    unit mean gives O1 = delta_m = rho_CIC / mean(rho) - 1. The other
+    channels advect their signed weights without a background subtraction.
 
     Input Fourier convention and smoothing are those of :func:`heft_weights`.
     ``particles`` must contain all N**3 particles in their original C-order
@@ -192,8 +197,11 @@ def heft_operators(linear_field, particles, conf, *, output_grid=None,
     ``output_grid`` is the cubic output side M, defaulting to the force mesh
     side. The shape is (5, M, M, M). The physical offset of output node 0
     relative to the box origin defaults to half an output cell in each axis,
-    matching cell-centered pmwd scatter. A scalar or length-3 tuple can be
-    supplied explicitly (e.g. 0 for node-centered painting).
+    aligning with tracer cells bounded by integer multiples of the output
+    cell size. This HEFT default is passed explicitly to pmwd scatter,
+    whose own default offset is zero. Do not also shift particle positions.
+    A scalar or length-3 tuple can be supplied (e.g. 0 for node-centered
+    painting).
 
     Explicit scatter weights receive exactly one factor (M/N)**3. The first
     output subtracts 1; signed channels are never divided by their weight sum
@@ -295,3 +303,4 @@ def simulate_heft(white_noise, cosmo, conf, *, a_ref=1., output_grid=None,
     return heft_operators(field, particles, conf, output_grid=output_grid,
                           smoothing=smoothing, kd=kd, radius=radius, pivot=pivot,
                           offset=offset)
+
